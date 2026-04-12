@@ -1,0 +1,23 @@
+{
+  "name": "frontend",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "nuxt": "^4.4.2",
+    "vue": "^3.5.32",
+    "vue-router": "^5.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0"
+  }
+}
