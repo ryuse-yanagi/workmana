@@ -1,6 +1,16 @@
 export function useApi () {
   const config = useRuntimeConfig()
+<<<<<<< HEAD
   const { getToken } = useAuth()
+=======
+
+  function getToken (): string {
+    if (!import.meta.client) {
+      return ''
+    }
+    return localStorage.getItem('id_token')?.trim() ?? ''
+  }
+>>>>>>> main
 
   async function api<T> (path: string, opts: Record<string, unknown> = {}): Promise<T> {
     const base = config.public.apiBaseUrl as string
