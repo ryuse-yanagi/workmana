@@ -2,15 +2,15 @@
   <main class="page">
     <h1>タスク管理</h1>
     <p class="muted">
-      バックエンド API（Laravel）と連携します。ローカルでは Cognito バイパス時、トークン欄にユーザー ID（数字）を入れてください。
+      バックエンド API(Laravel)と連携します。本番導線は <NuxtLink to="/login">ログイン画面</NuxtLink> です。ローカルでは Cognito バイパス時、トークン欄にユーザー ID(数字)を入れてください。
     </p>
     <section class="card">
       <p class="muted small">API ベース: <code>{{ apiBaseDisplay }}</code></p>
-      <label>API トークン（Bearer / Cognito ID トークン）</label>
-      <input v-model="tokenInput" type="text" placeholder="例: 1（バイパス時）" autocomplete="off" />
+      <label>API トークン(Bearer / Cognito ID トークン)</label>
+      <input v-model="tokenInput" type="text" placeholder="例: 1(バイパス時)" autocomplete="off" />
       <div class="actions">
         <button type="button" @click="saveToken">保存</button>
-        <button type="button" class="secondary" @click="testConnection">接続テスト（GET /me）</button>
+        <button type="button" class="secondary" @click="testConnection">接続テスト(GET /me)</button>
       </div>
       <p v-if="statusMessage" class="status" :class="statusKind">{{ statusMessage }}</p>
     </section>
@@ -69,7 +69,7 @@ async function testConnection () {
     const msg = e && typeof e === 'object' && 'message' in e
       ? String((e as { message: string }).message)
       : String(e)
-    setStatus(`接続失敗: ${msg}（Laravel を php artisan serve しているか確認）`, 'err')
+    setStatus(`接続失敗: ${msg}(Laravel を php artisan serve しているか確認)`, 'err')
   }
 }
 </script>
