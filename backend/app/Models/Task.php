@@ -14,7 +14,7 @@ class Task extends Model
     protected $fillable = [
         'organization_id',
         'project_id',
-        'section_id',
+        'list_id',
         'title',
         'description',
         'status',
@@ -41,9 +41,9 @@ class Task extends Model
         return $this->belongsTo(Project::class);
     }
 
-    public function section(): BelongsTo
+    public function list(): BelongsTo
     {
-        return $this->belongsTo(Section::class);
+        return $this->belongsTo(BoardList::class, 'list_id');
     }
 
     public function assignee(): BelongsTo

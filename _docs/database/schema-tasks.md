@@ -1,8 +1,8 @@
 # スキーマ: タスク・コメント・履歴
 
-関連要件: `docs/requirements/tasks.md`・`docs/requirements/projects.md`（セクション削除時の `section_id`）
+関連要件: `docs/requirements/tasks.md`・`docs/requirements/projects.md`（リスト削除時の `list_id`）
 
-プロジェクト・セクション・`project_memberships` は [schema-projects.md](./schema-projects.md)。
+プロジェクト・リスト・`project_memberships` は [schema-projects.md](./schema-projects.md)。
 
 ## task.status / task.priority
 
@@ -24,7 +24,7 @@
 | id | bigint PK | NO | |
 | organization_id | bigint FK → organizations.id | NO | 下記 `ON DELETE` を参照。親 `projects.organization_id` と**常に一致**（冗長。検証・一覧用） |
 | project_id | bigint FK → projects.id | NO | 下記 `ON DELETE` を参照 |
-| section_id | bigint FK → sections.id | YES | 非 NULL 時は当該 section の `project_id` = `tasks.project_id`。下記 `ON DELETE` を参照 |
+| list_id | bigint FK → lists.id | YES | 非 NULL 時は当該 list の `project_id` = `tasks.project_id`。下記 `ON DELETE` を参照 |
 | title | varchar(500) | NO | 前後トリム後空不可。文字数上限の API 上の定義は `docs/api` と一致させる |
 | description | text | YES | 空文字可 |
 | status | 上記「task.status / task.priority」 | NO | 既定値 `todo` |
@@ -54,7 +54,7 @@
 
 - `tasks.organization_id` → `organizations.id` **`ON DELETE RESTRICT`**
 - `tasks.project_id` → `projects.id` **`ON DELETE CASCADE`**（プロジェクト行を物理削除したとき当該タスクも削除。運用は論理削除が主でも、行削除時の整合用）
-- `tasks.section_id` → `sections.id` **`ON DELETE SET NULL`**（セクション削除時に未分類へ）
+- `tasks.list_id` → `lists.id` **`ON DELETE SET NULL`**（リスト削除時に未分類へ）
 - `tasks.assignee_id` → `users.id` **`ON DELETE SET NULL`**
 - `tasks.reporter_id` → `users.id` **`ON DELETE RESTRICT`**（参照が残る間は当該ユーザーを物理削除しない）
 
@@ -65,7 +65,7 @@ project_memberships 前提（アプリまたは DB トリガー等で担保）:
 冗長列・整合:
 
 - **`organization_id`** = 親 `projects.organization_id`（挿入・更新時に検証）
-- **`section_id` が非 NULL** なら、当該 `sections.project_id` = `tasks.project_id`
+- **`list_id` が非 NULL** なら、当該 `lists.project_id` = `tasks.project_id`
 
 ## task_comments
 

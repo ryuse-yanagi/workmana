@@ -2,22 +2,22 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Project;
-use App\Models\Section;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class SectionController extends ApiController
+class ListController extends ApiController
 {
     public function index(Request $request, Organization $organization, Project $project): JsonResponse
     {
         $this->ensureProjectBelongsToOrganization($project, $organization);
         $this->ensureProjectMember($request->user(), $project);
 
-        $sections = $project->sections()->get(['id', 'name', 'sort_order', 'created_at']);
+        $lists = $project->lists()->get(['id', 'name', 'sort_order', 'created_at']);
 
-        return response()->json(['data' => $sections]);
+        return response()->json(['data' => $lists]);
     }
 
     public function store(Request $request, Organization $organization, Project $project): JsonResponse
@@ -37,26 +37,26 @@ class SectionController extends ApiController
             return response()->json(['message' => 'Name cannot be empty.'], 422);
         }
 
-        $section = $project->sections()->create([
+        $list = $project->lists()->create([
             'name' => $name,
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
         return response()->json([
-            'id' => $section->id,
-            'name' => $section->name,
-            'sort_order' => $section->sort_order,
+            'id' => $list->id,
+            'name' => $list->name,
+            'sort_order' => $list->sort_order,
         ], 201);
     }
 
-    public function update(Request $request, Organization $organization, Project $project, Section $section): JsonResponse
+    public function update(Request $request, Organization $organization, Project $project, BoardList $boardList): JsonResponse
     {
         $this->ensureProjectBelongsToOrganization($project, $organization);
         $this->ensureProjectMember($request->user(), $project);
         $this->denyIfProjectViewer($request->user(), $project);
         $this->assertProjectNotArchived($project);
 
-        if ((int) $section->project_id !== (int) $project->id) {
+        if ((int) $boardList->project_id !== (int) $project->id) {
             abort(404);
         }
 
@@ -70,32 +70,32 @@ class SectionController extends ApiController
             if ($name === '') {
                 return response()->json(['message' => 'Name cannot be empty.'], 422);
             }
-            $section->name = $name;
+            $boardList->name = $name;
         }
         if (array_key_exists('sort_order', $validated)) {
-            $section->sort_order = $validated['sort_order'];
+            $boardList->sort_order = $validated['sort_order'];
         }
-        $section->save();
+        $boardList->save();
 
         return response()->json([
-            'id' => $section->id,
-            'name' => $section->name,
-            'sort_order' => $section->sort_order,
+            'id' => $boardList->id,
+            'name' => $boardList->name,
+            'sort_order' => $boardList->sort_order,
         ]);
     }
 
-    public function destroy(Request $request, Organization $organization, Project $project, Section $section): JsonResponse
+    public function destroy(Request $request, Organization $organization, Project $project, BoardList $boardList): JsonResponse
     {
         $this->ensureProjectBelongsToOrganization($project, $organization);
         $this->ensureProjectMember($request->user(), $project);
         $this->denyIfProjectViewer($request->user(), $project);
         $this->assertProjectNotArchived($project);
 
-        if ((int) $section->project_id !== (int) $project->id) {
+        if ((int) $boardList->project_id !== (int) $project->id) {
             abort(404);
         }
 
-        $section->delete();
+        $boardList->delete();
 
         return response()->json(null, 204);
     }

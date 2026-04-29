@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Project;
-use App\Models\Section;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -24,7 +24,7 @@ class TaskController extends ApiController
             ->orderByDesc('created_at')
             ->get([
                 'id',
-                'section_id',
+                'list_id',
                 'title',
                 'status',
                 'priority',
@@ -47,7 +47,7 @@ class TaskController extends ApiController
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
-            'section_id' => ['nullable', 'integer', 'exists:sections,id'],
+            'list_id' => ['nullable', 'integer', 'exists:lists,id'],
             'status' => ['nullable', 'string', Rule::in(TaskStatus::values())],
             'priority' => ['nullable', 'string', Rule::in(TaskPriority::values())],
             'due_date' => ['nullable', 'date'],
@@ -59,10 +59,10 @@ class TaskController extends ApiController
             return response()->json(['message' => 'Title cannot be empty.'], 422);
         }
 
-        if (! empty($validated['section_id'])) {
-            $section = Section::query()->find($validated['section_id']);
-            if ($section === null || (int) $section->project_id !== (int) $project->id) {
-                return response()->json(['message' => 'Invalid section for this project.'], 422);
+        if (! empty($validated['list_id'])) {
+            $list = BoardList::query()->find($validated['list_id']);
+            if ($list === null || (int) $list->project_id !== (int) $project->id) {
+                return response()->json(['message' => 'Invalid list for this project.'], 422);
             }
         }
 
@@ -77,7 +77,7 @@ class TaskController extends ApiController
         $task = Task::query()->create([
             'organization_id' => $organization->id,
             'project_id' => $project->id,
-            'section_id' => $validated['section_id'] ?? null,
+            'list_id' => $validated['list_id'] ?? null,
             'title' => $title,
             'description' => $validated['description'] ?? null,
             'status' => $validated['status'] ?? TaskStatus::Todo->value,
@@ -120,7 +120,7 @@ class TaskController extends ApiController
         $validated = $request->validate([
             'title' => ['sometimes', 'string', 'max:500'],
             'description' => ['nullable', 'string'],
-            'section_id' => ['nullable', 'integer', 'exists:sections,id'],
+            'list_id' => ['nullable', 'integer', 'exists:lists,id'],
             'status' => ['sometimes', 'string', Rule::in(TaskStatus::values())],
             'priority' => ['sometimes', 'string', Rule::in(TaskPriority::values())],
             'due_date' => ['nullable', 'date'],
@@ -137,15 +137,15 @@ class TaskController extends ApiController
         if (array_key_exists('description', $validated)) {
             $task->description = $validated['description'];
         }
-        if (array_key_exists('section_id', $validated)) {
-            if ($validated['section_id'] === null) {
-                $task->section_id = null;
+        if (array_key_exists('list_id', $validated)) {
+            if ($validated['list_id'] === null) {
+                $task->list_id = null;
             } else {
-                $section = Section::query()->find($validated['section_id']);
-                if ($section === null || (int) $section->project_id !== (int) $project->id) {
-                    return response()->json(['message' => 'Invalid section for this project.'], 422);
+                $list = BoardList::query()->find($validated['list_id']);
+                if ($list === null || (int) $list->project_id !== (int) $project->id) {
+                    return response()->json(['message' => 'Invalid list for this project.'], 422);
                 }
-                $task->section_id = $section->id;
+                $task->list_id = $list->id;
             }
         }
         if (array_key_exists('status', $validated)) {
@@ -197,7 +197,7 @@ class TaskController extends ApiController
     {
         return [
             'id' => $task->id,
-            'section_id' => $task->section_id,
+            'list_id' => $task->list_id,
             'title' => $task->title,
             'description' => $task->description,
             'status' => $task->status,

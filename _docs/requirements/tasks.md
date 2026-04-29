@@ -22,7 +22,7 @@
 - Organization: プロジェクトが所属する組織
 - Assignee: タスク担当者
 - Reporter: タスク起票者
-- Section: プロジェクト内でタスクを分類する単位
+- List: プロジェクト内でタスクを分類する単位（DB テーブル名は `lists`）
 - Status: タスク状態（`todo` / `in_progress` / `done`）
 - Priority: 優先度（`low` / `medium` / `high`）
 - Mention: コメント本文で特定ユーザーを指定し通知するための記法
@@ -61,8 +61,8 @@
 - 一覧の既定ソートは `created_at DESC` とする。
 - 一覧はページングを提供する（ページサイズ・上限は `docs/api` で定義する）。
 - 一覧には少なくとも `title`、`status`、`priority`、`due_date`、`assignee`、`updated_at` を表示する。
-- タスクは任意で section に所属可能とし、section 未所属タスクも表示可能とする。
-- タスク一覧は section ごとにグルーピング表示可能とする。
+- タスクは任意で list に所属可能とし、list 未所属タスクも表示可能とする。
+- タスク一覧は list ごとにグルーピング表示可能とする。
 
 ### タスク更新
 
@@ -171,7 +171,7 @@
 - **`task.project_id`** が参照する project は、**`task.organization_id` と同一の organization** に属していること（冗長な `organization_id` は整合性検証に用いる）。
 - **`project_memberships`** に登録されるユーザーは、必ず**同一 organization の `memberships`** を持つこと（プロジェクト参加は組織所属を前提とする）。
 - ユーザーが複数 organization / project に所属する場合、現在コンテキストで操作対象を決定する。
-- **project** エンティティは `organization_id` を持ち、タスク・セクション等の上位として `docs/database` で定義する（本書では `project_id` / `organization_id` の整合のみ要件化する）。
+- **project** エンティティは `organization_id` を持ち、タスク・リスト等の上位として `docs/database` で定義する（本書では `project_id` / `organization_id` の整合のみ要件化する）。
 
 ### organization からのメンバー削除と業務データ
 
@@ -195,7 +195,7 @@ tasks
 - id
 - organization_id
 - project_id
-- section_id（nullable）
+- list_id（nullable）
 - title
 - description
 - status
@@ -217,9 +217,9 @@ tasks
 - `reporter_id` は必須であり、当該 `project_id` の **project_memberships** に存在するユーザーであること
 - `assignee_id` を指定する場合、当該 `project_id` の **project_memberships** に存在するユーザーのみ
 - assignee は1タスクにつき1ユーザーのみとする
-- `section_id` は nullable とし、指定時は同一 `project_id` の section のみ参照可能とする
+- `list_id` は nullable とし、指定時は同一 `project_id` の list のみ参照可能とする
 
-sections
+lists
 - id
 - project_id
 - name
@@ -227,7 +227,7 @@ sections
 - created_at
 - updated_at
 
-制約（sections）:
+制約（lists）:
 - `project_id` は必須
 - `name` は必須（前後トリム後に空文字不可）
 - 同一 project 内で `name` は一意を推奨

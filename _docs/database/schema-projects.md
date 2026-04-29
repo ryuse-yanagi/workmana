@@ -42,7 +42,7 @@
 
 - **`projects.created_by` を `user_id` とし、`project_memberships` に `role = admin` の行を同時に追加する**（詳細は `docs/permissions`）。
 
-## sections
+## lists
 
 | カラム | 型（目安） | NULL | 説明 |
 |--------|------------|------|------|
@@ -60,7 +60,7 @@
 
 外部キー・削除時:
 
-- `sections.project_id` → `projects.id` **`ON DELETE CASCADE`**
+- `lists.project_id` → `projects.id` **`ON DELETE CASCADE`**
 
 ## project_memberships
 

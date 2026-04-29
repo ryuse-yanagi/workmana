@@ -38,9 +38,9 @@ class Project extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function sections(): HasMany
+    public function lists(): HasMany
     {
-        return $this->hasMany(Section::class)->orderBy('sort_order');
+        return $this->hasMany(BoardList::class)->orderBy('sort_order');
     }
 
     public function memberships(): BelongsToMany

@@ -6,8 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Section extends Model
+class BoardList extends Model
 {
+    protected $table = 'lists';
+
     protected $fillable = [
         'project_id',
         'name',
@@ -21,6 +23,6 @@ class Section extends Model
 
     public function tasks(): HasMany
     {
-        return $this->hasMany(Task::class);
+        return $this->hasMany(Task::class, 'list_id');
     }
 }

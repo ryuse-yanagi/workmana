@@ -13,7 +13,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('organization_id')->constrained()->restrictOnDelete();
             $table->foreignId('project_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('section_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('list_id')->nullable()->constrained('lists')->nullOnDelete();
             $table->string('title', 500);
             $table->text('description')->nullable();
             $table->string('status', 32)->default('todo');

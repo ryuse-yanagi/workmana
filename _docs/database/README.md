@@ -9,7 +9,7 @@
 
 1. **[enums.md](./enums.md)** … 列挙値の**単一参照元**（アプリ定数・OpenAPI・DB の `ENUM` / `CHECK` と揃える）。
 2. **[schema-auth.md](./schema-auth.md)** … ユーザー・組織・`memberships`・`invites`・リセット/検証トークン。
-3. **[schema-projects.md](./schema-projects.md)** … `projects`・`sections`・`project_memberships`（`memberships.role` と同一の `ENUM` をプロジェクト側でも使用）。
+3. **[schema-projects.md](./schema-projects.md)** … `projects`・`lists`・`project_memberships`（`memberships.role` と同一の `ENUM` をプロジェクト側でも使用）。
 4. **[schema-tasks.md](./schema-tasks.md)** … `tasks`・`task_comments`・`task_histories`（検索インデックス・`ON DELETE` 方針まで記載）。
 
 ドメイン横断のルール（論理削除の一覧対象、`project_memberships` 前提など）は各 `schema-*.md` 内の見出しで完結するようにしてあります。
@@ -20,7 +20,7 @@
 |----------|------|
 | [enums.md](./enums.md) | `task.status` / `priority`・`membership.role`（`invites.role` 含む）・`project_membership.role`（参照のみ）・`task_history.event_type` |
 | [schema-auth.md](./schema-auth.md) | `users`・`organizations`・`memberships`・`invites`・`password_reset_tokens`・`email_verification_tokens` |
-| [schema-projects.md](./schema-projects.md) | `projects`・`sections`・`project_memberships` |
+| [schema-projects.md](./schema-projects.md) | `projects`・`lists`・`project_memberships` |
 | [schema-tasks.md](./schema-tasks.md) | `tasks`・`task_comments`・`task_histories` |
 
 **ER 図**は未同梱です。必要になったら `er.md` 等に Mermaid や外部ツール出力を追加してください。
