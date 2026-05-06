@@ -15,6 +15,31 @@
       <p v-if="statusMessage" class="status" :class="statusKind">{{ statusMessage }}</p>
     </section>
     <section class="card">
+      <h2>ユーザーアイコン</h2>
+      <p class="muted">ログイン中ユーザーのアイコン画像を設定できます（最大2MB）。</p>
+      <div class="avatar-row">
+        <img
+          v-if="avatarPreviewUrl"
+          :src="avatarPreviewUrl"
+          alt="ユーザーアイコン"
+          class="avatar-image"
+        />
+        <div v-else class="avatar-placeholder">No Icon</div>
+        <div class="avatar-controls">
+          <input type="file" accept="image/*" @change="onAvatarFileChange" />
+          <div class="actions">
+            <button type="button" :disabled="avatarUploading || !selectedAvatarFile" @click="uploadAvatar">
+              {{ avatarUploading ? 'アップロード中...' : 'アイコンを保存' }}
+            </button>
+            <button type="button" class="secondary" :disabled="avatarUploading || !avatarPreviewUrl" @click="deleteAvatar">
+              アイコンを削除
+            </button>
+          </div>
+        </div>
+      </div>
+      <p v-if="avatarMessage" class="status" :class="avatarStatusKind">{{ avatarMessage }}</p>
+    </section>
+    <section class="card">
       <h2>組織の URL</h2>
       <p class="muted">設計どおり <code>/org/&#123;slug&#125;</code> で識別します。</p>
       <label>スラッグ</label>
@@ -37,6 +62,11 @@ const tokenInput = ref('')
 const slug = ref('')
 const statusMessage = ref('')
 const statusKind = ref<'ok' | 'err'>('ok')
+const avatarPreviewUrl = ref<string | null>(null)
+const selectedAvatarFile = ref<File | null>(null)
+const avatarUploading = ref(false)
+const avatarMessage = ref('')
+const avatarStatusKind = ref<'ok' | 'err'>('ok')
 
 const apiBaseDisplay = computed(() => (config.public.apiBaseUrl as string) || '/api')
 
@@ -57,19 +87,81 @@ function saveToken () {
   setStatus('ローカルに保存しました。このあと「接続テスト」か組織ページで API を呼べます。', 'ok')
 }
 
+function setAvatarStatus (msg: string, kind: 'ok' | 'err') {
+  avatarMessage.value = msg
+  avatarStatusKind.value = kind
+}
+
+function onAvatarFileChange (event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  selectedAvatarFile.value = file
+  if (file) {
+    avatarPreviewUrl.value = URL.createObjectURL(file)
+    setAvatarStatus('選択した画像を確認して保存してください。', 'ok')
+  }
+}
+
 async function testConnection () {
   if (!import.meta.client) {
     return
   }
   setStatus('確認中…', 'ok')
   try {
-    const me = await api<{ email?: string }>('/me')
+    const me = await api<{ email?: string; avatar_url?: string | null }>('/me')
+    avatarPreviewUrl.value = me.avatar_url || null
     setStatus(`接続成功: ${me.email ?? JSON.stringify(me)}`, 'ok')
   } catch (e: unknown) {
     const msg = e && typeof e === 'object' && 'message' in e
       ? String((e as { message: string }).message)
       : String(e)
     setStatus(`接続失敗: ${msg}(Laravel を php artisan serve しているか確認)`, 'err')
+  }
+}
+
+async function uploadAvatar () {
+  if (!selectedAvatarFile.value) {
+    return
+  }
+  avatarUploading.value = true
+  setAvatarStatus('', 'ok')
+  try {
+    const body = new FormData()
+    body.append('avatar', selectedAvatarFile.value)
+    const res = await api<{ avatar_url: string | null }>('/me/avatar', {
+      method: 'POST',
+      body,
+    })
+    avatarPreviewUrl.value = res.avatar_url
+    selectedAvatarFile.value = null
+    setAvatarStatus('アイコンを更新しました。', 'ok')
+  } catch (e: unknown) {
+    const msg = e && typeof e === 'object' && 'message' in e
+      ? String((e as { message: string }).message)
+      : String(e)
+    setAvatarStatus(`アップロード失敗: ${msg}`, 'err')
+  } finally {
+    avatarUploading.value = false
+  }
+}
+
+async function deleteAvatar () {
+  avatarUploading.value = true
+  setAvatarStatus('', 'ok')
+  try {
+    await api('/me/avatar', {
+      method: 'DELETE',
+    })
+    avatarPreviewUrl.value = null
+    selectedAvatarFile.value = null
+    setAvatarStatus('アイコンを削除しました。', 'ok')
+  } catch (e: unknown) {
+    const msg = e && typeof e === 'object' && 'message' in e
+      ? String((e as { message: string }).message)
+      : String(e)
+    setAvatarStatus(`削除失敗: ${msg}`, 'err')
+  } finally {
+    avatarUploading.value = false
   }
 }
 </script>
@@ -93,4 +185,21 @@ button.secondary { background: #334155; }
 .status.err { color: #b91c1c; }
 .small { margin-bottom: 0.5rem; }
 code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; }
+.avatar-row { display: flex; gap: 1rem; align-items: center; }
+.avatar-image, .avatar-placeholder {
+  width: 72px;
+  height: 72px;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;
+}
+.avatar-image { object-fit: cover; background: #fff; }
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 0.8rem;
+}
+.avatar-controls { flex: 1; }
 </style>

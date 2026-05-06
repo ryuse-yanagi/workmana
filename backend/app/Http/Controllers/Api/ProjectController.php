@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\MembershipRole;
+use App\Models\ProjectLabel;
 use App\Models\Organization;
 use App\Models\Project;
 use Illuminate\Http\JsonResponse;
@@ -12,13 +13,23 @@ class ProjectController extends ApiController
 {
     public function index(Request $request, Organization $organization): JsonResponse
     {
+        $labelIds = $this->normalizeLabelIds($request->query('label_ids'));
+
         $query = $request->user()
             ->projects()
             ->where('projects.organization_id', $organization->id)
+            ->with(['labels:id,name,color'])
             ->orderByDesc('projects.created_at');
 
         if (! $request->boolean('archived')) {
             $query->whereNull('projects.archived_at');
+        }
+
+        if ($labelIds !== []) {
+            $query->whereHas('labels', function ($q) use ($labelIds, $organization) {
+                $q->where('project_labels.organization_id', $organization->id)
+                    ->whereIn('project_labels.id', $labelIds);
+            });
         }
 
         $projects = $query->get([
@@ -40,6 +51,8 @@ class ProjectController extends ApiController
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'label_ids' => ['nullable', 'array'],
+            'label_ids.*' => ['integer', 'distinct'],
         ]);
 
         $name = trim($validated['name']);
@@ -56,6 +69,14 @@ class ProjectController extends ApiController
             'description' => $validated['description'] ?? null,
         ]);
 
+        $labelIds = $this->validateProjectLabelIds(
+            $organization,
+            $validated['label_ids'] ?? [],
+        );
+        if ($labelIds !== []) {
+            $project->labels()->sync($labelIds);
+        }
+
         $project->memberships()->attach($user->id, [
             'role' => MembershipRole::Admin->value,
             'added_by' => $user->id,
@@ -66,6 +87,7 @@ class ProjectController extends ApiController
             'name' => $project->name,
             'description' => $project->description,
             'archived_at' => $project->archived_at,
+            'labels' => $project->labels()->get(['project_labels.id', 'project_labels.name', 'project_labels.color']),
         ], 201);
     }
 
@@ -74,12 +96,15 @@ class ProjectController extends ApiController
         $this->ensureProjectBelongsToOrganization($project, $organization);
         $this->ensureProjectMember($request->user(), $project);
 
+        $project->load(['labels:id,name,color']);
+
         return response()->json([
             'id' => $project->id,
             'name' => $project->name,
             'description' => $project->description,
             'archived_at' => $project->archived_at,
             'created_at' => $project->created_at,
+            'labels' => $project->labels,
         ]);
     }
 
@@ -96,6 +121,8 @@ class ProjectController extends ApiController
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'label_ids' => ['nullable', 'array'],
+            'label_ids.*' => ['integer', 'distinct'],
         ]);
 
         if (array_key_exists('name', $validated)) {
@@ -110,10 +137,17 @@ class ProjectController extends ApiController
         }
         $project->save();
 
+        if (array_key_exists('label_ids', $validated)) {
+            $labelIds = $this->validateProjectLabelIds($organization, $validated['label_ids'] ?? []);
+            $project->labels()->sync($labelIds);
+        }
+        $project->load(['labels:id,name,color']);
+
         return response()->json([
             'id' => $project->id,
             'name' => $project->name,
             'description' => $project->description,
+            'labels' => $project->labels,
         ]);
     }
 
@@ -145,5 +179,43 @@ class ProjectController extends ApiController
         $project->delete();
 
         return response()->json(null, 204);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function normalizeLabelIds(mixed $raw): array
+    {
+        if (is_string($raw)) {
+            $parts = array_filter(array_map('trim', explode(',', $raw)), fn ($v) => $v !== '');
+            return array_values(array_unique(array_map('intval', $parts)));
+        }
+        if (is_array($raw)) {
+            return array_values(array_unique(array_map('intval', $raw)));
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, mixed> $labelIds
+     * @return array<int, int>
+     */
+    private function validateProjectLabelIds(Organization $organization, array $labelIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $labelIds)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $count = ProjectLabel::query()
+            ->where('organization_id', $organization->id)
+            ->whereIn('id', $ids)
+            ->count();
+        if ($count !== count($ids)) {
+            abort(422, 'One or more labels are invalid for this organization.');
+        }
+
+        return $ids;
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -22,12 +23,14 @@ class Task extends Model
         'due_date',
         'assignee_id',
         'reporter_id',
+        'archived_at',
     ];
 
     protected function casts(): array
     {
         return [
             'due_date' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 
@@ -61,6 +64,11 @@ class Task extends Model
         return $this->hasMany(TaskComment::class);
     }
 
+    public function labels(): BelongsToMany
+    {
+        return $this->belongsToMany(TaskLabel::class, 'task_task_label')->withTimestamps();
+    }
+
     public function histories(): HasMany
     {
         return $this->hasMany(TaskHistory::class)->orderBy('created_at');
@@ -69,5 +77,15 @@ class Task extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereNull('deleted_at');
+    }
+
+    public function scopeNotArchived(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->whereNotNull('archived_at');
     }
 }

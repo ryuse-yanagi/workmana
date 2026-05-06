@@ -21,6 +21,7 @@ return new class extends Migration
             $table->timestamp('due_date')->nullable();
             $table->foreignId('assignee_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('reporter_id')->constrained('users')->restrictOnDelete();
+            $table->timestamp('archived_at')->nullable();
             $table->timestamp('deleted_at')->nullable();
             $table->timestamps();
             $table->index(['project_id', 'deleted_at', 'created_at']);
@@ -28,6 +29,7 @@ return new class extends Migration
             $table->index(['assignee_id', 'deleted_at']);
             $table->index(['project_id', 'status', 'deleted_at']);
             $table->index(['project_id', 'due_date', 'deleted_at']);
+            $table->index(['project_id', 'archived_at']);
         });
 
         if (Schema::getConnection()->getDriverName() === 'pgsql') {

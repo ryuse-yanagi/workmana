@@ -20,6 +20,7 @@ class OrganizationController extends ApiController
                 'id' => $o->id,
                 'name' => $o->name,
                 'slug' => $o->slug,
+                'work_unit_label' => $o->work_unit_label ?? 'プロジェクト',
                 'role' => $o->pivot->role,
             ]),
         ]);
@@ -48,6 +49,7 @@ class OrganizationController extends ApiController
         $org = Organization::query()->create([
             'name' => $name,
             'slug' => Str::lower($validated['slug']),
+            'work_unit_label' => 'プロジェクト',
             'created_by' => $user->id,
         ]);
 
@@ -60,6 +62,43 @@ class OrganizationController extends ApiController
             'id' => $org->id,
             'name' => $org->name,
             'slug' => $org->slug,
+            'work_unit_label' => $org->work_unit_label,
         ], 201);
+    }
+
+    public function settings(Request $request, Organization $organization): JsonResponse
+    {
+        return response()->json([
+            'id' => $organization->id,
+            'name' => $organization->name,
+            'slug' => $organization->slug,
+            'work_unit_label' => $organization->work_unit_label ?? 'プロジェクト',
+        ]);
+    }
+
+    public function updateSettings(Request $request, Organization $organization): JsonResponse
+    {
+        $pivot = $request->attributes->get('organization_membership');
+        if (($pivot->role ?? '') !== 'admin') {
+            abort(403, 'Only organization admins can update organization settings.');
+        }
+
+        $validated = $request->validate([
+            'work_unit_label' => ['required', 'string', 'max:40'],
+        ]);
+
+        $label = trim($validated['work_unit_label']);
+        if ($label === '') {
+            return response()->json(['message' => 'Work unit label cannot be empty.'], 422);
+        }
+
+        $organization->work_unit_label = $label;
+        $organization->save();
+
+        return response()->json([
+            'id' => $organization->id,
+            'slug' => $organization->slug,
+            'work_unit_label' => $organization->work_unit_label,
+        ]);
     }
 }

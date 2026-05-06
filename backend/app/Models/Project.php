@@ -55,6 +55,11 @@ class Project extends Model
         return $this->hasMany(Task::class);
     }
 
+    public function labels(): BelongsToMany
+    {
+        return $this->belongsToMany(ProjectLabel::class, 'project_project_label')->withTimestamps();
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereNull('deleted_at');

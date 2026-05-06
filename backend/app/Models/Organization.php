@@ -12,6 +12,7 @@ class Organization extends Model
     protected $fillable = [
         'name',
         'slug',
+        'work_unit_label',
         'created_by',
     ];
 
@@ -35,5 +36,15 @@ class Organization extends Model
     public function projects(): HasMany
     {
         return $this->hasMany(Project::class);
+    }
+
+    public function projectLabels(): HasMany
+    {
+        return $this->hasMany(ProjectLabel::class)->orderBy('name');
+    }
+
+    public function taskLabels(): HasMany
+    {
+        return $this->hasMany(TaskLabel::class)->orderBy('name');
     }
 }
