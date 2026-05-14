@@ -13,7 +13,10 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "laravel-echo": "^2.3.4",
+    "lucide-vue-next": "^1.0.0",
     "nuxt": "^4.4.2",
+    "pusher-js": "^8.5.0",
     "vue": "^3.5.32",
     "vue-router": "^5.0.4",
     "vuedraggable": "^4.1.0"

@@ -5,8 +5,15 @@
         <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goProjectList">
           {{ workUnitListLabel }}
         </button>
-        <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goSettingsProfile">
-          設定
+        <button
+          type="button"
+          class="nav-btn nav-btn--icon"
+          :disabled="!orgSlug"
+          aria-label="設定"
+          title="設定"
+          @click="goSettingsProfile"
+        >
+          <Settings :size="18" :stroke-width="2.25" aria-hidden="true" />
         </button>
       </div>
 
@@ -35,6 +42,7 @@
 </template>
 
 <script setup lang="ts">
+import { Settings } from 'lucide-vue-next'
 import { useApi } from '../composables/useApi'
 import { useAuth } from '../composables/useAuth'
 
@@ -298,6 +306,12 @@ onBeforeUnmount(() => {
   line-height: 1.1;
   font-weight: 500;
   cursor: pointer;
+}
+
+.nav-btn--icon {
+  width: 2.25rem;
+  padding: 0;
+  justify-content: center;
 }
 
 .nav-btn:disabled {

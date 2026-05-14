@@ -1,11 +1,27 @@
 <template>
-  <main class="archived-page">
+  <main class="archived-page" :class="{ 'archived-page--await': !pageReady && !fatalLoadError }">
+    <template v-if="!pageReady && !fatalLoadError">
+      <div class="page-await-spacer" aria-busy="true" />
+    </template>
+
+    <template v-else-if="fatalLoadError">
+      <section class="load-fatal-panel">
+        <p class="load-fatal-message">{{ fatalLoadError }}</p>
+        <button type="button" class="load-fatal-retry" @click="retryArchivedLoad">
+          再試行
+        </button>
+      </section>
+    </template>
+
+    <template v-else>
+    <Transition name="tm-fade" appear>
+      <div key="archived-shell" class="page-shell-fade">
     <header class="page-header">
       <div class="header-top">
         <NuxtLink :to="`/org/${slug}/projects/${projectId}`" class="back-link">
           ← ボードに戻る
         </NuxtLink>
-        <button class="ghost-btn" type="button" :disabled="loading" @click="load">
+        <button class="ghost-btn" type="button" :disabled="loading" @click="reloadArchived">
           {{ loading ? '更新中...' : '再読み込み' }}
         </button>
       </div>
@@ -17,15 +33,12 @@
 
     <p v-if="error" class="err">{{ error }}</p>
 
-    <section v-if="loading && !hasLoadedOnce" class="empty-state">
-      <p>読み込み中...</p>
-    </section>
+    <Transition name="tm-fade" mode="out-in">
+      <section v-if="!tasks?.length" key="empty" class="empty-state">
+        <p>アーカイブ済みのカードはありません。</p>
+      </section>
 
-    <section v-else-if="!tasks?.length" class="empty-state">
-      <p>アーカイブ済みのカードはありません。</p>
-    </section>
-
-    <ul v-else class="archived-list">
+      <ul v-else key="list" class="archived-list">
       <li v-for="task in tasks" :key="task.id" class="archived-row">
         <div class="archived-main">
           <p class="task-title">{{ task.title }}</p>
@@ -54,6 +67,12 @@
         </div>
       </li>
     </ul>
+    </Transition>
+
+      </div>
+    </Transition>
+
+    </template>
 
     <ConfirmModal
       v-model="restoreConfirmOpen"
@@ -76,6 +95,7 @@
 </template>
 
 <script setup lang="ts">
+import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
 import { useApi } from '../../../../../composables/useApi'
 import { useOrgTerminology } from '../../../../../composables/useOrgTerminology'
 
@@ -98,7 +118,8 @@ type Task = {
 const tasks = ref<Task[] | null>(null)
 const error = ref<string | null>(null)
 const loading = ref(false)
-const hasLoadedOnce = ref(false)
+const pageReady = ref(false)
+const fatalLoadError = ref<string | null>(null)
 const pendingId = ref<number | null>(null)
 const workUnitLabel = ref(DEFAULT_WORK_UNIT_LABEL)
 const deleteConfirmTask = ref<Task | null>(null)
@@ -124,24 +145,59 @@ function formatDate (iso: string) {
   }
 }
 
-async function load () {
+async function fetchArchived () {
+  const [res, label] = await Promise.all([
+    api<{ data: Task[] }>(
+      `/orgs/${slug.value}/projects/${projectId.value}/tasks/archived`,
+    ),
+    fetchWorkUnitLabel(slug.value),
+  ])
+  return { res, label }
+}
+
+async function load (opts?: { refresh?: boolean }) {
+  const refresh = opts?.refresh ?? false
   error.value = null
+  if (!refresh) {
+    fatalLoadError.value = null
+  }
   loading.value = true
+
   try {
-    const [res, label] = await Promise.all([
-      api<{ data: Task[] }>(
-        `/orgs/${slug.value}/projects/${projectId.value}/tasks/archived`,
-      ),
-      fetchWorkUnitLabel(slug.value),
-    ])
-    tasks.value = res.data
-    workUnitLabel.value = label
+    if (!pageReady.value && !refresh) {
+      const r = await raceWithTimeout(() => fetchArchived(), TM_PAGE_LOAD_TIMEOUT_MS)
+      if (!r.ok) {
+        fatalLoadError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
+        return
+      }
+      tasks.value = r.value.res.data
+      workUnitLabel.value = r.value.label
+      pageReady.value = true
+    } else {
+      const data = await fetchArchived()
+      tasks.value = data.res.data
+      workUnitLabel.value = data.label
+      pageReady.value = true
+    }
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : '読み込みに失敗しました'
+    const msg = e instanceof Error ? e.message : '読み込みに失敗しました'
+    if (!pageReady.value && !refresh) {
+      fatalLoadError.value = msg
+    } else {
+      error.value = msg
+    }
   } finally {
     loading.value = false
-    hasLoadedOnce.value = true
   }
+}
+
+function reloadArchived () {
+  void load({ refresh: true })
+}
+
+function retryArchivedLoad () {
+  fatalLoadError.value = null
+  void load()
 }
 
 async function restoreTask (task: Task) {

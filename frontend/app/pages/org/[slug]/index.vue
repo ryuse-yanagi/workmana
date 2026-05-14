@@ -1,103 +1,131 @@
 <template>
-  <main class="list-page" :style="listPageCssVars">
-    <!-- ページ別ヘッダー -->
-    <header class="page-header">
-      <div class="subheader">
-        <p class="subheader-title">{{ workUnitListLabel }}｜</p>
-        <div class="subheader-filters">
-          <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
-            <option value="">全ラベル</option>
-            <option v-for="label in orgLabels" :key="label.id" :value="String(label.id)">
-              {{ label.name }}
-            </option>
-          </select>
-          <select v-model="sortMode" class="header-sort" aria-label="並び順">
-            <option value="newest">ID降順</option>
-            <option value="oldest">ID昇順</option>
-            <option value="name">名前順</option>
-          </select>
-          <p class="subheader-count" aria-live="polite">{{ visibleProjects.length }} 件</p>
-          <input
-            v-model.trim="searchQuery"
-            class="header-search"
-            type="search"
-            :placeholder="`${workUnitLabel}名で検索`"
-            aria-label="検索"
-          />
-        </div>
-        <button class="header-primary-btn" type="button" :disabled="pending" @click="openProjectCreateModal">
-          新規作成
+  <main
+    class="list-page"
+    :class="{ 'list-page--await': !pageReady && !fatalLoadError }"
+    :style="listPageCssVars"
+  >
+    <template v-if="!pageReady && !fatalLoadError">
+      <div class="page-await-spacer" aria-busy="true" />
+    </template>
+
+    <template v-else-if="fatalLoadError">
+      <section class="load-fatal-panel">
+        <p class="load-fatal-message">{{ fatalLoadError }}</p>
+        <button type="button" class="load-fatal-retry" @click="retryInitialLoad">
+          再試行
         </button>
-      </div>
-    </header>
+      </section>
+    </template>
 
-    <!-- 新規作成モーダル -->
-    <ProjectCreateModal
-      v-model="projectCreateModalOpen"
-      :title="`${workUnitLabel}の新規作成`"
-      :work-unit-label="workUnitLabel"
-      :labels="orgLabels"
-      :loading="pending"
-      @submit="createProject"
-    />
-
-    <!-- エラー表示 -->
-    <p v-if="error" class="err">{{ error }}</p>
-
-    <!-- プロジェクト一覧 -->
-    <section class="table-card">
-      <div class="table-wrap">
-        <table class="project-table">
-          <thead>
-            <tr>
-              <th>名前</th>
-              <th>ID</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="3" class="empty">読み込み中...</td>
-            </tr>
-            <tr v-else-if="!visibleProjects.length">
-              <td colspan="3" class="empty">該当する{{ workUnitLabel }}がありません。</td>
-            </tr>
-            <tr
-              v-for="project in visibleProjects"
-              :key="project.id"
-              :class="['clickable-row', { 'project-row--fade-in': isProjectJustCreated(project.id) }]"
-              role="button"
-              tabindex="0"
-              @click="goToProject(project.id)"
-              @keydown.enter.prevent="goToProject(project.id)"
-              @keydown.space.prevent="goToProject(project.id)"
-            >
-              <td class="name-cell">
-                <p class="name-text">{{ project.name }}</p>
-                <div class="label-list">
-                  <span
-                    v-for="label in project.labels ?? []"
-                    :key="label.id"
-                    class="inline-label"
-                  >
-                    <span class="label-dot" :style="{ backgroundColor: label.color }" />
+    <template v-else>
+      <Transition name="tm-fade" appear>
+        <div key="list-shell" class="page-shell-fade">
+          <!-- ページ別ヘッダー -->
+          <header class="page-header">
+            <div class="subheader">
+              <p class="subheader-title">{{ workUnitListLabel }}｜</p>
+              <div class="subheader-filters">
+                <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
+                  <option value="">全ラベル</option>
+                  <option v-for="label in orgLabels" :key="label.id" :value="String(label.id)">
                     {{ label.name }}
-                  </span>
-                </div>
-              </td>
-              <td>#{{ project.id }}</td>
-              <td>
-                <span class="mini-btn">詳細</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+                  </option>
+                </select>
+                <select v-model="sortMode" class="header-sort" aria-label="並び順">
+                  <option value="newest">ID降順</option>
+                  <option value="oldest">ID昇順</option>
+                  <option value="name">名前順</option>
+                </select>
+                <p class="subheader-count" aria-live="polite">{{ visibleProjects.length }} 件</p>
+                <input
+                  v-model.trim="searchQuery"
+                  class="header-search"
+                  type="search"
+                  :placeholder="`${workUnitLabel}名で検索`"
+                  aria-label="検索"
+                />
+              </div>
+              <button
+                class="header-primary-btn header-primary-btn--icon"
+                type="button"
+                :disabled="pending"
+                aria-label="新規作成"
+                title="新規作成"
+                @click="openProjectCreateModal"
+              >
+                <Plus :size="24" :stroke-width="2.25" aria-hidden="true" />
+              </button>
+            </div>
+          </header>
+
+          <!-- エラー表示 -->
+          <p v-if="error" class="err">{{ error }}</p>
+
+          <section class="table-card">
+            <div class="table-wrap">
+              <table class="project-table">
+                <thead>
+                  <tr>
+                    <th>名前</th>
+                    <th>ID</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="!visibleProjects.length">
+                    <td colspan="3" class="empty">該当する{{ workUnitLabel }}がありません。</td>
+                  </tr>
+                  <tr
+                    v-for="project in visibleProjects"
+                    :key="project.id"
+                    :class="['clickable-row', { 'project-row--fade-in': isProjectJustCreated(project.id) }]"
+                    role="button"
+                    tabindex="0"
+                    @click="goToProject(project.id)"
+                    @keydown.enter.prevent="goToProject(project.id)"
+                    @keydown.space.prevent="goToProject(project.id)"
+                  >
+                    <td class="name-cell">
+                      <p class="name-text">{{ project.name }}</p>
+                      <div class="label-list">
+                        <span
+                          v-for="label in project.labels ?? []"
+                          :key="label.id"
+                          class="inline-label"
+                        >
+                          <span class="label-dot" :style="{ backgroundColor: label.color }" />
+                          {{ label.name }}
+                        </span>
+                      </div>
+                    </td>
+                    <td>#{{ project.id }}</td>
+                    <td>
+                      <span class="mini-btn">詳細</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </Transition>
+
+      <!-- 新規作成モーダル（オーバーレイのためフェード対象外） -->
+      <ProjectCreateModal
+        v-model="projectCreateModalOpen"
+        :title="`${workUnitLabel}の新規作成`"
+        :work-unit-label="workUnitLabel"
+        :labels="orgLabels"
+        :loading="pending"
+        @submit="createProject"
+      />
+    </template>
   </main>
 </template>
 
 <script setup lang="ts">
+import { Plus } from 'lucide-vue-next'
+import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
 import { useApi } from '../../../composables/useApi'
 import { useOrgTerminology } from '../../../composables/useOrgTerminology'
 
@@ -112,7 +140,10 @@ const { api } = useApi()
 const { fetchWorkUnitLabel, DEFAULT_WORK_UNIT_LABEL } = useOrgTerminology()
 
 const projects = ref<Project[]>([])
-const loading = ref(false)
+/** 初回取得成功まで UI を出さない */
+const pageReady = ref(false)
+/** 初回のみ：タイムアウト／API 失敗時にブロッキング表示 */
+const fatalLoadError = ref<string | null>(null)
 const pending = ref(false)
 const error = ref<string | null>(null)
 const searchQuery = ref('')
@@ -169,27 +200,60 @@ function openProjectCreateModal () {
   projectCreateModalOpen.value = true
 }
 
-async function load () {
+async function fetchOrgIndex () {
+  const [projectsRes, label, labelsRes] = await Promise.all([
+    api<{ data: Project[] }>(`/orgs/${slug.value}/projects`),
+    fetchWorkUnitLabel(slug.value),
+    api<{ data: Label[] }>(`/orgs/${slug.value}/project-labels`),
+  ])
+  return { projectsRes, label, labelsRes }
+}
+
+function applyOrgIndex (data: Awaited<ReturnType<typeof fetchOrgIndex>>) {
+  projects.value = data.projectsRes.data
+  orgLabels.value = data.labelsRes.data
+  workUnitLabel.value = data.label
+}
+
+async function load (opts?: { refresh?: boolean }) {
+  const refresh = opts?.refresh ?? false
   error.value = null
-  loading.value = true
+  if (!refresh) {
+    fatalLoadError.value = null
+  }
+
   try {
-    const [projectsRes, label, labelsRes] = await Promise.all([
-      api<{ data: Project[] }>(`/orgs/${slug.value}/projects`),
-      fetchWorkUnitLabel(slug.value),
-      api<{ data: Label[] }>(`/orgs/${slug.value}/project-labels`),
-    ])
-    projects.value = projectsRes.data
-    orgLabels.value = labelsRes.data
-    workUnitLabel.value = label
+    if (!pageReady.value && !refresh) {
+      const r = await raceWithTimeout(() => fetchOrgIndex(), TM_PAGE_LOAD_TIMEOUT_MS)
+      if (!r.ok) {
+        fatalLoadError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
+        return
+      }
+      applyOrgIndex(r.value)
+      pageReady.value = true
+    } else {
+      const data = await fetchOrgIndex()
+      applyOrgIndex(data)
+      pageReady.value = true
+    }
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : '読み込みに失敗しました'
+    const msg = e instanceof Error ? e.message : '読み込みに失敗しました'
+    if (!pageReady.value && !refresh) {
+      fatalLoadError.value = msg
+    } else {
+      error.value = msg
+    }
   } finally {
-    loading.value = false
     if (import.meta.client) {
       await nextTick()
       updateStickyOffsets()
     }
   }
+}
+
+function retryInitialLoad () {
+  fatalLoadError.value = null
+  void load()
 }
 
 async function createProject (payload: { name: string; label_ids: number[] }) {
@@ -201,7 +265,7 @@ async function createProject (payload: { name: string; label_ids: number[] }) {
       body: { name: payload.name, label_ids: payload.label_ids },
     })
     projectCreateModalOpen.value = false
-    await load()
+    await load({ refresh: true })
     markProjectAsJustCreated(createdProject.id)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '作成に失敗しました'
@@ -326,7 +390,7 @@ onBeforeUnmount(() => {
 
 .subheader-title {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   font-weight: 900;
   color: #2b2e2f;
   line-height: 1.1;
@@ -560,6 +624,13 @@ onBeforeUnmount(() => {
   color: #172554;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.header-primary-btn--icon {
+  width: 2.35rem;
+  min-width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
 }
 
 .ghost-btn {

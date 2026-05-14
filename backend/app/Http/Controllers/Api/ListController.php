@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\ListCreated;
+use App\Events\ListUpdated;
 use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Project;
@@ -42,6 +44,8 @@ class ListController extends ApiController
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
+        broadcast(new ListCreated($list))->toOthers();
+
         return response()->json([
             'id' => $list->id,
             'name' => $list->name,
@@ -76,6 +80,8 @@ class ListController extends ApiController
             $boardList->sort_order = $validated['sort_order'];
         }
         $boardList->save();
+
+        broadcast(new ListUpdated($boardList))->toOthers();
 
         return response()->json([
             'id' => $boardList->id,

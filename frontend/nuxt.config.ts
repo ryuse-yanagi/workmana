@@ -3,6 +3,13 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  /** ルート遷移: 旧ページをフェードアウト → 新ページをフェードイン（app.vue の .tm-fade-*） */
+  app: {
+    pageTransition: {
+      name: 'tm-fade',
+      mode: 'out-in',
+    },
+  },
   runtimeConfig: {
     public: {
       // 未指定時は相対パス（`vite.server.proxy` 経由で Laravel へ）。本番・Vercel では必ず絶対 URL を .env で指定すること。
@@ -11,6 +18,10 @@ export default defineNuxtConfig({
       cognitoClientId: process.env.NUXT_PUBLIC_COGNITO_CLIENT_ID || '',
       cognitoRedirectUri: process.env.NUXT_PUBLIC_COGNITO_REDIRECT_URI || '',
       cognitoLogoutRedirectUri: process.env.NUXT_PUBLIC_COGNITO_LOGOUT_REDIRECT_URI || '',
+      reverbKey: process.env.NUXT_PUBLIC_REVERB_KEY || 'local-key',
+      reverbHost: process.env.NUXT_PUBLIC_REVERB_HOST || '127.0.0.1',
+      reverbPort: Number(process.env.NUXT_PUBLIC_REVERB_PORT || 8080),
+      reverbScheme: process.env.NUXT_PUBLIC_REVERB_SCHEME || 'http',
     },
   },
   vite: {

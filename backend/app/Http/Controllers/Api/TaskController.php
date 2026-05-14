@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
+use App\Events\TaskArchived;
+use App\Events\TaskCreated;
+use App\Events\TaskUpdated;
 use App\Models\BoardList;
 use App\Models\TaskLabel;
 use App\Models\Organization;
@@ -140,6 +143,8 @@ class TaskController extends ApiController
             $task->labels()->sync($labelIds);
         }
 
+        broadcast(new TaskCreated($task->fresh()))->toOthers();
+
         return response()->json($this->taskPayload($task), 201);
     }
 
@@ -235,7 +240,10 @@ class TaskController extends ApiController
             $task->labels()->sync($labelIds);
         }
 
-        return response()->json($this->taskPayload($task->fresh()));
+        $fresh = $task->fresh();
+        broadcast(new TaskUpdated($fresh))->toOthers();
+
+        return response()->json($this->taskPayload($fresh));
     }
 
     public function archive(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
@@ -259,6 +267,8 @@ class TaskController extends ApiController
 
         $task->archived_at = now();
         $task->save();
+
+        broadcast(TaskArchived::fromTask($task))->toOthers();
 
         return response()->json($this->taskPayload($task->fresh()));
     }

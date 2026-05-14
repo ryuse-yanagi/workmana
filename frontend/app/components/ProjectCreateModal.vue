@@ -1,6 +1,7 @@
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="modal-overlay" role="presentation" @click.self="close">
+    <Transition name="tm-fade">
+      <div v-if="modelValue" class="modal-overlay" role="presentation" @click.self="close">
       <section
         class="modal-card"
         role="dialog"
@@ -9,7 +10,7 @@
       >
         <header class="modal-header">
           <h3>{{ title }}</h3>
-          <button type="button" class="icon-close" :disabled="loading" @click="close">×</button>
+          <button type="button" class="icon-close" :disabled="loading" @click="close">✕</button>
         </header>
 
         <form class="modal-body" @submit.prevent="submit">
@@ -54,6 +55,7 @@
         </form>
       </section>
     </div>
+    </Transition>
   </Teleport>
 </template>
 
@@ -141,6 +143,8 @@ function submit () {
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
+  padding: 0;
+  margin: -0.2rem 0;
 }
 
 .modal-body {

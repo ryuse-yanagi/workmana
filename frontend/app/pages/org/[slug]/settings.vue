@@ -1,11 +1,27 @@
 <template>
-  <main class="settings-page">
-    <header class="settings-header">
-      <h1>設定</h1>
-      <p class="subtitle">左のメニューから変更したい設定を選択してください。</p>
-    </header>
+  <main class="settings-page" :class="{ 'settings-page--await': !settingsPageReady && !settingsFatalError }">
+    <template v-if="!settingsPageReady && !settingsFatalError">
+      <div class="page-await-spacer" aria-busy="true" />
+    </template>
 
-    <section class="settings-layout">
+    <template v-else-if="settingsFatalError">
+      <section class="load-fatal-panel">
+        <p class="load-fatal-message">{{ settingsFatalError }}</p>
+        <button type="button" class="load-fatal-retry" @click="retrySettingsLoad">
+          再試行
+        </button>
+      </section>
+    </template>
+
+    <template v-else>
+      <Transition name="tm-fade" appear>
+        <div key="settings-ready" class="settings-main page-shell-fade">
+          <header class="settings-header">
+            <h1>設定</h1>
+            <p class="subtitle">左のメニューから変更したい設定を選択してください。</p>
+          </header>
+
+          <section class="settings-layout">
       <aside class="settings-sidebar">
         <button
           v-for="item in menuItems"
@@ -141,8 +157,11 @@
             <li v-if="!taskLabels.length" class="label-empty">まだタスクラベルはありません。</li>
           </ul>
         </article>
-      </section>
-    </section>
+          </section>
+        </section>
+        </div>
+      </Transition>
+    </template>
 
     <LabelCreateModal
       v-model="projectLabelModalOpen"
@@ -161,6 +180,7 @@
 </template>
 
 <script setup lang="ts">
+import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
 import { useApi } from '../../../composables/useApi'
 import { useOrgTerminology } from '../../../composables/useOrgTerminology'
 
@@ -194,6 +214,9 @@ const menuItems: Array<{ key: TabKey; label: string }> = [
 ]
 
 const activeTab = ref<TabKey>('profile')
+/** 初回データ取得成功までメイン UI を出さない */
+const settingsPageReady = ref(false)
+const settingsFatalError = ref<string | null>(null)
 
 const avatarPreviewUrl = ref<string | null>(null)
 const selectedAvatarFile = ref<File | null>(null)
@@ -244,7 +267,9 @@ function setTaskLabelsMessage (msg: string, kind: 'ok' | 'err') {
 async function loadInitialData () {
   profileMessage.value = ''
   labelMessage.value = ''
-  try {
+  settingsFatalError.value = null
+
+  const r = await raceWithTimeout(async () => {
     const [me, label, projectLabelsRes, taskLabelsRes] = await Promise.all([
       api<MeResponse>('/me'),
       fetchWorkUnitLabel(slug.value),
@@ -258,11 +283,18 @@ async function loadInitialData () {
     workUnitLabelDraft.value = label
     projectLabels.value = projectLabelsRes.data
     taskLabels.value = taskLabelsRes.data
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '初期読み込みに失敗しました'
-    setProfileMessage(msg, 'err')
-    setLabelMessage(msg, 'err')
+  }, TM_PAGE_LOAD_TIMEOUT_MS)
+
+  if (!r.ok) {
+    settingsFatalError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
+    return
   }
+  settingsPageReady.value = true
+}
+
+function retrySettingsLoad () {
+  settingsFatalError.value = null
+  void loadInitialData()
 }
 
 function resetProfileNameDraft () {

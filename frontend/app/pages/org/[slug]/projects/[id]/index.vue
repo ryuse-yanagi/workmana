@@ -1,5 +1,25 @@
 <template>
-  <main class="board-page" :style="boardPageCssVars">
+  <main
+    class="board-page"
+    :class="{ 'board-page--await': !pageReady && !fatalLoadError }"
+    :style="boardPageCssVars"
+  >
+    <template v-if="!pageReady && !fatalLoadError">
+      <div class="page-await-spacer" aria-busy="true" />
+    </template>
+
+    <template v-else-if="fatalLoadError">
+      <section class="load-fatal-panel">
+        <p class="load-fatal-message">{{ fatalLoadError }}</p>
+        <button type="button" class="load-fatal-retry" @click="retryBoardLoad">
+          再試行
+        </button>
+      </section>
+    </template>
+
+    <template v-else>
+    <Transition name="tm-fade" appear>
+      <div key="board-shell" class="page-shell-fade">
     <!-- ページ別ヘッダー -->
     <header class="page-header">
       <div class="subheader">
@@ -23,34 +43,21 @@
           />
         </div>
         <NuxtLink
-          class="header-primary-btn linkish"
+          class="header-primary-btn header-primary-btn--icon-group linkish"
           :to="`/org/${slug}/projects/${projectId}/archived`"
+          aria-label="アーカイブ済みカード"
+          title="アーカイブ済みカード"
         >
-          アーカイブ済みカード
+          <Trash2 :size="24" :stroke-width="2.25" aria-hidden="true" />
+          <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
+          <Workflow :size="24" :stroke-width="2.25" aria-hidden="true" />
         </NuxtLink>
       </div>
     </header>
 
     <p v-if="error" class="err">{{ error }}</p>
 
-    <ConfirmModal
-      v-model="archiveConfirmTaskOpen"
-      title="タスクカードのアーカイブ確認"
-      confirm-text="アーカイブ"
-      variant="danger"
-      @confirm="confirmArchiveFromModal"
-    />
-
-    <div
-      v-if="undoToastTask"
-      class="undo-toast"
-      role="status"
-    >
-      <span class="undo-toast-message">「{{ undoToastTask.title }}」をアーカイブしました</span>
-      <button type="button" class="undo-toast-close" aria-label="通知を閉じる" @click="clearUndoTimer">×</button>
-    </div>
-
-    <section class="board">
+      <section class="board">
       <article
         v-for="list in allLists"
         :key="list.key"
@@ -95,7 +102,6 @@
         </header>
 
         <draggable
-          v-if="visibleCount(list.key) > 0"
           :list="tasksByList[list.key]"
           item-key="id"
           class="cards"
@@ -103,8 +109,11 @@
           ghost-class="drag-ghost"
           drag-class="drag-active"
           filter=".no-drag"
+          direction="vertical"
+          :empty-insert-threshold="5"
           @scroll.passive="closeCardMenu"
           @change="onListChange($event, list)"
+          @end="onBoardDragEnd"
         >
           <template #item="{ element: task }">
             <article
@@ -132,33 +141,41 @@
                 </form>
               </template>
               <template v-else>
-                <div class="task-card-head">
-                  <p class="task-title">
-                    {{ task.title }}
-                  </p>
-                  <div
-                    class="card-menu-wrap no-drag"
-                    @click.stop
-                    @pointerdown.stop
-                    @mousedown.stop
-                  >
-                    <button
-                      type="button"
-                      class="card-menu-trigger"
-                      :aria-expanded="openCardMenuTaskId === task.id"
-                      aria-label="カードのメニュー"
-                      @click="toggleCardMenu(task.id, $event)"
+                <div
+                  class="task-card-body"
+                  role="button"
+                  tabindex="0"
+                  @click="openTaskDetail(task)"
+                  @keydown.enter.prevent="openTaskDetail(task)"
+                  @keydown.space.prevent="openTaskDetail(task)"
+                >
+                  <div class="task-card-head">
+                    <p class="task-title">
+                      {{ task.title }}
+                    </p>
+                    <div
+                      class="card-menu-wrap no-drag"
+                      @click.stop
+                      @pointerdown.stop
+                      @mousedown.stop
                     >
-                      ⋯
-                    </button>
+                      <button
+                        type="button"
+                        class="card-menu-trigger"
+                        :aria-expanded="openCardMenuTaskId === task.id"
+                        aria-label="カードのメニュー"
+                        @click="toggleCardMenu(task.id, $event)"
+                      >
+                        ⋯
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <p class="task-meta">#{{ task.id }} / {{ task.status }}</p>
-                <div v-if="task.labels?.length" class="task-label-list">
-                  <span v-for="label in task.labels" :key="label.id" class="task-label-chip">
-                    <span class="task-label-dot" :style="{ backgroundColor: label.color }" />
-                    {{ label.name }}
-                  </span>
+                  <div v-if="task.labels?.length" class="task-label-list">
+                    <span v-for="label in task.labels" :key="label.id" class="task-label-chip">
+                      <span class="task-label-dot" :style="{ backgroundColor: label.color }" />
+                      {{ label.name }}
+                    </span>
+                  </div>
                 </div>
               </template>
             </article>
@@ -240,6 +257,36 @@
         </form>
       </article>
     </section>
+      </div>
+    </Transition>
+
+    <ConfirmModal
+      v-model="archiveConfirmTaskOpen"
+      title="タスクカードのアーカイブ確認"
+      confirm-text="アーカイブ"
+      variant="danger"
+      @confirm="confirmArchiveFromModal"
+    />
+
+    <TaskDetailModal
+      v-model="taskDetailOpen"
+      :org-slug="slug"
+      :project-id="projectId"
+      :task-id="detailTaskId"
+      :org-labels="orgLabels"
+      @updated="onTaskDetailUpdated"
+    />
+
+    <div
+      v-if="undoToastTask"
+      class="undo-toast"
+      role="status"
+    >
+      <span class="undo-toast-message">「{{ undoToastTask.title }}」をアーカイブしました</span>
+      <button type="button" class="undo-toast-close" aria-label="通知を閉じる" @click="clearUndoTimer">✕</button>
+    </div>
+
+    </template>
 
     <Teleport to="body">
       <ul
@@ -274,7 +321,10 @@
 </template>
 
 <script setup lang="ts">
+import { Trash2, Workflow, NotebookText } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
+import TaskDetailModal, { type TaskDetail } from '../../../../../components/TaskDetailModal.vue'
+import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
 import { useApi } from '../../../../../composables/useApi'
 import { useOrgTerminology } from '../../../../../composables/useOrgTerminology'
 
@@ -295,8 +345,8 @@ const tasks = ref<Task[] | null>(null)
 const tasksByList = reactive<Record<string, Task[]>>({})
 const error = ref<string | null>(null)
 const pending = ref(false)
-const loading = ref(false)
-const hasLoadedOnce = ref(false)
+const pageReady = ref(false)
+const fatalLoadError = ref<string | null>(null)
 const searchQuery = ref('')
 const showListCreator = ref(false)
 const newListTitle = ref('')
@@ -359,6 +409,14 @@ const archiveConfirmTaskOpen = computed({
 })
 const undoToastTask = ref<Task | null>(null)
 let undoTimerId: ReturnType<typeof setTimeout> | null = null
+
+const detailTaskId = ref<number | null>(null)
+const taskDetailOpen = computed({
+  get: () => detailTaskId.value !== null,
+  set: (open: boolean) => {
+    if (!open) detailTaskId.value = null
+  },
+})
 
 const allLists = computed(() => lists.value)
 
@@ -509,6 +567,36 @@ function openArchiveConfirm (task: Task) {
   archiveConfirmTask.value = task
 }
 
+function openTaskDetail (task: Task) {
+  if (editingTaskId.value === task.id) return
+  closeCardMenu()
+  detailTaskId.value = task.id
+}
+
+function onTaskDetailUpdated (detail: TaskDetail) {
+  if (!tasks.value) return
+  const idx = tasks.value.findIndex(t => t.id === detail.id)
+  if (idx < 0) return
+  const existing = tasks.value[idx]
+  if (!existing) return
+  const updated: Task = {
+    ...existing,
+    title: detail.title,
+    status: detail.status,
+    list_id: detail.list_id,
+    labels: detail.labels,
+  }
+  tasks.value.splice(idx, 1, updated)
+  for (const list of allLists.value) {
+    const cards = tasksByList[list.key]
+    if (!cards) continue
+    const i = cards.findIndex(t => t.id === detail.id)
+    if (i >= 0) {
+      cards.splice(i, 1, updated)
+    }
+  }
+}
+
 function removeTaskFromBoard (taskId: number) {
   if (!tasks.value) return
   const i = tasks.value.findIndex(t => t.id === taskId)
@@ -575,53 +663,98 @@ async function onListChange (
   } catch (e: unknown) {
     movedTask.list_id = prevListId
     error.value = e instanceof Error ? e.message : '移動の保存に失敗しました'
-    await load()
+    await load({ refresh: true })
   }
 }
 
-async function load () {
-  error.value = null
-  loading.value = true
-  try {
-    const [listsRes, tasksRes, labelsRes, label] = await Promise.all([
-      api<{ data: ListRowRes[] }>(
-        `/orgs/${slug.value}/projects/${projectId.value}/lists`,
-      ),
-      api<{ data: Task[] }>(
-        `/orgs/${slug.value}/projects/${projectId.value}/tasks`,
-      ),
-      api<{ data: Label[] }>(
-        `/orgs/${slug.value}/task-labels`,
-      ),
-      fetchWorkUnitLabel(slug.value),
-    ])
-
-    const sortedLists = [...listsRes.data].sort((a, b) => a.sort_order - b.sort_order)
-    lists.value = sortedLists.map(row => ({
-      key: `list_${row.id}`,
-      title: row.name,
-      listId: row.id,
-    }))
-    for (const list of lists.value) {
-      if (!(list.key in cardDrafts)) cardDrafts[list.key] = ''
-      if (!(list.key in taskLabelDrafts)) taskLabelDrafts[list.key] = []
-      if (!(list.key in tasksByList)) tasksByList[list.key] = []
+/** ドラッグ終了時、同一カードが複数リストに残っていれば tasks 由来で再構築して一意にする */
+function onBoardDragEnd () {
+  const seen = new Set<number>()
+  for (const list of allLists.value) {
+    for (const t of tasksByList[list.key] ?? []) {
+      if (seen.has(t.id)) {
+        rebuildBoardFromTasks()
+        return
+      }
+      seen.add(t.id)
     }
+  }
+}
 
-    tasks.value = tasksRes.data
-    orgLabels.value = labelsRes.data
-    workUnitLabel.value = label
-    rebuildBoardFromTasks()
+async function fetchBoardPayload () {
+  const [listsRes, tasksRes, labelsRes, label] = await Promise.all([
+    api<{ data: ListRowRes[] }>(
+      `/orgs/${slug.value}/projects/${projectId.value}/lists`,
+    ),
+    api<{ data: Task[] }>(
+      `/orgs/${slug.value}/projects/${projectId.value}/tasks`,
+    ),
+    api<{ data: Label[] }>(
+      `/orgs/${slug.value}/task-labels`,
+    ),
+    fetchWorkUnitLabel(slug.value),
+  ])
+  return { listsRes, tasksRes, labelsRes, label }
+}
+
+function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>) {
+  const sortedLists = [...data.listsRes.data].sort((a, b) => a.sort_order - b.sort_order)
+  lists.value = sortedLists.map(row => ({
+    key: `list_${row.id}`,
+    title: row.name,
+    listId: row.id,
+  }))
+  for (const list of lists.value) {
+    if (!(list.key in cardDrafts)) cardDrafts[list.key] = ''
+    if (!(list.key in taskLabelDrafts)) taskLabelDrafts[list.key] = []
+    if (!(list.key in tasksByList)) tasksByList[list.key] = []
+  }
+
+  tasks.value = data.tasksRes.data
+  orgLabels.value = data.labelsRes.data
+  workUnitLabel.value = data.label
+  rebuildBoardFromTasks()
+}
+
+async function load (opts?: { refresh?: boolean }) {
+  const refresh = opts?.refresh ?? false
+  error.value = null
+  if (!refresh) {
+    fatalLoadError.value = null
+  }
+
+  try {
+    if (!pageReady.value && !refresh) {
+      const r = await raceWithTimeout(() => fetchBoardPayload(), TM_PAGE_LOAD_TIMEOUT_MS)
+      if (!r.ok) {
+        fatalLoadError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
+        return
+      }
+      applyBoardPayload(r.value)
+      pageReady.value = true
+    } else {
+      const data = await fetchBoardPayload()
+      applyBoardPayload(data)
+      pageReady.value = true
+    }
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : '読み込みに失敗しました'
+    const msg = e instanceof Error ? e.message : '読み込みに失敗しました'
+    if (!pageReady.value && !refresh) {
+      fatalLoadError.value = msg
+    } else {
+      error.value = msg
+    }
   } finally {
-    loading.value = false
-    hasLoadedOnce.value = true
     if (import.meta.client) {
       await nextTick()
       updateStickyOffsets()
     }
   }
+}
+
+function retryBoardLoad () {
+  fatalLoadError.value = null
+  void load()
 }
 
 function openComposer (key: string) {
@@ -649,7 +782,7 @@ async function createList () {
     )
     newListTitle.value = ''
     showListCreator.value = false
-    await load()
+    await load({ refresh: true })
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'リスト作成に失敗しました'
   } finally {
@@ -759,6 +892,85 @@ async function createTask (status: string) {
   }
 }
 
+type EchoChannel = {
+  listen: (event: string, cb: (payload: unknown) => void) => EchoChannel
+}
+type EchoClient = {
+  private: (channel: string) => EchoChannel
+  leave: (channel: string) => void
+}
+
+let boardChannelName: string | null = null
+
+function subscribeBoardChannel () {
+  if (!import.meta.client) {
+    return
+  }
+  const nuxtApp = useNuxtApp()
+  const echo = (nuxtApp as unknown as { $echo?: EchoClient }).$echo
+  if (!echo) {
+    return
+  }
+
+  const channelName = `projects.${projectId.value}`
+  if (boardChannelName && boardChannelName !== channelName) {
+    echo.leave(boardChannelName)
+  }
+  boardChannelName = channelName
+
+  const channel = echo.private(channelName)
+
+  channel.listen('.TaskCreated', (payload: unknown) => {
+    const data = payload as { task?: Task }
+    if (data?.task) {
+      addTaskToBoard(data.task)
+      markTaskAsJustCreated(data.task.id)
+    }
+  })
+
+  channel.listen('.TaskUpdated', (payload: unknown) => {
+    const data = payload as { task?: TaskDetail }
+    if (data?.task) {
+      onTaskDetailUpdated(data.task)
+    }
+  })
+
+  channel.listen('.TaskArchived', (payload: unknown) => {
+    const data = payload as { id?: number }
+    if (typeof data?.id === 'number') {
+      removeTaskFromBoard(data.id)
+    }
+  })
+
+  channel.listen('.ListCreated', (payload: unknown) => {
+    const data = payload as { list?: { id: number; name: string; sort_order: number } }
+    if (data?.list && !lists.value.some(l => l.listId === data.list!.id)) {
+      void load({ refresh: true })
+    }
+  })
+
+  channel.listen('.ListUpdated', (payload: unknown) => {
+    const data = payload as { list?: { id: number; name: string; sort_order: number } }
+    if (!data?.list) return
+    const row = lists.value.find(l => l.listId === data.list!.id)
+    if (row) {
+      row.title = data.list.name
+    } else {
+      void load({ refresh: true })
+    }
+  })
+}
+
+function unsubscribeBoardChannel () {
+  if (!import.meta.client || !boardChannelName) {
+    return
+  }
+  const nuxtApp = useNuxtApp()
+  const echo = (nuxtApp as unknown as { $echo?: EchoClient }).$echo
+  echo?.leave(boardChannelName)
+  boardChannelName = null
+}
+
 onMounted(() => {
   void load()
 
@@ -768,6 +980,8 @@ onMounted(() => {
 
   window.addEventListener('click', onGlobalClick)
   window.addEventListener('resize', onWindowResize)
+
+  subscribeBoardChannel()
 
   nextTick(() => {
     updateStickyOffsets()
@@ -786,6 +1000,7 @@ onBeforeUnmount(() => {
   if (import.meta.client) {
     window.removeEventListener('click', onGlobalClick)
     window.removeEventListener('resize', onWindowResize)
+    unsubscribeBoardChannel()
   }
   globalHeaderObserver?.disconnect()
   globalHeaderObserver = null
@@ -845,7 +1060,7 @@ onBeforeUnmount(() => {
 
 .subheader-title {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   font-weight: 900;
   color: #2b2e2f;
   line-height: 1.1;
@@ -929,6 +1144,20 @@ onBeforeUnmount(() => {
 
 .header-primary-btn.linkish {
   box-sizing: border-box;
+}
+
+.header-primary-btn--icon {
+  width: 2.35rem;
+  min-width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+}
+
+.header-primary-btn--icon-group {
+  width: auto;
+  min-height: 2.35rem;
+  padding: 0.14rem 0.55rem;
+  gap: 1.4rem;
 }
 
 .field {
@@ -1119,12 +1348,6 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-.task-meta {
-  margin: 0.4rem 0 0;
-  color: #64748b;
-  font-size: 0.8rem;
-}
-
 .task-label-list {
   margin-top: 0.35rem;
   display: flex;
@@ -1173,6 +1396,18 @@ onBeforeUnmount(() => {
   margin: 0.15rem 0 0;
   color: #64748b;
   font-size: 0.82rem;
+}
+
+.task-card-body {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+}
+
+.task-card-body:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .task-card-head {
