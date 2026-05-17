@@ -3,13 +3,6 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  /** ルート遷移: 旧ページをフェードアウト → 新ページをフェードイン（app.vue の .tm-fade-*） */
-  app: {
-    pageTransition: {
-      name: 'tm-fade',
-      mode: 'out-in',
-    },
-  },
   runtimeConfig: {
     public: {
       // 未指定時は相対パス（`vite.server.proxy` 経由で Laravel へ）。本番・Vercel では必ず絶対 URL を .env で指定すること。

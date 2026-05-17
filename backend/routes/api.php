@@ -28,6 +28,7 @@ Route::middleware(['cognito'])->group(function () {
 
         Route::get('/projects', [ProjectController::class, 'index']);
         Route::post('/projects', [ProjectController::class, 'store']);
+        Route::get('/projects/{project}/members', [ProjectController::class, 'members']);
         Route::get('/projects/{project}', [ProjectController::class, 'show']);
         Route::patch('/projects/{project}', [ProjectController::class, 'update']);
         Route::patch('/projects/{project}/archive', [ProjectController::class, 'archive']);

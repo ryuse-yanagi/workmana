@@ -1,10 +1,6 @@
 <template>
   <main class="settings-page" :class="{ 'settings-page--await': !settingsPageReady && !settingsFatalError }">
-    <template v-if="!settingsPageReady && !settingsFatalError">
-      <div class="page-await-spacer" aria-busy="true" />
-    </template>
-
-    <template v-else-if="settingsFatalError">
+    <template v-if="settingsFatalError">
       <section class="load-fatal-panel">
         <p class="load-fatal-message">{{ settingsFatalError }}</p>
         <button type="button" class="load-fatal-retry" @click="retrySettingsLoad">
@@ -14,13 +10,15 @@
     </template>
 
     <template v-else>
-      <Transition name="tm-fade" appear>
-        <div key="settings-ready" class="settings-main page-shell-fade">
-          <header class="settings-header">
-            <h1>設定</h1>
-            <p class="subtitle">左のメニューから変更したい設定を選択してください。</p>
-          </header>
+      <header class="settings-header">
+        <h1>設定</h1>
+        <p class="subtitle">左のメニューから変更したい設定を選択してください。</p>
+      </header>
 
+      <div v-if="!settingsPageReady" class="page-await-spacer" aria-busy="true" />
+
+      <Transition v-else name="tm-fade" appear>
+        <div key="settings-body" class="settings-main page-shell-fade">
           <section class="settings-layout">
       <aside class="settings-sidebar">
         <button
@@ -161,9 +159,9 @@
         </section>
         </div>
       </Transition>
-    </template>
 
     <LabelCreateModal
+      v-if="settingsPageReady"
       v-model="projectLabelModalOpen"
       title="プロジェクトラベルの新規作成"
       :loading="projectLabelsLoading"
@@ -171,11 +169,13 @@
     />
 
     <LabelCreateModal
+      v-if="settingsPageReady"
       v-model="taskLabelModalOpen"
       title="タスクラベルの新規作成"
       :loading="taskLabelsLoading"
       @submit="createTaskLabel"
     />
+    </template>
   </main>
 </template>
 

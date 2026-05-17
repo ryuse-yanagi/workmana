@@ -4,11 +4,7 @@
     :class="{ 'board-page--await': !pageReady && !fatalLoadError }"
     :style="boardPageCssVars"
   >
-    <template v-if="!pageReady && !fatalLoadError">
-      <div class="page-await-spacer" aria-busy="true" />
-    </template>
-
-    <template v-else-if="fatalLoadError">
+    <template v-if="fatalLoadError">
       <section class="load-fatal-panel">
         <p class="load-fatal-message">{{ fatalLoadError }}</p>
         <button type="button" class="load-fatal-retry" @click="retryBoardLoad">
@@ -18,273 +14,273 @@
     </template>
 
     <template v-else>
-    <Transition name="tm-fade" appear>
-      <div key="board-shell" class="page-shell-fade">
-    <!-- ページ別ヘッダー -->
-    <header class="page-header">
-      <div class="subheader">
-        <NuxtLink :to="`/org/${slug}`" class="subheader-title subheader-back-link">
-          &lt; {{ workUnitListLabel }}
-        </NuxtLink>
-        <div class="subheader-filters">
-          <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
-            <option value="">全ラベル</option>
-            <option v-for="label in orgLabels" :key="label.id" :value="String(label.id)">
-              {{ label.name }}
-            </option>
-          </select>
-          <p class="subheader-count" aria-live="polite">{{ visibleTaskCount }} 件</p>
-          <input
-            v-model.trim="searchQuery"
-            class="header-search"
-            type="search"
-            placeholder="カード名で検索"
-            aria-label="カード名検索"
-          />
-        </div>
-        <NuxtLink
-          class="header-primary-btn header-primary-btn--icon-group linkish"
-          :to="`/org/${slug}/projects/${projectId}/archived`"
-          aria-label="アーカイブ済みカード"
-          title="アーカイブ済みカード"
-        >
-          <Trash2 :size="24" :stroke-width="2.25" aria-hidden="true" />
-          <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
-          <Workflow :size="24" :stroke-width="2.25" aria-hidden="true" />
-        </NuxtLink>
-      </div>
-    </header>
-
-    <p v-if="error" class="err">{{ error }}</p>
-
-      <section class="board">
-      <article
-        v-for="list in allLists"
-        :key="list.key"
-        class="list-column"
-      >
-        <header class="list-header" :class="{ 'list-header--editing': editingListKey === list.key }">
-          <template v-if="editingListKey === list.key">
-            <form class="list-header-edit" @submit.prevent="saveListTitle(list)">
-              <input
-                v-model.trim="listEditDrafts[list.key]"
-                type="text"
-                maxlength="255"
-                class="list-title-input"
-                :disabled="listRenamePending"
-                @keydown.escape.prevent="cancelListEdit"
-              />
-              <div class="edit-actions">
-                <button type="submit" class="ghost-btn small" :disabled="listRenamePending || !listEditDrafts[list.key]?.trim()">
-                  {{ listRenamePending ? '保存中...' : '保存' }}
-                </button>
-                <button type="button" class="ghost-btn small" :disabled="listRenamePending" @click="cancelListEdit">
-                  キャンセル
-                </button>
+      <header class="page-header">
+            <div class="subheader">
+              <NuxtLink :to="`/org/${slug}`" class="subheader-title subheader-back-link">
+                &lt; {{ workUnitListLabel }}
+              </NuxtLink>
+              <div class="subheader-filters">
+                <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
+                  <option value="">全ラベル</option>
+                  <option v-for="label in orgLabels" :key="label.id" :value="String(label.id)">
+                    {{ label.name }}
+                  </option>
+                </select>
+                <p class="subheader-count" aria-live="polite">{{ visibleTaskCount }} 件</p>
+                <input
+                  v-model.trim="searchQuery"
+                  class="header-search"
+                  type="search"
+                  placeholder="カード名で検索"
+                  aria-label="カード名検索"
+                />
               </div>
-            </form>
-          </template>
-          <template v-else>
-            <h2
-              class="list-title-text list-title-clickable"
-              role="button"
-              tabindex="0"
-              @click="startListEdit(list)"
-              @keydown.enter.prevent="startListEdit(list)"
-              @keydown.space.prevent="startListEdit(list)"
-            >
-              {{ list.title }}
-            </h2>
-            <div class="list-header-right">
-              <span class="list-count">{{ visibleCount(list.key) }}</span>
+              <NuxtLink
+                class="header-primary-btn header-primary-btn--icon-group linkish"
+                :to="`/org/${slug}/projects/${projectId}/archived`"
+                aria-label="アーカイブ済みカード"
+                title="アーカイブ済みカード"
+              >
+                <Trash2 :size="24" :stroke-width="2.25" aria-hidden="true" />
+                <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
+                <Workflow :size="24" :stroke-width="2.25" aria-hidden="true" />
+              </NuxtLink>
             </div>
-          </template>
-        </header>
+      </header>
 
-        <draggable
-          :list="tasksByList[list.key]"
-          item-key="id"
-          class="cards"
-          group="board-cards"
-          ghost-class="drag-ghost"
-          drag-class="drag-active"
-          filter=".no-drag"
-          direction="vertical"
-          :empty-insert-threshold="5"
-          @scroll.passive="closeCardMenu"
-          @change="onListChange($event, list)"
-          @end="onBoardDragEnd"
-        >
-          <template #item="{ element: task }">
+      <div v-if="!pageReady" class="page-await-spacer" aria-busy="true" />
+
+      <Transition v-else name="tm-fade" appear>
+        <div key="board-body" class="page-shell-fade">
+          <p v-if="error" class="err">{{ error }}</p>
+
+          <section class="board">
             <article
-              v-show="isTaskVisible(task)"
-              :class="['task-card', { 'task-card--fade-in': isTaskJustCreated(task.id) }]"
+              v-for="list in allLists"
+              :key="list.key"
+              class="list-column"
             >
-              <template v-if="editingTaskId === task.id">
-                <form class="card-edit-form" @submit.prevent="saveTaskTitle(task)" @click.stop>
-                  <input
-                    v-model.trim="taskTitleDraft"
-                    type="text"
-                    maxlength="500"
-                    class="card-title-input"
-                    :disabled="taskRenamePending"
-                    @keydown.escape.prevent="cancelTaskEdit"
-                  />
-                  <div class="edit-actions">
-                    <button type="submit" class="ghost-btn small" :disabled="taskRenamePending || !taskTitleDraft">
-                      {{ taskRenamePending ? '保存中...' : '保存' }}
+              <header class="list-header" :class="{ 'list-header--editing': editingListKey === list.key }">
+                <template v-if="editingListKey === list.key">
+                  <form class="list-header-edit" @submit.prevent="saveListTitle(list)">
+                    <input
+                      v-model.trim="listEditDrafts[list.key]"
+                      type="text"
+                      maxlength="255"
+                      class="list-title-input"
+                      :disabled="listRenamePending"
+                      @keydown.escape.prevent="cancelListEdit"
+                    />
+                    <div class="edit-actions">
+                      <button type="submit" class="ghost-btn small" :disabled="listRenamePending || !listEditDrafts[list.key]?.trim()">
+                        {{ listRenamePending ? '保存中...' : '保存' }}
+                      </button>
+                      <button type="button" class="ghost-btn small" :disabled="listRenamePending" @click="cancelListEdit">
+                        キャンセル
+                      </button>
+                    </div>
+                  </form>
+                </template>
+                <template v-else>
+                  <h2
+                    class="list-title-text list-title-clickable"
+                    role="button"
+                    tabindex="0"
+                    @click="startListEdit(list)"
+                    @keydown.enter.prevent="startListEdit(list)"
+                    @keydown.space.prevent="startListEdit(list)"
+                  >
+                    {{ list.title }}
+                  </h2>
+                  <div class="list-header-right">
+                    <span class="list-count">{{ visibleCount(list.key) }}</span>
+                  </div>
+                </template>
+              </header>
+
+              <draggable
+                :list="tasksByList[list.key]"
+                item-key="id"
+                class="cards"
+                group="board-cards"
+                ghost-class="drag-ghost"
+                drag-class="drag-active"
+                filter=".no-drag"
+                direction="vertical"
+                :empty-insert-threshold="5"
+                @scroll.passive="closeCardMenu"
+                @change="onListChange($event, list)"
+                @end="onBoardDragEnd"
+              >
+                <template #item="{ element: task }">
+                  <article
+                    v-show="isTaskVisible(task)"
+                    :class="['task-card', { 'task-card--fade-in': isTaskJustCreated(task.id) }]"
+                    :role="editingTaskId === task.id ? undefined : 'button'"
+                    :tabindex="editingTaskId === task.id ? undefined : 0"
+                    @click="openTaskDetail(task)"
+                    @keydown.enter.prevent="openTaskDetail(task)"
+                    @keydown.space.prevent="openTaskDetail(task)"
+                  >
+                    <template v-if="editingTaskId === task.id">
+                      <form class="card-edit-form" @submit.prevent="saveTaskTitle(task)" @click.stop>
+                        <input
+                          v-model.trim="taskTitleDraft"
+                          type="text"
+                          maxlength="500"
+                          class="card-title-input"
+                          :disabled="taskRenamePending"
+                          @keydown.escape.prevent="cancelTaskEdit"
+                        />
+                        <div class="edit-actions">
+                          <button type="submit" class="ghost-btn small" :disabled="taskRenamePending || !taskTitleDraft">
+                            {{ taskRenamePending ? '保存中...' : '保存' }}
+                          </button>
+                          <button type="button" class="ghost-btn small" :disabled="taskRenamePending" @click="cancelTaskEdit">
+                            キャンセル
+                          </button>
+                        </div>
+                      </form>
+                    </template>
+                    <template v-else>
+                      <div class="task-card-body">
+                        <div class="task-card-head">
+                          <p class="task-title">
+                            {{ task.title }}
+                          </p>
+                          <div
+                            class="card-menu-wrap no-drag"
+                            @click.stop
+                            @pointerdown.stop
+                            @mousedown.stop
+                          >
+                            <button
+                              type="button"
+                              class="card-menu-trigger"
+                              :aria-expanded="openCardMenuTaskId === task.id"
+                              aria-label="カードのメニュー"
+                              @click="toggleCardMenu(task.id, $event)"
+                            >
+                              ⋯
+                            </button>
+                          </div>
+                        </div>
+                        <div v-if="task.labels?.length" class="task-label-list">
+                          <span v-for="label in task.labels" :key="label.id" class="task-label-chip">
+                            <span class="task-label-dot" :style="{ backgroundColor: label.color }" />
+                            {{ label.name }}
+                          </span>
+                        </div>
+                      </div>
+                    </template>
+                  </article>
+                </template>
+              </draggable>
+              <div class="composer">
+                <button
+                  v-if="activeComposerKey !== list.key"
+                  type="button"
+                  class="add-btn add-card-btn"
+                  @click="openComposer(list.key)"
+                >
+                  <span>＋</span>カードの作成
+                </button>
+                <form v-else class="composer-form" @submit.prevent="createTask(list.key)">
+                  <label class="field">
+                    <span>カード名</span>
+                    <input
+                      v-model.trim="cardDrafts[list.key]"
+                      type="text"
+                      required
+                      minlength="2"
+                      maxlength="120"
+                      placeholder="カード名を入力"
+                    />
+                  </label>
+                  <label class="field">
+                    <span>ラベル（複数選択）</span>
+                    <div class="task-label-picker">
+                      <label v-for="label in orgLabels" :key="label.id" class="label-option">
+                        <input
+                          v-model="taskLabelDrafts[list.key]"
+                          type="checkbox"
+                          :value="label.id"
+                        />
+                        <span class="task-label-dot" :style="{ backgroundColor: label.color }" />
+                        <span>{{ label.name }}</span>
+                      </label>
+                      <p v-if="!orgLabels.length" class="label-empty">ラベルは設定画面で作成できます。</p>
+                    </div>
+                  </label>
+                  <div class="composer-actions">
+                    <button type="submit" class="add-btn" :disabled="pending || !cardDrafts[list.key]">
+                      {{ pending ? '作成中...' : '追加' }}
                     </button>
-                    <button type="button" class="ghost-btn small" :disabled="taskRenamePending" @click="cancelTaskEdit">
+                    <button type="button" class="ghost-btn" @click="closeComposer">
                       キャンセル
                     </button>
                   </div>
                 </form>
-              </template>
-              <template v-else>
-                <div
-                  class="task-card-body"
-                  role="button"
-                  tabindex="0"
-                  @click="openTaskDetail(task)"
-                  @keydown.enter.prevent="openTaskDetail(task)"
-                  @keydown.space.prevent="openTaskDetail(task)"
-                >
-                  <div class="task-card-head">
-                    <p class="task-title">
-                      {{ task.title }}
-                    </p>
-                    <div
-                      class="card-menu-wrap no-drag"
-                      @click.stop
-                      @pointerdown.stop
-                      @mousedown.stop
-                    >
-                      <button
-                        type="button"
-                        class="card-menu-trigger"
-                        :aria-expanded="openCardMenuTaskId === task.id"
-                        aria-label="カードのメニュー"
-                        @click="toggleCardMenu(task.id, $event)"
-                      >
-                        ⋯
-                      </button>
-                    </div>
-                  </div>
-                  <div v-if="task.labels?.length" class="task-label-list">
-                    <span v-for="label in task.labels" :key="label.id" class="task-label-chip">
-                      <span class="task-label-dot" :style="{ backgroundColor: label.color }" />
-                      {{ label.name }}
-                    </span>
-                  </div>
-                </div>
-              </template>
-            </article>
-          </template>
-        </draggable>
-        <div class="composer">
-          <button
-            v-if="activeComposerKey !== list.key"
-            type="button"
-            class="add-btn add-card-btn"
-            @click="openComposer(list.key)"
-          >
-            <span>＋</span>カードの作成
-          </button>
-          <form v-else class="composer-form" @submit.prevent="createTask(list.key)">
-            <label class="field">
-              <span>カード名</span>
-              <input
-                v-model.trim="cardDrafts[list.key]"
-                type="text"
-                required
-                minlength="2"
-                maxlength="120"
-                placeholder="カード名を入力"
-              />
-            </label>
-            <label class="field">
-              <span>ラベル（複数選択）</span>
-              <div class="task-label-picker">
-                <label v-for="label in orgLabels" :key="label.id" class="label-option">
-                  <input
-                    v-model="taskLabelDrafts[list.key]"
-                    type="checkbox"
-                    :value="label.id"
-                  />
-                  <span class="task-label-dot" :style="{ backgroundColor: label.color }" />
-                  <span>{{ label.name }}</span>
-                </label>
-                <p v-if="!orgLabels.length" class="label-empty">ラベルは設定画面で作成できます。</p>
               </div>
-            </label>
-            <div class="composer-actions">
-              <button type="submit" class="add-btn" :disabled="pending || !cardDrafts[list.key]">
-                {{ pending ? '作成中...' : '追加' }}
+            </article>
+
+            <article class="create-list-column">
+              <button
+                v-if="!showListCreator"
+                type="button"
+                class="ghost-btn list-create-btn"
+                @click="showListCreator = true"
+              >
+                <span>＋</span>リストの作成
               </button>
-              <button type="button" class="ghost-btn" @click="closeComposer">
-                キャンセル
-              </button>
-            </div>
-          </form>
+              <form v-else class="list-form" @submit.prevent="createList">
+                <label class="field">
+                  <span>リスト名</span>
+                  <input
+                    v-model.trim="newListTitle"
+                    type="text"
+                    required
+                    minlength="2"
+                    maxlength="40"
+                    placeholder="リスト名を入力"
+                  />
+                </label>
+                <div class="composer-actions">
+                  <button type="submit" class="add-btn" :disabled="!newListTitle">追加</button>
+                  <button type="button" class="ghost-btn" @click="cancelCreateList">キャンセル</button>
+                </div>
+              </form>
+            </article>
+          </section>
         </div>
-      </article>
+      </Transition>
 
-      <article class="create-list-column">
-        <button
-          v-if="!showListCreator"
-          type="button"
-          class="ghost-btn list-create-btn"
-          @click="showListCreator = true"
-        >
-          <span>＋</span>リストの作成
-        </button>
-        <form v-else class="list-form" @submit.prevent="createList">
-          <label class="field">
-            <span>リスト名</span>
-            <input
-              v-model.trim="newListTitle"
-              type="text"
-              required
-              minlength="2"
-              maxlength="40"
-              placeholder="リスト名を入力"
-            />
-          </label>
-          <div class="composer-actions">
-            <button type="submit" class="add-btn" :disabled="!newListTitle">追加</button>
-            <button type="button" class="ghost-btn" @click="cancelCreateList">キャンセル</button>
-          </div>
-        </form>
-      </article>
-    </section>
+      <ConfirmModal
+        v-model="archiveConfirmTaskOpen"
+        title="タスクカードのアーカイブ確認"
+        confirm-text="アーカイブ"
+        variant="danger"
+        @confirm="confirmArchiveFromModal"
+      />
+
+      <TaskDetailModal
+        v-model="taskDetailOpen"
+        :org-slug="slug"
+        :project-id="projectId"
+        :task-id="detailTaskId"
+        :org-labels="orgLabels"
+        :project-members="projectMembers"
+        @updated="onTaskDetailUpdated"
+      />
+
+      <div
+        v-if="undoToastTask"
+        class="undo-toast"
+        role="status"
+      >
+        <span class="undo-toast-message">「{{ undoToastTask.title }}」をアーカイブしました</span>
+        <button type="button" class="undo-toast-close" aria-label="通知を閉じる" @click="clearUndoTimer">✕</button>
       </div>
-    </Transition>
-
-    <ConfirmModal
-      v-model="archiveConfirmTaskOpen"
-      title="タスクカードのアーカイブ確認"
-      confirm-text="アーカイブ"
-      variant="danger"
-      @confirm="confirmArchiveFromModal"
-    />
-
-    <TaskDetailModal
-      v-model="taskDetailOpen"
-      :org-slug="slug"
-      :project-id="projectId"
-      :task-id="detailTaskId"
-      :org-labels="orgLabels"
-      @updated="onTaskDetailUpdated"
-    />
-
-    <div
-      v-if="undoToastTask"
-      class="undo-toast"
-      role="status"
-    >
-      <span class="undo-toast-message">「{{ undoToastTask.title }}」をアーカイブしました</span>
-      <button type="button" class="undo-toast-close" aria-label="通知を閉じる" @click="clearUndoTimer">✕</button>
-    </div>
 
     </template>
 
@@ -323,7 +319,7 @@
 <script setup lang="ts">
 import { Trash2, Workflow, NotebookText } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
-import TaskDetailModal, { type TaskDetail } from '../../../../../components/TaskDetailModal.vue'
+import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../../../../../components/TaskDetailModal.vue'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
 import { useApi } from '../../../../../composables/useApi'
 import { useOrgTerminology } from '../../../../../composables/useOrgTerminology'
@@ -355,6 +351,7 @@ const cardDrafts = reactive<Record<string, string>>({})
 const taskLabelDrafts = reactive<Record<string, number[]>>({})
 const lists = ref<ListDef[]>([])
 const orgLabels = ref<Label[]>([])
+const projectMembers = ref<TaskDetailMember[]>([])
 const labelFilterId = ref('')
 const editingListKey = ref<string | null>(null)
 const listEditDrafts = reactive<Record<string, string>>({})
@@ -682,7 +679,7 @@ function onBoardDragEnd () {
 }
 
 async function fetchBoardPayload () {
-  const [listsRes, tasksRes, labelsRes, label] = await Promise.all([
+  const [listsRes, tasksRes, labelsRes, membersRes, label] = await Promise.all([
     api<{ data: ListRowRes[] }>(
       `/orgs/${slug.value}/projects/${projectId.value}/lists`,
     ),
@@ -692,9 +689,12 @@ async function fetchBoardPayload () {
     api<{ data: Label[] }>(
       `/orgs/${slug.value}/task-labels`,
     ),
+    api<{ data: TaskDetailMember[] }>(
+      `/orgs/${slug.value}/projects/${projectId.value}/members`,
+    ),
     fetchWorkUnitLabel(slug.value),
   ])
-  return { listsRes, tasksRes, labelsRes, label }
+  return { listsRes, tasksRes, labelsRes, membersRes, label }
 }
 
 function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>) {
@@ -712,6 +712,7 @@ function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>)
 
   tasks.value = data.tasksRes.data
   orgLabels.value = data.labelsRes.data
+  projectMembers.value = data.membersRes.data
   workUnitLabel.value = data.label
   rebuildBoardFromTasks()
 }
@@ -1401,13 +1402,11 @@ onBeforeUnmount(() => {
 .task-card-body {
   display: block;
   width: 100%;
-  cursor: pointer;
 }
 
-.task-card-body:focus-visible {
+.task-card:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
-  border-radius: 6px;
 }
 
 .task-card-head {

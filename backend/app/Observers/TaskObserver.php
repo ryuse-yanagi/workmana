@@ -57,6 +57,20 @@ class TaskObserver
             ]);
         }
 
+        if ($task->wasChanged('start_date')) {
+            TaskHistory::query()->create([
+                'task_id' => $task->id,
+                'organization_id' => $task->organization_id,
+                'project_id' => $task->project_id,
+                'actor_id' => $actorId,
+                'event_type' => TaskHistoryEventType::StartDateChanged->value,
+                'field_name' => 'start_date',
+                'before_value' => optional($task->getOriginal('start_date'))?->toIso8601String(),
+                'after_value' => optional($task->start_date)?->toIso8601String(),
+                'created_at' => now(),
+            ]);
+        }
+
         if ($task->wasChanged('due_date')) {
             TaskHistory::query()->create([
                 'task_id' => $task->id,

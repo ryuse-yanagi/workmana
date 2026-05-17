@@ -84,13 +84,4 @@ class MeController extends ApiController
             'avatar_url' => null,
         ]);
     }
-
-    private function avatarUrl(?string $avatarPath): ?string
-    {
-        if (! $avatarPath) {
-            return null;
-        }
-
-        return Storage::disk('public')->url($avatarPath);
-    }
 }

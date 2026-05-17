@@ -10,6 +10,7 @@ enum TaskHistoryEventType: string
     case StatusChanged = 'status_changed';
     case PriorityChanged = 'priority_changed';
     case AssigneeChanged = 'assignee_changed';
+    case StartDateChanged = 'start_date_changed';
     case DueDateChanged = 'due_date_changed';
     case CommentAdded = 'comment_added';
     case CommentEdited = 'comment_edited';

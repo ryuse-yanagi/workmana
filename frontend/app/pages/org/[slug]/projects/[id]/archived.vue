@@ -1,10 +1,6 @@
 <template>
   <main class="archived-page" :class="{ 'archived-page--await': !pageReady && !fatalLoadError }">
-    <template v-if="!pageReady && !fatalLoadError">
-      <div class="page-await-spacer" aria-busy="true" />
-    </template>
-
-    <template v-else-if="fatalLoadError">
+    <template v-if="fatalLoadError">
       <section class="load-fatal-panel">
         <p class="load-fatal-message">{{ fatalLoadError }}</p>
         <button type="button" class="load-fatal-retry" @click="retryArchivedLoad">
@@ -14,8 +10,6 @@
     </template>
 
     <template v-else>
-    <Transition name="tm-fade" appear>
-      <div key="archived-shell" class="page-shell-fade">
     <header class="page-header">
       <div class="header-top">
         <NuxtLink :to="`/org/${slug}/projects/${projectId}`" class="back-link">
@@ -31,6 +25,10 @@
       </p>
     </header>
 
+    <div v-if="!pageReady" class="page-await-spacer" aria-busy="true" />
+
+    <Transition v-else name="tm-fade" appear>
+      <div key="archived-body" class="page-shell-fade">
     <p v-if="error" class="err">{{ error }}</p>
 
     <Transition name="tm-fade" mode="out-in">
@@ -72,9 +70,8 @@
       </div>
     </Transition>
 
-    </template>
-
     <ConfirmModal
+      v-if="pageReady"
       v-model="restoreConfirmOpen"
       title="タスクカードの復元確認"
       confirm-text="復元"
@@ -83,6 +80,7 @@
     />
 
     <ConfirmModal
+      v-if="pageReady"
       v-model="deleteConfirmOpen"
       title="タスクカードの完全削除"
       message="完全削除は取り消せません。"
@@ -91,6 +89,7 @@
       :loading="pendingId !== null"
       @confirm="confirmPermanentDelete"
     />
+    </template>
   </main>
 </template>
 

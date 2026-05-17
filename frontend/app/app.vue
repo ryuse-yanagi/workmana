@@ -34,15 +34,14 @@ body {
 }
 
 /*
- * .tm-fade-* は次の両方で共通利用:
- * - nuxt.config の app.pageTransition（ルート遷移時の leave / enter）
- * - ページ内のデータ表示・モーダルなど
+ * .tm-fade-* はページ内のデータ表示・モーダルなどで利用:
  *
  * データ取得完了後のフェード（opacity 0.32s）。
  *
- * 初回ゲート後の「ページ別ヘッダー + 本文」は、可能な限り次でまとめる:
+ * 初回ゲート後の本文フェード（ページ別ヘッダーはフェード対象外で常時表示）:
+ *   <header class="page-header">…</header>
  *   <Transition name="tm-fade" appear>
- *     <div key="…" class="page-shell-fade"> … header … 本文 … </div>
+ *     <div key="…" class="page-shell-fade"> … 本文 … </div>
  *   </Transition>
  * モーダル本体は各 *Modal.vue 内で <Transition name="tm-fade">（開閉フェード）。
  * Toast・一覧メニュー用 Teleport などはページ側の都度。

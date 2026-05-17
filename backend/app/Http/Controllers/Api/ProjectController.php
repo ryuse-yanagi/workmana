@@ -91,6 +91,25 @@ class ProjectController extends ApiController
         ], 201);
     }
 
+    public function members(Request $request, Organization $organization, Project $project): JsonResponse
+    {
+        $this->ensureProjectBelongsToOrganization($project, $organization);
+        $this->ensureProjectMember($request->user(), $project);
+
+        $members = $project->memberships()
+            ->orderBy('users.name')
+            ->get(['users.id', 'users.name', 'users.email', 'users.avatar_path']);
+
+        return response()->json([
+            'data' => $members->map(fn ($user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'avatar_url' => $this->avatarUrl($user->avatar_path),
+            ]),
+        ]);
+    }
+
     public function show(Request $request, Organization $organization, Project $project): JsonResponse
     {
         $this->ensureProjectBelongsToOrganization($project, $organization);

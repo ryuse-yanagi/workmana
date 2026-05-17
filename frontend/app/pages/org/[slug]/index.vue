@@ -4,11 +4,7 @@
     :class="{ 'list-page--await': !pageReady && !fatalLoadError }"
     :style="listPageCssVars"
   >
-    <template v-if="!pageReady && !fatalLoadError">
-      <div class="page-await-spacer" aria-busy="true" />
-    </template>
-
-    <template v-else-if="fatalLoadError">
+    <template v-if="fatalLoadError">
       <section class="load-fatal-panel">
         <p class="load-fatal-message">{{ fatalLoadError }}</p>
         <button type="button" class="load-fatal-retry" @click="retryInitialLoad">
@@ -18,10 +14,7 @@
     </template>
 
     <template v-else>
-      <Transition name="tm-fade" appear>
-        <div key="list-shell" class="page-shell-fade">
-          <!-- ページ別ヘッダー -->
-          <header class="page-header">
+      <header class="page-header">
             <div class="subheader">
               <p class="subheader-title">{{ workUnitListLabel }}｜</p>
               <div class="subheader-filters">
@@ -46,18 +39,20 @@
                 />
               </div>
               <button
-                class="header-primary-btn header-primary-btn--icon"
+                class="primary-btn"
                 type="button"
                 :disabled="pending"
-                aria-label="新規作成"
-                title="新規作成"
                 @click="openProjectCreateModal"
               >
-                <Plus :size="24" :stroke-width="2.25" aria-hidden="true" />
+                新規作成
               </button>
             </div>
-          </header>
+      </header>
 
+      <div v-if="!pageReady" class="page-await-spacer" aria-busy="true" />
+
+      <Transition v-else name="tm-fade" appear>
+        <div key="list-body" class="page-shell-fade">
           <!-- エラー表示 -->
           <p v-if="error" class="err">{{ error }}</p>
 
@@ -112,6 +107,7 @@
 
       <!-- 新規作成モーダル（オーバーレイのためフェード対象外） -->
       <ProjectCreateModal
+        v-if="pageReady"
         v-model="projectCreateModalOpen"
         :title="`${workUnitLabel}の新規作成`"
         :work-unit-label="workUnitLabel"
@@ -124,7 +120,6 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
 import { useApi } from '../../../composables/useApi'
 import { useOrgTerminology } from '../../../composables/useOrgTerminology'
@@ -595,7 +590,7 @@ onBeforeUnmount(() => {
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 0.45rem 0.7rem;
-  font-size: 0.84rem;
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
   text-decoration: none;
@@ -605,32 +600,12 @@ onBeforeUnmount(() => {
 }
 
 .primary-btn {
-  background: #0f172a;
+  background: #22c1c3;
   color: #fff;
-}
-
-.header-primary-btn {
-  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 999px;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.82rem;
-  font-weight: 800;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.92);
-  color: #172554;
+  padding: 0.4rem 2rem;
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.header-primary-btn--icon {
-  width: 2.35rem;
-  min-width: 2.35rem;
-  height: 2.35rem;
-  padding: 0;
 }
 
 .ghost-btn {

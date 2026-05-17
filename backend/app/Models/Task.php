@@ -20,6 +20,7 @@ class Task extends Model
         'description',
         'status',
         'priority',
+        'start_date',
         'due_date',
         'assignee_id',
         'reporter_id',
@@ -29,6 +30,7 @@ class Task extends Model
     protected function casts(): array
     {
         return [
+            'start_date' => 'datetime',
             'due_date' => 'datetime',
             'archived_at' => 'datetime',
         ];
@@ -52,6 +54,11 @@ class Task extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assignee_id');
+    }
+
+    public function assignees(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'task_assignees')->withTimestamps();
     }
 
     public function reporter(): BelongsTo

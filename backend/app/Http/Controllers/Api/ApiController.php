@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 abstract class ApiController extends Controller
 {
@@ -46,5 +47,14 @@ abstract class ApiController extends Controller
         if ($project->isArchived()) {
             abort(403, 'Project is archived.');
         }
+    }
+
+    protected function avatarUrl(?string $avatarPath): ?string
+    {
+        if (! $avatarPath) {
+            return null;
+        }
+
+        return Storage::disk('public')->url($avatarPath);
     }
 }
