@@ -143,33 +143,54 @@
                       </form>
                     </template>
                     <template v-else>
+                      <div
+                        class="card-menu-wrap no-drag"
+                        :class="{ 'card-menu-wrap--open': openCardMenuTaskId === task.id }"
+                        @click.stop
+                        @pointerdown.stop
+                        @mousedown.stop
+                      >
+                        <button
+                          type="button"
+                          class="card-menu-trigger"
+                          :aria-expanded="openCardMenuTaskId === task.id"
+                          aria-label="カードのメニュー"
+                          @click="toggleCardMenu(task.id, $event)"
+                        >
+                          <Pencil :size="16" :stroke-width="2.25" aria-hidden="true" />
+                        </button>
+                      </div>
                       <div class="task-card-body">
-                        <div class="task-card-head">
-                          <p class="task-title">
-                            {{ task.title }}
-                          </p>
-                          <div
-                            class="card-menu-wrap no-drag"
-                            @click.stop
-                            @pointerdown.stop
-                            @mousedown.stop
-                          >
-                            <button
-                              type="button"
-                              class="card-menu-trigger"
-                              :aria-expanded="openCardMenuTaskId === task.id"
-                              aria-label="カードのメニュー"
-                              @click="toggleCardMenu(task.id, $event)"
-                            >
-                              ⋯
-                            </button>
-                          </div>
-                        </div>
                         <div v-if="task.labels?.length" class="task-label-list">
-                          <span v-for="label in task.labels" :key="label.id" class="task-label-chip">
-                            <span class="task-label-dot" :style="{ backgroundColor: label.color }" />
+                          <span
+                            v-for="label in task.labels"
+                            :key="label.id"
+                            class="task-label-strip"
+                            :style="{ backgroundColor: label.color }"
+                          >
                             {{ label.name }}
                           </span>
+                        </div>
+                        <p class="task-title">
+                          {{ task.title }}
+                        </p>
+                        <div v-if="cardAssignees(task).length" class="task-card-footer">
+                          <div class="task-card-members" aria-label="担当メンバー">
+                            <span
+                              v-for="member in cardAssignees(task)"
+                              :key="member.id"
+                              class="task-card-member"
+                              :title="memberDisplayName(member)"
+                            >
+                              <img
+                                v-if="member.avatar_url"
+                                :src="member.avatar_url"
+                                alt=""
+                                class="task-card-member-image"
+                              />
+                              <span v-else class="task-card-member-initial">{{ memberInitial(member) }}</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </template>
@@ -181,46 +202,43 @@
                   v-if="activeComposerKey !== list.key"
                   type="button"
                   class="add-btn add-card-btn"
+                  @mousedown.prevent
                   @click="openComposer(list.key)"
                 >
                   <span>＋</span>カードの作成
                 </button>
-                <form v-else class="composer-form" @submit.prevent="createTask(list.key)">
-                  <label class="field">
-                    <span>カード名</span>
-                    <input
-                      v-model.trim="cardDrafts[list.key]"
-                      type="text"
-                      required
-                      minlength="2"
-                      maxlength="120"
-                      placeholder="カード名を入力"
-                    />
-                  </label>
-                  <label class="field">
-                    <span>ラベル（複数選択）</span>
-                    <div class="task-label-picker">
-                      <label v-for="label in orgLabels" :key="label.id" class="label-option">
-                        <input
-                          v-model="taskLabelDrafts[list.key]"
-                          type="checkbox"
-                          :value="label.id"
-                        />
-                        <span class="task-label-dot" :style="{ backgroundColor: label.color }" />
-                        <span>{{ label.name }}</span>
-                      </label>
-                      <p v-if="!orgLabels.length" class="label-empty">ラベルは設定画面で作成できます。</p>
-                    </div>
-                  </label>
+                <div v-else class="composer-form">
+                  <input
+                    :ref="bindComposerInputEl"
+                    v-model="cardDrafts[list.key]"
+                    type="text"
+                    maxlength="120"
+                    placeholder="カード名を入力"
+                    class="composer-input"
+                    @blur="confirmCardDraft(list.key)"
+                    @keydown.enter.prevent="confirmCardDraft(list.key)"
+                    @keydown.escape="cancelCardDraft(list.key)"
+                  >
                   <div class="composer-actions">
-                    <button type="submit" class="add-btn" :disabled="pending || !cardDrafts[list.key]">
-                      {{ pending ? '作成中...' : '追加' }}
+                    <button
+                      type="button"
+                      class="composer-submit-btn"
+                      @mousedown.prevent
+                      @click="confirmCardDraft(list.key)"
+                    >
+                      {{ pending ? '追加中...' : '追加' }}
                     </button>
-                    <button type="button" class="ghost-btn" @click="closeComposer">
-                      キャンセル
+                    <button
+                      type="button"
+                      class="composer-close-btn"
+                      aria-label="キャンセル"
+                      @mousedown.prevent
+                      @click="cancelCardDraft(list.key)"
+                    >
+                      ✕
                     </button>
                   </div>
-                </form>
+                </div>
               </div>
             </article>
 
@@ -270,6 +288,8 @@
         :task-id="detailTaskId"
         :org-labels="orgLabels"
         :project-members="projectMembers"
+        :remote-update="detailModalRemotePatch"
+        :remote-update-rev="detailModalRemoteRev"
         @updated="onTaskDetailUpdated"
       />
 
@@ -298,7 +318,7 @@
             role="menuitem"
             @click="openTaskEditFromMenu(openMenuTask)"
           >
-            編集
+            カード名を編集
           </button>
         </li>
         <li role="none">
@@ -308,7 +328,7 @@
             role="menuitem"
             @click="openArchiveConfirm(openMenuTask)"
           >
-            アーカイブ
+            カードをアーカイブ
           </button>
         </li>
       </ul>
@@ -317,12 +337,12 @@
 </template>
 
 <script setup lang="ts">
-import { Trash2, Workflow, NotebookText } from 'lucide-vue-next'
+import { Trash2, Workflow, NotebookText, Pencil } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../../../../../components/TaskDetailModal.vue'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
 import { useApi } from '../../../../../composables/useApi'
-import { useOrgTerminology } from '../../../../../composables/useOrgTerminology'
+import { useOrgTerminology, useWorkUnitLabel } from '../../../../../composables/useOrgTerminology'
 
 definePageMeta({ name: 'org-slug-projects-id' })
 
@@ -330,10 +350,19 @@ const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const projectId = computed(() => route.params.id as string)
 const { api } = useApi()
-const { fetchWorkUnitLabel, DEFAULT_WORK_UNIT_LABEL } = useOrgTerminology()
+const { fetchWorkUnitLabel, syncLabelState } = useOrgTerminology()
+const { workUnitLabel, workUnitListLabel } = useWorkUnitLabel(() => slug.value)
 
 type Label = { id: number; name: string; color: string }
-type Task = { id: number; title: string; status: string; list_id: number | null; labels?: Label[] }
+type TaskAssignee = { id: number; name: string | null; email: string | null; avatar_url: string | null }
+type Task = {
+  id: number
+  title: string
+  status: string
+  list_id: number | null
+  labels?: Label[]
+  assignees?: TaskAssignee[]
+}
 type ListDef = { key: string; title: string; listId: number }
 type ListRowRes = { id: number; name: string; sort_order: number; created_at?: string }
 
@@ -347,8 +376,8 @@ const searchQuery = ref('')
 const showListCreator = ref(false)
 const newListTitle = ref('')
 const activeComposerKey = ref<string | null>(null)
+const composerInputEl = ref<HTMLInputElement | null>(null)
 const cardDrafts = reactive<Record<string, string>>({})
-const taskLabelDrafts = reactive<Record<string, number[]>>({})
 const lists = ref<ListDef[]>([])
 const orgLabels = ref<Label[]>([])
 const projectMembers = ref<TaskDetailMember[]>([])
@@ -359,11 +388,9 @@ const listRenamePending = ref(false)
 const editingTaskId = ref<number | null>(null)
 const taskTitleDraft = ref('')
 const taskRenamePending = ref(false)
-const workUnitLabel = ref(DEFAULT_WORK_UNIT_LABEL)
-const workUnitListLabel = computed(() => `${workUnitLabel.value}一覧`)
 const justCreatedTaskIds = reactive<Record<number, true>>({})
 
-const globalHeaderOffsetPx = ref(52)
+const globalHeaderOffsetPx = ref(46)
 
 const boardPageCssVars = computed(() => {
   return {
@@ -408,6 +435,8 @@ const undoToastTask = ref<Task | null>(null)
 let undoTimerId: ReturnType<typeof setTimeout> | null = null
 
 const detailTaskId = ref<number | null>(null)
+const detailModalRemotePatch = ref<TaskDetail | null>(null)
+const detailModalRemoteRev = ref(0)
 const taskDetailOpen = computed({
   get: () => detailTaskId.value !== null,
   set: (open: boolean) => {
@@ -491,6 +520,18 @@ function markTaskAsJustCreated (taskId: number) {
   }, 260)
 }
 
+function cardAssignees (task: Task): TaskAssignee[] {
+  return (task.assignees ?? []).slice(0, 3)
+}
+
+function memberDisplayName (member: TaskAssignee): string {
+  return (member.name || member.email || `ユーザー #${member.id}`).trim()
+}
+
+function memberInitial (member: TaskAssignee): string {
+  return memberDisplayName(member).slice(0, 1).toUpperCase()
+}
+
 function closeCardMenu () {
   openCardMenuTaskId.value = null
   cardMenuPosition.value = null
@@ -570,6 +611,14 @@ function openTaskDetail (task: Task) {
   detailTaskId.value = task.id
 }
 
+function pushDetailModalRemote (detail: TaskDetail) {
+  if (detailTaskId.value !== detail.id) {
+    return
+  }
+  detailModalRemotePatch.value = detail
+  detailModalRemoteRev.value += 1
+}
+
 function onTaskDetailUpdated (detail: TaskDetail) {
   if (!tasks.value) return
   const idx = tasks.value.findIndex(t => t.id === detail.id)
@@ -582,16 +631,11 @@ function onTaskDetailUpdated (detail: TaskDetail) {
     status: detail.status,
     list_id: detail.list_id,
     labels: detail.labels,
+    assignees: detail.assignees,
   }
   tasks.value.splice(idx, 1, updated)
-  for (const list of allLists.value) {
-    const cards = tasksByList[list.key]
-    if (!cards) continue
-    const i = cards.findIndex(t => t.id === detail.id)
-    if (i >= 0) {
-      cards.splice(i, 1, updated)
-    }
-  }
+  // list_id 変更（リスト間ドラッグ）では列ごとの配列を入れ替えないとカードが元の列に残る
+  rebuildBoardFromTasks()
 }
 
 function removeTaskFromBoard (taskId: number) {
@@ -706,14 +750,13 @@ function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>)
   }))
   for (const list of lists.value) {
     if (!(list.key in cardDrafts)) cardDrafts[list.key] = ''
-    if (!(list.key in taskLabelDrafts)) taskLabelDrafts[list.key] = []
     if (!(list.key in tasksByList)) tasksByList[list.key] = []
   }
 
   tasks.value = data.tasksRes.data
   orgLabels.value = data.labelsRes.data
   projectMembers.value = data.membersRes.data
-  workUnitLabel.value = data.label
+  syncLabelState(slug.value, data.label)
   rebuildBoardFromTasks()
 }
 
@@ -758,15 +801,33 @@ function retryBoardLoad () {
   void load()
 }
 
-function openComposer (key: string) {
+async function openComposer (key: string) {
   activeComposerKey.value = key
-  if (!(key in taskLabelDrafts)) {
-    taskLabelDrafts[key] = []
-  }
+  await nextTick()
+  composerInputEl.value?.focus()
+}
+
+function bindComposerInputEl (el: Element | ComponentPublicInstance | null) {
+  composerInputEl.value = el as HTMLInputElement | null
 }
 
 function closeComposer () {
   activeComposerKey.value = null
+}
+
+function cancelCardDraft (listKey: string) {
+  cardDrafts[listKey] = ''
+  closeComposer()
+}
+
+async function confirmCardDraft (listKey: string) {
+  if (pending.value) return
+  const title = (cardDrafts[listKey] || '').trim()
+  if (!title) {
+    cancelCardDraft(listKey)
+    return
+  }
+  await createTask(listKey)
 }
 
 async function createList () {
@@ -869,13 +930,11 @@ async function createTask (status: string) {
   if (!list) return
   pending.value = true
   try {
-    const labelIds = (taskLabelDrafts[status] ?? []).map(id => Number(id))
     const created = await api<Task>(`/orgs/${slug.value}/projects/${projectId.value}/tasks`, {
       method: 'POST',
-      body: { title, status: 'todo', list_id: list.listId, label_ids: labelIds },
+      body: { title, status: 'todo', list_id: list.listId },
     })
     cardDrafts[status] = ''
-    taskLabelDrafts[status] = []
     activeComposerKey.value = null
     if (!tasks.value) {
       tasks.value = []
@@ -893,84 +952,46 @@ async function createTask (status: string) {
   }
 }
 
-type EchoChannel = {
-  listen: (event: string, cb: (payload: unknown) => void) => EchoChannel
-}
-type EchoClient = {
-  private: (channel: string) => EchoChannel
-  leave: (channel: string) => void
-}
-
-let boardChannelName: string | null = null
-
-function subscribeBoardChannel () {
-  if (!import.meta.client) {
-    return
-  }
-  const nuxtApp = useNuxtApp()
-  const echo = (nuxtApp as unknown as { $echo?: EchoClient }).$echo
-  if (!echo) {
-    return
-  }
-
-  const channelName = `projects.${projectId.value}`
-  if (boardChannelName && boardChannelName !== channelName) {
-    echo.leave(boardChannelName)
-  }
-  boardChannelName = channelName
-
-  const channel = echo.private(channelName)
-
-  channel.listen('.TaskCreated', (payload: unknown) => {
-    const data = payload as { task?: Task }
-    if (data?.task) {
-      addTaskToBoard(data.task)
-      markTaskAsJustCreated(data.task.id)
+useProjectRealtimeChannel(projectId, {
+  onTaskCreated (task) {
+    addTaskToBoard(task)
+    markTaskAsJustCreated(task.id)
+  },
+  onTaskUpdated (task) {
+    const detail = task as TaskDetail
+    onTaskDetailUpdated(detail)
+    pushDetailModalRemote(detail)
+  },
+  onTaskArchived ({ id }) {
+    removeTaskFromBoard(id)
+  },
+  onTaskRestored (task) {
+    const detail = task as TaskDetail
+    if (tasks.value?.some(t => t.id === task.id)) {
+      onTaskDetailUpdated(detail)
+      pushDetailModalRemote(detail)
+      return
     }
-  })
-
-  channel.listen('.TaskUpdated', (payload: unknown) => {
-    const data = payload as { task?: TaskDetail }
-    if (data?.task) {
-      onTaskDetailUpdated(data.task)
-    }
-  })
-
-  channel.listen('.TaskArchived', (payload: unknown) => {
-    const data = payload as { id?: number }
-    if (typeof data?.id === 'number') {
-      removeTaskFromBoard(data.id)
-    }
-  })
-
-  channel.listen('.ListCreated', (payload: unknown) => {
-    const data = payload as { list?: { id: number; name: string; sort_order: number } }
-    if (data?.list && !lists.value.some(l => l.listId === data.list!.id)) {
-      void load({ refresh: true })
-    }
-  })
-
-  channel.listen('.ListUpdated', (payload: unknown) => {
-    const data = payload as { list?: { id: number; name: string; sort_order: number } }
-    if (!data?.list) return
-    const row = lists.value.find(l => l.listId === data.list!.id)
+    addTaskToBoard(task)
+  },
+  onTaskDeleted (taskId) {
+    removeTaskFromBoard(taskId)
+  },
+  onListCreated () {
+    void load({ refresh: true })
+  },
+  onListUpdated (list) {
+    const row = lists.value.find(l => l.listId === list.id)
     if (row) {
-      row.title = data.list.name
+      row.title = list.name
     } else {
       void load({ refresh: true })
     }
-  })
-}
-
-function unsubscribeBoardChannel () {
-  if (!import.meta.client || !boardChannelName) {
-    return
-  }
-  const nuxtApp = useNuxtApp()
-  const echo = (nuxtApp as unknown as { $echo?: EchoClient }).$echo
-  echo?.leave(boardChannelName)
-  boardChannelName = null
-}
+  },
+  onListDeleted () {
+    void load({ refresh: true })
+  },
+})
 
 onMounted(() => {
   void load()
@@ -981,8 +1002,6 @@ onMounted(() => {
 
   window.addEventListener('click', onGlobalClick)
   window.addEventListener('resize', onWindowResize)
-
-  subscribeBoardChannel()
 
   nextTick(() => {
     updateStickyOffsets()
@@ -1001,7 +1020,6 @@ onBeforeUnmount(() => {
   if (import.meta.client) {
     window.removeEventListener('click', onGlobalClick)
     window.removeEventListener('resize', onWindowResize)
-    unsubscribeBoardChannel()
   }
   globalHeaderObserver?.disconnect()
   globalHeaderObserver = null
@@ -1012,7 +1030,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .board-page {
-  height: calc(100dvh - var(--global-header-offset, 52px));
+  height: calc(100dvh - var(--global-header-offset, 46px));
   padding: 0 1rem 0;
   margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
   padding-top: 0;
@@ -1023,7 +1041,7 @@ onBeforeUnmount(() => {
 
 .page-header {
   position: sticky;
-  top: var(--global-header-offset, 52px);
+  top: var(--global-header-offset, 46px);
   z-index: 40;
   margin-bottom: 0.2rem;
   width: calc(100% + 2rem);
@@ -1212,7 +1230,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   /* Trello のように内容に応じて伸びる（上限到達後は cards 側でスクロール） */
   height: auto;
-  max-height: calc((100dvh - var(--tm-global-header-height, 52px) - var(--tm-page-header-height, 48px)) * 0.82);
+  max-height: calc((100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px)) * 0.82);
 }
 
 .list-header {
@@ -1304,11 +1322,13 @@ onBeforeUnmount(() => {
   gap: 0.65rem;
   flex: 0 1 auto;
   min-height: 0;
-  max-height: calc((100dvh - var(--tm-global-header-height, 52px) - var(--tm-page-header-height, 48px)) * 0.82 - 8.5rem);
+  max-height: calc((100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px)) * 0.82 - 8.5rem);
   padding-bottom: 0.65rem;
 }
 
 .task-card {
+  position: relative;
+  min-width: 0;
   background: #fff;
   border: 1px solid #cbd5e1;
   border-radius: 12px;
@@ -1347,61 +1367,82 @@ onBeforeUnmount(() => {
 .task-title {
   margin: 0;
   font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .task-label-list {
-  margin-top: 0.35rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.task-label-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.22rem;
-  border-radius: 999px;
-  padding: 0.15rem 0.4rem;
-  font-size: 0.73rem;
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.task-label-dot {
-  width: 0.52rem;
-  height: 0.52rem;
-  border-radius: 999px;
-}
-
-.task-label-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.label-option {
-  display: inline-flex;
-  align-items: center;
   gap: 0.25rem;
-  border: 1px solid #dbe3ee;
-  border-radius: 999px;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #334155;
-  background: #fff;
+  margin-bottom: 0.4rem;
 }
 
-.label-empty {
-  margin: 0.15rem 0 0;
-  color: #64748b;
-  font-size: 0.82rem;
+.task-label-strip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.18rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .task-card-body {
-  display: block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  min-width: 0;
+}
+
+.task-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.45rem;
+}
+
+.task-card-members {
+  display: flex;
+  align-items: center;
+}
+
+.task-card-member {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #e2e8f0;
+  background: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-card-member + .task-card-member {
+  margin-left: -0.35rem;
+}
+
+.task-card-member-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.task-card-member-initial {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1;
 }
 
 .task-card:focus-visible {
@@ -1409,32 +1450,34 @@ onBeforeUnmount(() => {
   outline-offset: 2px;
 }
 
-.task-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.45rem;
-}
-
-.task-card-head .task-title {
-  flex: 1;
-  min-width: 0;
-}
-
 .card-menu-wrap {
-  position: relative;
-  flex-shrink: 0;
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.task-card:hover .card-menu-wrap,
+.card-menu-wrap--open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .card-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  background: transparent;
+  background: #fff;
   color: #64748b;
-  font-size: 1.15rem;
   line-height: 1;
-  padding: 0.15rem 0.35rem;
-  border-radius: 6px;
+  padding: 0.2rem;
+  border-radius: 999px;
   cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.9);
 }
 
 .card-menu-trigger:hover,
@@ -1523,19 +1566,72 @@ onBeforeUnmount(() => {
 .list-form {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.5rem;
 }
 
-input {
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 0.62rem 0.75rem;
-  font-size: 0.94rem;
+.composer-input {
+  border: 2px solid #388bfd;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  background: #fff;
+  box-shadow: none;
+}
+
+.composer-input:focus {
+  outline: none;
+  border-color: #0c66e4;
 }
 
 .composer-actions {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.composer-submit-btn {
+  border: none;
+  border-radius: 8px;
+  padding: 0.42rem 0.72rem;
+  background: #0c66e4;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.composer-submit-btn:hover:not(:disabled) {
+  background: #053580;
+}
+
+.composer-submit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.composer-close-btn {
+  border: none;
+  background: transparent;
+  color: #626f86;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.composer-close-btn:hover {
+  background: rgba(9, 30, 66, 0.08);
+  color: #44546f;
+}
+
+.list-form input {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.62rem 0.75rem;
+  font-size: 0.94rem;
 }
 
 .add-btn {

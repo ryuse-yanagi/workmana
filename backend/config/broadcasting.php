@@ -19,6 +19,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Fail Silently
+    |--------------------------------------------------------------------------
+    |
+    | When true, broadcast delivery errors (e.g. Reverb not running locally)
+    | are logged but do not fail the HTTP request. Defaults to true in local.
+    |
+    */
+
+    'fail_silently' => env('BROADCAST_FAIL_SILENTLY', env('APP_ENV') === 'local'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Broadcast Connections
     |--------------------------------------------------------------------------
     |

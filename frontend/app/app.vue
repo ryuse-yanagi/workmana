@@ -10,7 +10,7 @@
 
 <style>
 :root {
-  --tm-global-header-height: 52px;
+  --tm-global-header-height: 46px;
   --tm-page-header-height: 48px;
 }
 

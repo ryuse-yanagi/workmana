@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Events\ListCreated;
+use App\Events\ListDeleted;
 use App\Events\ListUpdated;
 use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Project;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -44,7 +46,7 @@ class ListController extends ApiController
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
-        broadcast(new ListCreated($list))->toOthers();
+        SafeBroadcast::toOthers(new ListCreated($list));
 
         return response()->json([
             'id' => $list->id,
@@ -81,7 +83,7 @@ class ListController extends ApiController
         }
         $boardList->save();
 
-        broadcast(new ListUpdated($boardList))->toOthers();
+        SafeBroadcast::toOthers(new ListUpdated($boardList));
 
         return response()->json([
             'id' => $boardList->id,
@@ -101,7 +103,11 @@ class ListController extends ApiController
             abort(404);
         }
 
+        $listId = (int) $boardList->id;
+        $projectId = (int) $project->id;
         $boardList->delete();
+
+        SafeBroadcast::toOthers(new ListDeleted($projectId, $listId));
 
         return response()->json(null, 204);
     }

@@ -13,7 +13,7 @@
           title="設定"
           @click="goSettingsProfile"
         >
-          <Settings :size="18" :stroke-width="2.25" aria-hidden="true" />
+          <Settings :size="16" :stroke-width="2.25" aria-hidden="true" />
         </button>
       </div>
 
@@ -45,6 +45,7 @@
 import { Settings } from 'lucide-vue-next'
 import { useApi } from '../composables/useApi'
 import { useAuth } from '../composables/useAuth'
+import { useOrgTerminology, useWorkUnitLabel } from '../composables/useOrgTerminology'
 
 type MeResponse = {
   name?: string | null
@@ -53,24 +54,17 @@ type MeResponse = {
   organizations?: Array<{ slug: string; work_unit_label?: string | null }>
 }
 
-type OrgSettingsResponse = {
-  work_unit_label?: string | null
-}
-
 const route = useRoute()
 const router = useRouter()
 const { api } = useApi()
 const { getToken, clearToken, buildLogoutUrl } = useAuth()
+const { fetchWorkUnitLabel, seedWorkUnitLabels } = useOrgTerminology()
 
-const DEFAULT_WORK_UNIT_LABEL = 'プロジェクト'
-
-const orgSlug = ref<string | null>(null)
+const orgSlug = ref<string | null>(slugFromRoute())
 const avatarUrl = ref<string | null>(null)
 const displayName = ref('')
 const menuOpen = ref(false)
-const workUnitLabel = ref(DEFAULT_WORK_UNIT_LABEL)
-
-const workUnitListLabel = computed(() => `${workUnitLabel.value}一覧`)
+const { workUnitListLabel } = useWorkUnitLabel(() => orgSlug.value ?? '')
 
 const initials = computed(() => {
   const source = (displayName.value || '').trim() || (route.path || '')
@@ -87,34 +81,18 @@ function slugFromRoute (): string | null {
   return null
 }
 
-function normalizeWorkUnitLabel (raw: string | null | undefined): string {
-  const label = (raw || '').trim()
-  return label || DEFAULT_WORK_UNIT_LABEL
-}
-
-function workUnitLabelFromMe (me: MeResponse, slug: string | null): string {
-  if (!slug) {
-    return DEFAULT_WORK_UNIT_LABEL
-  }
-  const org = me.organizations?.find(o => o.slug === slug)
-  return normalizeWorkUnitLabel(org?.work_unit_label)
-}
-
 async function refreshOrgWorkUnitLabel (slug: string | null): Promise<boolean> {
   if (!import.meta.client) {
     return false
   }
   if (!slug || !getToken()) {
-    workUnitLabel.value = DEFAULT_WORK_UNIT_LABEL
     return false
   }
 
   try {
-    const res = await api<OrgSettingsResponse>(`/orgs/${slug}/settings`)
-    workUnitLabel.value = normalizeWorkUnitLabel(res.work_unit_label)
+    await fetchWorkUnitLabel(slug)
     return true
   } catch {
-    workUnitLabel.value = DEFAULT_WORK_UNIT_LABEL
     return false
   }
 }
@@ -127,7 +105,6 @@ async function refreshMeContext () {
     orgSlug.value = slugFromRoute()
     avatarUrl.value = null
     displayName.value = ''
-    workUnitLabel.value = DEFAULT_WORK_UNIT_LABEL
     return
   }
 
@@ -140,6 +117,7 @@ async function refreshMeContext () {
     const me = await api<MeResponse>('/me')
     displayName.value = (me.name || me.email || '').trim()
     avatarUrl.value = me.avatar_url || null
+    seedWorkUnitLabels(me.organizations)
     if (!routeSlug) {
       const first = me.organizations?.[0]?.slug
       orgSlug.value = first && first.trim() ? first : null
@@ -147,12 +125,7 @@ async function refreshMeContext () {
 
     const activeSlug = orgSlug.value
     if (activeSlug) {
-      const ok = await refreshOrgWorkUnitLabel(activeSlug)
-      if (!ok) {
-        workUnitLabel.value = workUnitLabelFromMe(me, activeSlug)
-      }
-    } else {
-      workUnitLabel.value = DEFAULT_WORK_UNIT_LABEL
+      await refreshOrgWorkUnitLabel(activeSlug)
     }
   } catch {
     // 認証失敗などは静かに無視（各画面でエラー表示）
@@ -161,7 +134,6 @@ async function refreshMeContext () {
     }
     avatarUrl.value = null
     displayName.value = ''
-    workUnitLabel.value = DEFAULT_WORK_UNIT_LABEL
   }
 }
 
@@ -268,26 +240,26 @@ onBeforeUnmount(() => {
 
 .global-header__inner {
   width: 100%;
-  padding: 0.55rem 0.9rem;
+  padding: 0.48rem 0.85rem;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-start;
-  gap: 0.75rem;
+  gap: 0.65rem;
   box-sizing: border-box;
   min-width: 0;
 }
 
 .global-header__left {
   display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.45rem;
   flex-wrap: wrap;
   min-width: 0;
 }
 
 .global-header__right {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   margin-left: auto;
   justify-content: flex-end;
   min-width: 0;
@@ -295,21 +267,20 @@ onBeforeUnmount(() => {
 }
 
 .nav-btn {
-  margin-top: 0.3rem;
   border: none;
   background: #0b2bab;
   color: #f8fafc;
   border-radius: 999px;
-  padding: 0.45rem 0.75rem;
-  min-height: 2.25rem;
-  font-size: 1.05rem;
+  padding: 0.35rem 0.7rem;
+  min-height: 2rem;
+  font-size: 0.98rem;
   line-height: 1.1;
   font-weight: 500;
   cursor: pointer;
 }
 
 .nav-btn--icon {
-  width: 2.25rem;
+  width: 2rem;
   padding: 0;
   justify-content: center;
 }
@@ -342,8 +313,8 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.35);
   padding: 0;
@@ -353,7 +324,7 @@ onBeforeUnmount(() => {
 }
 
 .profile-name {
-  font-size: 0.92rem;
+  font-size: 0.875rem;
   font-weight: 700;
   line-height: 1.1;
   color: #f8fafc;

@@ -6,6 +6,8 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Events\TaskArchived;
 use App\Events\TaskCreated;
+use App\Events\TaskDeleted;
+use App\Events\TaskRestored;
 use App\Events\TaskUpdated;
 use App\Models\BoardList;
 use App\Models\TaskLabel;
@@ -15,6 +17,7 @@ use App\Models\Task;
 use App\Models\TaskHistory;
 use App\Models\User;
 use App\Enums\TaskHistoryEventType;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -165,7 +168,7 @@ class TaskController extends ApiController
             $task->labels()->sync($labelIds);
         }
 
-        broadcast(new TaskCreated($task->fresh()))->toOthers();
+        SafeBroadcast::toOthers(new TaskCreated($task->fresh()));
 
         return response()->json($this->taskPayload($task), 201);
     }
@@ -268,7 +271,7 @@ class TaskController extends ApiController
         }
 
         $fresh = $task->fresh();
-        broadcast(new TaskUpdated($fresh))->toOthers();
+        SafeBroadcast::toOthers(new TaskUpdated($fresh));
 
         return response()->json($this->taskPayload($fresh));
     }
@@ -295,7 +298,7 @@ class TaskController extends ApiController
         $task->archived_at = now();
         $task->save();
 
-        broadcast(TaskArchived::fromTask($task))->toOthers();
+        SafeBroadcast::toOthers(TaskArchived::fromTask($task));
 
         return response()->json($this->taskPayload($task->fresh()));
     }
@@ -322,7 +325,10 @@ class TaskController extends ApiController
         $task->archived_at = null;
         $task->save();
 
-        return response()->json($this->taskPayload($task->fresh()));
+        $fresh = $task->fresh();
+        SafeBroadcast::toOthers(new TaskRestored($fresh));
+
+        return response()->json($this->taskPayload($fresh));
     }
 
     public function destroy(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
@@ -340,7 +346,11 @@ class TaskController extends ApiController
             return response()->json(['message' => 'Archive the task before deleting it permanently.'], 422);
         }
 
+        $taskId = (int) $task->id;
+        $projectId = (int) $task->project_id;
         $task->forceDelete();
+
+        SafeBroadcast::toOthers(new TaskDeleted($projectId, $taskId));
 
         return response()->json(null, 204);
     }

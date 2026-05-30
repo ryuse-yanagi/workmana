@@ -204,7 +204,7 @@ const route = useRoute()
 const router = useRouter()
 const slug = computed(() => route.params.slug as string)
 const { api } = useApi()
-const { fetchWorkUnitLabel, DEFAULT_WORK_UNIT_LABEL } = useOrgTerminology()
+const { fetchWorkUnitLabel, syncLabelState, DEFAULT_WORK_UNIT_LABEL } = useOrgTerminology()
 
 const menuItems: Array<{ key: TabKey; label: string }> = [
   { key: 'profile', label: 'プロフィール設定' },
@@ -279,6 +279,7 @@ async function loadInitialData () {
     profileNameCurrent.value = (me.name || '').trim()
     profileNameDraft.value = profileNameCurrent.value
     avatarPreviewUrl.value = me.avatar_url || null
+    syncLabelState(slug.value, label)
     workUnitLabelCurrent.value = label
     workUnitLabelDraft.value = label
     projectLabels.value = projectLabelsRes.data
@@ -393,6 +394,7 @@ async function saveWorkUnitLabel () {
     const savedLabel = (res.work_unit_label || '').trim() || DEFAULT_WORK_UNIT_LABEL
     workUnitLabelCurrent.value = savedLabel
     workUnitLabelDraft.value = savedLabel
+    syncLabelState(slug.value, savedLabel)
     setLabelMessage('work_unit_label を更新しました。', 'ok')
     if (import.meta.client) {
       window.dispatchEvent(new CustomEvent('tm:org-work-unit-label-updated', { detail: { slug: slug.value } }))

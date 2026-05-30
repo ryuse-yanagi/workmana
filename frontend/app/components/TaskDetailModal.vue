@@ -4,8 +4,10 @@
       <div
         v-if="modelValue"
         class="modal-overlay"
+        :class="{ 'modal-overlay--popover-open': !!activePopover }"
         role="presentation"
-        @click.self="close"
+        @mousedown="onOverlayMouseDown"
+        @click.self="onOverlayBackdropClick"
       >
         <section
           ref="modalCardRef"
@@ -35,19 +37,19 @@
             </div>
           </div>
 
-          <div v-else class="modal-body">
+          <div v-else ref="modalBodyRef" class="modal-body">
             <section class="field-block title-block">
-              <div v-if="titleSaving" class="field-label-row field-label-row--end">
-                <span class="description-saving">保存中...</span>
-              </div>
-              <input
+              <textarea
+                ref="titleTextareaRef"
                 v-model.trim="titleDraft"
-                type="text"
                 maxlength="500"
                 class="title-input"
                 placeholder="タスクカード名"
                 :disabled="saving || titleSaving"
+                rows="1"
+                @input="adjustTitleTextareaHeight"
                 @blur="onTitleBlur"
+                @keydown.enter.prevent="onTitleEnter"
                 @keydown.escape.prevent="revertTitleDraft"
               />
             </section>
@@ -197,10 +199,7 @@
             </section>
 
             <section class="field-block description-block">
-              <div class="field-label-row">
-                <span class="field-label">Description</span>
-                <span v-if="descriptionSaving" class="description-saving">保存中...</span>
-              </div>
+              <span class="field-label">Description</span>
               <textarea
                 ref="descriptionTextareaRef"
                 v-model="descriptionDraft"
@@ -229,6 +228,7 @@
 
                 <div
                   v-if="activePopover === 'start-date' || activePopover === 'due-date'"
+                  ref="popoverElRef"
                   class="popover popover--date"
                 :style="popoverStyle"
                 role="dialog"
@@ -295,6 +295,7 @@
 
               <div
                 v-else-if="activePopover === 'member-detail' && selectedMember"
+                ref="popoverElRef"
                 class="popover popover--member-detail"
                 :style="popoverStyle"
                 role="dialog"
@@ -340,13 +341,14 @@
 
               <div
                 v-else-if="activePopover === 'members'"
+                ref="popoverElRef"
                 class="popover popover--members"
                 :style="popoverStyle"
                 role="dialog"
                 aria-label="Member"
                 @click.stop
               >
-                <header class="popover-header">
+                <header class="popover-header popover-header--labels">
                   <h4 class="popover-title">Member</h4>
                   <button
                     type="button"
@@ -357,34 +359,37 @@
                   >✕</button>
                 </header>
 
-                <ul class="member-picker-list">
-                  <li v-for="member in projectMembers" :key="member.id">
-                    <button
-                      type="button"
-                      class="member-picker-row"
-                      :class="{ 'member-picker-row--selected': isMemberAssigned(member.id) }"
-                      :disabled="saving"
-                      @click.stop="toggleMember(member)"
-                    >
-                      <img
-                        v-if="member.avatar_url"
-                        :src="member.avatar_url"
-                        alt=""
-                        class="member-picker-avatar"
-                      />
-                      <span v-else class="member-picker-initial">{{ memberInitial(member) }}</span>
-                      <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
-                      <span v-if="isMemberAssigned(member.id)" class="member-picker-check">✓</span>
-                    </button>
-                  </li>
-                </ul>
-                <p v-if="!projectMembers.length" class="empty-text">プロジェクトメンバーがいません。</p>
+                <div class="popover-scroll">
+                  <ul class="member-picker-list">
+                    <li v-for="member in projectMembers" :key="member.id">
+                      <button
+                        type="button"
+                        class="member-picker-row"
+                        :class="{ 'member-picker-row--selected': isMemberAssigned(member.id) }"
+                        :disabled="saving"
+                        @click.stop="toggleMember(member)"
+                      >
+                        <img
+                          v-if="member.avatar_url"
+                          :src="member.avatar_url"
+                          alt=""
+                          class="member-picker-avatar"
+                        />
+                        <span v-else class="member-picker-initial">{{ memberInitial(member) }}</span>
+                        <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
+                        <span v-if="isMemberAssigned(member.id)" class="member-picker-check">✓</span>
+                      </button>
+                    </li>
+                  </ul>
+                  <p v-if="!projectMembers.length" class="empty-text">プロジェクトメンバーがいません。</p>
 
-                <p v-if="popoverError" class="err">{{ popoverError }}</p>
+                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
+                </div>
               </div>
 
               <div
                 v-else-if="activePopover === 'labels'"
+                ref="popoverElRef"
                 class="popover popover--labels"
                 :style="popoverStyle"
                 role="dialog"
@@ -413,41 +418,43 @@
 
                 <p class="label-section-heading">Labels</p>
 
-                <ul class="label-picker-list">
-                  <li v-for="label in filteredOrgLabels" :key="label.id">
-                    <button
-                      type="button"
-                      class="label-picker-row"
-                      :disabled="saving"
-                      @click.stop="toggleLabel(label)"
-                    >
-                      <span
-                        class="label-picker-checkbox"
-                        :class="{ 'label-picker-checkbox--checked': isLabelSelected(label.id) }"
-                        aria-hidden="true"
+                <div class="popover-scroll">
+                  <ul class="label-picker-list">
+                    <li v-for="label in filteredOrgLabels" :key="label.id">
+                      <button
+                        type="button"
+                        class="label-picker-row"
+                        :disabled="saving"
+                        @click.stop="toggleLabel(label)"
                       >
-                        <span v-if="isLabelSelected(label.id)">✓</span>
-                      </span>
-                      <span
-                        class="label-picker-bar"
-                        :style="{
-                          backgroundColor: label.color,
-                          color: labelBarTextColor(label.color),
-                        }"
-                      >
-                        {{ label.name }}
-                      </span>
-                    </button>
-                  </li>
-                </ul>
-                <p v-if="!orgLabels.length" class="empty-text label-picker-empty">
-                  ラベルは設定画面で作成できます。
-                </p>
-                <p v-else-if="!filteredOrgLabels.length" class="empty-text label-picker-empty">
-                  該当するラベルがありません。
-                </p>
+                        <span
+                          class="label-picker-checkbox"
+                          :class="{ 'label-picker-checkbox--checked': isLabelSelected(label.id) }"
+                          aria-hidden="true"
+                        >
+                          <span v-if="isLabelSelected(label.id)">✓</span>
+                        </span>
+                        <span
+                          class="label-picker-bar"
+                          :style="{
+                            backgroundColor: label.color,
+                            color: labelBarTextColor(label.color),
+                          }"
+                        >
+                          {{ label.name }}
+                        </span>
+                      </button>
+                    </li>
+                  </ul>
+                  <p v-if="!orgLabels.length" class="empty-text label-picker-empty">
+                    ラベルは設定画面で作成できます。
+                  </p>
+                  <p v-else-if="!filteredOrgLabels.length" class="empty-text label-picker-empty">
+                    該当するラベルがありません。
+                  </p>
 
-                <p v-if="popoverError" class="err">{{ popoverError }}</p>
+                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
+                </div>
               </div>
               </div>
             </Transition>
@@ -491,6 +498,8 @@ type CalendarCell = {
   isToday: boolean
 }
 
+export type TaskDetailRemotePatch = Pick<TaskDetail, 'id'> & Partial<Omit<TaskDetail, 'id'>>
+
 const props = defineProps<{
   modelValue: boolean
   orgSlug: string
@@ -498,6 +507,9 @@ const props = defineProps<{
   taskId: number | null
   orgLabels: TaskDetailLabel[]
   projectMembers: TaskDetailMember[]
+  /** 他クライアントからの TaskUpdated など（rev が変わるたびに適用） */
+  remoteUpdate?: TaskDetailRemotePatch | null
+  remoteUpdateRev?: number
 }>()
 
 const emit = defineEmits<{
@@ -515,12 +527,16 @@ const loadError = ref<string | null>(null)
 const saveError = ref<string | null>(null)
 
 const ignoreOverlayCloseUntil = ref(0)
+/** モーダル内で押し始めた操作（文字選択ドラッグなど）では外側で離しても閉じない */
+const mouseDownInsideModal = ref(false)
 
 const activePopover = ref<PopoverType | null>(null)
 const selectedMember = ref<TaskDetailMember | null>(null)
 const popoverError = ref<string | null>(null)
 const popoverStyle = ref<Record<string, string>>({})
 const modalCardRef = ref<HTMLElement | null>(null)
+const modalBodyRef = ref<HTMLElement | null>(null)
+const popoverElRef = ref<HTMLElement | null>(null)
 const actionButtonsRef = ref<HTMLElement | null>(null)
 const popoverAnchorEl = ref<HTMLElement | null>(null)
 const calendarCursor = ref(new Date())
@@ -528,6 +544,7 @@ const pendingDate = ref<string | null>(null)
 
 const titleDraft = ref('')
 const titleSaving = ref(false)
+const titleTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const descriptionDraft = ref('')
 const descriptionSaving = ref(false)
@@ -637,11 +654,13 @@ function resetState () {
   saveError.value = null
   dismissPopover()
   ignoreOverlayCloseUntil.value = 0
+  mouseDownInsideModal.value = false
   popoverStyle.value = {}
   popoverAnchorEl.value = null
   calendarCursor.value = new Date()
   titleDraft.value = ''
   titleSaving.value = false
+  titleTextareaRef.value = null
   descriptionDraft.value = ''
   descriptionSaving.value = false
   labelSearchQuery.value = ''
@@ -657,6 +676,7 @@ async function loadTask () {
     )
     task.value = normalizeTaskDetail(detail)
     titleDraft.value = task.value.title
+    nextTick(() => adjustTitleTextareaHeight())
     descriptionDraft.value = task.value.description ?? ''
   } catch (e: unknown) {
     loadError.value = e instanceof Error ? e.message : '読み込みに失敗しました'
@@ -668,6 +688,47 @@ async function loadTask () {
 async function reload () {
   await loadTask()
 }
+
+function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
+  if (!task.value || patch.id !== task.value.id) {
+    return
+  }
+  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value) {
+    return
+  }
+
+  const titleDirty = titleDraft.value.trim() !== (task.value.title ?? '').trim()
+  const descDirty = descriptionDraft.value !== (task.value.description ?? '')
+
+  task.value = normalizeTaskDetail({
+    ...task.value,
+    ...patch,
+    labels: patch.labels ?? task.value.labels,
+    assignees: patch.assignees ?? task.value.assignees,
+  })
+
+  if (!titleDirty) {
+    titleDraft.value = task.value.title
+  }
+  if (!descDirty) {
+    descriptionDraft.value = task.value.description ?? ''
+  }
+}
+
+watch(
+  () => props.remoteUpdateRev,
+  () => {
+    const patch = props.remoteUpdate
+    if (!patch || !props.modelValue) {
+      return
+    }
+    applyRemoteTaskPatch(patch)
+  },
+)
+
+watch(titleDraft, () => {
+  nextTick(() => adjustTitleTextareaHeight())
+})
 
 watch(
   () => [props.modelValue, props.taskId] as const,
@@ -696,6 +757,35 @@ function isOverlayCloseBlocked (): boolean {
   return Date.now() < ignoreOverlayCloseUntil.value
 }
 
+function onOverlayMouseDown (event: MouseEvent) {
+  const card = modalCardRef.value
+  const target = event.target
+  mouseDownInsideModal.value = !!(
+    card && target instanceof Node && card.contains(target)
+  )
+}
+
+function hasActiveTextSelectionInModal (): boolean {
+  const sel = window.getSelection()
+  if (!sel || sel.isCollapsed) return false
+  const card = modalCardRef.value
+  if (!card) return false
+  const anchor = sel.anchorNode
+  const focus = sel.focusNode
+  return !!(
+    (anchor && card.contains(anchor))
+    || (focus && card.contains(focus))
+  )
+}
+
+function onOverlayBackdropClick (event: MouseEvent) {
+  const startedInside = mouseDownInsideModal.value
+  mouseDownInsideModal.value = false
+  if (startedInside || hasActiveTextSelectionInModal()) return
+  if (event.target !== event.currentTarget) return
+  close()
+}
+
 function close () {
   if (isOverlayCloseBlocked() || saving.value || titleSaving.value || descriptionSaving.value) return
   if (activePopover.value) {
@@ -716,23 +806,93 @@ function closePopover () {
   dismissPopover()
 }
 
+const POPOVER_VIEWPORT_PAD = 12
+const POPOVER_ANCHOR_GAP = 8
+const POPOVER_MIN_HEIGHT = 120
+const LABELS_POPOVER_TARGET_HEIGHT = 560
+
+let removePopoverResizeListener: (() => void) | null = null
+
+function positionFixedModalPopover (body: HTMLElement, popover: HTMLElement): Record<string, string> {
+  const pad = POPOVER_VIEWPORT_PAD
+  const bodyRect = body.getBoundingClientRect()
+  const popoverWidth = popover.offsetWidth
+  const targetHeight = Math.min(
+    LABELS_POPOVER_TARGET_HEIGHT,
+    Math.floor((window.innerHeight - pad * 2) * 0.8),
+  )
+  const top = 0
+  const left = Math.max(pad, bodyRect.width - popoverWidth - pad)
+  const maxHeight = Math.max(
+    POPOVER_MIN_HEIGHT,
+    Math.min(targetHeight, Math.floor(window.innerHeight - pad - bodyRect.top)),
+  )
+  return {
+    top: `${top}px`,
+    left: `${left}px`,
+    maxHeight: `${maxHeight}px`,
+  }
+}
+
 function updatePopoverPosition () {
   nextTick(() => {
-    const card = modalCardRef.value
-    const anchor = popoverAnchorEl.value ?? actionButtonsRef.value
-    if (!card || !anchor) return
-    const cardRect = card.getBoundingClientRect()
-    const anchorRect = anchor.getBoundingClientRect()
-    const popoverWidth = 296
-    let left = anchorRect.left - cardRect.left
-    const maxLeft = cardRect.width - popoverWidth - 12
-    left = Math.max(12, Math.min(left, maxLeft))
-    const top = anchorRect.bottom - cardRect.top + 8
-    popoverStyle.value = {
-      top: `${top}px`,
-      left: `${left}px`,
-    }
+    requestAnimationFrame(() => {
+      positionPopover()
+    })
   })
+}
+
+function positionPopover () {
+  const body = modalBodyRef.value
+  const anchor = popoverAnchorEl.value ?? actionButtonsRef.value
+  const popover = popoverElRef.value
+  if (!body || !popover) return
+
+  if (activePopover.value === 'labels' || activePopover.value === 'members') {
+    popoverStyle.value = positionFixedModalPopover(body, popover)
+    return
+  }
+
+  if (!anchor) return
+
+  const pad = POPOVER_VIEWPORT_PAD
+  const gap = POPOVER_ANCHOR_GAP
+  const bodyRect = body.getBoundingClientRect()
+  const anchorRect = anchor.getBoundingClientRect()
+  const popoverWidth = popover.offsetWidth
+
+  let left = anchorRect.left - bodyRect.left
+  left = Math.max(pad, Math.min(left, bodyRect.width - popoverWidth - pad))
+
+  const spaceBelow = window.innerHeight - anchorRect.bottom - pad
+  const spaceAbove = anchorRect.top - pad
+  const placeBelow = spaceBelow >= spaceAbove
+
+  let maxHeight = Math.floor(Math.max(POPOVER_MIN_HEIGHT, (placeBelow ? spaceBelow : spaceAbove) - gap))
+  let top: number
+
+  if (placeBelow) {
+    top = anchorRect.bottom - bodyRect.top + gap
+    const topInViewport = anchorRect.bottom + gap
+    const maxFromViewport = Math.floor(window.innerHeight - pad - topInViewport)
+    maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.min(maxHeight, maxFromViewport))
+  } else {
+    top = anchorRect.top - bodyRect.top - gap - maxHeight
+    const minTop = pad - bodyRect.top
+    if (top < minTop) {
+      top = minTop
+      maxHeight = Math.max(
+        POPOVER_MIN_HEIGHT,
+        Math.floor(anchorRect.top - pad - gap),
+      )
+    }
+  }
+
+  popoverStyle.value = {
+    top: `${Math.round(top)}px`,
+    left: `${Math.round(left)}px`,
+    maxHeight: `${maxHeight}px`,
+  }
 }
 
 function openDatePicker (target: DatePickerTarget, event?: Event) {
@@ -873,18 +1033,45 @@ function onPopoverEscape (event: KeyboardEvent) {
 watch(activePopover, (open) => {
   if (open) {
     document.addEventListener('keydown', onPopoverEscape)
+    const onResize = () => updatePopoverPosition()
+    window.addEventListener('resize', onResize)
+    removePopoverResizeListener = () => window.removeEventListener('resize', onResize)
+    updatePopoverPosition()
   } else {
     document.removeEventListener('keydown', onPopoverEscape)
+    removePopoverResizeListener?.()
+    removePopoverResizeListener = null
+  }
+})
+
+watch(labelSearchQuery, () => {
+  if (activePopover.value === 'labels') {
+    updatePopoverPosition()
   }
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onPopoverEscape)
+  removePopoverResizeListener?.()
+  removePopoverResizeListener = null
 })
 
 function revertTitleDraft () {
   if (!task.value) return
   titleDraft.value = task.value.title
+  nextTick(() => adjustTitleTextareaHeight())
+}
+
+function onTitleEnter () {
+  titleDraft.value = titleDraft.value.replace(/\r?\n/g, '').trim()
+  titleTextareaRef.value?.blur()
+}
+
+function adjustTitleTextareaHeight () {
+  const el = titleTextareaRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
 }
 
 async function onTitleBlur () {
@@ -908,6 +1095,7 @@ async function saveTitle () {
     )
     task.value = normalizeTaskDetail(updated)
     titleDraft.value = task.value.title
+    nextTick(() => adjustTitleTextareaHeight())
     emit('updated', task.value)
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : 'カード名の更新に失敗しました'
@@ -1014,6 +1202,10 @@ async function saveDescription () {
   overflow-y: auto;
 }
 
+.modal-overlay--popover-open {
+  overflow: hidden;
+}
+
 .modal-card {
   position: relative;
   width: min(40rem, 100%);
@@ -1050,7 +1242,7 @@ async function saveDescription () {
 
 .modal-body {
   position: relative;
-  padding: 1rem 1.1rem 1.2rem;
+  padding: 0.5rem 1.1rem 1.2rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -1082,21 +1274,10 @@ async function saveDescription () {
   gap: 0.45rem;
 }
 
-.field-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-}
-
 .field-label {
   font-size: 0.82rem;
   font-weight: 700;
   color: #475569;
-}
-
-.field-label-row--end {
-  justify-content: flex-end;
 }
 
 .title-block {
@@ -1113,6 +1294,12 @@ async function saveDescription () {
   background: transparent;
   width: 100%;
   box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .title-input:focus {
@@ -1178,22 +1365,37 @@ async function saveDescription () {
 }
 
 .popover--date {
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 0.6rem;
   gap: 0.5rem;
 }
 
-.popover--members {
-  max-height: min(20rem, 60vh);
-  overflow-y: auto;
-}
-
+.popover--members,
 .popover--labels {
   width: min(19.5rem, calc(100% - 1.5rem));
-  max-height: min(24rem, 70vh);
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 0;
   gap: 0;
+}
+
+.popover--members .member-picker-list {
+  padding: 0.65rem 0.5rem 0.65rem;
+}
+
+.popover--members .empty-text,
+.popover--members .err {
+  margin-left: 0.65rem;
+  margin-right: 0.65rem;
+}
+
+.popover-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .popover-header--labels {
@@ -1719,12 +1921,6 @@ async function saveDescription () {
 
 .description-block {
   margin-top: 0.15rem;
-}
-
-.description-saving {
-  font-size: 0.78rem;
-  color: #64748b;
-  font-weight: 600;
 }
 
 .description-textarea {

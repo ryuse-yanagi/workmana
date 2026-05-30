@@ -16,7 +16,7 @@
     <template v-else>
       <header class="page-header">
             <div class="subheader">
-              <p class="subheader-title">{{ workUnitListLabel }}｜</p>
+              <p class="subheader-title">{{ workUnitListLabel }}</p>
               <div class="subheader-filters">
                 <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
                   <option value="">全ラベル</option>
@@ -34,7 +34,7 @@
                   v-model.trim="searchQuery"
                   class="header-search"
                   type="search"
-                  :placeholder="`${workUnitLabel}名で検索`"
+                  :placeholder="workUnitLabel ? `${workUnitLabel}名で検索` : '検索'"
                   aria-label="検索"
                 />
               </div>
@@ -82,13 +82,13 @@
                   >
                     <td class="name-cell">
                       <p class="name-text">{{ project.name }}</p>
-                      <div class="label-list">
+                      <div v-if="project.labels?.length" class="label-list">
                         <span
-                          v-for="label in project.labels ?? []"
+                          v-for="label in project.labels"
                           :key="label.id"
-                          class="inline-label"
+                          class="label-strip"
+                          :style="{ backgroundColor: label.color }"
                         >
-                          <span class="label-dot" :style="{ backgroundColor: label.color }" />
                           {{ label.name }}
                         </span>
                       </div>
@@ -109,8 +109,8 @@
       <ProjectCreateModal
         v-if="pageReady"
         v-model="projectCreateModalOpen"
-        :title="`${workUnitLabel}の新規作成`"
-        :work-unit-label="workUnitLabel"
+        :title="workUnitLabel ? `${workUnitLabel}の新規作成` : '新規作成'"
+        :work-unit-label="workUnitLabel ?? ''"
         :labels="orgLabels"
         :loading="pending"
         @submit="createProject"
@@ -122,7 +122,7 @@
 <script setup lang="ts">
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
 import { useApi } from '../../../composables/useApi'
-import { useOrgTerminology } from '../../../composables/useOrgTerminology'
+import { useOrgTerminology, useWorkUnitLabel } from '../../../composables/useOrgTerminology'
 
 definePageMeta({ name: 'org-slug' })
 
@@ -132,7 +132,8 @@ type Project = { id: number; name: string; labels?: Label[] }
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const { api } = useApi()
-const { fetchWorkUnitLabel, DEFAULT_WORK_UNIT_LABEL } = useOrgTerminology()
+const { fetchWorkUnitLabel, syncLabelState } = useOrgTerminology()
+const { workUnitLabel, workUnitListLabel } = useWorkUnitLabel(() => slug.value)
 
 const projects = ref<Project[]>([])
 /** 初回取得成功まで UI を出さない */
@@ -146,12 +147,9 @@ const sortMode = ref<'newest' | 'oldest' | 'name'>('newest')
 const projectCreateModalOpen = ref(false)
 const orgLabels = ref<Label[]>([])
 const labelFilterId = ref('')
-const workUnitLabel = ref(DEFAULT_WORK_UNIT_LABEL)
 const justCreatedProjectIds = reactive<Record<number, true>>({})
 
-const workUnitListLabel = computed(() => `${workUnitLabel.value}一覧`)
-
-const globalHeaderOffsetPx = ref(52)
+const globalHeaderOffsetPx = ref(46)
 
 const listPageCssVars = computed(() => {
   return {
@@ -207,7 +205,7 @@ async function fetchOrgIndex () {
 function applyOrgIndex (data: Awaited<ReturnType<typeof fetchOrgIndex>>) {
   projects.value = data.projectsRes.data
   orgLabels.value = data.labelsRes.data
-  workUnitLabel.value = data.label
+  syncLabelState(slug.value, data.label)
 }
 
 async function load (opts?: { refresh?: boolean }) {
@@ -330,7 +328,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .list-page {
-  min-height: calc(100dvh - var(--global-header-offset, 52px));
+  min-height: calc(100dvh - var(--global-header-offset, 46px));
   padding: 0 1rem 1rem;
   margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
   padding-top: 0;
@@ -347,7 +345,7 @@ onBeforeUnmount(() => {
 
 .page-header {
   position: sticky;
-  top: var(--global-header-offset, 52px);
+  top: var(--global-header-offset, 46px);
   z-index: 40;
   margin-bottom: 1rem;
   width: calc(100% + 2rem);
@@ -554,28 +552,26 @@ onBeforeUnmount(() => {
 }
 
 .label-list {
-  margin-top: 0.25rem;
+  margin-top: 0.35rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.25rem;
 }
 
-.inline-label {
+.label-strip {
   display: inline-flex;
   align-items: center;
-  gap: 0.24rem;
-  border-radius: 999px;
-  padding: 0.15rem 0.45rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font-size: 0.74rem;
-  color: #334155;
-}
-
-.label-dot {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 999px;
+  justify-content: center;
+  padding: 0.18rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #fff;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .empty {
@@ -589,14 +585,15 @@ onBeforeUnmount(() => {
 .mini-btn {
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 0.45rem 0.7rem;
-  font-size: 1rem;
-  font-weight: 700;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  letter-spacing: 0.1em;
 }
 
 .primary-btn {

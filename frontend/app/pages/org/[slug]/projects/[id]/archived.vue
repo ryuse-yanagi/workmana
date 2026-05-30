@@ -20,7 +20,7 @@
         </button>
       </div>
       <h1>アーカイブ済みカード</h1>
-      <p class="subtitle">
+      <p v-if="workUnitLabel" class="subtitle">
         {{ workUnitLabel }} #{{ projectId }} — アーカイブしたカードだけが表示されます。完全削除はこの画面からのみ行えます。
       </p>
     </header>
@@ -96,7 +96,7 @@
 <script setup lang="ts">
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
 import { useApi } from '../../../../../composables/useApi'
-import { useOrgTerminology } from '../../../../../composables/useOrgTerminology'
+import { useOrgTerminology, useWorkUnitLabel } from '../../../../../composables/useOrgTerminology'
 
 definePageMeta({ name: 'org-slug-projects-id-archived' })
 
@@ -104,7 +104,8 @@ const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const projectId = computed(() => route.params.id as string)
 const { api } = useApi()
-const { fetchWorkUnitLabel, DEFAULT_WORK_UNIT_LABEL } = useOrgTerminology()
+const { fetchWorkUnitLabel, syncLabelState } = useOrgTerminology()
+const { workUnitLabel } = useWorkUnitLabel(() => slug.value)
 
 type Task = {
   id: number
@@ -120,7 +121,6 @@ const loading = ref(false)
 const pageReady = ref(false)
 const fatalLoadError = ref<string | null>(null)
 const pendingId = ref<number | null>(null)
-const workUnitLabel = ref(DEFAULT_WORK_UNIT_LABEL)
 const deleteConfirmTask = ref<Task | null>(null)
 const restoreConfirmTask = ref<Task | null>(null)
 const restoreConfirmOpen = computed({
@@ -170,12 +170,12 @@ async function load (opts?: { refresh?: boolean }) {
         return
       }
       tasks.value = r.value.res.data
-      workUnitLabel.value = r.value.label
+      syncLabelState(slug.value, r.value.label)
       pageReady.value = true
     } else {
       const data = await fetchArchived()
       tasks.value = data.res.data
-      workUnitLabel.value = data.label
+      syncLabelState(slug.value, data.label)
       pageReady.value = true
     }
   } catch (e: unknown) {
@@ -249,7 +249,56 @@ async function confirmPermanentDelete () {
   }
 }
 
-onMounted(load)
+function ensureArchivedTasks () {
+  if (!tasks.value) {
+    tasks.value = []
+  }
+}
+
+function addArchivedTaskFromRealtime (task: {
+  id: number
+  title: string
+  status: string
+  list_id: number | null
+  archived_at?: string | null
+}) {
+  ensureArchivedTasks()
+  if (tasks.value!.some(t => t.id === task.id)) {
+    return
+  }
+  tasks.value!.push({
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    list_id: task.list_id,
+    archived_at: task.archived_at ?? null,
+  })
+}
+
+function removeArchivedTaskFromRealtime (taskId: number) {
+  if (!tasks.value) {
+    return
+  }
+  tasks.value = tasks.value.filter(t => t.id !== taskId)
+}
+
+useProjectRealtimeChannel(projectId, {
+  onTaskArchived ({ task }) {
+    if (task) {
+      addArchivedTaskFromRealtime(task)
+    }
+  },
+  onTaskRestored (task) {
+    removeArchivedTaskFromRealtime(task.id)
+  },
+  onTaskDeleted (taskId) {
+    removeArchivedTaskFromRealtime(taskId)
+  },
+})
+
+onMounted(() => {
+  void load()
+})
 </script>
 
 <style scoped>
