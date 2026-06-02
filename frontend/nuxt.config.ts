@@ -18,6 +18,13 @@ export default defineNuxtConfig({
     },
   },
   vite: {
+    css: {
+      preprocessorOptions: {
+        scss: {
+          additionalData: '@use "~/assets/styles/mixin" as mixin;',
+        },
+      },
+    },
     server: {
       proxy: {
         // ブラウザ → :3000/api/* を :8000/api/* に転送（CORS・WSL のループバック差を避ける）

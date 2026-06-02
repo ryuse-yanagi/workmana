@@ -10,6 +10,7 @@ use App\Events\TaskDeleted;
 use App\Events\TaskRestored;
 use App\Events\TaskUpdated;
 use App\Models\BoardList;
+use App\Models\TaskHeading;
 use App\Models\TaskLabel;
 use App\Models\Organization;
 use App\Models\Project;
@@ -32,8 +33,7 @@ class TaskController extends ApiController
         $labelIds = $this->normalizeLabelIds($request->query('label_ids'));
 
         $query = $project->tasks()
-            ->notArchived()
-            ->orderByDesc('created_at');
+            ->notArchived();
 
         if ($labelIds !== []) {
             $query->whereHas('labels', function ($q) use ($organization, $labelIds) {
@@ -46,10 +46,15 @@ class TaskController extends ApiController
             ->with([
                 'labels:id,name,color',
                 'assignees:id,name,email,avatar_path',
+                'heading:id,name',
             ])
+            ->orderBy('sort_order')
+            ->orderBy('id')
             ->get([
                 'id',
                 'list_id',
+                'task_heading_id',
+                'sort_order',
                 'title',
                 'status',
                 'priority',
@@ -125,6 +130,7 @@ class TaskController extends ApiController
             'assignee_ids.*' => ['integer', 'distinct'],
             'label_ids' => ['nullable', 'array'],
             'label_ids.*' => ['integer', 'distinct'],
+            'task_heading_id' => ['sometimes', 'nullable', 'integer'],
         ]);
 
         $title = trim($validated['title']);
@@ -142,10 +148,26 @@ class TaskController extends ApiController
         $user = $request->user();
         $assigneeIds = $this->resolveAssigneeIds($project, $validated);
 
+        $sortOrder = 0;
+        if (! empty($validated['list_id'])) {
+            $maxOrder = Task::query()
+                ->where('project_id', $project->id)
+                ->where('list_id', $validated['list_id'])
+                ->notArchived()
+                ->max('sort_order');
+            $sortOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
+        }
+
+        $taskHeadingId = array_key_exists('task_heading_id', $validated)
+            ? $this->resolveTaskHeadingId($project, $validated['task_heading_id'] ?? null)
+            : null;
+
         $task = Task::query()->create([
             'organization_id' => $organization->id,
             'project_id' => $project->id,
             'list_id' => $validated['list_id'] ?? null,
+            'task_heading_id' => $taskHeadingId,
+            'sort_order' => $sortOrder,
             'title' => $title,
             'description' => $validated['description'] ?? null,
             'status' => $validated['status'] ?? TaskStatus::Todo->value,
@@ -217,6 +239,7 @@ class TaskController extends ApiController
             'assignee_ids.*' => ['integer', 'distinct'],
             'label_ids' => ['nullable', 'array'],
             'label_ids.*' => ['integer', 'distinct'],
+            'task_heading_id' => ['sometimes', 'nullable', 'integer'],
         ]);
 
         if (array_key_exists('title', $validated)) {
@@ -232,10 +255,19 @@ class TaskController extends ApiController
         if (array_key_exists('list_id', $validated)) {
             if ($validated['list_id'] === null) {
                 $task->list_id = null;
+                $task->sort_order = 0;
             } else {
                 $list = BoardList::query()->find($validated['list_id']);
                 if ($list === null || (int) $list->project_id !== (int) $project->id) {
                     return response()->json(['message' => 'Invalid list for this project.'], 422);
+                }
+                if ((int) $task->list_id !== (int) $list->id) {
+                    $maxOrder = Task::query()
+                        ->where('project_id', $project->id)
+                        ->where('list_id', $list->id)
+                        ->notArchived()
+                        ->max('sort_order');
+                    $task->sort_order = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
                 }
                 $task->list_id = $list->id;
             }
@@ -257,6 +289,13 @@ class TaskController extends ApiController
         if (array_key_exists('assignee_ids', $validated) || array_key_exists('assignee_id', $validated)) {
             $assigneeIdsToSync = $this->resolveAssigneeIds($project, $validated);
             $task->assignee_id = $assigneeIdsToSync[0] ?? null;
+        }
+
+        if (array_key_exists('task_heading_id', $validated)) {
+            $task->task_heading_id = $this->resolveTaskHeadingId(
+                $project,
+                $validated['task_heading_id'],
+            );
         }
 
         $task->save();
@@ -363,11 +402,15 @@ class TaskController extends ApiController
         $task->loadMissing([
             'labels:id,name,color',
             'assignees:id,name,email,avatar_path',
+            'heading:id,name',
         ]);
 
         return [
             'id' => $task->id,
             'list_id' => $task->list_id,
+            'task_heading_id' => $task->task_heading_id,
+            'heading' => $this->formatHeading($task),
+            'sort_order' => $task->sort_order,
             'title' => $task->title,
             'description' => $task->description,
             'status' => $task->status,
@@ -392,6 +435,9 @@ class TaskController extends ApiController
         return [
             'id' => $task->id,
             'list_id' => $task->list_id,
+            'task_heading_id' => $task->task_heading_id,
+            'heading' => $this->formatHeading($task),
+            'sort_order' => $task->sort_order,
             'title' => $task->title,
             'status' => $task->status,
             'priority' => $task->priority,
@@ -404,6 +450,54 @@ class TaskController extends ApiController
             'created_at' => $task->created_at,
             'labels' => $task->labels,
         ];
+    }
+
+    /**
+     * @return array{id: int, name: string}|null
+     */
+    private function formatHeading(Task $task): ?array
+    {
+        if ($task->relationLoaded('heading') && $task->heading !== null) {
+            return [
+                'id' => $task->heading->id,
+                'name' => $task->heading->name,
+            ];
+        }
+
+        if ($task->task_heading_id === null) {
+            return null;
+        }
+
+        $heading = TaskHeading::query()
+            ->where('project_id', $task->project_id)
+            ->find($task->task_heading_id);
+
+        if ($heading === null) {
+            return null;
+        }
+
+        return [
+            'id' => $heading->id,
+            'name' => $heading->name,
+        ];
+    }
+
+    private function resolveTaskHeadingId(Project $project, mixed $rawId): ?int
+    {
+        if ($rawId === null || $rawId === '') {
+            return null;
+        }
+
+        $id = (int) $rawId;
+        $exists = TaskHeading::query()
+            ->where('project_id', $project->id)
+            ->where('id', $id)
+            ->exists();
+        if (! $exists) {
+            abort(422, 'Invalid task heading for this project.');
+        }
+
+        return $id;
     }
 
     /**

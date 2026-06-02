@@ -114,7 +114,7 @@
           <h2>プロジェクトラベル設定</h2>
           <p class="panel-note">プロジェクトで使うラベルを作成します。</p>
           <div class="button-row button-row--start">
-            <button type="button" class="primary-btn" @click="projectLabelModalOpen = true">新規作成</button>
+            <button type="button" class="primary-btn" @click="projectLabelModalOpen = true">作成</button>
             <button type="button" class="ghost-btn" :disabled="projectLabelsLoading" @click="loadProjectLabels">
               再読み込み
             </button>
@@ -137,7 +137,7 @@
           <h2>タスクラベル設定</h2>
           <p class="panel-note">タスクで使うラベルを作成します。</p>
           <div class="button-row button-row--start">
-            <button type="button" class="primary-btn" @click="taskLabelModalOpen = true">新規作成</button>
+            <button type="button" class="primary-btn" @click="taskLabelModalOpen = true">作成</button>
             <button type="button" class="ghost-btn" :disabled="taskLabelsLoading" @click="loadTaskLabels">
               再読み込み
             </button>
@@ -163,7 +163,7 @@
     <LabelCreateModal
       v-if="settingsPageReady"
       v-model="projectLabelModalOpen"
-      title="プロジェクトラベルの新規作成"
+      title="プロジェクトラベルの作成"
       :loading="projectLabelsLoading"
       @submit="createProjectLabel"
     />
@@ -171,7 +171,7 @@
     <LabelCreateModal
       v-if="settingsPageReady"
       v-model="taskLabelModalOpen"
-      title="タスクラベルの新規作成"
+      title="タスクラベルの作成"
       :loading="taskLabelsLoading"
       @submit="createTaskLabel"
     />
@@ -529,7 +529,7 @@ watch(
 )
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .settings-page {
   min-height: 100vh;
   padding: 1.25rem 1rem 2rem;
@@ -582,8 +582,8 @@ h1 {
 }
 
 .menu-item--active {
-  border-color: #22c1c3;
-  box-shadow: 0 0 0 2px rgba(34, 193, 195, 0.15);
+  border-color: mixin.$main;
+  box-shadow: 0 0 0 2px color-mix(in srgb, mixin.$main 15%, transparent);
 }
 
 .menu-arrow {
@@ -684,8 +684,8 @@ input {
 }
 
 .primary-btn {
-  background: #22c1c3;
-  color: #fff;
+  background: mixin.$main;
+  color: mixin.$white;
 }
 
 .ghost-btn {

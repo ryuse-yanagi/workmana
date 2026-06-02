@@ -16,6 +16,8 @@ class Task extends Model
         'organization_id',
         'project_id',
         'list_id',
+        'task_heading_id',
+        'sort_order',
         'title',
         'description',
         'status',
@@ -49,6 +51,11 @@ class Task extends Model
     public function list(): BelongsTo
     {
         return $this->belongsTo(BoardList::class, 'list_id');
+    }
+
+    public function heading(): BelongsTo
+    {
+        return $this->belongsTo(TaskHeading::class, 'task_heading_id');
     }
 
     public function assignee(): BelongsTo

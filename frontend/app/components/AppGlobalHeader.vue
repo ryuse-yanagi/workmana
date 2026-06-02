@@ -228,13 +228,13 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .global-header {
   position: sticky;
   top: 0;
   z-index: 50;
   border-bottom: 1px solid rgba(15, 23, 42, 0.35);
-  background: #0b2bab;
+  background: mixin.$main;
   backdrop-filter: blur(10px);
 }
 
@@ -268,7 +268,7 @@ onBeforeUnmount(() => {
 
 .nav-btn {
   border: none;
-  background: #0b2bab;
+  background: mixin.$main;
   color: #f8fafc;
   border-radius: 999px;
   padding: 0.35rem 0.7rem;

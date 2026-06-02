@@ -19,6 +19,7 @@ class TaskUpdated implements ShouldBroadcastNow
         $this->task->loadMissing([
             'labels:id,name,color',
             'assignees:id,name,email,avatar_path',
+            'heading:id,name',
         ]);
     }
 
@@ -45,6 +46,10 @@ class TaskUpdated implements ShouldBroadcastNow
                 'status' => $this->task->status,
                 'start_date' => $this->task->start_date,
                 'due_date' => $this->task->due_date,
+                'task_heading_id' => $this->task->task_heading_id,
+                'heading' => $this->task->heading
+                    ? ['id' => $this->task->heading->id, 'name' => $this->task->heading->name]
+                    : null,
                 'labels' => $this->task->labels->map(fn ($l) => [
                     'id' => $l->id,
                     'name' => $l->name,

@@ -2,53 +2,37 @@
   <Teleport to="body">
     <Transition name="tm-fade">
       <div v-if="modelValue" class="modal-overlay" role="presentation" @click.self="close">
-      <section
-        class="modal-card"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="title"
-      >
-        <header class="modal-header">
-          <h3>{{ title }}</h3>
-          <button type="button" class="icon-close" :disabled="loading" @click="close">✕</button>
-        </header>
+        <section
+          class="modal-card"
+          role="dialog"
+          aria-modal="true"
+          aria-label="親タスクの作成"
+        >
+          <header class="modal-header">
+            <h3>親タスクの作成</h3>
+            <button type="button" class="icon-close" :disabled="loading" @click="close">✕</button>
+          </header>
 
-        <form class="modal-body" @submit.prevent="submit">
-          <label class="field">
-            <span>ラベル名</span>
-            <input
-              v-model.trim="name"
-              type="text"
-              maxlength="40"
-              required
-              placeholder="ラベル名"
-              :disabled="loading"
-            />
-          </label>
-
-          <div class="field">
-            <span>カラー</span>
-            <div class="color-list">
-              <button
-                v-for="colorItem in colorPresets"
-                :key="colorItem"
-                type="button"
-                class="color-btn"
-                :class="{ 'color-btn--active': colorItem === color }"
-                :style="{ backgroundColor: colorItem }"
+          <form class="modal-body" @submit.prevent="submit">
+            <label class="field">
+              <span>親タスク名</span>
+              <input
+                v-model.trim="name"
+                type="text"
+                maxlength="80"
+                required
+                placeholder="親タスク名"
                 :disabled="loading"
-                @click="color = colorItem"
               />
-            </div>
-          </div>
+            </label>
 
-          <div class="actions">
-            <button type="button" class="ghost-btn" :disabled="loading" @click="close">キャンセル</button>
-            <button type="submit" class="primary-btn" :disabled="loading || !name">作成</button>
-          </div>
-        </form>
-      </section>
-    </div>
+            <div class="actions">
+              <button type="button" class="ghost-btn" :disabled="loading" @click="close">キャンセル</button>
+              <button type="submit" class="primary-btn" :disabled="loading || !name">作成</button>
+            </div>
+          </form>
+        </section>
+      </div>
     </Transition>
   </Teleport>
 </template>
@@ -56,7 +40,6 @@
 <script setup lang="ts">
 const props = withDefaults(defineProps<{
   modelValue: boolean
-  title: string
   loading?: boolean
 }>(), {
   loading: false,
@@ -64,32 +47,16 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [boolean]
-  submit: [{ name: string; color: string }]
+  submit: [{ name: string }]
 }>()
 
-const colorPresets: string[] = [
-  '#c084fc',
-  '#6366f1',
-  '#3b82f6',
-  '#06b6d4',
-  '#34d399',
-  '#84cc16',
-  '#eab308',
-  '#f97316',
-  '#ef4444',
-  '#ec4899',
-]
-const defaultColor = '#c084fc'
-
 const name = ref('')
-const color = ref<string>(defaultColor)
 
 watch(
   () => props.modelValue,
   (open) => {
     if (open) {
       name.value = ''
-      color.value = defaultColor
     }
   },
 )
@@ -102,7 +69,7 @@ function close () {
 function submit () {
   const trimmed = name.value.trim()
   if (!trimmed || props.loading) return
-  emit('submit', { name: trimmed, color: color.value })
+  emit('submit', { name: trimmed })
 }
 </script>
 
@@ -169,24 +136,7 @@ function submit () {
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   font-size: 0.94rem;
-}
-
-.color-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.color-btn {
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.15);
-  cursor: pointer;
-}
-
-.color-btn--active {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #334155;
+  border: 1px solid #cbd5e1;
 }
 
 .actions {

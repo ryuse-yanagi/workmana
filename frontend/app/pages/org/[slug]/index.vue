@@ -44,7 +44,7 @@
                 :disabled="pending"
                 @click="openProjectCreateModal"
               >
-                新規作成
+                作成
               </button>
             </div>
       </header>
@@ -105,11 +105,11 @@
         </div>
       </Transition>
 
-      <!-- 新規作成モーダル（オーバーレイのためフェード対象外） -->
+      <!-- 作成モーダル（オーバーレイのためフェード対象外） -->
       <ProjectCreateModal
         v-if="pageReady"
         v-model="projectCreateModalOpen"
-        :title="workUnitLabel ? `${workUnitLabel}の新規作成` : '新規作成'"
+        :title="workUnitLabel ? `${workUnitLabel}の作成` : '作成'"
         :work-unit-label="workUnitLabel ?? ''"
         :labels="orgLabels"
         :loading="pending"
@@ -326,7 +326,7 @@ onBeforeUnmount(() => {
 
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .list-page {
   min-height: calc(100dvh - var(--global-header-offset, 46px));
   padding: 0 1rem 1rem;
@@ -597,8 +597,8 @@ onBeforeUnmount(() => {
 }
 
 .primary-btn {
-  background: #22c1c3;
-  color: #fff;
+  background: mixin.$main;
+  color: mixin.$white;
   border-radius: 999px;
   padding: 0.4rem 2rem;
   white-space: nowrap;

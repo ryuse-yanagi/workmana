@@ -41,6 +41,31 @@ class OrganizationTaskApiTest extends TestCase
             ])
             ->assertCreated()
             ->assertJsonPath('title', 'First task');
+
+        $headingRes = $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/task-headings", [
+                'name' => 'Phase 1',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('name', 'Phase 1');
+
+        $headingId = $headingRes->json('id');
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'task_heading_id' => $headingId,
+            ])
+            ->assertOk()
+            ->assertJsonPath('heading.name', 'Phase 1')
+            ->assertJsonPath('task_heading_id', $headingId);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'task_heading_id' => null,
+            ])
+            ->assertOk()
+            ->assertJsonPath('heading', null)
+            ->assertJsonPath('task_heading_id', null);
     }
 
     public function test_non_member_cannot_access_org(): void

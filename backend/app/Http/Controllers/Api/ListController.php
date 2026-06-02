@@ -8,6 +8,7 @@ use App\Events\ListUpdated;
 use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Project;
+use App\Models\Task;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -110,5 +111,92 @@ class ListController extends ApiController
         SafeBroadcast::toOthers(new ListDeleted($projectId, $listId));
 
         return response()->json(null, 204);
+    }
+
+    public function reorder(Request $request, Organization $organization, Project $project): JsonResponse
+    {
+        $this->ensureProjectBelongsToOrganization($project, $organization);
+        $this->ensureProjectMember($request->user(), $project);
+        $this->denyIfProjectViewer($request->user(), $project);
+        $this->assertProjectNotArchived($project);
+
+        $validated = $request->validate([
+            'list_ids' => ['present', 'array'],
+            'list_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        /** @var array<int, int> $listIds */
+        $listIds = array_map('intval', $validated['list_ids']);
+
+        $activeListIds = $project->lists()
+            ->pluck('id')
+            ->sort()
+            ->values()
+            ->all();
+
+        $sortedIncoming = $listIds;
+        sort($sortedIncoming);
+
+        if ($activeListIds !== $sortedIncoming) {
+            return response()->json([
+                'message' => 'list_ids must include every list in the project exactly once.',
+            ], 422);
+        }
+
+        foreach ($listIds as $index => $listId) {
+            BoardList::query()
+                ->where('id', $listId)
+                ->where('project_id', $project->id)
+                ->update(['sort_order' => $index]);
+        }
+
+        return response()->json(['data' => ['ok' => true]]);
+    }
+
+    public function reorderTasks(Request $request, Organization $organization, Project $project, BoardList $boardList): JsonResponse
+    {
+        $this->ensureProjectBelongsToOrganization($project, $organization);
+        $this->ensureProjectMember($request->user(), $project);
+        $this->denyIfProjectViewer($request->user(), $project);
+        $this->assertProjectNotArchived($project);
+
+        if ((int) $boardList->project_id !== (int) $project->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'task_ids' => ['present', 'array'],
+            'task_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        /** @var array<int, int> $taskIds */
+        $taskIds = array_map('intval', $validated['task_ids']);
+
+        $activeTaskIds = Task::query()
+            ->where('project_id', $project->id)
+            ->where('list_id', $boardList->id)
+            ->notArchived()
+            ->pluck('id')
+            ->sort()
+            ->values()
+            ->all();
+
+        $sortedIncoming = $taskIds;
+        sort($sortedIncoming);
+
+        if ($activeTaskIds !== $sortedIncoming) {
+            return response()->json([
+                'message' => 'task_ids must include every task in the list exactly once.',
+            ], 422);
+        }
+
+        foreach ($taskIds as $index => $taskId) {
+            Task::query()
+                ->where('id', $taskId)
+                ->where('project_id', $project->id)
+                ->update(['sort_order' => $index]);
+        }
+
+        return response()->json(['data' => ['ok' => true]]);
     }
 }

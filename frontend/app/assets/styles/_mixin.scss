@@ -1,0 +1,18 @@
+// 共通カラー — 各 Vue の <style lang="scss"> で mixin.$main のように使う
+// nuxt.config の additionalData で @use "~/assets/styles/mixin" as mixin; を注入済み
+
+$main: #0c66e4;
+$main-hover: #053580;
+$accent-border: #388bff;
+$brand: #0b2bab;
+$action: $main;
+$focus: #2563eb;
+$text: #0f172a;
+$text-sub: #475569;
+$text-muted: #64748b;
+$surface-muted: #f1f5f9;
+$gray: #e2e8f0;
+$border: #cbd5e1;
+$border-light: #e2e8f0;
+$danger: #b91c1c;
+$white: #fff;

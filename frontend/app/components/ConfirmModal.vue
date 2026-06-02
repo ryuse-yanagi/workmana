@@ -57,7 +57,7 @@ function close () {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -138,8 +138,8 @@ function close () {
 }
 
 .primary-btn {
-  background: #45c3cf;
-  color: #fff;
+  background: mixin.$main;
+  color: mixin.$white;
 }
 
 .danger-btn {

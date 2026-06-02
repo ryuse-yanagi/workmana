@@ -1,7 +1,6 @@
 <template>
   <main
     class="board-page"
-    :class="{ 'board-page--await': !pageReady && !fatalLoadError }"
     :style="boardPageCssVars"
   >
     <template v-if="fatalLoadError">
@@ -15,37 +14,37 @@
 
     <template v-else>
       <header class="page-header">
-            <div class="subheader">
-              <NuxtLink :to="`/org/${slug}`" class="subheader-title subheader-back-link">
-                &lt; {{ workUnitListLabel }}
-              </NuxtLink>
-              <div class="subheader-filters">
-                <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
-                  <option value="">全ラベル</option>
-                  <option v-for="label in orgLabels" :key="label.id" :value="String(label.id)">
-                    {{ label.name }}
-                  </option>
-                </select>
-                <p class="subheader-count" aria-live="polite">{{ visibleTaskCount }} 件</p>
-                <input
-                  v-model.trim="searchQuery"
-                  class="header-search"
-                  type="search"
-                  placeholder="カード名で検索"
-                  aria-label="カード名検索"
-                />
-              </div>
-              <NuxtLink
-                class="header-primary-btn header-primary-btn--icon-group linkish"
-                :to="`/org/${slug}/projects/${projectId}/archived`"
-                aria-label="アーカイブ済みカード"
-                title="アーカイブ済みカード"
-              >
-                <Trash2 :size="24" :stroke-width="2.25" aria-hidden="true" />
-                <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
-                <Workflow :size="24" :stroke-width="2.25" aria-hidden="true" />
-              </NuxtLink>
-            </div>
+        <div class="subheader">
+          <NuxtLink :to="`/org/${slug}`" class="subheader-title subheader-back-link">
+            &lt; {{ workUnitListLabel }}
+          </NuxtLink>
+          <div class="subheader-filters">
+            <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
+              <option value="">全ラベル</option>
+              <option v-for="label in orgLabels" :key="label.id" :value="String(label.id)">
+                {{ label.name }}
+              </option>
+            </select>
+            <p class="subheader-count" aria-live="polite">{{ visibleTaskCount }} 件</p>
+            <input
+              v-model.trim="searchQuery"
+              class="header-search"
+              type="search"
+              placeholder="カード名で検索"
+              aria-label="カード名検索"
+            />
+          </div>
+          <NuxtLink
+            class="header-primary-btn header-primary-btn--icon-group linkish"
+            :to="`/org/${slug}/projects/${projectId}/archived`"
+            aria-label="アーカイブ済みカード"
+            title="アーカイブ済みカード"
+          >
+            <Trash2 :size="24" :stroke-width="2.25" aria-hidden="true" />
+            <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
+            <Workflow :size="24" :stroke-width="2.25" aria-hidden="true" />
+          </NuxtLink>
+        </div>
       </header>
 
       <div v-if="!pageReady" class="page-await-spacer" aria-busy="true" />
@@ -54,13 +53,42 @@
         <div key="board-body" class="page-shell-fade">
           <p v-if="error" class="err">{{ error }}</p>
 
-          <section class="board">
-            <article
-              v-for="list in allLists"
-              :key="list.key"
-              class="list-column"
+          <section
+            class="board"
+            :class="{
+              'board-dragging': boardDragging,
+              'board-dragging--lower-zone': lowerZoneTargetListKey !== null,
+              'board-list-dragging': listColumnDragging,
+            }"
+          >
+            <draggable
+              v-model="lists"
+              item-key="key"
+              class="board-lists-sortable"
+              group="board-lists"
+              direction="horizontal"
+              draggable=".list-column"
+              :animation="180"
+              :delay="0"
+              :delay-on-touch-only="false"
+              :touch-start-threshold="0"
+              :disabled="listReorderPending || boardDragging || editingListKey !== null"
+              ghost-class="drag-ghost"
+              chosen-class="drag-chosen"
+              drag-class="drag-active"
+              filter=".list-drop-zone, .composer, .no-list-drag, .list-header--editing"
+              @start="onListColumnDragStart"
+              @end="onListColumnDragEnd"
             >
-              <header class="list-header" :class="{ 'list-header--editing': editingListKey === list.key }">
+              <template #item="{ element: list }">
+                <article
+                  :data-list-key="list.key"
+                  class="list-column"
+                >
+              <header
+                class="list-header"
+                :class="{ 'list-header--editing': editingListKey === list.key }"
+              >
                 <template v-if="editingListKey === list.key">
                   <form class="list-header-edit" @submit.prevent="saveListTitle(list)">
                     <input
@@ -92,7 +120,7 @@
                   >
                     {{ list.title }}
                   </h2>
-                  <div class="list-header-right">
+                  <div class="list-header-right no-list-drag">
                     <span class="list-count">{{ visibleCount(list.key) }}</span>
                   </div>
                 </template>
@@ -101,26 +129,35 @@
               <draggable
                 :list="tasksByList[list.key]"
                 item-key="id"
-                class="cards"
+                :class="[
+                  'list-drop-zone',
+                  { 'list-drop-zone--scrollable': scrollableDropZoneListKeys[list.key] },
+                ]"
                 group="board-cards"
+                draggable=".task-card"
                 ghost-class="drag-ghost"
                 drag-class="drag-active"
+                chosen-class="drag-chosen"
                 filter=".no-drag"
                 direction="vertical"
-                :empty-insert-threshold="5"
+                :empty-insert-threshold="40"
+                :move="onBoardDragMove"
                 @scroll.passive="closeCardMenu"
                 @change="onListChange($event, list)"
+                @start="onBoardDragStart"
                 @end="onBoardDragEnd"
               >
                 <template #item="{ element: task }">
                   <article
                     v-show="isTaskVisible(task)"
+                    :data-task-id="task.id"
                     :class="['task-card', { 'task-card--fade-in': isTaskJustCreated(task.id) }]"
                     :role="editingTaskId === task.id ? undefined : 'button'"
                     :tabindex="editingTaskId === task.id ? undefined : 0"
                     @click="openTaskDetail(task)"
                     @keydown.enter.prevent="openTaskDetail(task)"
                     @keydown.space.prevent="openTaskDetail(task)"
+                    @contextmenu.prevent="onTaskCardContextMenu(task, $event)"
                   >
                     <template v-if="editingTaskId === task.id">
                       <form class="card-edit-form" @submit.prevent="saveTaskTitle(task)" @click.stop>
@@ -171,6 +208,12 @@
                             {{ label.name }}
                           </span>
                         </div>
+                        <p
+                          v-if="taskHeadingName(task)"
+                          class="task-card-heading"
+                        >
+                          {{ taskHeadingName(task) }}
+                        </p>
                         <p class="task-title">
                           {{ task.title }}
                         </p>
@@ -196,7 +239,15 @@
                     </template>
                   </article>
                 </template>
+                <template #footer>
+                  <div
+                    v-if="boardDragging && lowerZoneTargetListKey === list.key"
+                    class="drag-ghost drag-ghost--lower-zone-preview no-drag"
+                    aria-hidden="true"
+                  />
+                </template>
               </draggable>
+
               <div class="composer">
                 <button
                   v-if="activeComposerKey !== list.key"
@@ -226,7 +277,7 @@
                       @mousedown.prevent
                       @click="confirmCardDraft(list.key)"
                     >
-                      {{ pending ? '追加中...' : '追加' }}
+                      {{ pending ? '作成中...' : '作成' }}
                     </button>
                     <button
                       type="button"
@@ -240,7 +291,9 @@
                   </div>
                 </div>
               </div>
-            </article>
+                </article>
+              </template>
+            </draggable>
 
             <article class="create-list-column">
               <button
@@ -264,7 +317,7 @@
                   />
                 </label>
                 <div class="composer-actions">
-                  <button type="submit" class="add-btn" :disabled="!newListTitle">追加</button>
+                  <button type="submit" class="add-btn" :disabled="!newListTitle">作成</button>
                   <button type="button" class="ghost-btn" @click="cancelCreateList">キャンセル</button>
                 </div>
               </form>
@@ -287,10 +340,12 @@
         :project-id="projectId"
         :task-id="detailTaskId"
         :org-labels="orgLabels"
+        :project-headings="projectHeadings"
         :project-members="projectMembers"
         :remote-update="detailModalRemotePatch"
         :remote-update-rev="detailModalRemoteRev"
         @updated="onTaskDetailUpdated"
+        @heading-created="onTaskHeadingCreated"
       />
 
       <div
@@ -307,7 +362,7 @@
     <Teleport to="body">
       <ul
         v-if="openMenuTask && cardMenuPosition"
-        class="card-menu card-menu--portal"
+        class="card-menu"
         role="menu"
         :style="cardMenuStyle"
       >
@@ -343,6 +398,7 @@ import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../../.
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
 import { useApi } from '../../../../../composables/useApi'
 import { useOrgTerminology, useWorkUnitLabel } from '../../../../../composables/useOrgTerminology'
+import { useProjectRealtimeChannel } from '../../../../../composables/useProjectRealtimeChannel'
 
 definePageMeta({ name: 'org-slug-projects-id' })
 
@@ -354,12 +410,16 @@ const { fetchWorkUnitLabel, syncLabelState } = useOrgTerminology()
 const { workUnitLabel, workUnitListLabel } = useWorkUnitLabel(() => slug.value)
 
 type Label = { id: number; name: string; color: string }
+type TaskHeading = { id: number; name: string }
 type TaskAssignee = { id: number; name: string | null; email: string | null; avatar_url: string | null }
 type Task = {
   id: number
   title: string
   status: string
   list_id: number | null
+  task_heading_id?: number | null
+  heading?: TaskHeading | null
+  sort_order?: number
   labels?: Label[]
   assignees?: TaskAssignee[]
 }
@@ -380,15 +440,33 @@ const composerInputEl = ref<HTMLInputElement | null>(null)
 const cardDrafts = reactive<Record<string, string>>({})
 const lists = ref<ListDef[]>([])
 const orgLabels = ref<Label[]>([])
+const projectHeadings = ref<TaskHeading[]>([])
 const projectMembers = ref<TaskDetailMember[]>([])
 const labelFilterId = ref('')
 const editingListKey = ref<string | null>(null)
 const listEditDrafts = reactive<Record<string, string>>({})
 const listRenamePending = ref(false)
+const listReorderPending = ref(false)
+const listColumnDragging = ref(false)
+let listOrderSnapshot: ListDef[] | null = null
 const editingTaskId = ref<number | null>(null)
 const taskTitleDraft = ref('')
 const taskRenamePending = ref(false)
 const justCreatedTaskIds = reactive<Record<number, true>>({})
+const boardDragging = ref(false)
+const lowerZoneTargetListKey = ref<string | null>(null)
+const scrollableDropZoneListKeys = reactive<Record<string, boolean>>({})
+let boardDragPointerX = 0
+let boardDragPointerY = 0
+let boardDragTaskId: number | null = null
+/** Sortable が確定した移動先リスト */
+let boardDragLastToListKey: string | null = null
+/** ドラッグ開始時のリスト key */
+let boardDragStartListKey: string | null = null
+/** 末尾挿入 / カード間並べ替えの表示モード（境界付近のヒステリシス用） */
+let boardDragDropMode: 'sortable' | 'append' = 'append'
+/** 列間ギャップで直前のターゲット列を維持する */
+let boardDragStickyColumnKey: string | null = null
 
 const globalHeaderOffsetPx = ref(46)
 
@@ -507,6 +585,11 @@ function rebuildBoardFromTasks () {
     if (!key || !tasksByList[key]) continue
     tasksByList[key].push(task)
   }
+  for (const list of allLists.value) {
+    const arr = tasksByList[list.key]
+    if (!arr?.length) continue
+    arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id)
+  }
 }
 
 function isTaskJustCreated (taskId: number): boolean {
@@ -524,6 +607,17 @@ function cardAssignees (task: Task): TaskAssignee[] {
   return (task.assignees ?? []).slice(0, 3)
 }
 
+function taskHeadingName (task: Task): string | null {
+  if (task.heading?.name) {
+    return task.heading.name
+  }
+  const id = task.task_heading_id
+  if (id == null) {
+    return null
+  }
+  return projectHeadings.value.find(h => h.id === id)?.name ?? null
+}
+
 function memberDisplayName (member: TaskAssignee): string {
   return (member.name || member.email || `ユーザー #${member.id}`).trim()
 }
@@ -537,15 +631,9 @@ function closeCardMenu () {
   cardMenuPosition.value = null
 }
 
-function toggleCardMenu (taskId: number, ev: MouseEvent) {
-  ev.stopPropagation()
-  if (openCardMenuTaskId.value === taskId) {
-    closeCardMenu()
-    return
-  }
-  const el = ev.currentTarget as HTMLElement | null
-  if (el && import.meta.client) {
-    const r = el.getBoundingClientRect()
+function positionCardMenu (anchor: HTMLElement) {
+  if (import.meta.client) {
+    const r = anchor.getBoundingClientRect()
     const margin = 6
     const pad = 8
     let left = r.right + margin
@@ -557,10 +645,35 @@ function toggleCardMenu (taskId: number, ev: MouseEvent) {
       top: r.top,
       left,
     }
-  } else if (el) {
+  } else {
     cardMenuPosition.value = { top: 0, left: 0 }
   }
+}
+
+function openCardMenu (taskId: number, anchor: HTMLElement) {
+  if (openCardMenuTaskId.value === taskId) {
+    closeCardMenu()
+    return
+  }
+  positionCardMenu(anchor)
   openCardMenuTaskId.value = taskId
+}
+
+function toggleCardMenu (taskId: number, ev: MouseEvent) {
+  ev.stopPropagation()
+  const el = ev.currentTarget
+  if (!(el instanceof HTMLElement)) return
+  openCardMenu(taskId, el)
+}
+
+function onTaskCardContextMenu (task: Task, ev: MouseEvent) {
+  if (editingTaskId.value === task.id) return
+  ev.stopPropagation()
+  const card = ev.currentTarget
+  if (!(card instanceof HTMLElement)) return
+  const trigger = card.querySelector('.card-menu-trigger')
+  if (!(trigger instanceof HTMLElement)) return
+  openCardMenu(task.id, trigger)
 }
 
 function onGlobalClick (ev: Event) {
@@ -570,7 +683,7 @@ function onGlobalClick (ev: Event) {
     if (el && el.closest('.card-menu-wrap')) {
       return
     }
-    if (el && el.closest('.card-menu--portal')) {
+    if (el && el.closest('.card-menu')) {
       return
     }
   }
@@ -580,6 +693,35 @@ function onGlobalClick (ev: Event) {
 function onWindowResize () {
   closeCardMenu()
   updateStickyOffsets()
+  updateDropZoneScrollableState()
+}
+
+function updateDropZoneScrollableState () {
+  if (!import.meta.client) {
+    return
+  }
+  nextTick(() => {
+    const nextScrollable: Record<string, boolean> = {}
+    const columns = document.querySelectorAll<HTMLElement>('.list-column[data-list-key]')
+    columns.forEach((column) => {
+      const listKey = column.dataset.listKey
+      if (!listKey) {
+        return
+      }
+      const dropZone = column.querySelector<HTMLElement>('.list-drop-zone')
+      if (!dropZone) {
+        nextScrollable[listKey] = false
+        return
+      }
+      nextScrollable[listKey] = dropZone.scrollHeight > dropZone.clientHeight + 1
+    })
+    for (const key of Object.keys(scrollableDropZoneListKeys)) {
+      delete scrollableDropZoneListKeys[key]
+    }
+    for (const [key, scrollable] of Object.entries(nextScrollable)) {
+      scrollableDropZoneListKeys[key] = scrollable
+    }
+  })
 }
 
 function clearUndoTimer () {
@@ -632,6 +774,8 @@ function onTaskDetailUpdated (detail: TaskDetail) {
     list_id: detail.list_id,
     labels: detail.labels,
     assignees: detail.assignees,
+    task_heading_id: detail.task_heading_id ?? detail.heading?.id ?? null,
+    heading: detail.heading ?? null,
   }
   tasks.value.splice(idx, 1, updated)
   // list_id 変更（リスト間ドラッグ）では列ごとの配列を入れ替えないとカードが元の列に残る
@@ -680,6 +824,27 @@ async function updateTaskList (taskId: number, listId: number) {
   })
 }
 
+async function persistListTaskOrder (listKey: string) {
+  const list = allLists.value.find(l => l.key === listKey)
+  if (!list) {
+    return
+  }
+  const taskIds = (tasksByList[listKey] ?? []).map(t => t.id)
+  await api<{ data: { ok: boolean } }>(
+    `/orgs/${slug.value}/projects/${projectId.value}/lists/${list.listId}/tasks/reorder`,
+    {
+      method: 'PATCH',
+      body: { task_ids: taskIds },
+    },
+  )
+  taskIds.forEach((id, index) => {
+    const task = tasks.value?.find(t => t.id === id)
+    if (task) {
+      task.sort_order = index
+    }
+  })
+}
+
 async function onListChange (
   event: {
     added?: { element: Task }
@@ -688,42 +853,419 @@ async function onListChange (
   },
   toList: ListDef,
 ) {
-  if (event.moved || event.removed) {
-    return
-  }
-  if (!event.added) {
+  if (event.removed) {
     return
   }
 
-  const movedTask = event.added.element
-  const prevListId = movedTask.list_id
-  movedTask.list_id = toList.listId
+  const task = event.added?.element ?? event.moved?.element
+  if (!task) {
+    return
+  }
 
+  boardDragLastToListKey = toList.key
+
+  // @change が @end より後に来た場合はここで保存（@end 側は list_id 一致時スキップ）
+  if (boardDragging.value) {
+    return
+  }
+
+  await nextTick()
   try {
-    await updateTaskList(movedTask.id, toList.listId)
-  } catch (e: unknown) {
-    movedTask.list_id = prevListId
-    error.value = e instanceof Error ? e.message : '移動の保存に失敗しました'
-    await load({ refresh: true })
+    await persistTaskListChange(task.id, toList.key)
+    reconcileTaskPlacement(task.id, toList.key)
+    await persistListTaskOrder(toList.key)
+  } catch {
+    // persistTaskListChange / persistListTaskOrder 内で error を設定済み
   }
 }
 
-/** ドラッグ終了時、同一カードが複数リストに残っていれば tasks 由来で再構築して一意にする */
-function onBoardDragEnd () {
-  const seen = new Set<number>()
+function getTaskIdFromDragEl (el: HTMLElement): number | null {
+  const raw = el.dataset.taskId
+    ?? el.closest('.task-card')?.getAttribute('data-task-id')
+  if (!raw) {
+    return null
+  }
+  const id = Number(raw)
+  return Number.isFinite(id) ? id : null
+}
+
+/** ポインタ X が含まれるリスト列（列間ギャップでは直前の列を維持） */
+function findListColumnAtPointer (clientX = boardDragPointerX): HTMLElement | null {
+  const columns = Array.from(document.querySelectorAll('.list-column[data-list-key]'))
+    .filter((el): el is HTMLElement => el instanceof HTMLElement)
+
+  for (const col of columns) {
+    const { left, right } = col.getBoundingClientRect()
+    if (clientX >= left && clientX <= right) {
+      boardDragStickyColumnKey = col.dataset.listKey ?? null
+      return col
+    }
+  }
+
+  if (!boardDragStickyColumnKey) {
+    return null
+  }
+
+  return document.querySelector<HTMLElement>(
+    `.list-column[data-list-key="${boardDragStickyColumnKey}"]`,
+  )
+}
+
+function getActiveCardsInColumn (listColumn: HTMLElement): HTMLElement[] {
+  const dropZone = listColumn.querySelector('.list-drop-zone')
+  if (!(dropZone instanceof HTMLElement)) {
+    return []
+  }
+  return [...dropZone.querySelectorAll('.task-card')].filter((el): el is HTMLElement => {
+    if (!(el instanceof HTMLElement)) {
+      return false
+    }
+    return !el.classList.contains('drag-active') && !el.classList.contains('sortable-chosen')
+  })
+}
+
+function isPointerOverAnyTargetCard (listColumn: HTMLElement): boolean {
+  const margin = 6
+  for (const el of getActiveCardsInColumn(listColumn)) {
+    const { top, bottom, left, right } = el.getBoundingClientRect()
+    if (
+      boardDragPointerX >= left - margin
+      && boardDragPointerX <= right + margin
+      && boardDragPointerY >= top - margin
+      && boardDragPointerY <= bottom + margin
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+/** カード間並べ替え vs 末尾挿入（ゴースト要素は参照しない） */
+function resolveBoardDropMode (listColumn: HTMLElement, listKey: string): 'sortable' | 'append' {
+  const isCrossList = boardDragStartListKey !== null && boardDragStartListKey !== listKey
+  if (isCrossList && !isPointerOverAnyTargetCard(listColumn)) {
+    return 'append'
+  }
+
+  const cards = getActiveCardsInColumn(listColumn)
+  if (!cards.length) {
+    return 'append'
+  }
+
+  let stackTop = Infinity
+  let stackBottom = -Infinity
+  for (const el of cards) {
+    const { top, bottom } = el.getBoundingClientRect()
+    stackTop = Math.min(stackTop, top)
+    stackBottom = Math.max(stackBottom, bottom)
+  }
+
+  const y = boardDragPointerY
+  if (y < stackTop - 8) {
+    return 'append'
+  }
+
+  const sameListAppend = boardDragDropMode === 'append' && lowerZoneTargetListKey.value === listKey
+  if (sameListAppend) {
+    if (y > stackBottom + 6) {
+      return 'append'
+    }
+    return y <= stackBottom + 6 ? 'sortable' : 'append'
+  }
+
+  if (y > stackBottom + 20) {
+    return 'append'
+  }
+  return 'sortable'
+}
+
+function resolveAppendTargetListKey (): string | null {
+  const listColumn = findListColumnAtPointer()
+  if (!listColumn) {
+    return null
+  }
+  const listKey = listColumn.dataset.listKey
+  if (!listKey || resolveBoardDropMode(listColumn, listKey) !== 'append') {
+    return null
+  }
+  return listKey
+}
+
+/** 配置予定場所の表示モードを一本化（Sortable move の可否も返す） */
+function syncBoardDropPreviewState (): boolean {
+  if (!boardDragging.value) {
+    return true
+  }
+
+  const listColumn = findListColumnAtPointer()
+  if (!listColumn) {
+    lowerZoneTargetListKey.value = null
+    boardDragDropMode = 'append'
+    return true
+  }
+
+  const listKey = listColumn.dataset.listKey
+  if (!listKey) {
+    lowerZoneTargetListKey.value = null
+    boardDragDropMode = 'append'
+    return true
+  }
+
+  boardDragLastToListKey = listKey
+  const mode = resolveBoardDropMode(listColumn, listKey)
+  boardDragDropMode = mode
+
+  if (mode === 'append') {
+    lowerZoneTargetListKey.value = listKey
+    return false
+  }
+
+  lowerZoneTargetListKey.value = null
+  return true
+}
+
+function updateBoardDragPointer (clientX: number, clientY: number) {
+  boardDragPointerX = clientX
+  boardDragPointerY = clientY
+  syncBoardDropPreviewState()
+}
+
+function onBoardDragPointerMove (event: PointerEvent | MouseEvent) {
+  updateBoardDragPointer(event.clientX, event.clientY)
+}
+
+function onBoardNativeDragOver (event: DragEvent) {
+  updateBoardDragPointer(event.clientX, event.clientY)
+  event.preventDefault()
+}
+
+function syncBoardDragPointer (originalEvent?: Event) {
+  if (originalEvent instanceof MouseEvent || originalEvent instanceof PointerEvent) {
+    boardDragPointerX = originalEvent.clientX
+    boardDragPointerY = originalEvent.clientY
+  }
+}
+
+function removeTaskFromAllLists (taskId: number) {
   for (const list of allLists.value) {
-    for (const t of tasksByList[list.key] ?? []) {
-      if (seen.has(t.id)) {
-        rebuildBoardFromTasks()
-        return
-      }
-      seen.add(t.id)
+    const arr = tasksByList[list.key]
+    if (!arr?.length) {
+      continue
+    }
+    const idx = arr.findIndex(t => t.id === taskId)
+    if (idx > -1) {
+      arr.splice(idx, 1)
     }
   }
 }
 
+function findUniqueListKeyForTask (taskId: number): string | null {
+  let found: string | null = null
+  for (const list of allLists.value) {
+    if (tasksByList[list.key]?.some(t => t.id === taskId)) {
+      if (found !== null) {
+        return null
+      }
+      found = list.key
+    }
+  }
+  return found
+}
+
+function reconcileTaskPlacement (taskId: number, canonicalListKey: string) {
+  for (const list of allLists.value) {
+    if (list.key === canonicalListKey) {
+      continue
+    }
+    const arr = tasksByList[list.key]
+    if (!arr?.length) {
+      continue
+    }
+    for (let i = arr.length - 1; i >= 0; i--) {
+      if (arr[i]?.id === taskId) {
+        arr.splice(i, 1)
+      }
+    }
+  }
+
+  const task = tasks.value?.find(t => t.id === taskId)
+  const canonical = tasksByList[canonicalListKey]
+  if (task && canonical && !canonical.some(t => t.id === taskId)) {
+    canonical.push(task)
+  }
+}
+
+async function persistTaskListChange (taskId: number, listKey: string) {
+  const list = allLists.value.find(l => l.key === listKey)
+  const task = tasks.value?.find(t => t.id === taskId)
+  if (!list || !task || task.list_id === list.listId) {
+    return
+  }
+
+  const prevListId = task.list_id
+  task.list_id = list.listId
+  try {
+    await updateTaskList(taskId, list.listId)
+  } catch (e: unknown) {
+    task.list_id = prevListId
+    rebuildBoardFromTasks()
+    error.value = e instanceof Error ? e.message : '移動の保存に失敗しました'
+    throw e
+  }
+}
+
+async function finalizeBoardDrag (
+  taskId: number,
+  lowerZoneListKey: string | null,
+  sortableToListKey: string | null,
+  startListKey: string | null,
+) {
+  await nextTick()
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+
+  const task = tasks.value?.find(t => t.id === taskId)
+  if (!task) {
+    return
+  }
+
+  let canonicalListKey: string | null = null
+
+  if (lowerZoneListKey) {
+    const list = allLists.value.find(l => l.key === lowerZoneListKey)
+    if (!list) {
+      return
+    }
+    removeTaskFromAllLists(taskId)
+    if (!tasksByList[lowerZoneListKey]) {
+      tasksByList[lowerZoneListKey] = []
+    }
+    tasksByList[lowerZoneListKey].push(task)
+    canonicalListKey = lowerZoneListKey
+    try {
+      await persistTaskListChange(taskId, lowerZoneListKey)
+    } catch {
+      return
+    }
+  } else {
+    canonicalListKey = sortableToListKey ?? findUniqueListKeyForTask(taskId)
+    if (!canonicalListKey) {
+      return
+    }
+    try {
+      await persistTaskListChange(taskId, canonicalListKey)
+    } catch {
+      return
+    }
+  }
+
+  reconcileTaskPlacement(taskId, canonicalListKey)
+
+  const listKeysToPersist = new Set<string>()
+  if (canonicalListKey) {
+    listKeysToPersist.add(canonicalListKey)
+  }
+  if (startListKey && startListKey !== canonicalListKey) {
+    listKeysToPersist.add(startListKey)
+  }
+
+  for (const listKey of listKeysToPersist) {
+    try {
+      await persistListTaskOrder(listKey)
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : '並び順の保存に失敗しました'
+      await load({ refresh: true })
+      return
+    }
+  }
+}
+
+/** カード一覧外では末尾挿入のみ許可（Sortable の先頭判定を抑止） */
+function onBoardDragMove (
+  _evt: { dragged: HTMLElement, to: HTMLElement },
+  originalEvent?: Event,
+): boolean {
+  syncBoardDragPointer(originalEvent)
+  return syncBoardDropPreviewState()
+}
+
+function onBoardDragStart (evt: { item: HTMLElement, originalEvent?: Event }) {
+  updateDropZoneScrollableState()
+  boardDragTaskId = getTaskIdFromDragEl(evt.item)
+  const task = tasks.value?.find(t => t.id === boardDragTaskId)
+  boardDragStartListKey = task?.list_id != null ? `list_${task.list_id}` : null
+  boardDragLastToListKey = null
+  syncBoardDragPointer(evt.originalEvent)
+  boardDragging.value = true
+  lowerZoneTargetListKey.value = null
+  boardDragDropMode = 'append'
+  boardDragStickyColumnKey = boardDragStartListKey
+  closeCardMenu()
+  if (import.meta.client) {
+    document.addEventListener('pointermove', onBoardDragPointerMove, { passive: true })
+    document.addEventListener('mousemove', onBoardDragPointerMove, { passive: true })
+    document.addEventListener('dragover', onBoardNativeDragOver)
+  }
+}
+
+/** ドラッグ終了時に表示位置と list_id を揃えて API 保存する */
+function onBoardDragEnd (evt?: { originalEvent?: Event }) {
+  syncBoardDragPointer(evt?.originalEvent)
+  const taskId = boardDragTaskId
+  if (boardDragging.value && taskId != null) {
+    syncBoardDropPreviewState()
+  }
+  let lowerZoneListKey = lowerZoneTargetListKey.value
+  if (!lowerZoneListKey) {
+    lowerZoneListKey = resolveAppendTargetListKey()
+  }
+  const sortableToListKey = boardDragLastToListKey
+    ?? findListColumnAtPointer()?.dataset.listKey
+    ?? null
+  const startListKey = boardDragStartListKey
+
+  boardDragging.value = false
+  boardDragTaskId = null
+  lowerZoneTargetListKey.value = null
+  updateDropZoneScrollableState()
+  boardDragLastToListKey = null
+  boardDragStartListKey = null
+  boardDragDropMode = 'append'
+  boardDragStickyColumnKey = null
+  if (import.meta.client) {
+    document.removeEventListener('pointermove', onBoardDragPointerMove)
+    document.removeEventListener('mousemove', onBoardDragPointerMove)
+    document.removeEventListener('dragover', onBoardNativeDragOver)
+  }
+
+  if (taskId == null) {
+    return
+  }
+
+  void finalizeBoardDrag(taskId, lowerZoneListKey, sortableToListKey, startListKey)
+}
+
+function onTaskHeadingCreated (heading: TaskHeading) {
+  const exists = projectHeadings.value.some(h => h.id === heading.id)
+  if (exists) {
+    return
+  }
+  projectHeadings.value = [...projectHeadings.value, heading]
+    .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+}
+
+async function fetchTaskHeadings (): Promise<TaskHeading[]> {
+  try {
+    const res = await api<{ data: TaskHeading[] }>(
+      `/orgs/${slug.value}/projects/${projectId.value}/task-headings`,
+    )
+    return res.data ?? []
+  } catch {
+    return []
+  }
+}
+
 async function fetchBoardPayload () {
-  const [listsRes, tasksRes, labelsRes, membersRes, label] = await Promise.all([
+  const [listsRes, tasksRes, labelsRes, membersRes, label, headings] = await Promise.all([
     api<{ data: ListRowRes[] }>(
       `/orgs/${slug.value}/projects/${projectId.value}/lists`,
     ),
@@ -737,8 +1279,9 @@ async function fetchBoardPayload () {
       `/orgs/${slug.value}/projects/${projectId.value}/members`,
     ),
     fetchWorkUnitLabel(slug.value),
+    fetchTaskHeadings(),
   ])
-  return { listsRes, tasksRes, labelsRes, membersRes, label }
+  return { listsRes, tasksRes, labelsRes, membersRes, label, headings }
 }
 
 function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>) {
@@ -755,6 +1298,7 @@ function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>)
 
   tasks.value = data.tasksRes.data
   orgLabels.value = data.labelsRes.data
+  projectHeadings.value = data.headings
   projectMembers.value = data.membersRes.data
   syncLabelState(slug.value, data.label)
   rebuildBoardFromTasks()
@@ -792,6 +1336,7 @@ async function load (opts?: { refresh?: boolean }) {
     if (import.meta.client) {
       await nextTick()
       updateStickyOffsets()
+      updateDropZoneScrollableState()
     }
   }
 }
@@ -865,6 +1410,79 @@ function startListEdit (list: ListDef) {
 
 function cancelListEdit () {
   editingListKey.value = null
+}
+
+function lockListColumnWidthsForDrag () {
+  if (!import.meta.client) {
+    return
+  }
+  document.querySelectorAll('.board-lists-sortable .list-column').forEach((col) => {
+    if (!(col instanceof HTMLElement)) {
+      return
+    }
+    const w = col.getBoundingClientRect().width
+    col.style.width = `${w}px`
+    col.style.minWidth = `${w}px`
+    col.style.maxWidth = `${w}px`
+  })
+}
+
+function clearListColumnWidthLocks () {
+  if (!import.meta.client) {
+    return
+  }
+  document.querySelectorAll('.board-lists-sortable .list-column').forEach((col) => {
+    if (!(col instanceof HTMLElement)) {
+      return
+    }
+    col.style.width = ''
+    col.style.minWidth = ''
+    col.style.maxWidth = ''
+  })
+}
+
+function onListColumnDragStart () {
+  if (boardDragging.value) {
+    return
+  }
+  listColumnDragging.value = true
+  closeCardMenu()
+  listOrderSnapshot = lists.value.map(l => ({ ...l }))
+  lockListColumnWidthsForDrag()
+  nextTick(() => lockListColumnWidthsForDrag())
+}
+
+async function onListColumnDragEnd () {
+  listColumnDragging.value = false
+  clearListColumnWidthLocks()
+  const snapshot = listOrderSnapshot
+  listOrderSnapshot = null
+  if (!snapshot) {
+    return
+  }
+  const unchanged = snapshot.length === lists.value.length
+    && snapshot.every((l, i) => l.listId === lists.value[i]?.listId)
+  if (unchanged) {
+    return
+  }
+  await persistListOrder(snapshot)
+}
+
+async function persistListOrder (rollback: ListDef[]) {
+  listReorderPending.value = true
+  error.value = null
+  const listIds = lists.value.map(l => l.listId)
+  try {
+    await api<{ data: { ok: boolean } }>(
+      `/orgs/${slug.value}/projects/${projectId.value}/lists/reorder`,
+      { method: 'PATCH', body: { list_ids: listIds } },
+    )
+  } catch (e: unknown) {
+    lists.value = rollback.map(l => ({ ...l }))
+    error.value = e instanceof Error ? e.message : 'リストの並び替えに失敗しました'
+  } finally {
+    listReorderPending.value = false
+  }
 }
 
 async function saveListTitle (list: ListDef) {
@@ -1020,6 +1638,10 @@ onBeforeUnmount(() => {
   if (import.meta.client) {
     window.removeEventListener('click', onGlobalClick)
     window.removeEventListener('resize', onWindowResize)
+    document.removeEventListener('pointermove', onBoardDragPointerMove)
+    document.removeEventListener('mousemove', onBoardDragPointerMove)
+    document.removeEventListener('dragover', onBoardNativeDragOver)
+    clearListColumnWidthLocks()
   }
   globalHeaderObserver?.disconnect()
   globalHeaderObserver = null
@@ -1028,7 +1650,7 @@ onBeforeUnmount(() => {
 
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .board-page {
   height: calc(100dvh - var(--global-header-offset, 46px));
   padding: 0 1rem 0;
@@ -1037,12 +1659,21 @@ onBeforeUnmount(() => {
   font-family: system-ui, sans-serif;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.page-shell-fade {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .page-header {
-  position: sticky;
-  top: var(--global-header-offset, 46px);
+  position: relative;
   z-index: 40;
+  flex-shrink: 0;
   margin-bottom: 0.2rem;
   width: calc(100% + 2rem);
   margin-left: -1rem;
@@ -1088,12 +1719,12 @@ onBeforeUnmount(() => {
 
 .subheader-back-link {
   text-decoration: none;
-  color: #06b6d4;
+  color: mixin.$main;
   transition: color 0.16s ease;
 }
 
 .subheader-back-link:hover {
-  color: #67e8f9;
+  color: mixin.$main-hover;
   text-decoration: none;
 }
 
@@ -1165,13 +1796,6 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 
-.header-primary-btn--icon {
-  width: 2.35rem;
-  min-width: 2.35rem;
-  height: 2.35rem;
-  padding: 0;
-}
-
 .header-primary-btn--icon-group {
   width: auto;
   min-height: 2.35rem;
@@ -1197,29 +1821,80 @@ onBeforeUnmount(() => {
   background: #fff;
 }
 
+.page-shell-fade > .board {
+  flex: 1;
+  min-height: 0;
+}
+
 .board {
   width: calc(100% + 2rem);
   max-width: none;
   margin: 0.55rem -1rem 0;
+  display: flex;
+  flex-direction: row;
+  align-items: start;
+  gap: 0.9rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2rem;
+  margin-bottom: 0;
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.1) transparent;
+}
+
+.board::-webkit-scrollbar {
+  height: 3px;
+}
+
+.board::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.board::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+}
+
+.board::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.14);
+}
+
+.board-lists-sortable {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(17rem, 1fr);
   gap: 0.9rem;
   align-items: start;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 0;
-  margin-bottom: 0.8rem;
-  flex: 1;
-  min-height: 0;
-}
-
-.board > :first-child {
+  flex: 0 0 auto;
   margin-left: 1rem;
 }
 
-.board > :last-child {
+.board > .create-list-column {
   margin-right: 1rem;
+  flex-shrink: 0;
+}
+
+.board-lists-sortable .list-column {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.board-lists-sortable .list-column.drag-ghost {
+  border: 1px dashed #94a3b8;
+  min-height: 3.5rem;
+  opacity: 1;
+}
+
+.board-lists-sortable .list-column.drag-active {
+  transform: none;
+  opacity: 1 !important;
+}
+
+.board-list-dragging .list-drop-zone,
+.board-list-dragging .composer {
+  pointer-events: none;
 }
 
 .list-column {
@@ -1228,9 +1903,11 @@ onBeforeUnmount(() => {
   border: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
-  /* Trello のように内容に応じて伸びる（上限到達後は cards 側でスクロール） */
+  align-self: start;
   height: auto;
-  max-height: calc((100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px)) * 0.82);
+  max-height: calc(100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px) - 3rem);
+  box-sizing: border-box;
+  position: relative;
 }
 
 .list-header {
@@ -1239,6 +1916,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem;
+  flex-shrink: 0;
 }
 
 .list-header--editing {
@@ -1278,6 +1956,13 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
+.list-header-edit,
+.list-header-edit * {
+  cursor: auto;
+  touch-action: auto;
+  user-select: text;
+}
+
 .list-title-input {
   width: 100%;
   box-sizing: border-box;
@@ -1314,16 +1999,94 @@ onBeforeUnmount(() => {
   color: #475569;
 }
 
-.cards {
-  padding: 0 0.75rem;
+.list-drop-zone {
+  padding: 0 0.75rem 0.65rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
   flex: 0 1 auto;
   min-height: 0;
-  max-height: calc((100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px)) * 0.82 - 8.5rem);
-  padding-bottom: 0.65rem;
+  max-height: calc(100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px) - 8.5rem);
+  position: relative;
+  scrollbar-width: none;
+}
+
+.list-drop-zone::-webkit-scrollbar {
+  width: 0;
+}
+
+.list-drop-zone::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list-drop-zone--scrollable {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.1) transparent;
+}
+
+.list-drop-zone--scrollable::-webkit-scrollbar {
+  width: 3px;
+}
+
+.list-drop-zone--scrollable::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+}
+
+.list-drop-zone--scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.14);
+}
+
+.board-dragging--lower-zone .list-drop-zone > .sortable-ghost,
+.board-dragging--lower-zone .list-drop-zone > .drag-ghost:not(.drag-ghost--lower-zone-preview) {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+}
+
+.drag-ghost--lower-zone-preview {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.board-dragging .list-drop-zone > .sortable-ghost,
+.board-dragging .list-drop-zone > .drag-ghost:not(.drag-ghost--lower-zone-preview) {
+  position: relative;
+  z-index: 3;
+}
+
+.board-dragging .list-column {
+  overflow: hidden;
+}
+
+.board-dragging .list-drop-zone {
+  /* ドラッグ中もスクロール位置を維持し、composer 領域へのはみ出し描画を防ぐ */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.board-dragging .list-drop-zone > .task-card {
+  position: relative;
+  z-index: 2;
+}
+
+.board-dragging .list-header {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.board-dragging .list-column > .composer {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .task-card {
@@ -1356,12 +2119,39 @@ onBeforeUnmount(() => {
   }
 }
 
+.drag-chosen {
+  cursor: grabbing;
+}
+
 .drag-ghost {
-  opacity: 0.4;
+  opacity: 1;
+  background: #091e420f;
+  border: 2px dashed #94a3b8;
+  border-radius: 12px;
+  box-shadow: none;
+  min-height: 2.5rem;
+}
+
+.drag-ghost * {
+  visibility: hidden;
 }
 
 .drag-active {
   cursor: grabbing;
+  opacity: 1 !important;
+  transform: rotate(3deg);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.18);
+}
+
+.task-card-heading {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .task-title {
@@ -1526,14 +2316,14 @@ onBeforeUnmount(() => {
   max-width: min(42rem, calc(100vw - 1.5rem));
   gap: 0.7rem;
   padding: 0.7rem 1.1rem;
-  background: #45c3cf;
-  color: #ffffff;
+  background: mixin.$main;
+  color: mixin.$white;
   border-radius: 10px;
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.55;
   white-space: nowrap;
-  box-shadow: 0 10px 22px rgba(14, 116, 144, 0.28);
+  box-shadow: 0 10px 22px color-mix(in srgb, mixin.$main 28%, transparent);
 }
 
 .undo-toast-message {
@@ -1560,6 +2350,7 @@ onBeforeUnmount(() => {
 .composer {
   padding: 0.75rem;
   border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
 }
 
 .composer-form,
@@ -1581,7 +2372,7 @@ onBeforeUnmount(() => {
 
 .composer-input:focus {
   outline: none;
-  border-color: #0c66e4;
+  border-color: mixin.$main;
 }
 
 .composer-actions {
@@ -1594,15 +2385,15 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 8px;
   padding: 0.42rem 0.72rem;
-  background: #0c66e4;
-  color: #fff;
+  background: mixin.$main;
+  color: mixin.$white;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .composer-submit-btn:hover:not(:disabled) {
-  background: #053580;
+  background: mixin.$main-hover;
 }
 
 .composer-submit-btn:disabled {
@@ -1647,8 +2438,8 @@ onBeforeUnmount(() => {
 .add-card-btn {
   width: 100%;
   text-align: left;
-  background: #e2e8f0;
-  color: #0f172a;
+  background: mixin.$gray;
+  color: mixin.$text;
 }
 
 .ghost-btn {
@@ -1675,15 +2466,6 @@ button:disabled {
   width: 100%;
   text-align: left;
   background: rgba(15, 23, 42, 0.08);
-}
-
-.empty {
-  margin: 0;
-  border: 1px dashed #cbd5e1;
-  border-radius: 10px;
-  color: #64748b;
-  padding: 0.65rem;
-  background: #fff;
 }
 
 .err {

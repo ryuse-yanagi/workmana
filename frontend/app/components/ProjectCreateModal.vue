@@ -102,7 +102,7 @@ function submit () {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -217,8 +217,8 @@ function submit () {
 }
 
 .primary-btn {
-  background: #45c3cf;
-  color: #fff;
+  background: mixin.$main;
+  color: mixin.$white;
 }
 
 .ghost-btn {

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\ProjectLabelController;
 use App\Http\Controllers\Api\TaskLabelController;
 use App\Http\Controllers\Api\TaskCommentController;
 use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\TaskHeadingController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['cognito'])->group(function () {
@@ -36,8 +37,13 @@ Route::middleware(['cognito'])->group(function () {
 
         Route::get('/projects/{project}/lists', [ListController::class, 'index']);
         Route::post('/projects/{project}/lists', [ListController::class, 'store']);
+        Route::patch('/projects/{project}/lists/reorder', [ListController::class, 'reorder']);
         Route::patch('/projects/{project}/lists/{boardList}', [ListController::class, 'update']);
+        Route::patch('/projects/{project}/lists/{boardList}/tasks/reorder', [ListController::class, 'reorderTasks']);
         Route::delete('/projects/{project}/lists/{boardList}', [ListController::class, 'destroy']);
+
+        Route::get('/projects/{project}/task-headings', [TaskHeadingController::class, 'index']);
+        Route::post('/projects/{project}/task-headings', [TaskHeadingController::class, 'store']);
 
         Route::get('/projects/{project}/tasks', [TaskController::class, 'index']);
         Route::get('/projects/{project}/tasks/archived', [TaskController::class, 'archivedIndex']);
