@@ -57,7 +57,8 @@
             class="board"
             :class="{
               'board-dragging': boardDragging,
-              'board-dragging--lower-zone': lowerZoneTargetListKey !== null,
+              'board-drag-cross-list': boardDragCrossList,
+              'board-dragging--tail-zone': boardDragPreviewMode === 'tail',
               'board-list-dragging': listColumnDragging,
             }"
           >
@@ -72,7 +73,7 @@
               :delay="0"
               :delay-on-touch-only="false"
               :touch-start-threshold="0"
-              :disabled="listReorderPending || boardDragging || editingListKey !== null"
+              :disabled="listReorderPending || listColumnDragging || editingListKey !== null"
               ghost-class="drag-ghost"
               chosen-class="drag-chosen"
               drag-class="drag-active"
@@ -83,7 +84,17 @@
               <template #item="{ element: list }">
                 <article
                   :data-list-key="list.key"
-                  class="list-column"
+                  :class="[
+                    'list-column',
+                    {
+                      'list-column--drag-source':
+                        boardDragging
+                        && boardDragCrossList
+                        && boardDragStartListKey === list.key,
+                      'list-column--tail-target':
+                        boardDragging && boardDragPreviewListKey === list.key,
+                    },
+                  ]"
                 >
               <header
                 class="list-header"
@@ -131,16 +142,26 @@
                 item-key="id"
                 :class="[
                   'list-drop-zone',
-                  { 'list-drop-zone--scrollable': scrollableDropZoneListKeys[list.key] },
+                  {
+                    'list-drop-zone--scrollable': scrollableDropZoneListKeys[list.key],
+                    'list-drop-zone--empty': visibleCount(list.key) === 0,
+                  },
                 ]"
                 group="board-cards"
                 draggable=".task-card"
                 ghost-class="drag-ghost"
-                drag-class="drag-active"
                 chosen-class="drag-chosen"
+                drag-class="drag-active"
+                fallback-class="drag-active"
                 filter=".no-drag"
                 direction="vertical"
-                :empty-insert-threshold="40"
+                :force-fallback="true"
+                :fallback-on-body="true"
+                :fallback-tolerance="3"
+                :animation="150"
+                :easing="'cubic-bezier(0.25, 0.1, 0.25, 1)'"
+                :swap-threshold="0.65"
+                :empty-insert-threshold="80"
                 :move="onBoardDragMove"
                 @scroll.passive="closeCardMenu"
                 @change="onListChange($event, list)"
@@ -241,8 +262,8 @@
                 </template>
                 <template #footer>
                   <div
-                    v-if="boardDragging && lowerZoneTargetListKey === list.key"
-                    class="drag-ghost drag-ghost--lower-zone-preview no-drag"
+                    v-if="boardDragging && boardDragPreviewMode === 'tail' && boardDragPreviewListKey === list.key"
+                    class="drag-ghost drag-ghost--tail-preview no-drag"
                     aria-hidden="true"
                   />
                 </template>
@@ -454,7 +475,6 @@ const taskTitleDraft = ref('')
 const taskRenamePending = ref(false)
 const justCreatedTaskIds = reactive<Record<number, true>>({})
 const boardDragging = ref(false)
-const lowerZoneTargetListKey = ref<string | null>(null)
 const scrollableDropZoneListKeys = reactive<Record<string, boolean>>({})
 let boardDragPointerX = 0
 let boardDragPointerY = 0
@@ -462,10 +482,14 @@ let boardDragTaskId: number | null = null
 /** Sortable が確定した移動先リスト */
 let boardDragLastToListKey: string | null = null
 /** ドラッグ開始時のリスト key */
-let boardDragStartListKey: string | null = null
-/** 末尾挿入 / カード間並べ替えの表示モード（境界付近のヒステリシス用） */
-let boardDragDropMode: 'sortable' | 'append' = 'append'
-/** 列間ギャップで直前のターゲット列を維持する */
+const boardDragStartListKey = ref<string | null>(null)
+/** 他リスト上にホバー中（ソース列のプレースホルダ抑止） */
+const boardDragCrossList = ref(false)
+/** プレビュー表示先リスト（常に1列のみ） */
+const boardDragPreviewListKey = ref<string | null>(null)
+/** sortable＝カード間、tail＝一覧最下部（composer より下） */
+const boardDragPreviewMode = ref<'sortable' | 'tail' | null>(null)
+/** ドラッグ終了時フォールバック用の最終プレビュー列 */
 let boardDragStickyColumnKey: string | null = null
 
 const globalHeaderOffsetPx = ref(46)
@@ -853,19 +877,17 @@ async function onListChange (
   },
   toList: ListDef,
 ) {
+  // ドラッグ中の Sortable 仮挿入でプレビュー先が揺れないよう無視する
+  if (boardDragging.value) {
+    return
+  }
+
   if (event.removed) {
     return
   }
 
   const task = event.added?.element ?? event.moved?.element
   if (!task) {
-    return
-  }
-
-  boardDragLastToListKey = toList.key
-
-  // @change が @end より後に来た場合はここで保存（@end 側は list_id 一致時スキップ）
-  if (boardDragging.value) {
     return
   }
 
@@ -889,154 +911,48 @@ function getTaskIdFromDragEl (el: HTMLElement): number | null {
   return Number.isFinite(id) ? id : null
 }
 
-/** ポインタ X が含まれるリスト列（列間ギャップでは直前の列を維持） */
-function findListColumnAtPointer (clientX = boardDragPointerX): HTMLElement | null {
-  const columns = Array.from(document.querySelectorAll('.list-column[data-list-key]'))
-    .filter((el): el is HTMLElement => el instanceof HTMLElement)
+function getBoardListColumns (): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.list-column[data-list-key]'))
+}
 
-  for (const col of columns) {
-    const { left, right } = col.getBoundingClientRect()
-    if (clientX >= left && clientX <= right) {
-      boardDragStickyColumnKey = col.dataset.listKey ?? null
-      return col
-    }
-  }
+function findListColumnByKey (listKey: string): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`.list-column[data-list-key="${listKey}"]`)
+}
 
-  if (!boardDragStickyColumnKey) {
+/**
+ * 隣接列の境界中点で列を決める（nearest / empty-insert による左右のちらつきを防ぐ）。
+ * 列間ギャップも必ずどちらか一方の列に属する。
+ */
+function getListKeyAtClientX (clientX: number): string | null {
+  const columns = getBoardListColumns()
+  if (!columns.length) {
     return null
   }
 
-  return document.querySelector<HTMLElement>(
-    `.list-column[data-list-key="${boardDragStickyColumnKey}"]`,
-  )
-}
-
-function getActiveCardsInColumn (listColumn: HTMLElement): HTMLElement[] {
-  const dropZone = listColumn.querySelector('.list-drop-zone')
-  if (!(dropZone instanceof HTMLElement)) {
-    return []
-  }
-  return [...dropZone.querySelectorAll('.task-card')].filter((el): el is HTMLElement => {
-    if (!(el instanceof HTMLElement)) {
-      return false
+  for (let i = 0; i < columns.length - 1; i++) {
+    const leftCol = columns[i]
+    const rightCol = columns[i + 1]
+    if (!leftCol || !rightCol) {
+      continue
     }
-    return !el.classList.contains('drag-active') && !el.classList.contains('sortable-chosen')
-  })
-}
-
-function isPointerOverAnyTargetCard (listColumn: HTMLElement): boolean {
-  const margin = 6
-  for (const el of getActiveCardsInColumn(listColumn)) {
-    const { top, bottom, left, right } = el.getBoundingClientRect()
-    if (
-      boardDragPointerX >= left - margin
-      && boardDragPointerX <= right + margin
-      && boardDragPointerY >= top - margin
-      && boardDragPointerY <= bottom + margin
-    ) {
-      return true
+    const leftRect = leftCol.getBoundingClientRect()
+    const rightRect = rightCol.getBoundingClientRect()
+    const boundary = (leftRect.right + rightRect.left) / 2
+    if (clientX < boundary) {
+      return leftCol.dataset.listKey ?? null
     }
   }
-  return false
+
+  const lastCol = columns[columns.length - 1]
+  return lastCol?.dataset.listKey ?? null
 }
 
-/** カード間並べ替え vs 末尾挿入（ゴースト要素は参照しない） */
-function resolveBoardDropMode (listColumn: HTMLElement, listKey: string): 'sortable' | 'append' {
-  const isCrossList = boardDragStartListKey !== null && boardDragStartListKey !== listKey
-  if (isCrossList && !isPointerOverAnyTargetCard(listColumn)) {
-    return 'append'
-  }
-
-  const cards = getActiveCardsInColumn(listColumn)
-  if (!cards.length) {
-    return 'append'
-  }
-
-  let stackTop = Infinity
-  let stackBottom = -Infinity
-  for (const el of cards) {
-    const { top, bottom } = el.getBoundingClientRect()
-    stackTop = Math.min(stackTop, top)
-    stackBottom = Math.max(stackBottom, bottom)
-  }
-
-  const y = boardDragPointerY
-  if (y < stackTop - 8) {
-    return 'append'
-  }
-
-  const sameListAppend = boardDragDropMode === 'append' && lowerZoneTargetListKey.value === listKey
-  if (sameListAppend) {
-    if (y > stackBottom + 6) {
-      return 'append'
-    }
-    return y <= stackBottom + 6 ? 'sortable' : 'append'
-  }
-
-  if (y > stackBottom + 20) {
-    return 'append'
-  }
-  return 'sortable'
+function isListEmptyForBoardDrag (listKey: string): boolean {
+  return visibleCount(listKey) === 0
 }
 
-function resolveAppendTargetListKey (): string | null {
-  const listColumn = findListColumnAtPointer()
-  if (!listColumn) {
-    return null
-  }
-  const listKey = listColumn.dataset.listKey
-  if (!listKey || resolveBoardDropMode(listColumn, listKey) !== 'append') {
-    return null
-  }
-  return listKey
-}
-
-/** 配置予定場所の表示モードを一本化（Sortable move の可否も返す） */
-function syncBoardDropPreviewState (): boolean {
-  if (!boardDragging.value) {
-    return true
-  }
-
-  const listColumn = findListColumnAtPointer()
-  if (!listColumn) {
-    lowerZoneTargetListKey.value = null
-    boardDragDropMode = 'append'
-    return true
-  }
-
-  const listKey = listColumn.dataset.listKey
-  if (!listKey) {
-    lowerZoneTargetListKey.value = null
-    boardDragDropMode = 'append'
-    return true
-  }
-
-  boardDragLastToListKey = listKey
-  const mode = resolveBoardDropMode(listColumn, listKey)
-  boardDragDropMode = mode
-
-  if (mode === 'append') {
-    lowerZoneTargetListKey.value = listKey
-    return false
-  }
-
-  lowerZoneTargetListKey.value = null
-  return true
-}
-
-function updateBoardDragPointer (clientX: number, clientY: number) {
-  boardDragPointerX = clientX
-  boardDragPointerY = clientY
-  syncBoardDropPreviewState()
-}
-
-function onBoardDragPointerMove (event: PointerEvent | MouseEvent) {
-  updateBoardDragPointer(event.clientX, event.clientY)
-}
-
-function onBoardNativeDragOver (event: DragEvent) {
-  updateBoardDragPointer(event.clientX, event.clientY)
-  event.preventDefault()
+function getDropZoneListKey (dropZone: HTMLElement): string | null {
+  return dropZone.closest('.list-column[data-list-key]')?.getAttribute('data-list-key') ?? null
 }
 
 function syncBoardDragPointer (originalEvent?: Event) {
@@ -1044,18 +960,132 @@ function syncBoardDragPointer (originalEvent?: Event) {
     boardDragPointerX = originalEvent.clientX
     boardDragPointerY = originalEvent.clientY
   }
+  if (boardDragging.value) {
+    syncBoardPreviewState()
+  }
 }
 
-function removeTaskFromAllLists (taskId: number) {
-  for (const list of allLists.value) {
-    const arr = tasksByList[list.key]
-    if (!arr?.length) {
-      continue
+/** ドラッグ中ポインタが属するリスト（列間ギャップ含め中点で一意に決定） */
+function getHoverListKey (originalEvent?: Event): string | null {
+  syncBoardDragPointer(originalEvent)
+  return getListKeyAtClientX(boardDragPointerX)
+}
+
+/** composer より下、または列の白枠より下＝末尾ドロップ帯（Trello 同様） */
+function isPointerInListTailZone (listColumn: HTMLElement): boolean {
+  const colBottom = listColumn.getBoundingClientRect().bottom
+  const composer = listColumn.querySelector('.composer')
+  if (composer instanceof HTMLElement) {
+    const composerBottom = composer.getBoundingClientRect().bottom
+    if (boardDragPointerY >= composerBottom - 8) {
+      return true
     }
-    const idx = arr.findIndex(t => t.id === taskId)
-    if (idx > -1) {
-      arr.splice(idx, 1)
+  }
+
+  return boardDragPointerY >= colBottom - 8
+}
+
+/** ドラッグ中プレビューを1つに統一（sortable か末尾スロットか） */
+function syncBoardPreviewState () {
+  if (!boardDragging.value) {
+    boardDragPreviewListKey.value = null
+    boardDragPreviewMode.value = null
+    return
+  }
+
+  const clientX = boardDragPointerX
+  const listKey = getListKeyAtClientX(clientX)
+    ?? boardDragStickyColumnKey
+    ?? boardDragStartListKey.value
+
+  if (!listKey) {
+    boardDragPreviewListKey.value = null
+    boardDragPreviewMode.value = null
+    return
+  }
+
+  const listColumn = findListColumnByKey(listKey)
+  if (!listColumn) {
+    boardDragPreviewListKey.value = null
+    boardDragPreviewMode.value = null
+    return
+  }
+
+  boardDragLastToListKey = listKey
+  boardDragStickyColumnKey = listKey
+
+  // 空リストは Sortable ゴーストが隣列と奪い合うため常に末尾スロットのみ
+  const useTailPreview = isListEmptyForBoardDrag(listKey)
+    || isPointerInListTailZone(listColumn)
+
+  if (useTailPreview) {
+    boardDragPreviewListKey.value = listKey
+    boardDragPreviewMode.value = 'tail'
+    if (boardDragStartListKey.value && listKey !== boardDragStartListKey.value) {
+      boardDragCrossList.value = true
+    } else if (boardDragStartListKey.value && listKey === boardDragStartListKey.value) {
+      boardDragCrossList.value = false
     }
+    removeStraySortableGhosts()
+    return
+  }
+
+  boardDragPreviewMode.value = 'sortable'
+  boardDragPreviewListKey.value = listKey
+
+  if (boardDragStartListKey.value && listKey !== boardDragStartListKey.value) {
+    boardDragCrossList.value = true
+  } else if (boardDragStartListKey.value && listKey === boardDragStartListKey.value) {
+    boardDragCrossList.value = false
+  }
+}
+
+/** プレビュー先以外・空リストの Sortable ゴーストを除去（二重・左右ちらつき防止） */
+function removeStraySortableGhosts () {
+  if (!import.meta.client || !boardDragging.value) {
+    return
+  }
+
+  const canonical = boardDragPreviewListKey.value ?? getListKeyAtClientX(boardDragPointerX)
+  const tailMode = boardDragPreviewMode.value === 'tail'
+
+  document.querySelectorAll('.list-drop-zone > .sortable-ghost').forEach((el) => {
+    if (el.classList.contains('drag-ghost--tail-preview')) {
+      return
+    }
+
+    const listKey = el.closest('.list-column[data-list-key]')?.getAttribute('data-list-key')
+    const stray = tailMode
+      || !canonical
+      || !listKey
+      || listKey !== canonical
+      || isListEmptyForBoardDrag(listKey)
+
+    if (stray) {
+      el.remove()
+    }
+  })
+}
+
+function updateBoardDragPointer (clientX: number, clientY: number) {
+  boardDragPointerX = clientX
+  boardDragPointerY = clientY
+  syncBoardPreviewState()
+}
+
+function onBoardDragPointerMove (event: PointerEvent | MouseEvent) {
+  updateBoardDragPointer(event.clientX, event.clientY)
+  removeStraySortableGhosts()
+}
+
+function onBoardNativeDragOver (event: DragEvent) {
+  updateBoardDragPointer(event.clientX, event.clientY)
+  event.preventDefault()
+}
+
+function onDocumentSelectStart (event: Event) {
+  if (boardDragging.value || listColumnDragging.value) {
+    event.preventDefault()
   }
 }
 
@@ -1116,9 +1146,9 @@ async function persistTaskListChange (taskId: number, listKey: string) {
 
 async function finalizeBoardDrag (
   taskId: number,
-  lowerZoneListKey: string | null,
-  sortableToListKey: string | null,
+  canonicalListKey: string | null,
   startListKey: string | null,
+  appendToEnd = false,
 ) {
   await nextTick()
   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
@@ -1128,49 +1158,44 @@ async function finalizeBoardDrag (
     return
   }
 
-  let canonicalListKey: string | null = null
-
-  if (lowerZoneListKey) {
-    const list = allLists.value.find(l => l.key === lowerZoneListKey)
-    if (!list) {
-      return
-    }
-    removeTaskFromAllLists(taskId)
-    if (!tasksByList[lowerZoneListKey]) {
-      tasksByList[lowerZoneListKey] = []
-    }
-    tasksByList[lowerZoneListKey].push(task)
-    canonicalListKey = lowerZoneListKey
-    try {
-      await persistTaskListChange(taskId, lowerZoneListKey)
-    } catch {
-      return
-    }
-  } else {
-    canonicalListKey = sortableToListKey ?? findUniqueListKeyForTask(taskId)
-    if (!canonicalListKey) {
-      return
-    }
-    try {
-      await persistTaskListChange(taskId, canonicalListKey)
-    } catch {
-      return
-    }
+  const listKey = canonicalListKey ?? findUniqueListKeyForTask(taskId)
+  if (!listKey) {
+    return
   }
 
-  reconcileTaskPlacement(taskId, canonicalListKey)
-
-  const listKeysToPersist = new Set<string>()
-  if (canonicalListKey) {
-    listKeysToPersist.add(canonicalListKey)
+  if (appendToEnd) {
+    for (const list of allLists.value) {
+      const arr = tasksByList[list.key]
+      if (!arr?.length) {
+        continue
+      }
+      const idx = arr.findIndex(t => t.id === taskId)
+      if (idx > -1) {
+        arr.splice(idx, 1)
+      }
+    }
+    if (!tasksByList[listKey]) {
+      tasksByList[listKey] = []
+    }
+    tasksByList[listKey].push(task)
   }
-  if (startListKey && startListKey !== canonicalListKey) {
+
+  try {
+    await persistTaskListChange(taskId, listKey)
+  } catch {
+    return
+  }
+
+  reconcileTaskPlacement(taskId, listKey)
+
+  const listKeysToPersist = new Set<string>([listKey])
+  if (startListKey && startListKey !== listKey) {
     listKeysToPersist.add(startListKey)
   }
 
-  for (const listKey of listKeysToPersist) {
+  for (const key of listKeysToPersist) {
     try {
-      await persistListTaskOrder(listKey)
+      await persistListTaskOrder(key)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : '並び順の保存に失敗しました'
       await load({ refresh: true })
@@ -1179,27 +1204,71 @@ async function finalizeBoardDrag (
   }
 }
 
-/** カード一覧外では末尾挿入のみ許可（Sortable の先頭判定を抑止） */
+/**
+ * プレビューは常に1つ: 末尾帯はカスタムスロットのみ、それ以外は Sortable に任せる。
+ */
 function onBoardDragMove (
-  _evt: { dragged: HTMLElement, to: HTMLElement },
+  evt: { to: HTMLElement, from: HTMLElement },
   originalEvent?: Event,
 ): boolean {
   syncBoardDragPointer(originalEvent)
-  return syncBoardDropPreviewState()
+
+  if (boardDragPreviewMode.value === 'tail') {
+    removeStraySortableGhosts()
+    return false
+  }
+
+  const canonicalListKey = boardDragPreviewListKey.value ?? getListKeyAtClientX(boardDragPointerX)
+  const toListKey = getDropZoneListKey(evt.to)
+
+  if (
+    !canonicalListKey
+    || !toListKey
+    || toListKey !== canonicalListKey
+    || isListEmptyForBoardDrag(toListKey)
+  ) {
+    removeStraySortableGhosts()
+    return false
+  }
+
+  const startListKey = boardDragStartListKey.value
+  if (startListKey && toListKey === startListKey && boardDragCrossList.value) {
+    return false
+  }
+
+  return true
+}
+
+function syncFloatingDragCardLayout (sourceEl: HTMLElement) {
+  const apply = () => {
+    const fallback = document.querySelector<HTMLElement>('.task-card.sortable-fallback')
+    if (!fallback) {
+      return
+    }
+    const rect = sourceEl.getBoundingClientRect()
+    fallback.style.width = `${rect.width}px`
+    fallback.style.boxSizing = 'border-box'
+    fallback.style.opacity = '1'
+    fallback.style.visibility = 'visible'
+  }
+  nextTick(apply)
+  requestAnimationFrame(apply)
 }
 
 function onBoardDragStart (evt: { item: HTMLElement, originalEvent?: Event }) {
   updateDropZoneScrollableState()
   boardDragTaskId = getTaskIdFromDragEl(evt.item)
   const task = tasks.value?.find(t => t.id === boardDragTaskId)
-  boardDragStartListKey = task?.list_id != null ? `list_${task.list_id}` : null
-  boardDragLastToListKey = null
+  boardDragStartListKey.value = task?.list_id != null ? `list_${task.list_id}` : null
+  boardDragCrossList.value = false
+  boardDragPreviewListKey.value = null
+  boardDragPreviewMode.value = null
+  boardDragLastToListKey = boardDragStartListKey.value
   syncBoardDragPointer(evt.originalEvent)
   boardDragging.value = true
-  lowerZoneTargetListKey.value = null
-  boardDragDropMode = 'append'
-  boardDragStickyColumnKey = boardDragStartListKey
+  boardDragStickyColumnKey = boardDragStartListKey.value
   closeCardMenu()
+  syncFloatingDragCardLayout(evt.item)
   if (import.meta.client) {
     document.addEventListener('pointermove', onBoardDragPointerMove, { passive: true })
     document.addEventListener('mousemove', onBoardDragPointerMove, { passive: true })
@@ -1210,26 +1279,26 @@ function onBoardDragStart (evt: { item: HTMLElement, originalEvent?: Event }) {
 /** ドラッグ終了時に表示位置と list_id を揃えて API 保存する */
 function onBoardDragEnd (evt?: { originalEvent?: Event }) {
   syncBoardDragPointer(evt?.originalEvent)
+  syncBoardPreviewState()
   const taskId = boardDragTaskId
-  if (boardDragging.value && taskId != null) {
-    syncBoardDropPreviewState()
-  }
-  let lowerZoneListKey = lowerZoneTargetListKey.value
-  if (!lowerZoneListKey) {
-    lowerZoneListKey = resolveAppendTargetListKey()
-  }
-  const sortableToListKey = boardDragLastToListKey
-    ?? findListColumnAtPointer()?.dataset.listKey
-    ?? null
-  const startListKey = boardDragStartListKey
+  const startListKey = boardDragStartListKey.value
+  const previewMode = boardDragPreviewMode.value
+  const toListKey = boardDragPreviewListKey.value
+    ?? boardDragLastToListKey
+    ?? getHoverListKey(evt?.originalEvent)
+    ?? boardDragStickyColumnKey
+    ?? findUniqueListKeyForTask(taskId ?? -1)
+  const appendToEnd = previewMode === 'tail'
 
   boardDragging.value = false
   boardDragTaskId = null
-  lowerZoneTargetListKey.value = null
+  boardDragCrossList.value = false
+  boardDragPreviewListKey.value = null
+  boardDragPreviewMode.value = null
+  removeStraySortableGhosts()
   updateDropZoneScrollableState()
   boardDragLastToListKey = null
-  boardDragStartListKey = null
-  boardDragDropMode = 'append'
+  boardDragStartListKey.value = null
   boardDragStickyColumnKey = null
   if (import.meta.client) {
     document.removeEventListener('pointermove', onBoardDragPointerMove)
@@ -1237,11 +1306,11 @@ function onBoardDragEnd (evt?: { originalEvent?: Event }) {
     document.removeEventListener('dragover', onBoardNativeDragOver)
   }
 
-  if (taskId == null) {
+  if (taskId == null || !toListKey) {
     return
   }
 
-  void finalizeBoardDrag(taskId, lowerZoneListKey, sortableToListKey, startListKey)
+  void finalizeBoardDrag(taskId, toListKey, startListKey, appendToEnd)
 }
 
 function onTaskHeadingCreated (heading: TaskHeading) {
@@ -1620,6 +1689,7 @@ onMounted(() => {
 
   window.addEventListener('click', onGlobalClick)
   window.addEventListener('resize', onWindowResize)
+  document.addEventListener('selectstart', onDocumentSelectStart)
 
   nextTick(() => {
     updateStickyOffsets()
@@ -1638,6 +1708,7 @@ onBeforeUnmount(() => {
   if (import.meta.client) {
     window.removeEventListener('click', onGlobalClick)
     window.removeEventListener('resize', onWindowResize)
+    document.removeEventListener('selectstart', onDocumentSelectStart)
     document.removeEventListener('pointermove', onBoardDragPointerMove)
     document.removeEventListener('mousemove', onBoardDragPointerMove)
     document.removeEventListener('dragover', onBoardNativeDragOver)
@@ -2038,8 +2109,21 @@ onBeforeUnmount(() => {
   background: rgba(15, 23, 42, 0.14);
 }
 
-.board-dragging--lower-zone .list-drop-zone > .sortable-ghost,
-.board-dragging--lower-zone .list-drop-zone > .drag-ghost:not(.drag-ghost--lower-zone-preview) {
+/* 他リストへ移動中はソース列にプレースホルダを出さない（Trello 同様） */
+.board-drag-cross-list .list-column--drag-source .sortable-ghost,
+.board-drag-cross-list .list-column--drag-source .drag-ghost {
+  display: none !important;
+}
+
+/* 空リスト: empty-insert-threshold の奪い合いでゴーストが隣列に出ないよう抑止 */
+.board-dragging .list-drop-zone--empty > .sortable-ghost,
+.board-dragging .list-drop-zone--empty > .drag-ghost:not(.drag-ghost--tail-preview) {
+  display: none !important;
+}
+
+/* 末尾帯: Sortable ゴーストは全非表示、末尾スロットのみ */
+.board-dragging--tail-zone .list-drop-zone .sortable-ghost,
+.board-dragging--tail-zone .list-drop-zone > .drag-ghost:not(.drag-ghost--tail-preview) {
   display: none !important;
   height: 0 !important;
   min-height: 0 !important;
@@ -2049,21 +2133,47 @@ onBeforeUnmount(() => {
   overflow: hidden !important;
 }
 
-.drag-ghost--lower-zone-preview {
+.list-column--tail-target .list-drop-zone {
+  min-height: 2.75rem;
+}
+
+.drag-ghost--tail-preview {
   flex-shrink: 0;
   position: relative;
   z-index: 3;
   pointer-events: none;
+  display: block !important;
 }
 
-.board-dragging .list-drop-zone > .sortable-ghost,
-.board-dragging .list-drop-zone > .drag-ghost:not(.drag-ghost--lower-zone-preview) {
+.board-dragging:not(.board-dragging--tail-zone) .list-drop-zone .sortable-ghost,
+.board-dragging:not(.board-dragging--tail-zone) .list-drop-zone .drag-ghost:not(.drag-ghost--tail-preview) {
   position: relative;
   z-index: 3;
+  box-sizing: border-box;
+}
+
+/* リスト内の元カードのみ非表示（body 上の sortable-fallback は表示） */
+.board-dragging .list-drop-zone > .task-card.sortable-chosen,
+.board-dragging .list-drop-zone > .task-card.drag-active {
+  opacity: 0 !important;
+}
+
+.board-dragging,
+.board-dragging *,
+.board-list-dragging,
+.board-list-dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.task-card.sortable-fallback,
+.task-card.sortable-fallback * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .board-dragging .list-column {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .board-dragging .list-drop-zone {
@@ -2123,24 +2233,39 @@ onBeforeUnmount(() => {
   cursor: grabbing;
 }
 
+/* リスト内の挿入位置プレースホルダ（Trello のグレースロット） */
 .drag-ghost {
-  opacity: 1;
+  opacity: 1 !important;
   background: #091e420f;
-  border: 2px dashed #94a3b8;
+  border: none;
   border-radius: 12px;
   box-shadow: none;
   min-height: 2.5rem;
+  margin: 0;
+  pointer-events: none;
 }
 
 .drag-ghost * {
   visibility: hidden;
 }
 
-.drag-active {
-  cursor: grabbing;
+/* カーソル追従のドラッグ中カード（マウスについてくる浮遊カード） */
+.task-card.sortable-fallback.drag-active {
+  cursor: grabbing !important;
   opacity: 1 !important;
+  visibility: visible !important;
   transform: rotate(3deg);
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
+  z-index: 10000 !important;
+  pointer-events: none;
+  box-sizing: border-box;
+  background: #fff !important;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+}
+
+.task-card.sortable-fallback.drag-active * {
+  visibility: visible !important;
 }
 
 .task-card-heading {
