@@ -78,7 +78,7 @@ function close () {
 }
 
 .modal-header {
-  background: #0b2bab;
+  background: mixin.$main;
   color: #fff;
   padding: 0.7rem 1rem;
   display: flex;

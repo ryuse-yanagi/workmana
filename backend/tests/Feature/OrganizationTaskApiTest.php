@@ -66,6 +66,32 @@ class OrganizationTaskApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('heading', null)
             ->assertJsonPath('task_heading_id', null);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'effort_hours' => 8.5,
+            ])
+            ->assertOk()
+            ->assertJsonPath('effort_value', '8.5000')
+            ->assertJsonPath('effort_unit', 'hour');
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'effort_value' => 4,
+                'effort_unit' => 'minute',
+            ])
+            ->assertOk()
+            ->assertJsonPath('effort_value', '4.0000')
+            ->assertJsonPath('effort_unit', 'minute')
+            ->assertJsonPath('effort_hours', '0.066667');
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'effort_hours' => null,
+            ])
+            ->assertOk()
+            ->assertJsonPath('effort_hours', null)
+            ->assertJsonPath('effort_unit', null);
     }
 
     public function test_non_member_cannot_access_org(): void

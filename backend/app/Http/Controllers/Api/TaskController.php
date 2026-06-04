@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\TaskEffortUnit;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Events\TaskArchived;
@@ -125,6 +126,9 @@ class TaskController extends ApiController
             'priority' => ['nullable', 'string', Rule::in(TaskPriority::values())],
             'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
+            'effort_hours' => ['nullable', 'numeric', 'min:0', 'max:99999.99'],
+            'effort_value' => ['nullable', 'numeric', 'min:0', 'max:9999999.9999'],
+            'effort_unit' => ['nullable', 'string', Rule::in(TaskEffortUnit::values())],
             'assignee_id' => ['nullable', 'integer', 'exists:users,id'],
             'assignee_ids' => ['nullable', 'array'],
             'assignee_ids.*' => ['integer', 'distinct'],
@@ -178,6 +182,8 @@ class TaskController extends ApiController
             'reporter_id' => $user->id,
         ]);
 
+        $this->applyEffortFields($task, $validated);
+
         if ($assigneeIds !== []) {
             $task->assignees()->sync($assigneeIds);
         }
@@ -189,6 +195,8 @@ class TaskController extends ApiController
         if ($labelIds !== []) {
             $task->labels()->sync($labelIds);
         }
+
+        $task->save();
 
         SafeBroadcast::toOthers(new TaskCreated($task->fresh()));
 
@@ -234,6 +242,9 @@ class TaskController extends ApiController
             'priority' => ['sometimes', 'string', Rule::in(TaskPriority::values())],
             'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
+            'effort_hours' => ['nullable', 'numeric', 'min:0', 'max:99999.99'],
+            'effort_value' => ['nullable', 'numeric', 'min:0', 'max:9999999.9999'],
+            'effort_unit' => ['nullable', 'string', Rule::in(TaskEffortUnit::values())],
             'assignee_id' => ['nullable', 'integer', 'exists:users,id'],
             'assignee_ids' => ['nullable', 'array'],
             'assignee_ids.*' => ['integer', 'distinct'],
@@ -284,6 +295,7 @@ class TaskController extends ApiController
         if (array_key_exists('due_date', $validated)) {
             $task->due_date = $validated['due_date'];
         }
+        $this->applyEffortFields($task, $validated);
 
         $assigneeIdsToSync = null;
         if (array_key_exists('assignee_ids', $validated) || array_key_exists('assignee_id', $validated)) {
@@ -417,6 +429,9 @@ class TaskController extends ApiController
             'priority' => $task->priority,
             'start_date' => $task->start_date,
             'due_date' => $task->due_date,
+            'effort_hours' => $task->effort_hours,
+            'effort_value' => $task->effort_value,
+            'effort_unit' => $task->effort_unit,
             'assignee_id' => $task->assignee_id,
             'assignees' => $this->formatAssignees($task->assignees),
             'reporter_id' => $task->reporter_id,
@@ -619,5 +634,79 @@ class TaskController extends ApiController
         }
 
         return $ids;
+    }
+
+    /**
+     * @param array<string, mixed> $validated
+     */
+    private function applyEffortFields(Task $task, array $validated): void
+    {
+        if (array_key_exists('effort_value', $validated) || array_key_exists('effort_unit', $validated)) {
+            if (($validated['effort_value'] ?? null) === null) {
+                $task->effort_value = null;
+                $task->effort_unit = null;
+                $task->effort_hours = null;
+
+                return;
+            }
+
+            $value = round((float) $validated['effort_value'], 4);
+            $unit = $this->resolveEffortUnit($value, $validated['effort_unit'] ?? $task->effort_unit);
+            $task->effort_value = $value;
+            $task->effort_unit = $unit;
+            $task->effort_hours = $this->effortValueToHours($value, $unit);
+
+            return;
+        }
+
+        if (! array_key_exists('effort_hours', $validated)) {
+            return;
+        }
+
+        if ($validated['effort_hours'] === null) {
+            $task->effort_hours = null;
+            $task->effort_value = null;
+            $task->effort_unit = null;
+
+            return;
+        }
+
+        $hours = round((float) $validated['effort_hours'], 6);
+        $unit = $this->resolveEffortUnit($hours, $validated['effort_unit'] ?? $task->effort_unit);
+        $task->effort_hours = $hours;
+        $task->effort_unit = $unit;
+        $task->effort_value = $this->effortHoursToValue($hours, $unit);
+    }
+
+    private function effortValueToHours(float $value, string $unit): float
+    {
+        return match ($unit) {
+            TaskEffortUnit::Minute->value => round($value / 60, 6),
+            TaskEffortUnit::Day->value => round($value * 24, 6),
+            default => round($value, 6),
+        };
+    }
+
+    private function effortHoursToValue(float $hours, string $unit): float
+    {
+        return match ($unit) {
+            TaskEffortUnit::Minute->value => round($hours * 60, 4),
+            TaskEffortUnit::Day->value => round($hours / 24, 4),
+            default => round($hours, 4),
+        };
+    }
+
+    private function resolveEffortUnit(mixed $effortAmount, mixed $effortUnit): ?string
+    {
+        if ($effortAmount === null || $effortAmount === '') {
+            return null;
+        }
+
+        $unit = is_string($effortUnit) ? $effortUnit : null;
+        if ($unit !== null && in_array($unit, TaskEffortUnit::values(), true)) {
+            return $unit;
+        }
+
+        return TaskEffortUnit::Hour->value;
     }
 }

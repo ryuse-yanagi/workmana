@@ -24,6 +24,9 @@ class Task extends Model
         'priority',
         'start_date',
         'due_date',
+        'effort_hours',
+        'effort_value',
+        'effort_unit',
         'assignee_id',
         'reporter_id',
         'archived_at',
@@ -34,6 +37,8 @@ class Task extends Model
         return [
             'start_date' => 'datetime',
             'due_date' => 'datetime',
+            'effort_hours' => 'decimal:6',
+            'effort_value' => 'decimal:4',
             'archived_at' => 'datetime',
         ];
     }

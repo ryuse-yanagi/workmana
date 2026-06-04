@@ -62,6 +62,7 @@
               'board-list-dragging': listColumnDragging,
             }"
           >
+            <div class="board-columns">
             <draggable
               v-model="lists"
               item-key="key"
@@ -73,7 +74,8 @@
               :delay="0"
               :delay-on-touch-only="false"
               :touch-start-threshold="0"
-              :disabled="listReorderPending || listColumnDragging || editingListKey !== null"
+              :disabled="listReorderPending || editingListKey !== null"
+              handle=".list-header"
               ghost-class="drag-ghost"
               chosen-class="drag-chosen"
               drag-class="drag-active"
@@ -87,6 +89,7 @@
                   :class="[
                     'list-column',
                     {
+                      'list-column--empty': isListColumnEmpty(list.key),
                       'list-column--drag-source':
                         boardDragging
                         && boardDragCrossList
@@ -100,41 +103,34 @@
                 class="list-header"
                 :class="{ 'list-header--editing': editingListKey === list.key }"
               >
-                <template v-if="editingListKey === list.key">
-                  <form class="list-header-edit" @submit.prevent="saveListTitle(list)">
-                    <input
-                      v-model.trim="listEditDrafts[list.key]"
-                      type="text"
-                      maxlength="255"
-                      class="list-title-input"
-                      :disabled="listRenamePending"
-                      @keydown.escape.prevent="cancelListEdit"
-                    />
-                    <div class="edit-actions">
-                      <button type="submit" class="ghost-btn small" :disabled="listRenamePending || !listEditDrafts[list.key]?.trim()">
-                        {{ listRenamePending ? '保存中...' : '保存' }}
-                      </button>
-                      <button type="button" class="ghost-btn small" :disabled="listRenamePending" @click="cancelListEdit">
-                        キャンセル
-                      </button>
-                    </div>
-                  </form>
-                </template>
-                <template v-else>
+                <div class="list-title-field">
                   <h2
+                    v-if="editingListKey !== list.key"
                     class="list-title-text list-title-clickable"
                     role="button"
                     tabindex="0"
-                    @click="startListEdit(list)"
+                    @click="onListTitleClick(list)"
                     @keydown.enter.prevent="startListEdit(list)"
                     @keydown.space.prevent="startListEdit(list)"
                   >
                     {{ list.title }}
                   </h2>
-                  <div class="list-header-right no-list-drag">
-                    <span class="list-count">{{ visibleCount(list.key) }}</span>
-                  </div>
-                </template>
+                  <input
+                    v-else
+                    ref="listTitleInputEl"
+                    v-model="listEditDrafts[list.key]"
+                    type="text"
+                    maxlength="255"
+                    class="list-title-input"
+                    :disabled="listRenamePending"
+                    @blur="confirmListTitle(list)"
+                    @keydown.enter.prevent="confirmListTitle(list)"
+                    @keydown.escape.prevent="cancelListEdit"
+                  >
+                </div>
+                <div class="list-header-right no-list-drag">
+                  <span class="list-count">{{ visibleCount(list.key) }}</span>
+                </div>
               </header>
 
               <draggable
@@ -144,7 +140,7 @@
                   'list-drop-zone',
                   {
                     'list-drop-zone--scrollable': scrollableDropZoneListKeys[list.key],
-                    'list-drop-zone--empty': visibleCount(list.key) === 0,
+                    'list-drop-zone--empty': isListColumnEmpty(list.key),
                   },
                 ]"
                 group="board-cards"
@@ -215,7 +211,7 @@
                           aria-label="カードのメニュー"
                           @click="toggleCardMenu(task.id, $event)"
                         >
-                          <Pencil :size="16" :stroke-width="2.25" aria-hidden="true" />
+                          <Pencil :size="18" :stroke-width="2.25" aria-hidden="true" />
                         </button>
                       </div>
                       <div class="task-card-body">
@@ -321,28 +317,44 @@
                 v-if="!showListCreator"
                 type="button"
                 class="ghost-btn list-create-btn"
-                @click="showListCreator = true"
+                @click="openListCreator"
               >
                 <span>＋</span>リストの作成
               </button>
-              <form v-else class="list-form" @submit.prevent="createList">
-                <label class="field">
-                  <span>リスト名</span>
-                  <input
-                    v-model.trim="newListTitle"
-                    type="text"
-                    required
-                    minlength="2"
-                    maxlength="40"
-                    placeholder="リスト名を入力"
-                  />
-                </label>
+              <div v-else class="composer-form">
+                <input
+                  :ref="bindListComposerInputEl"
+                  v-model="newListTitle"
+                  type="text"
+                  maxlength="40"
+                  placeholder="リスト名を入力"
+                  class="composer-input"
+                  @blur="confirmListDraft"
+                  @keydown.enter.prevent="confirmListDraft"
+                  @keydown.escape="cancelCreateList"
+                >
                 <div class="composer-actions">
-                  <button type="submit" class="add-btn" :disabled="!newListTitle">作成</button>
-                  <button type="button" class="ghost-btn" @click="cancelCreateList">キャンセル</button>
+                  <button
+                    type="button"
+                    class="composer-submit-btn"
+                    @mousedown.prevent
+                    @click="confirmListDraft"
+                  >
+                    {{ pending ? '作成中...' : '作成' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="composer-close-btn"
+                    aria-label="キャンセル"
+                    @mousedown.prevent
+                    @click="cancelCreateList"
+                  >
+                    ✕
+                  </button>
                 </div>
-              </form>
+              </div>
             </article>
+            </div>
           </section>
         </div>
       </Transition>
@@ -458,6 +470,8 @@ const showListCreator = ref(false)
 const newListTitle = ref('')
 const activeComposerKey = ref<string | null>(null)
 const composerInputEl = ref<HTMLInputElement | null>(null)
+const listTitleInputEl = ref<HTMLInputElement | null>(null)
+const listComposerInputEl = ref<HTMLInputElement | null>(null)
 const cardDrafts = reactive<Record<string, string>>({})
 const lists = ref<ListDef[]>([])
 const orgLabels = ref<Label[]>([])
@@ -469,6 +483,8 @@ const listEditDrafts = reactive<Record<string, string>>({})
 const listRenamePending = ref(false)
 const listReorderPending = ref(false)
 const listColumnDragging = ref(false)
+/** リストヘッダーのドラッグ直後にタイトル click で編集が開くのを防ぐ */
+const suppressListTitleClick = ref(false)
 let listOrderSnapshot: ListDef[] | null = null
 const editingTaskId = ref<number | null>(null)
 const taskTitleDraft = ref('')
@@ -479,6 +495,9 @@ const scrollableDropZoneListKeys = reactive<Record<string, boolean>>({})
 let boardDragPointerX = 0
 let boardDragPointerY = 0
 let boardDragTaskId: number | null = null
+/** ドラッグ中カードの表示サイズ（リスト内プレースホルダ用） */
+let boardDragCardWidthPx = 0
+let boardDragCardHeightPx = 0
 /** Sortable が確定した移動先リスト */
 let boardDragLastToListKey: string | null = null
 /** ドラッグ開始時のリスト key */
@@ -589,6 +608,36 @@ function isTaskVisible (task: Task) {
 function visibleCount (listKey: string) {
   const cards = tasksByList[listKey] ?? []
   return cards.filter(isTaskVisible).length
+}
+
+/** 空リスト用の余白スタイル（ドラッグ中のソース列の見かけの空きも含む） */
+function isListColumnEmpty (listKey: string): boolean {
+  const count = visibleCount(listKey)
+  if (!boardDragging.value) {
+    return count === 0
+  }
+
+  // プレビューがこの列 → カードが戻ってきた扱いで通常余白
+  if (boardDragPreviewListKey.value === listKey) {
+    return false
+  }
+
+  // ソース列から他列へプレビュー移動中（最後の1枚を運んでいるとき）
+  if (
+    boardDragStartListKey.value === listKey
+    && boardDragCrossList.value
+  ) {
+    if (count === 0) {
+      return true
+    }
+    if (count === 1 && boardDragTaskId != null) {
+      return (tasksByList[listKey] ?? []).some(
+        t => t.id === boardDragTaskId && isTaskVisible(t),
+      )
+    }
+  }
+
+  return count === 0
 }
 
 const visibleTaskCount = computed(() => {
@@ -720,11 +769,35 @@ function onWindowResize () {
   updateDropZoneScrollableState()
 }
 
+function syncCreateListColumnWidth () {
+  if (!import.meta.client) {
+    return
+  }
+  const createCol = document.querySelector<HTMLElement>('.create-list-column')
+  const refColumn = document.querySelector<HTMLElement>('.board-lists-sortable .list-column[data-list-key]')
+  if (!createCol) {
+    return
+  }
+  if (refColumn) {
+    const w = Math.round(refColumn.getBoundingClientRect().width)
+    createCol.style.flex = `0 0 ${w}px`
+    createCol.style.width = `${w}px`
+    createCol.style.minWidth = `${w}px`
+    createCol.style.maxWidth = `${w}px`
+  } else {
+    createCol.style.flex = '1 0 17rem'
+    createCol.style.width = ''
+    createCol.style.minWidth = '17rem'
+    createCol.style.maxWidth = ''
+  }
+}
+
 function updateDropZoneScrollableState () {
   if (!import.meta.client) {
     return
   }
   nextTick(() => {
+    syncCreateListColumnWidth()
     const nextScrollable: Record<string, boolean> = {}
     const columns = document.querySelectorAll<HTMLElement>('.list-column[data-list-key]')
     columns.forEach((column) => {
@@ -948,7 +1021,7 @@ function getListKeyAtClientX (clientX: number): string | null {
 }
 
 function isListEmptyForBoardDrag (listKey: string): boolean {
-  return visibleCount(listKey) === 0
+  return isListColumnEmpty(listKey)
 }
 
 function getDropZoneListKey (dropZone: HTMLElement): string | null {
@@ -1027,6 +1100,7 @@ function syncBoardPreviewState () {
       boardDragCrossList.value = false
     }
     removeStraySortableGhosts()
+    scheduleSyncDragPlaceholderSize()
     return
   }
 
@@ -1038,6 +1112,7 @@ function syncBoardPreviewState () {
   } else if (boardDragStartListKey.value && listKey === boardDragStartListKey.value) {
     boardDragCrossList.value = false
   }
+  scheduleSyncDragPlaceholderSize()
 }
 
 /** プレビュー先以外・空リストの Sortable ゴーストを除去（二重・左右ちらつき防止） */
@@ -1239,17 +1314,77 @@ function onBoardDragMove (
   return true
 }
 
+function captureBoardDragCardSize (sourceEl: HTMLElement) {
+  const rect = sourceEl.getBoundingClientRect()
+  boardDragCardWidthPx = Math.round(rect.width)
+  boardDragCardHeightPx = Math.round(rect.height)
+}
+
+function applyDragPlaceholderSize (el: HTMLElement) {
+  const w = boardDragCardWidthPx
+  const h = boardDragCardHeightPx
+  if (w <= 0 || h <= 0) {
+    return
+  }
+  el.style.boxSizing = 'border-box'
+  el.style.width = `${w}px`
+  el.style.height = `${h}px`
+  el.style.minHeight = ''
+  el.style.maxHeight = ''
+}
+
+function syncDragPlaceholderSize () {
+  if (!import.meta.client || !boardDragging.value) {
+    return
+  }
+  document.querySelectorAll<HTMLElement>('.drag-ghost--tail-preview').forEach(applyDragPlaceholderSize)
+  document.querySelectorAll<HTMLElement>('.list-drop-zone .sortable-ghost').forEach(applyDragPlaceholderSize)
+}
+
+function scheduleSyncDragPlaceholderSize () {
+  if (!import.meta.client || !boardDragging.value) {
+    return
+  }
+  const apply = () => syncDragPlaceholderSize()
+  nextTick(apply)
+  requestAnimationFrame(apply)
+}
+
+function clearDragPlaceholderSize () {
+  if (!import.meta.client) {
+    return
+  }
+  const props = ['width', 'height', 'minHeight', 'maxHeight', 'boxSizing'] as const
+  document.querySelectorAll<HTMLElement>(
+    '.drag-ghost--tail-preview, .list-drop-zone .sortable-ghost',
+  ).forEach((el) => {
+    for (const prop of props) {
+      el.style[prop] = ''
+    }
+  })
+  boardDragCardWidthPx = 0
+  boardDragCardHeightPx = 0
+}
+
 function syncFloatingDragCardLayout (sourceEl: HTMLElement) {
+  captureBoardDragCardSize(sourceEl)
   const apply = () => {
     const fallback = document.querySelector<HTMLElement>('.task-card.sortable-fallback')
     if (!fallback) {
       return
     }
-    const rect = sourceEl.getBoundingClientRect()
-    fallback.style.width = `${rect.width}px`
+    const w = boardDragCardWidthPx
+    const h = boardDragCardHeightPx
+    if (w > 0) {
+      fallback.style.width = `${w}px`
+    }
+    fallback.style.height = ''
+    fallback.style.minHeight = ''
+    fallback.style.maxHeight = ''
     fallback.style.boxSizing = 'border-box'
     fallback.style.opacity = '1'
     fallback.style.visibility = 'visible'
+    syncDragPlaceholderSize()
   }
   nextTick(apply)
   requestAnimationFrame(apply)
@@ -1291,6 +1426,7 @@ function onBoardDragEnd (evt?: { originalEvent?: Event }) {
   const appendToEnd = previewMode === 'tail'
 
   boardDragging.value = false
+  clearDragPlaceholderSize()
   boardDragTaskId = null
   boardDragCrossList.value = false
   boardDragPreviewListKey.value = null
@@ -1444,6 +1580,26 @@ async function confirmCardDraft (listKey: string) {
   await createTask(listKey)
 }
 
+async function openListCreator () {
+  showListCreator.value = true
+  await nextTick()
+  listComposerInputEl.value?.focus()
+}
+
+function bindListComposerInputEl (el: Element | ComponentPublicInstance | null) {
+  listComposerInputEl.value = el as HTMLInputElement | null
+}
+
+async function confirmListDraft () {
+  if (pending.value) return
+  const trimmed = newListTitle.value.trim()
+  if (!trimmed) {
+    cancelCreateList()
+    return
+  }
+  await createList()
+}
+
 async function createList () {
   const trimmed = newListTitle.value.trim()
   if (!trimmed) return
@@ -1471,14 +1627,36 @@ function cancelCreateList () {
   showListCreator.value = false
 }
 
-function startListEdit (list: ListDef) {
+function onListTitleClick (list: ListDef) {
+  if (suppressListTitleClick.value) {
+    return
+  }
+  void startListEdit(list)
+}
+
+async function startListEdit (list: ListDef) {
   editingTaskId.value = null
   editingListKey.value = list.key
   listEditDrafts[list.key] = list.title
+  await nextTick()
+  listTitleInputEl.value?.focus()
+  listTitleInputEl.value?.select()
 }
 
 function cancelListEdit () {
   editingListKey.value = null
+}
+
+async function confirmListTitle (list: ListDef) {
+  if (listRenamePending.value || editingListKey.value !== list.key) {
+    return
+  }
+  const name = (listEditDrafts[list.key] || '').trim()
+  if (!name || name === list.title) {
+    cancelListEdit()
+    return
+  }
+  await saveListTitle(list)
 }
 
 function lockListColumnWidthsForDrag () {
@@ -1514,6 +1692,7 @@ function onListColumnDragStart () {
   if (boardDragging.value) {
     return
   }
+  suppressListTitleClick.value = false
   listColumnDragging.value = true
   closeCardMenu()
   listOrderSnapshot = lists.value.map(l => ({ ...l }))
@@ -1524,6 +1703,11 @@ function onListColumnDragStart () {
 async function onListColumnDragEnd () {
   listColumnDragging.value = false
   clearListColumnWidthLocks()
+  updateDropZoneScrollableState()
+  suppressListTitleClick.value = true
+  window.setTimeout(() => {
+    suppressListTitleClick.value = false
+  }, 100)
   const snapshot = listOrderSnapshot
   listOrderSnapshot = null
   if (!snapshot) {
@@ -1932,19 +2116,22 @@ onBeforeUnmount(() => {
   background: rgba(15, 23, 42, 0.14);
 }
 
+.board-columns {
+  display: flex;
+  flex-direction: row;
+  align-items: start;
+  gap: 0.9rem;
+  flex: 0 0 auto;
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
 .board-lists-sortable {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(17rem, 1fr);
   gap: 0.9rem;
   align-items: start;
-  flex: 0 0 auto;
-  margin-left: 1rem;
-}
-
-.board > .create-list-column {
-  margin-right: 1rem;
-  flex-shrink: 0;
 }
 
 .board-lists-sortable .list-column {
@@ -1986,21 +2173,38 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem;
+  padding: 0.8rem;
   flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
 }
 
-.list-header--editing {
-  flex-direction: column;
-  align-items: stretch;
+.board-list-dragging .list-header {
+  cursor: grabbing;
+}
+
+.list-title-field {
+  flex: 1;
+  min-width: 0;
+  cursor: inherit;
+  touch-action: auto;
+}
+
+.list-title-text,
+.list-title-input {
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 1rem;
+  line-height: 1.35;
+  font-weight: 700;
+  font-family: inherit;
+  color: inherit;
+  padding: 0.1rem 0.6rem;
 }
 
 .list-title-text {
-  margin: 0;
-  font-size: 1rem;
-  flex: 1;
-  min-width: 0;
-  line-height: 1.35;
+  display: block;
 }
 
 .list-title-clickable {
@@ -2013,30 +2217,32 @@ onBeforeUnmount(() => {
   border-radius: 4px;
 }
 
-.list-header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  flex-shrink: 0;
+.list-title-input {
+  display: block;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
-.list-header-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  width: 100%;
+.list-title-input:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
-.list-header-edit,
-.list-header-edit * {
+.list-header--editing .list-title-field,
+.list-header--editing .list-title-field * {
   cursor: auto;
   touch-action: auto;
   user-select: text;
 }
 
-.list-title-input {
-  width: 100%;
-  box-sizing: border-box;
+.list-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
 }
 
 .edit-actions {
@@ -2109,6 +2315,12 @@ onBeforeUnmount(() => {
   background: rgba(15, 23, 42, 0.14);
 }
 
+.list-column--empty .list-drop-zone {
+  padding-top: 0;
+  padding-bottom: 0.1rem;
+  gap: 0;
+}
+
 /* 他リストへ移動中はソース列にプレースホルダを出さない（Trello 同様） */
 .board-drag-cross-list .list-column--drag-source .sortable-ghost,
 .board-drag-cross-list .list-column--drag-source .drag-ghost {
@@ -2143,6 +2355,8 @@ onBeforeUnmount(() => {
   z-index: 3;
   pointer-events: none;
   display: block !important;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .board-dragging:not(.board-dragging--tail-zone) .list-drop-zone .sortable-ghost,
@@ -2240,9 +2454,10 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 12px;
   box-shadow: none;
-  min-height: 2.5rem;
+  min-height: 0;
   margin: 0;
   pointer-events: none;
+  box-sizing: border-box;
 }
 
 .drag-ghost * {
@@ -2392,13 +2607,11 @@ onBeforeUnmount(() => {
   padding: 0.2rem;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.9);
 }
 
-.card-menu-trigger:hover,
 .card-menu-trigger:focus-visible {
-  background: #f1f5f9;
-  color: #0f172a;
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .card-menu {
@@ -2478,8 +2691,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.composer-form,
-.list-form {
+.composer-form {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -2543,14 +2755,10 @@ onBeforeUnmount(() => {
   color: #44546f;
 }
 
-.list-form input {
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 0.62rem 0.75rem;
-  font-size: 0.94rem;
-}
-
 .add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: none;
   border-radius: 10px;
   padding: 0.65rem 0.85rem;
@@ -2583,11 +2791,14 @@ button:disabled {
 }
 
 .create-list-column {
-  min-width: 14rem;
   align-self: start;
+  min-width: 0;
 }
 
 .list-create-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   width: 100%;
   text-align: left;
   background: rgba(15, 23, 42, 0.08);

@@ -94,6 +94,16 @@
               <button
                 type="button"
                 class="action-btn"
+                :class="{ 'action-btn--active': activePopover === 'effort' }"
+                :disabled="saving || effortSaving"
+                @click="openEffortPicker($event)"
+              >
+                <span class="action-btn-icon" aria-hidden="true">⏳</span>
+                工数
+              </button>
+              <button
+                type="button"
+                class="action-btn"
                 :class="{ 'action-btn--active': activePopover === 'members' }"
                 :disabled="saving"
                 @click="openMemberPicker($event)"
@@ -150,6 +160,24 @@
                   </button>
                 </section>
             </div>
+
+            <section
+              v-if="showEffortDetailSection"
+              ref="effortDetailAnchorRef"
+              class="detail-item detail-item--effort"
+            >
+              <span class="detail-item-label">工数</span>
+              <button
+                type="button"
+                class="detail-value-btn"
+                :class="{ 'detail-value-btn--editing': activePopover === 'effort' }"
+                :disabled="saving || effortSaving"
+                :aria-live="activePopover === 'effort' ? 'polite' : undefined"
+                @click="openEffortPicker($event)"
+              >
+                {{ effortDetailDisplayText }}
+              </button>
+            </section>
 
             <section
               v-if="(task?.assignees ?? []).length"
@@ -248,12 +276,6 @@
                   class="popover-layer popover-layer--portal"
                 >
                 <div
-                  class="popover-backdrop"
-                  aria-hidden="true"
-                  @click="closePopover"
-                />
-
-                <div
                   v-if="activePopover === 'start-date' || activePopover === 'due-date'"
                   ref="popoverElRef"
                   class="popover popover--date"
@@ -315,6 +337,64 @@
                       {{ cell.day }}
                     </button>
                   </div>
+                </div>
+
+                <p v-if="popoverError" class="err">{{ popoverError }}</p>
+              </div>
+
+              <div
+                v-else-if="activePopover === 'effort'"
+                ref="popoverElRef"
+                class="popover popover--effort"
+                :style="popoverStyle"
+                role="dialog"
+                aria-label="工数"
+                @click.stop
+              >
+                <header class="popover-header">
+                  <h4 class="popover-title">工数</h4>
+                  <button
+                    type="button"
+                    class="popover-close"
+                    :disabled="saving || effortSaving"
+                    aria-label="閉じる"
+                    @mousedown.stop
+                    @click.stop="void finalizeEffortPopover()"
+                  >✕</button>
+                </header>
+
+                <div class="effort-input-row">
+                  <input
+                    ref="effortInputRef"
+                    v-model="effortDraft"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="effort-input"
+                    placeholder="数値"
+                    aria-label="工数"
+                    :disabled="saving || effortSaving"
+                    @keydown.enter.prevent="void finalizeEffortPopover()"
+                    @keydown.escape.prevent="void finalizeEffortPopover()"
+                    @click.stop
+                  />
+                  <select
+                    v-model="effortUnitDraft"
+                    class="effort-unit-select"
+                    aria-label="工数の単位"
+                    :disabled="saving || effortSaving"
+                    @mousedown.stop
+                    @click.stop
+                    @change="updatePopoverPosition"
+                  >
+                    <option
+                      v-for="option in EFFORT_UNIT_OPTIONS"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
                 </div>
 
                 <p v-if="popoverError" class="err">{{ popoverError }}</p>
@@ -638,11 +718,22 @@ export type TaskDetail = {
   heading?: TaskDetailHeading | null
   start_date: string | null
   due_date: string | null
+  effort_hours: number | string | null
+  effort_value?: number | string | null
+  effort_unit?: EffortUnit | string | null
   assignees: TaskDetailMember[]
   labels: TaskDetailLabel[]
 }
 
-type PopoverType = 'start-date' | 'due-date' | 'members' | 'member-detail' | 'labels' | 'heading'
+type EffortUnit = 'minute' | 'hour' | 'day'
+
+type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'heading'
+
+const EFFORT_UNIT_OPTIONS: { value: EffortUnit, label: string }[] = [
+  { value: 'minute', label: '分' },
+  { value: 'hour', label: '時間' },
+  { value: 'day', label: '日' },
+]
 type DatePickerTarget = 'start' | 'due'
 
 type CalendarCell = {
@@ -697,6 +788,7 @@ const modalCardRef = ref<HTMLElement | null>(null)
 const modalBodyRef = ref<HTMLElement | null>(null)
 const popoverElRef = ref<HTMLElement | null>(null)
 const actionButtonsRef = ref<HTMLElement | null>(null)
+const effortDetailAnchorRef = ref<HTMLElement | null>(null)
 const popoverAnchorEl = ref<HTMLElement | null>(null)
 const calendarCursor = ref(new Date())
 const pendingDate = ref<string | null>(null)
@@ -718,6 +810,35 @@ const headingCreateOpen = ref(false)
 const headingCreateDraft = ref('')
 const headingCreatePending = ref(false)
 const headingCreateInputRef = ref<HTMLInputElement | null>(null)
+
+const effortDraft = ref<string | number>('')
+const effortUnitDraft = ref<EffortUnit>('hour')
+const effortSaving = ref(false)
+const effortInputRef = ref<HTMLInputElement | null>(null)
+
+const showEffortDetailSection = computed(() => {
+  if (!task.value) return false
+  if (activePopover.value === 'effort') {
+    const parsed = parseEffortDraft(effortDraft.value)
+    return parsed !== null && parsed !== 'invalid'
+  }
+  return resolveStoredEffortValue(task.value) !== null
+})
+
+const effortDetailDisplayText = computed(() => {
+  if (activePopover.value === 'effort') {
+    const parsed = parseEffortDraft(effortDraft.value)
+    if (parsed === null || parsed === 'invalid') {
+      return ''
+    }
+    const unit = normalizeEffortUnit(effortUnitDraft.value)
+    return `${formatEffortAmount(parsed)} ${effortUnitLabel(unit)}`
+  }
+  if (!task.value) {
+    return ''
+  }
+  return formatEffortDisplayForTask(task.value)
+})
 
 const effectiveProjectHeadings = computed(() => {
   if (projectHeadingsLocal.value.length) {
@@ -866,6 +987,253 @@ function resetState () {
   headingCreateDraft.value = ''
   headingCreatePending.value = false
   headingCreateInputRef.value = null
+  effortDraft.value = ''
+  effortUnitDraft.value = 'hour'
+  effortSaving.value = false
+  effortInputRef.value = null
+  effortDetailAnchorRef.value = null
+}
+
+function normalizeEffortUnit (value: EffortUnit | string | null | undefined): EffortUnit {
+  if (value === 'minute' || value === 'hour' || value === 'day') {
+    return value
+  }
+  return 'hour'
+}
+
+function effortUnitLabel (unit: EffortUnit | string | null | undefined): string {
+  const normalized = normalizeEffortUnit(unit)
+  return EFFORT_UNIT_OPTIONS.find(option => option.value === normalized)?.label ?? '時間'
+}
+
+function hoursToUnitValue (hours: number, unit: EffortUnit): number {
+  if (unit === 'minute') {
+    return hours * 60
+  }
+  if (unit === 'day') {
+    return hours / 24
+  }
+  return hours
+}
+
+function unitValueToHours (value: number, unit: EffortUnit): number {
+  if (unit === 'minute') {
+    return value / 60
+  }
+  if (unit === 'day') {
+    return value * 24
+  }
+  return value
+}
+
+function normalizeEffortHours (value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  const num = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(num) || num < 0) {
+    return null
+  }
+  return Math.round(num * 1000000) / 1000000
+}
+
+function normalizeEffortValue (value: number | string | null | undefined): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  const num = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(num) || num < 0) {
+    return null
+  }
+  return Math.round(num * 10000) / 10000
+}
+
+function resolveStoredEffortValue (detail: TaskDetail): number | null {
+  const stored = normalizeEffortValue(detail.effort_value)
+  if (stored !== null) {
+    return stored
+  }
+  const hours = normalizeEffortHours(detail.effort_hours)
+  if (hours === null) {
+    return null
+  }
+  return normalizeEffortValue(
+    hoursToUnitValue(hours, normalizeEffortUnit(detail.effort_unit)),
+  )
+}
+
+function formatEffortAmount (value: number): string {
+  return Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(2).replace(/\.?0+$/, '')
+}
+
+function effortValueToDraftFromTask (detail: TaskDetail): string {
+  const value = resolveStoredEffortValue(detail)
+  if (value === null) {
+    return ''
+  }
+  return formatEffortAmount(value)
+}
+
+function formatEffortDisplayForTask (detail: TaskDetail): string {
+  const value = resolveStoredEffortValue(detail)
+  if (value === null) {
+    return ''
+  }
+  const unit = normalizeEffortUnit(detail.effort_unit)
+  return `${formatEffortAmount(value)} ${effortUnitLabel(unit)}`
+}
+
+function parseEffortDraft (raw: string | number | null | undefined): number | null | 'invalid' {
+  const trimmed = String(raw ?? '').trim()
+  if (!trimmed) {
+    return null
+  }
+  const num = Number(trimmed)
+  if (!Number.isFinite(num) || num < 0) {
+    return 'invalid'
+  }
+  return Math.round(num * 100) / 100
+}
+
+function resolveEffortPopoverAnchor (event?: Event): HTMLElement | null {
+  const clicked = event?.currentTarget
+  const detailAnchor = effortDetailAnchorRef.value
+  if (
+    detailAnchor
+    && clicked instanceof Node
+    && detailAnchor.contains(clicked)
+  ) {
+    return getEffortDisplayButton() ?? detailAnchor
+  }
+  return capturePopoverAnchor(event)
+}
+
+function openEffortPicker (event?: Event) {
+  if (!task.value || saving.value || effortSaving.value) return
+  if (activePopover.value === 'effort') {
+    void closePopover()
+    return
+  }
+  popoverAnchorEl.value = resolveEffortPopoverAnchor(event)
+  activePopover.value = 'effort'
+  popoverError.value = null
+  effortUnitDraft.value = normalizeEffortUnit(task.value.effort_unit)
+  effortDraft.value = effortValueToDraftFromTask(task.value)
+  updatePopoverPosition()
+  nextTick(() => {
+    effortInputRef.value?.focus()
+    effortInputRef.value?.select()
+  })
+}
+
+/** 入力ありなら保存してから閉じる。未入力なら保存せず閉じる。不正値なら開いたまま。 */
+async function finalizeEffortPopover () {
+  if (activePopover.value !== 'effort') return
+
+  const parsed = parseEffortDraft(effortDraft.value)
+  if (parsed === 'invalid') {
+    popoverError.value = '工数は0以上の数値で入力してください'
+    return
+  }
+
+  popoverError.value = null
+  if (parsed !== null) {
+    await saveEffort()
+  }
+  dismissPopover()
+}
+
+function getEffortDisplayButton (): HTMLButtonElement | null {
+  const section = effortDetailAnchorRef.value
+  return section?.querySelector('.detail-value-btn') ?? null
+}
+
+function shouldIgnorePopoverOutsideClose (target: Node): boolean {
+  const anchor = popoverAnchorEl.value
+  if (!anchor?.contains(target)) {
+    return false
+  }
+
+  // 工数: 表示ボタン上のみトグル対象。セクション左右の余白は外側クリックとして閉じる
+  if (activePopover.value === 'effort') {
+    const button = getEffortDisplayButton()
+    return !!button && button.contains(target)
+  }
+
+  return true
+}
+
+function handlePopoverOutsidePointerDown (event: MouseEvent) {
+  if (!activePopover.value || event.button !== 0) return
+
+  const target = event.target
+  if (!(target instanceof Node)) return
+  if (popoverElRef.value?.contains(target)) return
+  if (shouldIgnorePopoverOutsideClose(target)) return
+
+  void closePopover()
+}
+
+async function saveEffort () {
+  if (!task.value || effortSaving.value) return
+
+  const parsed = parseEffortDraft(effortDraft.value)
+  if (parsed === 'invalid') {
+    popoverError.value = '工数は0以上の数値で入力してください'
+    effortUnitDraft.value = normalizeEffortUnit(task.value.effort_unit)
+    effortDraft.value = effortValueToDraftFromTask(task.value)
+    return
+  }
+
+  const unit = normalizeEffortUnit(effortUnitDraft.value)
+  const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
+  const effortUnit = effortValue === null ? null : unit
+  const currentValue = resolveStoredEffortValue(task.value)
+  const currentUnit = currentValue === null
+    ? null
+    : normalizeEffortUnit(task.value.effort_unit)
+
+  if (effortValue === currentValue && effortUnit === currentUnit) {
+    popoverError.value = null
+    return
+  }
+
+  const previousValue = task.value.effort_value ?? null
+  const previousHours = task.value.effort_hours ?? null
+  const previousUnit = task.value.effort_unit ?? null
+  task.value = {
+    ...task.value,
+    effort_value: effortValue,
+    effort_hours: effortValue === null ? null : unitValueToHours(effortValue, unit),
+    effort_unit: effortUnit,
+  }
+  effortSaving.value = true
+  popoverError.value = null
+  saveError.value = null
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${task.value.id}`,
+      { method: 'PATCH', body: { effort_value: effortValue, effort_unit: effortUnit } },
+    )
+    task.value = normalizeTaskDetail(updated)
+    effortUnitDraft.value = normalizeEffortUnit(task.value.effort_unit)
+    effortDraft.value = effortValueToDraftFromTask(task.value)
+    emit('updated', task.value)
+  } catch (e: unknown) {
+    task.value = {
+      ...task.value,
+      effort_value: previousValue,
+      effort_hours: previousHours,
+      effort_unit: previousUnit,
+    }
+    effortUnitDraft.value = normalizeEffortUnit(previousUnit)
+    effortDraft.value = effortValueToDraftFromTask(task.value)
+    saveError.value = e instanceof Error ? e.message : '工数の更新に失敗しました'
+  } finally {
+    effortSaving.value = false
+  }
 }
 
 async function loadProjectHeadings () {
@@ -907,7 +1275,7 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
   if (!task.value || patch.id !== task.value.id) {
     return
   }
-  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || headingSaving.value) {
+  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || headingSaving.value || effortSaving.value || activePopover.value === 'effort') {
     return
   }
 
@@ -1005,9 +1373,9 @@ function onOverlayBackdropClick (event: MouseEvent) {
 }
 
 function close () {
-  if (isOverlayCloseBlocked() || saving.value || titleSaving.value || descriptionSaving.value) return
+  if (isOverlayCloseBlocked() || saving.value || titleSaving.value || descriptionSaving.value || effortSaving.value) return
   if (activePopover.value) {
-    closePopover()
+    void closePopover()
     return
   }
   emit('update:modelValue', false)
@@ -1023,7 +1391,11 @@ function dismissPopover () {
   headingCreateDraft.value = ''
 }
 
-function closePopover () {
+async function closePopover () {
+  if (activePopover.value === 'effort') {
+    await finalizeEffortPopover()
+    return
+  }
   dismissPopover()
 }
 
@@ -1233,12 +1605,14 @@ function onPopoverEscape (event: KeyboardEvent) {
 watch(activePopover, (open) => {
   if (open) {
     document.addEventListener('keydown', onPopoverEscape)
+    document.addEventListener('mousedown', handlePopoverOutsidePointerDown, true)
     const onResize = () => updatePopoverPosition()
     window.addEventListener('resize', onResize)
     removePopoverResizeListener = () => window.removeEventListener('resize', onResize)
     updatePopoverPosition()
   } else {
     document.removeEventListener('keydown', onPopoverEscape)
+    document.removeEventListener('mousedown', handlePopoverOutsidePointerDown, true)
     removePopoverResizeListener?.()
     removePopoverResizeListener = null
   }
@@ -1264,6 +1638,7 @@ watch(headingCreateOpen, () => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onPopoverEscape)
+  document.removeEventListener('mousedown', handlePopoverOutsidePointerDown, true)
   removePopoverResizeListener?.()
   removePopoverResizeListener = null
 })
@@ -1540,7 +1915,7 @@ async function saveDescription () {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 3rem 1rem 1rem;
+  padding: 4rem 1rem 1rem;
   z-index: 70;
   overflow-y: auto;
 }
@@ -1553,18 +1928,19 @@ async function saveDescription () {
   position: relative;
   width: min(40rem, 100%);
   border-radius: 12px;
-  overflow: visible;
+  overflow: hidden;
   background: #fff;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
 }
 
 .modal-header {
-  background: #0b2bab;
+  background: mixin.$main;
   color: #fff;
   padding: 0.7rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border-radius: 12px 12px 0 0;
 }
 
 .modal-header h3 {
@@ -1741,24 +2117,10 @@ async function saveDescription () {
   pointer-events: none;
 }
 
-.popover-layer--portal .popover-backdrop {
-  pointer-events: auto;
-}
-
 .popover-layer--portal .popover {
   position: fixed;
   margin: 0;
   pointer-events: auto;
-}
-
-.popover-backdrop {
-  position: absolute;
-  inset: 0;
-  background: transparent;
-}
-
-.popover-layer--portal .popover-backdrop {
-  position: fixed;
 }
 
 .popover {
@@ -1935,11 +2297,14 @@ async function saveDescription () {
 }
 
 .heading-create-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   width: 100%;
   border: none;
   border-radius: 8px;
   background: mixin.$gray;
-  padding: 0.45rem 0.35rem;
+  padding: 0.65rem 0.85rem;
   font-size: 0.88rem;
   font-weight: 700;
   color: mixin.$text;
@@ -2181,6 +2546,73 @@ async function saveDescription () {
 .detail-item--date .detail-value-btn {
   font-size: 1.2rem;
   padding: 0.45rem 0.7rem;
+}
+
+.detail-item--effort .detail-value-btn {
+  align-self: flex-start;
+  box-sizing: border-box;
+  font-size: 1.2rem;
+  line-height: 1.3;
+  padding: 0.45rem 0.7rem;
+  min-height: calc(1.2rem * 1.3 + 0.9rem);
+}
+
+.detail-item--effort .detail-value-btn:disabled {
+  opacity: 1;
+  color: #0f172a;
+  cursor: default;
+}
+
+.detail-item--effort .detail-value-btn--editing {
+  cursor: pointer;
+}
+
+.popover--effort {
+  width: min(18rem, calc(100vw - 1.5rem));
+  padding: 0.6rem;
+  gap: 0.5rem;
+}
+
+.effort-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.popover--effort .effort-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #fff;
+}
+
+.popover--effort .effort-input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.popover--effort .effort-unit-select {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #fff;
+  cursor: pointer;
+}
+
+.popover--effort .effort-unit-select:focus {
+  outline: none;
+  border-color: #2563eb;
 }
 
 .detail-item {
