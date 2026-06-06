@@ -1,12 +1,7 @@
 <template>
   <main class="settings-page" :class="{ 'settings-page--await': !settingsPageReady && !settingsFatalError }">
     <template v-if="settingsFatalError">
-      <section class="load-fatal-panel">
-        <p class="load-fatal-message">{{ settingsFatalError }}</p>
-        <button type="button" class="load-fatal-retry" @click="retrySettingsLoad">
-          再試行
-        </button>
-      </section>
+      <PageLoadFatal :message="settingsFatalError" @retry="retrySettingsLoad" />
     </template>
 
     <template v-else>

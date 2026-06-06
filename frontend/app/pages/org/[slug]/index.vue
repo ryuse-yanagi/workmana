@@ -5,12 +5,7 @@
     :style="listPageCssVars"
   >
     <template v-if="fatalLoadError">
-      <section class="load-fatal-panel">
-        <p class="load-fatal-message">{{ fatalLoadError }}</p>
-        <button type="button" class="load-fatal-retry" @click="retryInitialLoad">
-          再試行
-        </button>
-      </section>
+      <PageLoadFatal :message="fatalLoadError" @retry="retryInitialLoad" />
     </template>
 
     <template v-else>
@@ -44,7 +39,8 @@
                 :disabled="pending"
                 @click="openProjectCreateModal"
               >
-                作成
+                <FolderPlus :size="18" :stroke-width="2.25" aria-hidden="true" />
+                新規作成
               </button>
             </div>
       </header>
@@ -83,14 +79,12 @@
                     <td class="name-cell">
                       <p class="name-text">{{ project.name }}</p>
                       <div v-if="project.labels?.length" class="label-list">
-                        <span
+                        <LabelStrip
                           v-for="label in project.labels"
                           :key="label.id"
-                          class="label-strip"
-                          :style="{ backgroundColor: label.color }"
-                        >
-                          {{ label.name }}
-                        </span>
+                          :label="label"
+                          size="md"
+                        />
                       </div>
                     </td>
                     <td>#{{ project.id }}</td>
@@ -120,6 +114,7 @@
 </template>
 
 <script setup lang="ts">
+import { FolderPlus } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
 import { useApi } from '../../../composables/useApi'
 import { useOrgTerminology, useWorkUnitLabel } from '../../../composables/useOrgTerminology'
@@ -597,12 +592,13 @@ onBeforeUnmount(() => {
 }
 
 .primary-btn {
-  background: mixin.$main;
+  background: mixin.$main-aqua;
   color: mixin.$white;
   border-radius: 999px;
   padding: 0.4rem 2rem;
   white-space: nowrap;
   flex-shrink: 0;
+  gap: 0.35rem;
 }
 
 .ghost-btn {

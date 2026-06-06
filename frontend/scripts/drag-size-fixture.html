@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    :root { --task-card-width: 246px; }
+    .board-lists-sortable { --task-card-width: 246px; width: 280px; padding: 1rem; background: #f8fafc; }
+    .task-card {
+      position: relative;
+      width: var(--task-card-width, 246px);
+      max-width: var(--task-card-width, 246px);
+      min-width: var(--task-card-width, 246px);
+      box-sizing: border-box;
+      flex-shrink: 0;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 0.45rem 0.55rem;
+    }
+    .task-title {
+      margin: 0;
+      max-width: 100%;
+      font-size: 0.875rem;
+      font-weight: 700;
+      line-height: 1.25;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      font-family: system-ui, sans-serif;
+    }
+    .drag-ghost * { visibility: hidden; }
+    .task-card.sortable-fallback.drag-active {
+      opacity: 1 !important;
+      visibility: visible !important;
+      transform: rotate(3deg);
+      box-sizing: border-box;
+      flex-shrink: 0;
+      background: #fff !important;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+    }
+    .task-card.sortable-fallback.drag-active * { visibility: visible !important; }
+  </style>
+</head>
+<body data-result="pending">
+  <div class="board-lists-sortable">
+    <article id="source" class="task-card">
+      <p class="task-title" id="title">yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy</p>
+    </article>
+  </div>
+  <script>
+    let boardDragCardWidthPx = 0
+    let boardDragCardHeightPx = 0
+
+    function captureBoardDragCardSize (sourceEl) {
+      const rect = sourceEl.getBoundingClientRect()
+      boardDragCardWidthPx = Math.ceil(Math.max(sourceEl.offsetWidth, rect.width))
+      boardDragCardHeightPx = Math.ceil(Math.max(
+        sourceEl.offsetHeight,
+        sourceEl.scrollHeight,
+        rect.height,
+      ))
+    }
+
+    function lockDragElementSize (el) {
+      const w = boardDragCardWidthPx
+      const h = boardDragCardHeightPx
+      const pxW = `${w}px`
+      const pxH = `${h}px`
+      const important = 'important'
+      el.style.setProperty('box-sizing', 'border-box', important)
+      el.style.setProperty('width', pxW, important)
+      el.style.setProperty('height', pxH, important)
+      el.style.setProperty('min-width', pxW, important)
+      el.style.setProperty('min-height', pxH, important)
+      el.style.setProperty('max-width', pxW, important)
+      el.style.setProperty('max-height', pxH, important)
+      el.style.setProperty('flex-shrink', '0', important)
+    }
+
+    function simulateSortableGhost (sourceEl) {
+      const rect = sourceEl.getBoundingClientRect()
+      const ghost = sourceEl.cloneNode(true)
+      ghost.classList.remove('drag-ghost')
+      ghost.classList.add('sortable-fallback', 'drag-active')
+      ghost.style.boxSizing = 'border-box'
+      ghost.style.margin = '0'
+      ghost.style.top = `${rect.top}px`
+      ghost.style.left = `${rect.left}px`
+      ghost.style.width = `${rect.width}px`
+      ghost.style.height = `${rect.height}px`
+      ghost.style.position = 'fixed'
+      ghost.style.zIndex = '100000'
+      ghost.style.pointerEvents = 'none'
+      document.body.appendChild(ghost)
+      return ghost
+    }
+
+    function measureOverflow (card, title) {
+      const cardRect = card.getBoundingClientRect()
+      const titleRect = title.getBoundingClientRect()
+      return {
+        cardHeight: card.offsetHeight,
+        titleBottom: titleRect.bottom,
+        cardBottom: cardRect.bottom,
+        spills: titleRect.bottom > cardRect.bottom + 1,
+        titleScrollOverflow: title.scrollHeight > title.clientHeight + 1,
+      }
+    }
+
+    const source = document.getElementById('source')
+    const title = document.getElementById('title')
+    const before = measureOverflow(source, title)
+
+    // drag-ghost を付けた状態で Sortable が計測するのと同条件
+    source.classList.add('drag-ghost')
+    captureBoardDragCardSize(source)
+
+    const ghost = simulateSortableGhost(source)
+    lockDragElementSize(ghost)
+
+    const after = measureOverflow(ghost, ghost.querySelector('.task-title'))
+    const heightDelta = Math.abs(after.cardHeight - before.cardHeight)
+
+    let result = 'PASS'
+    if (!ghost.classList.contains('sortable-fallback')) result = 'FAIL:missing-sortable-fallback'
+    else if (heightDelta > 2) result = `FAIL:height-delta-${heightDelta}`
+    else if (after.spills || after.titleScrollOverflow) result = 'FAIL:text-overflow'
+
+    document.body.dataset.result = result
+    document.body.dataset.beforeHeight = String(before.cardHeight)
+    document.body.dataset.afterHeight = String(after.cardHeight)
+    document.body.dataset.heightDelta = String(heightDelta)
+    document.body.dataset.spills = String(after.spills)
+  </script>
+</body>
+</html>

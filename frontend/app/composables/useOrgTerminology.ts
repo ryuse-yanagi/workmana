@@ -62,7 +62,8 @@ function getWorkUnitLabelState (slug: string): string | null {
   return labelBySlug[key] ?? labelCache.get(key) ?? null
 }
 
-if (import.meta.client) {
+/** ハイドレーション後に sessionStorage から復元（SSR と初回描画の不一致を防ぐ） */
+export function hydrateWorkUnitLabelCacheFromSession (): void {
   readStorageCache()
 }
 
@@ -99,12 +100,15 @@ export function useWorkUnitLabel (slug: MaybeRefOrGetter<string>) {
   const workUnitLabel = computed(() => {
     const key = toValue(slug).trim()
     if (!key) return null
-    return getWorkUnitLabelState(key)
+    return getWorkUnitLabelState(key) ?? DEFAULT_WORK_UNIT_LABEL
   })
 
-  const workUnitListLabel = computed(() =>
-    workUnitLabel.value ? `${workUnitLabel.value}一覧` : '',
-  )
+  const workUnitListLabel = computed(() => {
+    const key = toValue(slug).trim()
+    if (!key) return ''
+    const label = getWorkUnitLabelState(key) ?? DEFAULT_WORK_UNIT_LABEL
+    return `${label}一覧`
+  })
 
   async function ensureWorkUnitLabel (targetSlug?: string): Promise<string> {
     const key = (targetSlug ?? toValue(slug)).trim()

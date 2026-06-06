@@ -1,12 +1,7 @@
 <template>
   <main class="archived-page" :class="{ 'archived-page--await': !pageReady && !fatalLoadError }">
     <template v-if="fatalLoadError">
-      <section class="load-fatal-panel">
-        <p class="load-fatal-message">{{ fatalLoadError }}</p>
-        <button type="button" class="load-fatal-retry" @click="retryArchivedLoad">
-          再試行
-        </button>
-      </section>
+      <PageLoadFatal :message="fatalLoadError" @retry="retryArchivedLoad" />
     </template>
 
     <template v-else>

@@ -4,19 +4,14 @@
     :style="boardPageCssVars"
   >
     <template v-if="fatalLoadError">
-      <section class="load-fatal-panel">
-        <p class="load-fatal-message">{{ fatalLoadError }}</p>
-        <button type="button" class="load-fatal-retry" @click="retryBoardLoad">
-          再試行
-        </button>
-      </section>
+      <PageLoadFatal :message="fatalLoadError" @retry="retryBoardLoad" />
     </template>
 
     <template v-else>
       <header class="page-header">
         <div class="subheader">
           <NuxtLink :to="`/org/${slug}`" class="subheader-title subheader-back-link">
-            &lt; {{ workUnitListLabel }}
+            {{ workUnitListLabel }}
           </NuxtLink>
           <div class="subheader-filters">
             <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
@@ -35,15 +30,16 @@
             />
           </div>
           <NuxtLink
-            class="header-primary-btn header-primary-btn--icon-group linkish"
+            class="header-primary-btn header-primary-btn--with-label linkish"
             :to="`/org/${slug}/projects/${projectId}/archived`"
             aria-label="アーカイブ済みカード"
             title="アーカイブ済みカード"
           >
             <Trash2 :size="24" :stroke-width="2.25" aria-hidden="true" />
-            <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
-            <Workflow :size="24" :stroke-width="2.25" aria-hidden="true" />
+            <span>アーカイブ</span>
           </NuxtLink>
+          <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
+          <ChartGantt :size="24" :stroke-width="2.25" aria-hidden="true" />
         </div>
       </header>
 
@@ -148,7 +144,7 @@
                 ghost-class="drag-ghost"
                 chosen-class="drag-chosen"
                 drag-class="drag-active"
-                fallback-class="drag-active"
+                fallback-class="sortable-fallback"
                 filter=".no-drag"
                 direction="vertical"
                 :force-fallback="true"
@@ -160,7 +156,7 @@
                 :empty-insert-threshold="80"
                 :move="onBoardDragMove"
                 @scroll.passive="closeCardMenu"
-                @change="onListChange($event, list)"
+                @choose="onBoardDragChoose"
                 @start="onBoardDragStart"
                 @end="onBoardDragEnd"
               >
@@ -178,13 +174,16 @@
                   >
                     <template v-if="editingTaskId === task.id">
                       <form class="card-edit-form" @submit.prevent="saveTaskTitle(task)" @click.stop>
-                        <input
-                          v-model.trim="taskTitleDraft"
-                          type="text"
+                        <textarea
+                          ref="cardTitleTextareaEl"
+                          v-model="taskTitleDraft"
                           maxlength="500"
                           class="card-title-input"
+                          rows="1"
                           :disabled="taskRenamePending"
+                          @input="onCardTitleInput"
                           @keydown.escape.prevent="cancelTaskEdit"
+                          @keydown.enter.prevent="saveTaskTitle(task)"
                         />
                         <div class="edit-actions">
                           <button type="submit" class="ghost-btn small" :disabled="taskRenamePending || !taskTitleDraft">
@@ -216,14 +215,12 @@
                       </div>
                       <div class="task-card-body">
                         <div v-if="task.labels?.length" class="task-label-list">
-                          <span
+                          <LabelStrip
                             v-for="label in task.labels"
                             :key="label.id"
-                            class="task-label-strip"
-                            :style="{ backgroundColor: label.color }"
-                          >
-                            {{ label.name }}
-                          </span>
+                            :label="label"
+                            size="sm"
+                          />
                         </div>
                         <p
                           v-if="taskHeadingName(task)"
@@ -236,20 +233,13 @@
                         </p>
                         <div v-if="cardAssignees(task).length" class="task-card-footer">
                           <div class="task-card-members" aria-label="担当メンバー">
-                            <span
-                              v-for="member in cardAssignees(task)"
-                              :key="member.id"
-                              class="task-card-member"
-                              :title="memberDisplayName(member)"
-                            >
-                              <img
-                                v-if="member.avatar_url"
-                                :src="member.avatar_url"
-                                alt=""
-                                class="task-card-member-image"
-                              />
-                              <span v-else class="task-card-member-initial">{{ memberInitial(member) }}</span>
-                            </span>
+                          <MemberAvatar
+                            v-for="member in cardAssignees(task)"
+                            :key="member.id"
+                            :member="member"
+                            size="xs"
+                            :title="memberDisplayName(member)"
+                          />
                           </div>
                         </div>
                       </div>
@@ -276,17 +266,18 @@
                   <span>＋</span>カードの作成
                 </button>
                 <div v-else class="composer-form">
-                  <input
+                  <textarea
                     :ref="bindComposerInputEl"
                     v-model="cardDrafts[list.key]"
-                    type="text"
                     maxlength="120"
-                    placeholder="カード名を入力"
+                    placeholder="カード名を入力してください"
                     class="composer-input"
+                    rows="1"
+                    @input="onComposerInput(list.key)"
                     @blur="confirmCardDraft(list.key)"
                     @keydown.enter.prevent="confirmCardDraft(list.key)"
                     @keydown.escape="cancelCardDraft(list.key)"
-                  >
+                  />
                   <div class="composer-actions">
                     <button
                       type="button"
@@ -327,7 +318,7 @@
                   v-model="newListTitle"
                   type="text"
                   maxlength="40"
-                  placeholder="リスト名を入力"
+                  placeholder="リスト名を入力してください"
                   class="composer-input"
                   @blur="confirmListDraft"
                   @keydown.enter.prevent="confirmListDraft"
@@ -425,12 +416,13 @@
 </template>
 
 <script setup lang="ts">
-import { Trash2, Workflow, NotebookText, Pencil } from 'lucide-vue-next'
+import { ChartGantt, Trash2, NotebookText, Pencil } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../../../../../components/TaskDetailModal.vue'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
 import { useApi } from '../../../../../composables/useApi'
 import { useOrgTerminology, useWorkUnitLabel } from '../../../../../composables/useOrgTerminology'
+import { memberDisplayName } from '../../../../../composables/useMemberDisplay'
 import { useProjectRealtimeChannel } from '../../../../../composables/useProjectRealtimeChannel'
 
 definePageMeta({ name: 'org-slug-projects-id' })
@@ -440,7 +432,7 @@ const slug = computed(() => route.params.slug as string)
 const projectId = computed(() => route.params.id as string)
 const { api } = useApi()
 const { fetchWorkUnitLabel, syncLabelState } = useOrgTerminology()
-const { workUnitLabel, workUnitListLabel } = useWorkUnitLabel(() => slug.value)
+const { workUnitListLabel } = useWorkUnitLabel(() => slug.value)
 
 type Label = { id: number; name: string; color: string }
 type TaskHeading = { id: number; name: string }
@@ -457,7 +449,7 @@ type Task = {
   assignees?: TaskAssignee[]
 }
 type ListDef = { key: string; title: string; listId: number }
-type ListRowRes = { id: number; name: string; sort_order: number; created_at?: string }
+type ListRowRes = { id: number; name: string; sort_order: number }
 
 const tasks = ref<Task[] | null>(null)
 const tasksByList = reactive<Record<string, Task[]>>({})
@@ -469,7 +461,8 @@ const searchQuery = ref('')
 const showListCreator = ref(false)
 const newListTitle = ref('')
 const activeComposerKey = ref<string | null>(null)
-const composerInputEl = ref<HTMLInputElement | null>(null)
+const composerInputEl = ref<HTMLTextAreaElement | null>(null)
+const cardTitleTextareaEl = ref<HTMLTextAreaElement | null>(null)
 const listTitleInputEl = ref<HTMLInputElement | null>(null)
 const listComposerInputEl = ref<HTMLInputElement | null>(null)
 const cardDrafts = reactive<Record<string, string>>({})
@@ -565,8 +558,6 @@ const taskDetailOpen = computed({
   },
 })
 
-const allLists = computed(() => lists.value)
-
 const openMenuTask = computed(() => {
   const id = openCardMenuTaskId.value
   if (id == null || !tasks.value) {
@@ -650,7 +641,7 @@ function rebuildBoardFromTasks () {
   for (const key of Object.keys(tasksByList)) {
     delete tasksByList[key]
   }
-  for (const list of allLists.value) {
+  for (const list of lists.value) {
     tasksByList[list.key] = []
   }
   for (const task of tasks.value ?? []) {
@@ -658,7 +649,7 @@ function rebuildBoardFromTasks () {
     if (!key || !tasksByList[key]) continue
     tasksByList[key].push(task)
   }
-  for (const list of allLists.value) {
+  for (const list of lists.value) {
     const arr = tasksByList[list.key]
     if (!arr?.length) continue
     arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id)
@@ -689,14 +680,6 @@ function taskHeadingName (task: Task): string | null {
     return null
   }
   return projectHeadings.value.find(h => h.id === id)?.name ?? null
-}
-
-function memberDisplayName (member: TaskAssignee): string {
-  return (member.name || member.email || `ユーザー #${member.id}`).trim()
-}
-
-function memberInitial (member: TaskAssignee): string {
-  return memberDisplayName(member).slice(0, 1).toUpperCase()
 }
 
 function closeCardMenu () {
@@ -785,10 +768,10 @@ function syncCreateListColumnWidth () {
     createCol.style.minWidth = `${w}px`
     createCol.style.maxWidth = `${w}px`
   } else {
-    createCol.style.flex = '1 0 17rem'
-    createCol.style.width = ''
-    createCol.style.minWidth = '17rem'
-    createCol.style.maxWidth = ''
+    createCol.style.flex = '0 0 calc(246px + 1.5rem)'
+    createCol.style.width = 'calc(246px + 1.5rem)'
+    createCol.style.minWidth = 'calc(246px + 1.5rem)'
+    createCol.style.maxWidth = 'calc(246px + 1.5rem)'
   }
 }
 
@@ -922,7 +905,7 @@ async function updateTaskList (taskId: number, listId: number) {
 }
 
 async function persistListTaskOrder (listKey: string) {
-  const list = allLists.value.find(l => l.key === listKey)
+  const list = lists.value.find(l => l.key === listKey)
   if (!list) {
     return
   }
@@ -940,38 +923,6 @@ async function persistListTaskOrder (listKey: string) {
       task.sort_order = index
     }
   })
-}
-
-async function onListChange (
-  event: {
-    added?: { element: Task }
-    moved?: { element: Task }
-    removed?: { element: Task }
-  },
-  toList: ListDef,
-) {
-  // ドラッグ中の Sortable 仮挿入でプレビュー先が揺れないよう無視する
-  if (boardDragging.value) {
-    return
-  }
-
-  if (event.removed) {
-    return
-  }
-
-  const task = event.added?.element ?? event.moved?.element
-  if (!task) {
-    return
-  }
-
-  await nextTick()
-  try {
-    await persistTaskListChange(task.id, toList.key)
-    reconcileTaskPlacement(task.id, toList.key)
-    await persistListTaskOrder(toList.key)
-  } catch {
-    // persistTaskListChange / persistListTaskOrder 内で error を設定済み
-  }
 }
 
 function getTaskIdFromDragEl (el: HTMLElement): number | null {
@@ -1018,10 +969,6 @@ function getListKeyAtClientX (clientX: number): string | null {
 
   const lastCol = columns[columns.length - 1]
   return lastCol?.dataset.listKey ?? null
-}
-
-function isListEmptyForBoardDrag (listKey: string): boolean {
-  return isListColumnEmpty(listKey)
 }
 
 function getDropZoneListKey (dropZone: HTMLElement): string | null {
@@ -1088,7 +1035,7 @@ function syncBoardPreviewState () {
   boardDragStickyColumnKey = listKey
 
   // 空リストは Sortable ゴーストが隣列と奪い合うため常に末尾スロットのみ
-  const useTailPreview = isListEmptyForBoardDrag(listKey)
+  const useTailPreview = isListColumnEmpty(listKey)
     || isPointerInListTailZone(listColumn)
 
   if (useTailPreview) {
@@ -1134,7 +1081,7 @@ function removeStraySortableGhosts () {
       || !canonical
       || !listKey
       || listKey !== canonical
-      || isListEmptyForBoardDrag(listKey)
+      || isListColumnEmpty(listKey)
 
     if (stray) {
       el.remove()
@@ -1151,6 +1098,7 @@ function updateBoardDragPointer (clientX: number, clientY: number) {
 function onBoardDragPointerMove (event: PointerEvent | MouseEvent) {
   updateBoardDragPointer(event.clientX, event.clientY)
   removeStraySortableGhosts()
+  syncDragElementSizes()
 }
 
 function onBoardNativeDragOver (event: DragEvent) {
@@ -1166,7 +1114,7 @@ function onDocumentSelectStart (event: Event) {
 
 function findUniqueListKeyForTask (taskId: number): string | null {
   let found: string | null = null
-  for (const list of allLists.value) {
+  for (const list of lists.value) {
     if (tasksByList[list.key]?.some(t => t.id === taskId)) {
       if (found !== null) {
         return null
@@ -1178,7 +1126,7 @@ function findUniqueListKeyForTask (taskId: number): string | null {
 }
 
 function reconcileTaskPlacement (taskId: number, canonicalListKey: string) {
-  for (const list of allLists.value) {
+  for (const list of lists.value) {
     if (list.key === canonicalListKey) {
       continue
     }
@@ -1201,7 +1149,7 @@ function reconcileTaskPlacement (taskId: number, canonicalListKey: string) {
 }
 
 async function persistTaskListChange (taskId: number, listKey: string) {
-  const list = allLists.value.find(l => l.key === listKey)
+  const list = lists.value.find(l => l.key === listKey)
   const task = tasks.value?.find(t => t.id === taskId)
   if (!list || !task || task.list_id === list.listId) {
     return
@@ -1239,7 +1187,7 @@ async function finalizeBoardDrag (
   }
 
   if (appendToEnd) {
-    for (const list of allLists.value) {
+    for (const list of lists.value) {
       const arr = tasksByList[list.key]
       if (!arr?.length) {
         continue
@@ -1300,7 +1248,7 @@ function onBoardDragMove (
     !canonicalListKey
     || !toListKey
     || toListKey !== canonicalListKey
-    || isListEmptyForBoardDrag(toListKey)
+    || isListColumnEmpty(toListKey)
   ) {
     removeStraySortableGhosts()
     return false
@@ -1314,51 +1262,149 @@ function onBoardDragMove (
   return true
 }
 
-function captureBoardDragCardSize (sourceEl: HTMLElement) {
-  const rect = sourceEl.getBoundingClientRect()
-  boardDragCardWidthPx = Math.round(rect.width)
-  boardDragCardHeightPx = Math.round(rect.height)
+function measureDragCardSize (el: HTMLElement) {
+  // offset* はレイアウト上の整数 px。rect の切り上げは 1px だけ縮む原因になるため使わない
+  return {
+    width: el.offsetWidth,
+    height: el.offsetHeight,
+  }
 }
 
-function applyDragPlaceholderSize (el: HTMLElement) {
+function captureBoardDragCardSize (sourceEl: HTMLElement) {
+  const measured = measureDragCardSize(sourceEl)
+  boardDragCardWidthPx = Math.max(boardDragCardWidthPx, measured.width)
+  boardDragCardHeightPx = Math.max(boardDragCardHeightPx, measured.height)
+}
+
+const DRAG_SIZE_LOCK_PROPS = [
+  'width',
+  'height',
+  'minWidth',
+  'minHeight',
+  'maxWidth',
+  'maxHeight',
+  'boxSizing',
+  'overflow',
+  'flexShrink',
+] as const
+
+function applyComputedStyleSubset (from: Element, to: HTMLElement) {
+  const cs = getComputedStyle(from)
+  const props = [
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle',
+    'lineHeight', 'letterSpacing', 'wordSpacing',
+    'textTransform', 'fontVariant',
+    'overflowWrap', 'wordBreak', 'whiteSpace',
+    'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+    'color',
+  ] as const
+  for (const prop of props) {
+    const value = cs[prop]
+    if (typeof value === 'string' && value) {
+      to.style.setProperty(prop.replace(/[A-Z]/g, s => `-${s.toLowerCase()}`), value)
+    }
+  }
+}
+
+function ensureFallbackVisible (fallback: HTMLElement) {
+  fallback.classList.remove('drag-ghost')
+  fallback.style.setProperty('opacity', '1', 'important')
+  fallback.style.setProperty('visibility', 'visible', 'important')
+  fallback.querySelectorAll<HTMLElement>('*').forEach((el) => {
+    el.style.setProperty('visibility', 'visible', 'important')
+    el.style.setProperty('opacity', '1', 'important')
+  })
+}
+
+/** body 上の fallback は scoped CSS の継承外になるため、元カードの typography を複製する */
+function syncFallbackFromSource (fallback: HTMLElement) {
+  if (boardDragTaskId == null) {
+    return
+  }
+  const source = document.querySelector<HTMLElement>(`.task-card[data-task-id="${boardDragTaskId}"]`)
+  if (!source) {
+    ensureFallbackVisible(fallback)
+    lockDragElementSize(fallback)
+    return
+  }
+
+  fallback.classList.remove('drag-ghost')
+
+  const nestedPairs = [
+    '.task-card-body',
+    '.task-title',
+    '.task-card-heading',
+    '.task-label-list',
+    '.task-label-strip',
+    '.task-card-footer',
+    '.task-card-members',
+  ] as const
+  for (const selector of nestedPairs) {
+    const fromEl = source.querySelector<HTMLElement>(selector)
+    const toEl = fallback.querySelector<HTMLElement>(selector)
+    if (fromEl && toEl) {
+      applyComputedStyleSubset(fromEl, toEl)
+    }
+  }
+
+  fallback.querySelectorAll<HTMLElement>('.card-menu-wrap').forEach((el) => {
+    el.style.display = 'none'
+  })
+
+  lockDragElementSize(fallback)
+  ensureFallbackVisible(fallback)
+}
+
+/** ドラッグ開始時の実寸を width/height/min/max すべてに固定し、リサイズを防ぐ */
+function lockDragElementSize (el: HTMLElement) {
   const w = boardDragCardWidthPx
   const h = boardDragCardHeightPx
   if (w <= 0 || h <= 0) {
     return
   }
-  el.style.boxSizing = 'border-box'
-  el.style.width = `${w}px`
-  el.style.height = `${h}px`
-  el.style.minHeight = ''
-  el.style.maxHeight = ''
+  const pxW = `${w}px`
+  const pxH = `${h}px`
+  const important = 'important'
+  el.style.setProperty('box-sizing', 'border-box', important)
+  el.style.setProperty('width', pxW, important)
+  el.style.setProperty('height', pxH, important)
+  el.style.setProperty('min-width', pxW, important)
+  el.style.setProperty('min-height', pxH, important)
+  el.style.setProperty('max-width', pxW, important)
+  el.style.setProperty('max-height', pxH, important)
+  el.style.setProperty('flex-shrink', '0', important)
 }
 
-function syncDragPlaceholderSize () {
+function syncDragElementSizes () {
   if (!import.meta.client || !boardDragging.value) {
     return
   }
-  document.querySelectorAll<HTMLElement>('.drag-ghost--tail-preview').forEach(applyDragPlaceholderSize)
-  document.querySelectorAll<HTMLElement>('.list-drop-zone .sortable-ghost').forEach(applyDragPlaceholderSize)
+  document.querySelectorAll<HTMLElement>(
+    '.drag-ghost--tail-preview, .list-drop-zone .sortable-ghost',
+  ).forEach(lockDragElementSize)
+  document.querySelectorAll<HTMLElement>('.task-card.sortable-fallback').forEach((fallback) => {
+    syncFallbackFromSource(fallback)
+  })
 }
 
 function scheduleSyncDragPlaceholderSize () {
   if (!import.meta.client || !boardDragging.value) {
     return
   }
-  const apply = () => syncDragPlaceholderSize()
+  const apply = () => syncDragElementSizes()
   nextTick(apply)
   requestAnimationFrame(apply)
+  requestAnimationFrame(() => requestAnimationFrame(apply))
 }
 
 function clearDragPlaceholderSize () {
   if (!import.meta.client) {
     return
   }
-  const props = ['width', 'height', 'minHeight', 'maxHeight', 'boxSizing'] as const
   document.querySelectorAll<HTMLElement>(
-    '.drag-ghost--tail-preview, .list-drop-zone .sortable-ghost',
+    '.drag-ghost--tail-preview, .list-drop-zone .sortable-ghost, .task-card.sortable-fallback',
   ).forEach((el) => {
-    for (const prop of props) {
+    for (const prop of DRAG_SIZE_LOCK_PROPS) {
       el.style[prop] = ''
     }
   })
@@ -1366,28 +1412,15 @@ function clearDragPlaceholderSize () {
   boardDragCardHeightPx = 0
 }
 
-function syncFloatingDragCardLayout (sourceEl: HTMLElement) {
-  captureBoardDragCardSize(sourceEl)
-  const apply = () => {
-    const fallback = document.querySelector<HTMLElement>('.task-card.sortable-fallback')
-    if (!fallback) {
-      return
-    }
-    const w = boardDragCardWidthPx
-    const h = boardDragCardHeightPx
-    if (w > 0) {
-      fallback.style.width = `${w}px`
-    }
-    fallback.style.height = ''
-    fallback.style.minHeight = ''
-    fallback.style.maxHeight = ''
-    fallback.style.boxSizing = 'border-box'
-    fallback.style.opacity = '1'
-    fallback.style.visibility = 'visible'
-    syncDragPlaceholderSize()
-  }
-  nextTick(apply)
-  requestAnimationFrame(apply)
+function syncFloatingDragCardLayout () {
+  scheduleSyncDragPlaceholderSize()
+}
+
+/** Sortable がゴースト生成前の素のカード寸法を記録する */
+function onBoardDragChoose (evt: { item: HTMLElement }) {
+  boardDragCardWidthPx = 0
+  boardDragCardHeightPx = 0
+  captureBoardDragCardSize(evt.item)
 }
 
 function onBoardDragStart (evt: { item: HTMLElement, originalEvent?: Event }) {
@@ -1400,10 +1433,19 @@ function onBoardDragStart (evt: { item: HTMLElement, originalEvent?: Event }) {
   boardDragPreviewMode.value = null
   boardDragLastToListKey = boardDragStartListKey.value
   syncBoardDragPointer(evt.originalEvent)
+  captureBoardDragCardSize(evt.item)
   boardDragging.value = true
   boardDragStickyColumnKey = boardDragStartListKey.value
   closeCardMenu()
-  syncFloatingDragCardLayout(evt.item)
+  syncFloatingDragCardLayout()
+  nextTick(() => {
+    captureBoardDragCardSize(evt.item)
+    syncDragElementSizes()
+  })
+  requestAnimationFrame(() => {
+    captureBoardDragCardSize(evt.item)
+    syncDragElementSizes()
+  })
   if (import.meta.client) {
     document.addEventListener('pointermove', onBoardDragPointerMove, { passive: true })
     document.addEventListener('mousemove', onBoardDragPointerMove, { passive: true })
@@ -1551,14 +1593,52 @@ function retryBoardLoad () {
   void load()
 }
 
+function stripManualLineBreaks (value: string) {
+  return value.replace(/\r?\n/g, '')
+}
+
+function adjustTextareaHeight (el: HTMLTextAreaElement | null | undefined) {
+  if (!el) {
+    return
+  }
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+function onCardTitleInput () {
+  const cleaned = stripManualLineBreaks(taskTitleDraft.value)
+  if (cleaned !== taskTitleDraft.value) {
+    taskTitleDraft.value = cleaned
+  }
+  adjustTextareaHeight(cardTitleTextareaEl.value)
+}
+
+function onComposerInput (listKey: string) {
+  const raw = cardDrafts[listKey] || ''
+  const cleaned = stripManualLineBreaks(raw)
+  if (cleaned !== raw) {
+    cardDrafts[listKey] = cleaned
+  }
+  adjustTextareaHeight(composerInputEl.value)
+}
+
+function adjustCardTitleTextareaHeight () {
+  adjustTextareaHeight(cardTitleTextareaEl.value)
+}
+
+function adjustComposerTextareaHeight () {
+  adjustTextareaHeight(composerInputEl.value)
+}
+
 async function openComposer (key: string) {
   activeComposerKey.value = key
   await nextTick()
+  adjustComposerTextareaHeight()
   composerInputEl.value?.focus()
 }
 
 function bindComposerInputEl (el: Element | ComponentPublicInstance | null) {
-  composerInputEl.value = el as HTMLInputElement | null
+  composerInputEl.value = el as HTMLTextAreaElement | null
 }
 
 function closeComposer () {
@@ -1572,7 +1652,7 @@ function cancelCardDraft (listKey: string) {
 
 async function confirmCardDraft (listKey: string) {
   if (pending.value) return
-  const title = (cardDrafts[listKey] || '').trim()
+  const title = stripManualLineBreaks(cardDrafts[listKey] || '').trim()
   if (!title) {
     cancelCardDraft(listKey)
     return
@@ -1761,7 +1841,11 @@ async function saveListTitle (list: ListDef) {
 function startTaskEdit (task: Task) {
   editingListKey.value = null
   editingTaskId.value = task.id
-  taskTitleDraft.value = task.title
+  taskTitleDraft.value = stripManualLineBreaks(task.title)
+  nextTick(() => {
+    adjustCardTitleTextareaHeight()
+    cardTitleTextareaEl.value?.focus()
+  })
 }
 
 function openTaskEditFromMenu (task: Task) {
@@ -1775,7 +1859,7 @@ function cancelTaskEdit () {
 }
 
 async function saveTaskTitle (task: Task) {
-  const title = taskTitleDraft.value.trim()
+  const title = stripManualLineBreaks(taskTitleDraft.value).trim()
   if (!title) return
   taskRenamePending.value = true
   error.value = null
@@ -1795,9 +1879,9 @@ async function saveTaskTitle (task: Task) {
 }
 
 async function createTask (status: string) {
-  const title = (cardDrafts[status] || '').trim()
+  const title = stripManualLineBreaks(cardDrafts[status] || '').trim()
   if (!title) return
-  const list = allLists.value.find(item => item.key === status)
+  const list = lists.value.find(item => item.key === status)
   if (!list) return
   pending.value = true
   try {
@@ -1811,10 +1895,7 @@ async function createTask (status: string) {
       tasks.value = []
     }
     tasks.value.push(created)
-    if (!tasksByList[status]) {
-      tasksByList[status] = []
-    }
-    tasksByList[status].push(created)
+    rebuildBoardFromTasks()
     markTaskAsJustCreated(created.id)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '作成に失敗しました'
@@ -1973,9 +2054,30 @@ onBeforeUnmount(() => {
 }
 
 .subheader-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   text-decoration: none;
   color: mixin.$main;
+  line-height: 1.1;
   transition: color 0.16s ease;
+
+  &::before {
+    content: '';
+    flex-shrink: 0;
+    display: block;
+    width: 0.65em;
+    height: 0.85em;
+    background-color: currentColor;
+    -webkit-mask-image: url('~/assets/images/chevron-left.svg');
+    mask-image: url('~/assets/images/chevron-left.svg');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
 }
 
 .subheader-back-link:hover {
@@ -2051,29 +2153,17 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 
+.header-primary-btn--with-label {
+  gap: 0.4rem;
+  min-height: 2.35rem;
+  padding-inline: 0.75rem;
+}
+
 .header-primary-btn--icon-group {
   width: auto;
   min-height: 2.35rem;
   padding: 0.14rem 0.55rem;
   gap: 1.4rem;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-.field input,
-.field select {
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 0.62rem 0.75rem;
-  font-size: 0.94rem;
-  background: #fff;
 }
 
 .page-shell-fade > .board {
@@ -2127,15 +2217,19 @@ onBeforeUnmount(() => {
 }
 
 .board-lists-sortable {
+  --task-card-width: 246px;
+  --list-column-width: calc(var(--task-card-width) + 1.5rem);
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(17rem, 1fr);
+  grid-auto-columns: var(--list-column-width);
   gap: 0.9rem;
   align-items: start;
 }
 
 .board-lists-sortable .list-column {
   box-sizing: border-box;
+  width: var(--list-column-width);
+  max-width: var(--list-column-width);
   min-width: 0;
 }
 
@@ -2266,6 +2360,25 @@ onBeforeUnmount(() => {
 .card-title-input {
   width: 100%;
   box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.2rem 0.35rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #0f172a;
+  background: #fff;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: block;
+}
+
+.card-title-input:focus {
+  outline: none;
+  border-color: #2563eb;
 }
 
 .list-count {
@@ -2279,9 +2392,11 @@ onBeforeUnmount(() => {
 .list-drop-zone {
   padding: 0 0.75rem 0.65rem;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  align-items: flex-start;
+  gap: 0.45rem;
   flex: 0 1 auto;
   min-height: 0;
   max-height: calc(100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px) - 8.5rem);
@@ -2375,11 +2490,7 @@ onBeforeUnmount(() => {
 .board-dragging,
 .board-dragging *,
 .board-list-dragging,
-.board-list-dragging * {
-  user-select: none !important;
-  -webkit-user-select: none !important;
-}
-
+.board-list-dragging *,
 .task-card.sortable-fallback,
 .task-card.sortable-fallback * {
   user-select: none !important;
@@ -2415,11 +2526,15 @@ onBeforeUnmount(() => {
 
 .task-card {
   position: relative;
-  min-width: 0;
+  width: var(--task-card-width, 246px);
+  max-width: var(--task-card-width, 246px);
+  min-width: var(--task-card-width, 246px);
+  box-sizing: border-box;
+  flex-shrink: 0;
   background: #fff;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  padding: 0.75rem;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
 }
@@ -2452,7 +2567,7 @@ onBeforeUnmount(() => {
   opacity: 1 !important;
   background: #091e420f;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   box-shadow: none;
   min-height: 0;
   margin: 0;
@@ -2469,14 +2584,14 @@ onBeforeUnmount(() => {
   cursor: grabbing !important;
   opacity: 1 !important;
   visibility: visible !important;
-  transform: rotate(3deg);
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
   z-index: 10000 !important;
   pointer-events: none;
   box-sizing: border-box;
+  flex-shrink: 0;
   background: #fff !important;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
 .task-card.sortable-fallback.drag-active * {
@@ -2484,10 +2599,10 @@ onBeforeUnmount(() => {
 }
 
 .task-card-heading {
-  margin: 0 0 0.2rem;
-  font-size: 0.72rem;
+  margin: 0 0 0.1rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
   color: #64748b;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2496,8 +2611,10 @@ onBeforeUnmount(() => {
 
 .task-title {
   margin: 0;
+  max-width: 100%;
+  font-size: 0.875rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.25;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -2506,19 +2623,19 @@ onBeforeUnmount(() => {
 .task-label-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-bottom: 0.4rem;
+  gap: 0.2rem;
+  margin-bottom: 0.25rem;
 }
 
 .task-label-strip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.18rem 0.55rem;
+  padding: 0.1rem 0.45rem;
   border-radius: 4px;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.15;
   color: #fff;
   white-space: nowrap;
   max-width: 100%;
@@ -2536,7 +2653,7 @@ onBeforeUnmount(() => {
 .task-card-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.45rem;
+  margin-top: 0.3rem;
 }
 
 .task-card-members {
@@ -2545,8 +2662,8 @@ onBeforeUnmount(() => {
 }
 
 .task-card-member {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
@@ -2569,7 +2686,7 @@ onBeforeUnmount(() => {
 }
 
 .task-card-member-initial {
-  font-size: 0.62rem;
+  font-size: 0.56rem;
   font-weight: 700;
   color: #475569;
   line-height: 1;
@@ -2582,8 +2699,8 @@ onBeforeUnmount(() => {
 
 .card-menu-wrap {
   position: absolute;
-  top: 0.35rem;
-  right: 0.35rem;
+  top: 0.25rem;
+  right: 0.25rem;
   z-index: 2;
   opacity: 0;
   pointer-events: none;
@@ -2698,13 +2815,21 @@ onBeforeUnmount(() => {
 }
 
 .composer-input {
+  width: 100%;
+  box-sizing: border-box;
   border: 2px solid #388bfd;
   border-radius: 8px;
   padding: 0.55rem 0.65rem;
+  font: inherit;
   font-size: 0.875rem;
   line-height: 1.4;
   background: #fff;
   box-shadow: none;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: block;
 }
 
 .composer-input:focus {
@@ -2799,7 +2924,8 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  width: 100%;
+  width: 268px;
+  max-width: 100%;
   text-align: left;
   background: rgba(15, 23, 42, 0.08);
 }
@@ -2811,4 +2937,131 @@ button:disabled {
   font-weight: 700;
 }
 
+</style>
+
+<!-- body へ移動する sortable-fallback は scoped の継承外になるため、typography をグローバルで固定 -->
+<style lang="scss">
+.task-card.sortable-fallback {
+  --task-card-width: 246px;
+  font-family: system-ui, sans-serif;
+  width: var(--task-card-width);
+  max-width: var(--task-card-width);
+  min-width: var(--task-card-width);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  cursor: grabbing;
+  pointer-events: none;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.task-card.sortable-fallback .task-card-body {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+
+.task-card.sortable-fallback .task-title {
+  margin: 0;
+  max-width: 100%;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.task-card.sortable-fallback .task-card-heading {
+  margin: 0 0 0.1rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-card.sortable-fallback .task-label-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-bottom: 0.25rem;
+}
+
+.task-card.sortable-fallback .task-label-strip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #fff;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-card.sortable-fallback .task-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.3rem;
+}
+
+.task-card.sortable-fallback .task-card-members {
+  display: flex;
+  align-items: center;
+}
+
+.task-card.sortable-fallback .task-card-member {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #e2e8f0;
+  background: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-card.sortable-fallback .task-card-member + .task-card-member {
+  margin-left: -0.35rem;
+}
+
+.task-card.sortable-fallback .task-card-member-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.task-card.sortable-fallback .task-card-member-initial {
+  font-size: 0.56rem;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1;
+}
+
+.task-card.sortable-fallback.drag-active {
+  opacity: 1 !important;
+  visibility: visible !important;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
+  z-index: 100000 !important;
+}
+
+.task-card.sortable-fallback,
+.task-card.sortable-fallback * {
+  visibility: visible !important;
+}
 </style>

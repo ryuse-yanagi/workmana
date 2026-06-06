@@ -1,32 +1,28 @@
 <template>
-  <Teleport to="body">
-    <Transition name="tm-fade">
-      <div v-if="modelValue" class="modal-overlay" role="presentation" @click.self="close">
-      <section class="modal-card" role="dialog" aria-modal="true" :aria-label="title">
-        <header class="modal-header">
-          <h3>{{ title }}</h3>
-          <button type="button" class="icon-close" :disabled="loading" @click="close">✕</button>
-        </header>
-        <div class="modal-body">
-          <p v-if="message" class="modal-message">{{ message }}</p>
-          <div class="modal-actions">
-            <button type="button" class="ghost-btn" :disabled="loading" @click="close">
-              {{ cancelText }}
-            </button>
-            <button
-              type="button"
-              :class="variant === 'danger' ? 'danger-btn' : 'primary-btn'"
-              :disabled="loading"
-              @click="$emit('confirm')"
-            >
-              {{ confirmText }}
-            </button>
-          </div>
-        </div>
-      </section>
+  <BaseModal
+    :model-value="modelValue"
+    :title="title"
+    :close-disabled="loading"
+    width="min(31rem, 100%)"
+    @update:model-value="emit('update:modelValue', $event)"
+  >
+    <div class="confirm-modal-body">
+      <p v-if="message" class="confirm-modal-message">{{ message }}</p>
+      <div class="confirm-modal-actions">
+        <button type="button" class="ghost-btn ghost-btn--rounded" :disabled="loading" @click="close">
+          {{ cancelText }}
+        </button>
+        <button
+          type="button"
+          :class="variant === 'danger' ? 'danger-btn danger-btn--rounded' : 'primary-btn primary-btn--rounded'"
+          :disabled="loading"
+          @click="$emit('confirm')"
+        >
+          {{ confirmText }}
+        </button>
+      </div>
     </div>
-    </Transition>
-  </Teleport>
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
@@ -58,62 +54,18 @@ function close () {
 </script>
 
 <style lang="scss" scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 1rem;
-  z-index: 70;
-}
-
-.modal-card {
-  width: min(31rem, 100%);
-  border-radius: 10px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-}
-
-.modal-header {
-  background: mixin.$main;
-  color: #fff;
-  padding: 0.7rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.03rem;
-}
-
-.icon-close {
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-  margin: -0.2rem 0;
-}
-
-.modal-body {
+.confirm-modal-body {
   padding: 1rem;
 }
 
-.modal-message {
+.confirm-modal-message {
   margin: 0;
   font-size: 0.9rem;
   color: #475569;
   line-height: 1.45;
 }
 
-.modal-actions {
+.confirm-modal-actions {
   margin-top: 0.95rem;
   display: flex;
   justify-content: flex-end;
@@ -123,32 +75,27 @@ function close () {
 .ghost-btn,
 .primary-btn,
 .danger-btn {
+  @include mixin.btn-base;
+}
+
+.ghost-btn--rounded,
+.primary-btn--rounded,
+.danger-btn--rounded {
   border-radius: 10px;
-  border: 1px solid transparent;
   padding: 0.5rem 0.75rem;
   font-size: 0.86rem;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .ghost-btn {
-  background: #fff;
-  color: #334155;
-  border-color: #94a3b8;
+  @include mixin.btn-ghost;
 }
 
 .primary-btn {
-  background: mixin.$main;
-  color: mixin.$white;
+  @include mixin.btn-primary;
 }
 
 .danger-btn {
   background: #ff0000;
   color: #fff;
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 </style>

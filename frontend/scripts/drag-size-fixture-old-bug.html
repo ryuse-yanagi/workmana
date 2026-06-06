@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    .board-lists-sortable { --task-card-width: 246px; width: 280px; padding: 1rem; }
+    .task-card {
+      width: var(--task-card-width, 246px);
+      max-width: var(--task-card-width, 246px);
+      min-width: var(--task-card-width, 246px);
+      box-sizing: border-box;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 0.45rem 0.55rem;
+      font-family: system-ui, sans-serif;
+    }
+    .task-title {
+      margin: 0;
+      font-size: 0.875rem;
+      font-weight: 700;
+      line-height: 1.25;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .drag-ghost * { visibility: hidden; }
+    /* 修正前: JS/CSS は .sortable-fallback を対象にしていたが実際のゴーストは drag-active のみ */
+    .task-card.sortable-fallback.drag-active {
+      background: #fff !important;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body data-result="pending">
+  <div class="board-lists-sortable">
+    <article id="source" class="task-card">
+      <p class="task-title">yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy</p>
+    </article>
+  </div>
+  <script>
+    const source = document.getElementById('source')
+    const beforeHeight = source.offsetHeight
+    source.classList.add('drag-ghost')
+    const rect = source.getBoundingClientRect()
+    const ghost = source.cloneNode(true)
+    ghost.classList.remove('drag-ghost')
+    ghost.classList.add('drag-active') // 修正前 fallback-class="drag-active"（sortable-fallback なし）
+    ghost.style.boxSizing = 'border-box'
+    ghost.style.margin = '0'
+    ghost.style.top = `${rect.top}px`
+    ghost.style.left = `${rect.left}px`
+    ghost.style.width = `${rect.width}px`
+    ghost.style.height = `${rect.height}px`
+    ghost.style.position = 'fixed'
+    ghost.style.zIndex = '100000'
+    // 修正前 syncFloatingDragCardLayout: width のみ設定、height はクリア
+    ghost.style.width = `${Math.ceil(rect.width)}px`
+    ghost.style.height = ''
+    ghost.style.minHeight = ''
+    ghost.style.maxHeight = ''
+    // 修正前 JS: .task-card.sortable-fallback が見つからず lockDragElementSize 未適用
+    document.body.appendChild(ghost)
+    const title = ghost.querySelector('.task-title')
+    const spills = title.getBoundingClientRect().bottom > ghost.getBoundingClientRect().bottom + 1
+    const heightDelta = Math.abs(ghost.offsetHeight - beforeHeight)
+    document.body.dataset.result = (spills || heightDelta > 2) ? 'BUG_REPRODUCED' : 'BUG_NOT_REPRODUCED'
+    document.body.dataset.beforeHeight = String(beforeHeight)
+    document.body.dataset.ghostHeight = String(ghost.offsetHeight)
+    document.body.dataset.spills = String(spills)
+    document.body.dataset.heightDelta = String(heightDelta)
+  </script>
+</body>
+</html>

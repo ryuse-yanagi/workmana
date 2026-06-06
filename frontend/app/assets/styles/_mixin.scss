@@ -3,6 +3,9 @@
 
 $main: #0c66e4;
 $main-hover: #053580;
+/** $main よりやや水色寄り（明るめ・シアン寄り） */
+$main-aqua: #00b7f4;
+$main-aqua-hover: #0096d1;
 $accent-border: #388bff;
 $brand: #0b2bab;
 $action: $main;
@@ -16,3 +19,44 @@ $border: #cbd5e1;
 $border-light: #e2e8f0;
 $danger: #b91c1c;
 $white: #fff;
+
+/** モーダル上部バー — padding 込みで 48px 固定 */
+@mixin modal-header-bar {
+  height: 48px;
+  box-sizing: border-box;
+  padding: 0 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: $main;
+  color: $white;
+  flex-shrink: 0;
+}
+
+@mixin btn-base {
+  border: 1px solid transparent;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+@mixin btn-pill {
+  border-radius: 999px;
+  padding: 0.45rem 1.4rem;
+  font-weight: 800;
+}
+
+@mixin btn-primary {
+  background: $main;
+  color: $white;
+}
+
+@mixin btn-ghost {
+  border-color: #cbd5e1;
+  color: #64748b;
+  background: #f1f5f9;
+}

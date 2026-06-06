@@ -1,62 +1,53 @@
 <template>
-  <Teleport to="body">
-    <Transition name="tm-fade">
-      <div v-if="modelValue" class="modal-overlay" role="presentation" @click.self="close">
-      <section
-        class="modal-card"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="title"
-      >
-        <header class="modal-header">
-          <h3>{{ title }}</h3>
-          <button type="button" class="icon-close" :disabled="loading" @click="close">✕</button>
-        </header>
+  <BaseModal
+    :model-value="modelValue"
+    :title="title"
+    :aria-label="title"
+    :close-disabled="loading"
+    width="min(36rem, 100%)"
+    @update:model-value="emit('update:modelValue', $event)"
+  >
+    <form class="project-create-modal-body" @submit.prevent="submit">
+      <label class="field">
+        <span>{{ workUnitLabel }}名</span>
+        <input
+          v-model.trim="name"
+          type="text"
+          required
+          minlength="2"
+          maxlength="80"
+          :placeholder="`${workUnitLabel}名を入力してください`"
+          :disabled="loading"
+        />
+      </label>
 
-        <form class="modal-body" @submit.prevent="submit">
-          <label class="field">
-            <span>{{ workUnitLabel }}名</span>
+      <label class="field">
+        <span>ラベル（複数選択）</span>
+        <div class="label-picker">
+          <label v-for="label in labels" :key="label.id" class="label-option">
             <input
-              v-model.trim="name"
-              type="text"
-              required
-              minlength="2"
-              maxlength="80"
-              placeholder="例: 顧客向けダッシュボード刷新"
+              v-model="labelIds"
+              type="checkbox"
+              :value="label.id"
               :disabled="loading"
             />
+            <span class="label-dot" :style="{ backgroundColor: label.color }" />
+            <span>{{ label.name }}</span>
           </label>
+          <p v-if="!labels.length" class="label-empty">ラベルは設定画面から作成できます。</p>
+        </div>
+      </label>
 
-          <label class="field">
-            <span>ラベル（複数選択）</span>
-            <div class="label-picker">
-              <label v-for="label in labels" :key="label.id" class="label-option">
-                <input
-                  v-model="labelIds"
-                  type="checkbox"
-                  :value="label.id"
-                  :disabled="loading"
-                />
-                <span class="label-dot" :style="{ backgroundColor: label.color }" />
-                <span>{{ label.name }}</span>
-              </label>
-              <p v-if="!labels.length" class="label-empty">ラベルは設定画面から作成できます。</p>
-            </div>
-          </label>
-
-          <div class="actions">
-            <button type="button" class="ghost-btn" :disabled="loading" @click="close">
-              キャンセル
-            </button>
-            <button type="submit" class="primary-btn" :disabled="loading || name.length < 2">
-              {{ loading ? '作成中...' : '登録' }}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-    </Transition>
-  </Teleport>
+      <div class="actions">
+        <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">
+          キャンセル
+        </button>
+        <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading || name.length < 2">
+          {{ loading ? '作成中...' : '登録' }}
+        </button>
+      </div>
+    </form>
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
@@ -103,51 +94,7 @@ function submit () {
 </script>
 
 <style lang="scss" scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 1rem;
-  z-index: 70;
-}
-
-.modal-card {
-  width: min(36rem, 100%);
-  border-radius: 10px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-}
-
-.modal-header {
-  background: mixin.$main;
-  color: #fff;
-  padding: 0.7rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.icon-close {
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-  margin: -0.2rem 0;
-}
-
-.modal-body {
+.project-create-modal-body {
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -207,28 +154,21 @@ function submit () {
   gap: 0.5rem;
 }
 
-.primary-btn,
+.ghost-btn,
+.primary-btn {
+  @include mixin.btn-base;
+}
+
+.ghost-btn--pill,
+.primary-btn--pill {
+  @include mixin.btn-pill;
+}
+
 .ghost-btn {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  padding: 0.45rem 1.4rem;
-  font-weight: 800;
-  cursor: pointer;
+  @include mixin.btn-ghost;
 }
 
 .primary-btn {
-  background: mixin.$main;
-  color: mixin.$white;
-}
-
-.ghost-btn {
-  border-color: #cbd5e1;
-  color: #64748b;
-  background: #f1f5f9;
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  @include mixin.btn-primary;
 }
 </style>

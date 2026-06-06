@@ -1,56 +1,33 @@
 <template>
-  <Teleport to="body">
-    <Transition name="tm-fade">
-      <div v-if="modelValue" class="modal-overlay" role="presentation" @click.self="close">
-      <section
-        class="modal-card"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="title"
-      >
-        <header class="modal-header">
-          <h3>{{ title }}</h3>
-          <button type="button" class="icon-close" :disabled="loading" @click="close">✕</button>
-        </header>
+  <BaseModal
+    :model-value="modelValue"
+    :title="title"
+    :aria-label="title"
+    :close-disabled="loading"
+    width="min(32rem, 100%)"
+    @update:model-value="emit('update:modelValue', $event)"
+  >
+    <form class="label-create-modal-body" @submit.prevent="submit">
+      <label class="field">
+        <span>ラベル名</span>
+        <input
+          v-model.trim="name"
+          type="text"
+          maxlength="40"
+          required
+          placeholder="ラベル名を入力してください"
+          :disabled="loading"
+        />
+      </label>
 
-        <form class="modal-body" @submit.prevent="submit">
-          <label class="field">
-            <span>ラベル名</span>
-            <input
-              v-model.trim="name"
-              type="text"
-              maxlength="40"
-              required
-              placeholder="ラベル名"
-              :disabled="loading"
-            />
-          </label>
+      <ColorPresetPicker v-model="color" :disabled="loading" />
 
-          <div class="field">
-            <span>カラー</span>
-            <div class="color-list">
-              <button
-                v-for="colorItem in colorPresets"
-                :key="colorItem"
-                type="button"
-                class="color-btn"
-                :class="{ 'color-btn--active': colorItem === color }"
-                :style="{ backgroundColor: colorItem }"
-                :disabled="loading"
-                @click="color = colorItem"
-              />
-            </div>
-          </div>
-
-          <div class="actions">
-            <button type="button" class="ghost-btn" :disabled="loading" @click="close">キャンセル</button>
-            <button type="submit" class="primary-btn" :disabled="loading || !name">作成</button>
-          </div>
-        </form>
-      </section>
-    </div>
-    </Transition>
-  </Teleport>
+      <div class="actions">
+        <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">キャンセル</button>
+        <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading || !name">作成</button>
+      </div>
+    </form>
+  </BaseModal>
 </template>
 
 <script setup lang="ts">
@@ -67,18 +44,6 @@ const emit = defineEmits<{
   submit: [{ name: string; color: string }]
 }>()
 
-const colorPresets: string[] = [
-  '#c084fc',
-  '#6366f1',
-  '#3b82f6',
-  '#06b6d4',
-  '#34d399',
-  '#84cc16',
-  '#eab308',
-  '#f97316',
-  '#ef4444',
-  '#ec4899',
-]
 const defaultColor = '#c084fc'
 
 const name = ref('')
@@ -107,50 +72,7 @@ function submit () {
 </script>
 
 <style lang="scss" scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 1rem;
-  z-index: 70;
-}
-
-.modal-card {
-  width: min(32rem, 100%);
-  border-radius: 10px;
-  overflow: hidden;
-  background: #fff;
-}
-
-.modal-header {
-  background: mixin.$main;
-  color: #fff;
-  padding: 0.7rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.icon-close {
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-  margin: -0.2rem 0;
-}
-
-.modal-body {
+.label-create-modal-body {
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -166,27 +88,10 @@ function submit () {
 }
 
 .field input {
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   font-size: 0.94rem;
-}
-
-.color-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.color-btn {
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.15);
-  cursor: pointer;
-}
-
-.color-btn--active {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #334155;
 }
 
 .actions {
@@ -196,28 +101,21 @@ function submit () {
   gap: 0.5rem;
 }
 
-.primary-btn,
+.ghost-btn,
+.primary-btn {
+  @include mixin.btn-base;
+}
+
+.ghost-btn--pill,
+.primary-btn--pill {
+  @include mixin.btn-pill;
+}
+
 .ghost-btn {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  padding: 0.45rem 1.4rem;
-  font-weight: 800;
-  cursor: pointer;
+  @include mixin.btn-ghost;
 }
 
 .primary-btn {
-  background: mixin.$main;
-  color: mixin.$white;
-}
-
-.ghost-btn {
-  border-color: #cbd5e1;
-  color: #64748b;
-  background: #f1f5f9;
-}
-
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  @include mixin.btn-primary;
 }
 </style>

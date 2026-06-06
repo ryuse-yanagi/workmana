@@ -37,7 +37,8 @@
             </div>
           </div>
 
-          <div v-else ref="modalBodyRef" class="modal-body">
+          <div v-else class="modal-split">
+            <div ref="modalBodyRef" class="modal-pane modal-pane--detail">
             <section class="field-block title-block">
               <button
                 v-if="task?.heading"
@@ -134,133 +135,132 @@
             </div>
 
             <div
-              v-if="task?.start_date || task?.due_date"
-              class="detail-dates-row"
+              v-if="(task?.start_date || task?.due_date) || showEffortDetailSection"
+              class="detail-meta-row detail-meta-row--schedule"
             >
-                <section v-if="task?.start_date" class="detail-item detail-item--date">
-                  <span class="detail-item-label">開始日</span>
-                  <button
-                    type="button"
-                    class="detail-value-btn"
-                    :disabled="saving"
-                    @click="openDatePicker('start', $event)"
-                  >
-                    {{ formatDateDisplay(task.start_date) }}
-                  </button>
-                </section>
-                <section v-if="task?.due_date" class="detail-item detail-item--date">
-                  <span class="detail-item-label">終了日</span>
-                  <button
-                    type="button"
-                    class="detail-value-btn"
-                    :disabled="saving"
-                    @click="openDatePicker('due', $event)"
-                  >
-                    {{ formatDateDisplay(task.due_date) }}
-                  </button>
-                </section>
+              <section v-if="task?.start_date" class="detail-item detail-item--date">
+                <span class="detail-item-label">開始日</span>
+                <button
+                  type="button"
+                  class="detail-value-btn"
+                  :disabled="saving"
+                  @click="openDatePicker('start', $event)"
+                >
+                  {{ formatDateDisplay(task.start_date) }}
+                </button>
+              </section>
+              <section v-if="task?.due_date" class="detail-item detail-item--date">
+                <span class="detail-item-label">終了日</span>
+                <button
+                  type="button"
+                  class="detail-value-btn"
+                  :disabled="saving"
+                  @click="openDatePicker('due', $event)"
+                >
+                  {{ formatDateDisplay(task.due_date) }}
+                </button>
+              </section>
+              <section
+                v-if="showEffortDetailSection"
+                ref="effortDetailAnchorRef"
+                class="detail-item detail-item--effort"
+              >
+                <span class="detail-item-label">工数</span>
+                <button
+                  type="button"
+                  class="detail-value-btn"
+                  :class="{ 'detail-value-btn--editing': activePopover === 'effort' }"
+                  :disabled="saving || effortSaving"
+                  :aria-live="activePopover === 'effort' ? 'polite' : undefined"
+                  @click="openEffortPicker($event)"
+                >
+                  {{ effortDetailDisplayText }}
+                </button>
+              </section>
             </div>
 
-            <section
-              v-if="showEffortDetailSection"
-              ref="effortDetailAnchorRef"
-              class="detail-item detail-item--effort"
+            <div
+              v-if="(task?.assignees ?? []).length || (task?.labels ?? []).length"
+              class="detail-meta-row detail-meta-row--people"
             >
-              <span class="detail-item-label">工数</span>
-              <button
-                type="button"
-                class="detail-value-btn"
-                :class="{ 'detail-value-btn--editing': activePopover === 'effort' }"
-                :disabled="saving || effortSaving"
-                :aria-live="activePopover === 'effort' ? 'polite' : undefined"
-                @click="openEffortPicker($event)"
+              <section
+                v-if="(task?.assignees ?? []).length"
+                class="detail-item detail-item--members"
               >
-                {{ effortDetailDisplayText }}
-              </button>
-            </section>
+                <span class="detail-item-label">メンバー</span>
+                <div class="member-avatar-list detail-chip-wrap">
+                  <button
+                    v-for="member in task?.assignees ?? []"
+                    :key="member.id"
+                    type="button"
+                    class="member-avatar-btn"
+                    :class="{
+                      'member-avatar-btn--active':
+                        activePopover === 'member-detail' && selectedMember?.id === member.id,
+                    }"
+                    :disabled="saving"
+                    :aria-label="memberDisplayName(member)"
+                    @click="openMemberDetail(member, $event)"
+                  >
+                    <img
+                      v-if="member.avatar_url"
+                      :src="member.avatar_url"
+                      alt=""
+                      class="member-avatar-btn-image"
+                    />
+                    <span v-else class="member-avatar-btn-initial">{{ memberInitial(member) }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="member-avatar-btn member-avatar-btn--add"
+                    :class="{ 'member-avatar-btn--active': activePopover === 'members' }"
+                    :disabled="saving"
+                    aria-label="メンバーを追加"
+                    @click="openMemberPicker($event)"
+                  >
+                    <span class="member-avatar-btn-plus" aria-hidden="true">+</span>
+                  </button>
+                </div>
+              </section>
 
-            <section
-              v-if="(task?.assignees ?? []).length"
-              class="detail-item"
-            >
-              <span class="detail-item-label">メンバー</span>
-              <div class="member-avatar-list">
-                <button
-                  v-for="member in task?.assignees ?? []"
-                  :key="member.id"
-                  type="button"
-                  class="member-avatar-btn"
-                  :class="{
-                    'member-avatar-btn--active':
-                      activePopover === 'member-detail' && selectedMember?.id === member.id,
-                  }"
-                  :disabled="saving"
-                  :aria-label="memberDisplayName(member)"
-                  @click="openMemberDetail(member, $event)"
-                >
-                  <img
-                    v-if="member.avatar_url"
-                    :src="member.avatar_url"
-                    alt=""
-                    class="member-avatar-btn-image"
-                  />
-                  <span v-else class="member-avatar-btn-initial">{{ memberInitial(member) }}</span>
-                </button>
-                <button
-                  type="button"
-                  class="member-avatar-btn member-avatar-btn--add"
-                  :class="{ 'member-avatar-btn--active': activePopover === 'members' }"
-                  :disabled="saving"
-                  aria-label="メンバーを追加"
-                  @click="openMemberPicker($event)"
-                >
-                  <span class="member-avatar-btn-plus" aria-hidden="true">+</span>
-                </button>
-              </div>
-            </section>
-
-            <section
-              v-if="(task?.labels ?? []).length"
-              class="detail-item"
-            >
-              <span class="detail-item-label">ラベル</span>
-              <div class="label-chip-list">
-                <button
-                  v-for="label in task?.labels"
-                  :key="label.id"
-                  type="button"
-                  class="label-chip"
-                  :style="{
-                    backgroundColor: label.color,
-                    color: labelBarTextColor(label.color),
-                  }"
-                  :disabled="saving"
-                  :aria-label="`ラベル: ${label.name}`"
-                  @click="openLabelPicker($event)"
-                >
-                  {{ label.name }}
-                </button>
-                <button
-                  type="button"
-                  class="label-chip-add"
-                  :disabled="saving"
-                  aria-label="ラベルを追加"
-                  @click="openLabelPicker($event)"
-                >
-                  <span class="label-chip-add-plus" aria-hidden="true">+</span>
-                </button>
-              </div>
-            </section>
+              <section
+                v-if="(task?.labels ?? []).length"
+                class="detail-item detail-item--labels"
+              >
+                <span class="detail-item-label">ラベル</span>
+                <div class="label-chip-list detail-chip-wrap">
+                  <button
+                    v-for="label in task?.labels"
+                    :key="label.id"
+                    type="button"
+                    class="label-chip"
+                    :style="{
+                      backgroundColor: label.color,
+                      color: labelBarTextColor(label.color),
+                    }"
+                    :disabled="saving"
+                    :aria-label="`ラベル: ${label.name}`"
+                    @click="openLabelPicker($event)"
+                  >
+                    {{ label.name }}
+                  </button>
+                  <button
+                    type="button"
+                    class="label-chip-add"
+                    :disabled="saving"
+                    aria-label="ラベルを追加"
+                    @click="openLabelPicker($event)"
+                  >
+                    <span class="label-chip-add-plus" aria-hidden="true">+</span>
+                  </button>
+                </div>
+              </section>
+            </div>
 
             <section class="field-block description-block">
-              <span class="field-label">説明</span>
-              <textarea
-                ref="descriptionTextareaRef"
+              <span class="field-label">備考</span>
+              <TaskDescriptionEditor
                 v-model="descriptionDraft"
-                rows="6"
-                maxlength="10000"
-                class="description-textarea"
-                placeholder="Add a more detailed description..."
                 :disabled="saving || descriptionSaving"
                 @blur="onDescriptionBlur"
               />
@@ -275,28 +275,16 @@
                   :key="activePopover === 'member-detail' ? `member-detail-${selectedMember?.id}` : activePopover"
                   class="popover-layer popover-layer--portal"
                 >
-                <div
+                <PopoverShell
                   v-if="activePopover === 'start-date' || activePopover === 'due-date'"
                   ref="popoverElRef"
-                  class="popover popover--date"
-                :style="popoverStyle"
-                role="dialog"
-                :aria-label="activePopover === 'start-date' ? '開始日' : '終了日'"
-                @click.stop
-              >
-                <header class="popover-header">
-                  <h4 class="popover-title">
-                    {{ activePopover === 'start-date' ? '開始日' : '終了日' }}
-                  </h4>
-                  <button
-                    type="button"
-                    class="popover-close"
-                    :disabled="saving"
-                    aria-label="閉じる"
-                    @click="closePopover"
-                  >✕</button>
-                </header>
-
+                  shell-class="popover popover--date"
+                  :style="popoverStyle"
+                  :title="activePopover === 'start-date' ? '開始日' : '終了日'"
+                  :aria-label="activePopover === 'start-date' ? '開始日' : '終了日'"
+                  :close-disabled="saving"
+                  @close="closePopover"
+                >
                 <div class="calendar">
                   <div class="calendar-nav">
                     <button
@@ -331,7 +319,6 @@
                         'calendar-day--selected': cell.iso === pendingDate,
                         'calendar-day--today': cell.isToday,
                       }"
-                      :disabled="dateSaving"
                       @click.stop="pickCalendarDay(cell.iso)"
                     >
                       {{ cell.day }}
@@ -340,29 +327,18 @@
                 </div>
 
                 <p v-if="popoverError" class="err">{{ popoverError }}</p>
-              </div>
+                </PopoverShell>
 
-              <div
+              <PopoverShell
                 v-else-if="activePopover === 'effort'"
                 ref="popoverElRef"
-                class="popover popover--effort"
+                shell-class="popover popover--effort"
                 :style="popoverStyle"
-                role="dialog"
+                title="工数"
                 aria-label="工数"
-                @click.stop
+                :close-disabled="saving || effortSaving"
+                @close="void finalizeEffortPopover()"
               >
-                <header class="popover-header">
-                  <h4 class="popover-title">工数</h4>
-                  <button
-                    type="button"
-                    class="popover-close"
-                    :disabled="saving || effortSaving"
-                    aria-label="閉じる"
-                    @mousedown.stop
-                    @click.stop="void finalizeEffortPopover()"
-                  >✕</button>
-                </header>
-
                 <div class="effort-input-row">
                   <input
                     ref="effortInputRef"
@@ -371,7 +347,7 @@
                     min="0"
                     step="0.01"
                     class="effort-input"
-                    placeholder="数値"
+                    placeholder="工数を入力してください"
                     aria-label="工数"
                     :disabled="saving || effortSaving"
                     @keydown.enter.prevent="void finalizeEffortPopover()"
@@ -398,7 +374,7 @@
                 </div>
 
                 <p v-if="popoverError" class="err">{{ popoverError }}</p>
-              </div>
+                </PopoverShell>
 
               <div
                 v-else-if="activePopover === 'member-detail' && selectedMember"
@@ -446,26 +422,17 @@
                 <p v-if="popoverError" class="err member-detail-error">{{ popoverError }}</p>
               </div>
 
-              <div
+              <PopoverShell
                 v-else-if="activePopover === 'members'"
                 ref="popoverElRef"
-                class="popover popover--members"
+                shell-class="popover popover--members"
+                header-class="popover-header--labels"
                 :style="popoverStyle"
-                role="dialog"
+                title="メンバー"
                 aria-label="メンバー"
-                @click.stop
+                :close-disabled="saving"
+                @close="closePopover"
               >
-                <header class="popover-header popover-header--labels">
-                  <h4 class="popover-title">メンバー</h4>
-                  <button
-                    type="button"
-                    class="popover-close"
-                    :disabled="saving"
-                    aria-label="閉じる"
-                    @click="closePopover"
-                  >✕</button>
-                </header>
-
                 <div class="popover-scroll">
                   <ul class="member-picker-list">
                     <li v-for="member in projectMembers" :key="member.id">
@@ -492,28 +459,19 @@
 
                   <p v-if="popoverError" class="err">{{ popoverError }}</p>
                 </div>
-              </div>
+              </PopoverShell>
 
-              <div
+              <PopoverShell
                 v-else-if="activePopover === 'labels'"
                 ref="popoverElRef"
-                class="popover popover--labels"
+                shell-class="popover popover--labels"
+                header-class="popover-header--labels"
                 :style="popoverStyle"
-                role="dialog"
+                title="ラベル"
                 aria-label="ラベル"
-                @click.stop
+                :close-disabled="saving"
+                @close="closePopover"
               >
-                <header class="popover-header popover-header--labels">
-                  <h4 class="popover-title">ラベル</h4>
-                  <button
-                    type="button"
-                    class="popover-close"
-                    :disabled="saving"
-                    aria-label="閉じる"
-                    @click="closePopover"
-                  >✕</button>
-                </header>
-
                 <input
                   v-model="labelSearchQuery"
                   type="search"
@@ -562,33 +520,24 @@
 
                   <p v-if="popoverError" class="err">{{ popoverError }}</p>
                 </div>
-              </div>
+              </PopoverShell>
 
-              <div
+              <PopoverShell
                 v-else-if="activePopover === 'heading'"
                 ref="popoverElRef"
-                class="popover popover--labels"
+                shell-class="popover popover--labels"
+                header-class="popover-header--labels"
                 :style="popoverStyle"
-                role="dialog"
+                title="親タスク"
                 aria-label="親タスク"
-                @click.stop
+                :close-disabled="saving"
+                @close="closePopover"
               >
-                <header class="popover-header popover-header--labels">
-                  <h4 class="popover-title">親タスク</h4>
-                  <button
-                    type="button"
-                    class="popover-close"
-                    :disabled="saving"
-                    aria-label="閉じる"
-                    @click="closePopover"
-                  >✕</button>
-                </header>
-
                 <input
                   v-model="headingSearchQuery"
                   type="search"
                   class="label-search-input"
-                  placeholder="親タスク..."
+                  placeholder="親タスクを検索..."
                   :disabled="saving"
                   @click.stop
                 />
@@ -659,7 +608,7 @@
                       type="text"
                       maxlength="80"
                       class="heading-create-input"
-                      placeholder="親タスク名"
+                      placeholder="親タスク名を入力してください"
                       :disabled="headingCreatePending"
                       @keydown.enter.prevent="submitHeadingCreateInline"
                       @keydown.escape.prevent="cancelHeadingCreateInline"
@@ -686,10 +635,18 @@
                     </div>
                   </template>
                 </div>
-              </div>
+              </PopoverShell>
               </div>
               </Transition>
             </Teleport>
+            </div>
+
+            <TaskDetailChatPane
+              :org-slug="orgSlug"
+              :project-id="projectId"
+              :task-id="taskId"
+              :project-members="projectMembers"
+            />
           </div>
         </section>
       </div>
@@ -699,6 +656,7 @@
 
 <script setup lang="ts">
 import { useApi } from '../composables/useApi'
+import { memberDisplayName, memberInitial } from '../composables/useMemberDisplay'
 
 export type TaskDetailLabel = { id: number; name: string; color: string }
 export type TaskDetailHeading = { id: number; name: string }
@@ -786,7 +744,18 @@ const popoverError = ref<string | null>(null)
 const popoverStyle = ref<Record<string, string>>({})
 const modalCardRef = ref<HTMLElement | null>(null)
 const modalBodyRef = ref<HTMLElement | null>(null)
-const popoverElRef = ref<HTMLElement | null>(null)
+const popoverElRef = ref<{ rootRef: HTMLElement | null } | HTMLElement | null>(null)
+
+function resolvePopoverElement (): HTMLElement | null {
+  const target = popoverElRef.value
+  if (!target) {
+    return null
+  }
+  if (target instanceof HTMLElement) {
+    return target
+  }
+  return target.rootRef
+}
 const actionButtonsRef = ref<HTMLElement | null>(null)
 const effortDetailAnchorRef = ref<HTMLElement | null>(null)
 const popoverAnchorEl = ref<HTMLElement | null>(null)
@@ -799,7 +768,6 @@ const titleTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const descriptionDraft = ref('')
 const descriptionSaving = ref(false)
-const descriptionTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const labelSearchQuery = ref('')
 const headingSearchQuery = ref('')
@@ -922,15 +890,6 @@ function formatDateDisplay (iso: string | null | undefined): string {
   const [y, m, d] = value.split('-')
   if (!y || !m || !d) return value
   return `${y}/${m}/${d}`
-}
-
-function memberDisplayName (member: TaskDetailMember): string {
-  return (member.name || member.email || `ユーザー #${member.id}`).trim()
-}
-
-function memberInitial (member: TaskDetailMember): string {
-  const source = memberDisplayName(member)
-  return source.slice(0, 1).toUpperCase()
 }
 
 function memberEmailLine (member: TaskDetailMember): string {
@@ -1156,10 +1115,15 @@ function shouldIgnorePopoverOutsideClose (target: Node): boolean {
     return false
   }
 
-  // 工数: 表示ボタン上のみトグル対象。セクション左右の余白は外側クリックとして閉じる
+  // 工数: アンカーボタン（アクションバー or 詳細の値ボタン）再クリックはトグル用。
+  // 詳細セクション内の余白・ラベルは外側クリックとして閉じる。
   if (activePopover.value === 'effort') {
-    const button = getEffortDisplayButton()
-    return !!button && button.contains(target)
+    const detailAnchor = effortDetailAnchorRef.value
+    if (detailAnchor?.contains(target)) {
+      const displayButton = getEffortDisplayButton()
+      return !!displayButton && displayButton.contains(target)
+    }
+    return true
   }
 
   return true
@@ -1170,7 +1134,7 @@ function handlePopoverOutsidePointerDown (event: MouseEvent) {
 
   const target = event.target
   if (!(target instanceof Node)) return
-  if (popoverElRef.value?.contains(target)) return
+  if (resolvePopoverElement()?.contains(target)) return
   if (shouldIgnorePopoverOutsideClose(target)) return
 
   void closePopover()
@@ -1429,7 +1393,7 @@ function updatePopoverPosition () {
 
 function positionPopover () {
   const anchor = popoverAnchorEl.value
-  const popover = popoverElRef.value
+  const popover = resolvePopoverElement()
   if (!anchor || !popover) return
 
   const pad = POPOVER_VIEWPORT_PAD
@@ -1900,7 +1864,7 @@ async function saveDescription () {
     descriptionDraft.value = task.value.description ?? ''
     emit('updated', task.value)
   } catch (e: unknown) {
-    saveError.value = e instanceof Error ? e.message : '説明の更新に失敗しました'
+    saveError.value = e instanceof Error ? e.message : '備考の更新に失敗しました'
   } finally {
     descriptionSaving.value = false
   }
@@ -1926,7 +1890,7 @@ async function saveDescription () {
 
 .modal-card {
   position: relative;
-  width: min(40rem, 100%);
+  width: min(calc(40rem + 22rem), 100%);
   border-radius: 12px;
   overflow: hidden;
   background: #fff;
@@ -1934,18 +1898,14 @@ async function saveDescription () {
 }
 
 .modal-header {
-  background: mixin.$main;
-  color: #fff;
-  padding: 0.7rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  @include mixin.modal-header-bar;
   border-radius: 12px 12px 0 0;
 }
 
 .modal-header h3 {
   margin: 0;
   font-size: 1.05rem;
+  line-height: 1;
 }
 
 .icon-close {
@@ -1956,7 +1916,7 @@ async function saveDescription () {
   line-height: 1;
   cursor: pointer;
   padding: 0;
-  margin: -0.2rem 0;
+  margin: 0;
 }
 
 .modal-body {
@@ -1966,6 +1926,39 @@ async function saveDescription () {
   flex-direction: column;
   gap: 1rem;
   overflow: visible;
+}
+
+.modal-split {
+  display: flex;
+  align-items: stretch;
+  max-height: calc(100vh - 8rem);
+}
+
+.modal-pane--detail {
+  position: relative;
+  flex: 0 0 40rem;
+  width: 40rem;
+  max-width: 40rem;
+  min-height: 100%;
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  overflow-x: visible;
+  overflow-y: auto;
+}
+
+@media (max-width: 62rem) {
+  .modal-split {
+    flex-direction: column;
+    max-height: none;
+  }
+
+  .modal-pane--detail {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 .modal-body--state {
@@ -2005,8 +1998,9 @@ async function saveDescription () {
 }
 
 .task-detail-heading {
-  display: block;
-  width: 100%;
+  display: inline-block;
+  align-self: flex-start;
+  max-width: 100%;
   padding: 0;
   border: none;
   background: transparent;
@@ -2533,13 +2527,38 @@ async function saveDescription () {
   line-height: 1;
 }
 
-.detail-dates-row {
+.detail-meta-row {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem 1.25rem;
+}
+
+.detail-meta-row--schedule .detail-item--date,
+.detail-meta-row--schedule .detail-item--effort {
+  flex: 1 1 0;
+  min-width: 5.5rem;
+}
+
+.detail-meta-row--people .detail-item--members,
+.detail-meta-row--people .detail-item--labels {
+  flex: 1 1 0;
+  min-width: min(100%, 10rem);
+}
+
+.detail-chip-wrap {
+  align-content: flex-start;
+  box-sizing: border-box;
+  padding: 3px;
+  max-height: calc(2 * 2rem + 0.35rem + 6px);
+  overflow: hidden;
+}
+
+.member-avatar-list.detail-chip-wrap {
+  gap: 0.45rem;
 }
 
 .detail-item--date {
-  flex: 1;
   min-width: 0;
 }
 
@@ -2860,25 +2879,8 @@ async function saveDescription () {
 }
 
 .description-block {
-  margin-top: 0.15rem;
-}
-
-.description-textarea {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 0.6rem 0.7rem;
-  font: inherit;
-  font-size: 0.94rem;
-  color: #0f172a;
-  resize: vertical;
-  min-height: 6rem;
-}
-
-.description-textarea:focus {
-  outline: none;
-  border-color: #2563eb;
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 .primary-btn,
