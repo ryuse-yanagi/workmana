@@ -42,7 +42,7 @@
                 type="text"
                 maxlength="255"
                 required
-                placeholder="表示名を入力"
+                placeholder="表示名を入力してください"
               />
             </label>
             <div class="button-row">

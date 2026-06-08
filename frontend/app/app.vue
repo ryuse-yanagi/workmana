@@ -8,7 +8,7 @@
   </div>
 </template>
 
-<style>
+<style lang="scss">
 :root {
   --tm-global-header-height: 46px;
   --tm-page-header-height: 48px;

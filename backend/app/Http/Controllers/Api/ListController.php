@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Events\ListCreated;
 use App\Events\ListDeleted;
+use App\Events\ListsReordered;
 use App\Events\ListUpdated;
+use App\Events\TasksReordered;
 use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Project;
@@ -150,6 +152,8 @@ class ListController extends ApiController
                 ->update(['sort_order' => $index]);
         }
 
+        SafeBroadcast::toOthers(new ListsReordered((int) $project->id, $listIds));
+
         return response()->json(['data' => ['ok' => true]]);
     }
 
@@ -196,6 +200,12 @@ class ListController extends ApiController
                 ->where('project_id', $project->id)
                 ->update(['sort_order' => $index]);
         }
+
+        SafeBroadcast::toOthers(new TasksReordered(
+            (int) $project->id,
+            (int) $boardList->id,
+            $taskIds,
+        ));
 
         return response()->json(['data' => ['ok' => true]]);
     }

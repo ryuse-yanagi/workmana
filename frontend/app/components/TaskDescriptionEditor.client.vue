@@ -2,11 +2,22 @@
   <div
     class="task-description-editor"
     :class="{
+      'task-description-editor--editing': isEditing,
       'task-description-editor--focused': isFocused,
+      'task-description-editor--hovered': isHovered,
       'task-description-editor--disabled': disabled,
+      'task-description-editor--empty': isContentEmpty,
     }"
+    @mouseenter="isHovered = true"
+    @mouseleave="onMouseLeave"
   >
-    <div v-if="editor" class="task-description-editor__toolbar" role="toolbar" aria-label="備考の書式">
+    <div
+      v-if="editor && isEditing && (isHovered || isFocused || openMenu !== null)"
+      class="task-description-editor__toolbar"
+      role="toolbar"
+      aria-label="備考の書式"
+      @mousedown.prevent="onToolbarMouseDown"
+    >
       <div class="task-description-editor__group">
         <div ref="headingMenuRef" class="task-description-editor__dropdown">
           <button
@@ -20,20 +31,6 @@
             <component :is="headingIcon" :size="16" aria-hidden="true" />
             <ChevronDown :size="12" aria-hidden="true" class="task-description-editor__chevron" />
           </button>
-          <div v-if="openMenu === 'heading'" class="task-description-editor__menu">
-            <button
-              v-for="item in headingOptions"
-              :key="item.id"
-              type="button"
-              class="task-description-editor__menu-item"
-              :class="{ 'is-active': item.active() }"
-              @mousedown.prevent
-              @click="item.run(); closeMenus()"
-            >
-              <component :is="item.icon" :size="14" aria-hidden="true" />
-              <span>{{ item.label }}</span>
-            </button>
-          </div>
         </div>
 
         <button
@@ -70,57 +67,6 @@
           >
             <Ellipsis :size="16" aria-hidden="true" />
           </button>
-          <div v-if="openMenu === 'more'" class="task-description-editor__menu">
-            <button
-              type="button"
-              class="task-description-editor__menu-item"
-              :class="{ 'is-active': editor.isActive('strike') }"
-              @mousedown.prevent
-              @click="editor.chain().focus().toggleStrike().run(); closeMenus()"
-            >
-              <Strikethrough :size="14" aria-hidden="true" />
-              <span>取り消し線</span>
-            </button>
-            <button
-              type="button"
-              class="task-description-editor__menu-item"
-              :class="{ 'is-active': editor.isActive('underline') }"
-              @mousedown.prevent
-              @click="editor.chain().focus().toggleUnderline().run(); closeMenus()"
-            >
-              <UnderlineIcon :size="14" aria-hidden="true" />
-              <span>下線</span>
-            </button>
-            <button
-              type="button"
-              class="task-description-editor__menu-item"
-              :class="{ 'is-active': editor.isActive('code') }"
-              @mousedown.prevent
-              @click="editor.chain().focus().toggleCode().run(); closeMenus()"
-            >
-              <Code :size="14" aria-hidden="true" />
-              <span>インラインコード</span>
-            </button>
-            <button
-              type="button"
-              class="task-description-editor__menu-item"
-              :class="{ 'is-active': editor.isActive('blockquote') }"
-              @mousedown.prevent
-              @click="editor.chain().focus().toggleBlockquote().run(); closeMenus()"
-            >
-              <TextQuote :size="14" aria-hidden="true" />
-              <span>引用</span>
-            </button>
-            <button
-              type="button"
-              class="task-description-editor__menu-item"
-              @mousedown.prevent
-              @click="editor.chain().focus().setHorizontalRule().run(); closeMenus()"
-            >
-              <SeparatorHorizontal :size="14" aria-hidden="true" />
-              <span>区切り線</span>
-            </button>
-          </div>
         </div>
       </div>
 
@@ -140,55 +86,24 @@
             <List :size="16" aria-hidden="true" />
             <ChevronDown :size="12" aria-hidden="true" class="task-description-editor__chevron" />
           </button>
-          <div v-if="openMenu === 'list'" class="task-description-editor__menu">
-            <button
-              type="button"
-              class="task-description-editor__menu-item"
-              :class="{ 'is-active': editor.isActive('bulletList') }"
-              @mousedown.prevent
-              @click="editor.chain().focus().toggleBulletList().run(); closeMenus()"
-            >
-              <List :size="14" aria-hidden="true" />
-              <span>箇条書き</span>
-            </button>
-            <button
-              type="button"
-              class="task-description-editor__menu-item"
-              :class="{ 'is-active': editor.isActive('orderedList') }"
-              @mousedown.prevent
-              @click="editor.chain().focus().toggleOrderedList().run(); closeMenus()"
-            >
-              <ListOrdered :size="14" aria-hidden="true" />
-              <span>番号付きリスト</span>
-            </button>
-            <button
-              type="button"
-              class="task-description-editor__menu-item"
-              :class="{ 'is-active': editor.isActive('taskList') }"
-              @mousedown.prevent
-              @click="editor.chain().focus().toggleTaskList().run(); closeMenus()"
-            >
-              <ListChecks :size="14" aria-hidden="true" />
-              <span>チェックリスト</span>
-            </button>
-          </div>
         </div>
       </div>
 
       <span class="task-description-editor__sep" aria-hidden="true" />
 
       <div class="task-description-editor__group">
-        <button
-          type="button"
-          class="task-description-editor__btn"
-          :class="{ 'is-active': editor.isActive('link') }"
-          :disabled="disabled"
-          title="リンク"
-          @mousedown.prevent
-          @click="toggleLink"
-        >
-          <Link2 :size="16" aria-hidden="true" />
-        </button>
+        <div ref="linkMenuRef" class="task-description-editor__dropdown">
+          <button
+            type="button"
+            class="task-description-editor__btn task-description-editor__btn--link"
+            :disabled="disabled"
+            title="リンク"
+            @mousedown.prevent
+            @click="toggleMenu('link')"
+          >
+            <Link2 :size="16" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <div class="task-description-editor__spacer" />
@@ -206,24 +121,186 @@
           >
             <CircleQuestionMark :size="16" aria-hidden="true" />
           </button>
-          <div v-if="openMenu === 'help'" class="task-description-editor__menu task-description-editor__menu--help">
-            <p class="task-description-editor__help-title">Markdown ショートカット</p>
-            <ul class="task-description-editor__help-list">
-              <li><code>#</code> 見出し1 / <code>##</code> 見出し2</li>
-              <li><code>**太字**</code> / <code>*斜体*</code></li>
-              <li><code>-</code> または <code>*</code> 箇条書き</li>
-              <li><code>1.</code> 番号付きリスト</li>
-              <li><code>- [ ]</code> チェックリスト</li>
-              <li><code>&gt;</code> 引用 / <code>---</code> 区切り線</li>
-              <li><code>[表示名](URL)</code> リンク</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>
 
-    <EditorContent :editor="editor" class="task-description-editor__content" />
+    <button
+      v-if="!isEditing && isContentEmpty"
+      type="button"
+      class="task-description-editor__view-placeholder"
+      :disabled="disabled"
+      @click="activateEditing"
+    >
+      {{ placeholder }}
+    </button>
+    <div
+      v-else
+      class="task-description-editor__content"
+      @click="onContentClick"
+    >
+      <EditorContent :editor="editor" class="task-description-editor__content-inner" />
+    </div>
   </div>
+
+  <Teleport to="body">
+    <div
+      v-if="openMenu !== null && editor"
+      ref="menuPanelRef"
+      class="task-description-editor__menu-portal"
+      :class="`task-description-editor__menu-portal--${openMenu}`"
+      :style="menuPanelStyle"
+      @mousedown="onMenuPanelMouseDown"
+    >
+      <template v-if="openMenu === 'heading'">
+        <button
+          v-for="item in headingOptions"
+          :key="item.id"
+          type="button"
+          class="task-description-editor__menu-item"
+          :class="{ 'is-active': item.active() }"
+          @click="item.run(); closeMenus()"
+        >
+          <component :is="item.icon" :size="14" aria-hidden="true" />
+          <span>{{ item.label }}</span>
+        </button>
+      </template>
+
+      <template v-else-if="openMenu === 'more'">
+        <button
+          type="button"
+          class="task-description-editor__menu-item"
+          :class="{ 'is-active': editor.isActive('strike') }"
+          @click="editor.chain().focus().toggleStrike().run(); closeMenus()"
+        >
+          <Strikethrough :size="14" aria-hidden="true" />
+          <span>取り消し線</span>
+        </button>
+        <button
+          type="button"
+          class="task-description-editor__menu-item"
+          :class="{ 'is-active': editor.isActive('underline') }"
+          @click="editor.chain().focus().toggleUnderline().run(); closeMenus()"
+        >
+          <UnderlineIcon :size="14" aria-hidden="true" />
+          <span>下線</span>
+        </button>
+        <button
+          type="button"
+          class="task-description-editor__menu-item"
+          :class="{ 'is-active': editor.isActive('code') }"
+          @click="editor.chain().focus().toggleCode().run(); closeMenus()"
+        >
+          <Code :size="14" aria-hidden="true" />
+          <span>インラインコード</span>
+        </button>
+        <button
+          type="button"
+          class="task-description-editor__menu-item"
+          :class="{ 'is-active': editor.isActive('blockquote') }"
+          @click="editor.chain().focus().toggleBlockquote().run(); closeMenus()"
+        >
+          <TextQuote :size="14" aria-hidden="true" />
+          <span>引用</span>
+        </button>
+        <button
+          type="button"
+          class="task-description-editor__menu-item"
+          @click="editor.chain().focus().setHorizontalRule().run(); closeMenus()"
+        >
+          <SeparatorHorizontal :size="14" aria-hidden="true" />
+          <span>区切り線</span>
+        </button>
+      </template>
+
+      <template v-else-if="openMenu === 'list'">
+        <button
+          type="button"
+          class="task-description-editor__menu-item"
+          :class="{ 'is-active': editor.isActive('bulletList') }"
+          @click="editor.chain().focus().toggleBulletList().run(); closeMenus()"
+        >
+          <List :size="14" aria-hidden="true" />
+          <span>箇条書き</span>
+        </button>
+        <button
+          type="button"
+          class="task-description-editor__menu-item"
+          :class="{ 'is-active': editor.isActive('orderedList') }"
+          @click="editor.chain().focus().toggleOrderedList().run(); closeMenus()"
+        >
+          <ListOrdered :size="14" aria-hidden="true" />
+          <span>番号付きリスト</span>
+        </button>
+        <button
+          type="button"
+          class="task-description-editor__menu-item"
+          :class="{ 'is-active': editor.isActive('taskList') }"
+          @click="editor.chain().focus().toggleTaskList().run(); closeMenus()"
+        >
+          <ListChecks :size="14" aria-hidden="true" />
+          <span>チェックリスト</span>
+        </button>
+      </template>
+
+      <template v-else-if="openMenu === 'help'">
+        <p class="task-description-editor__help-title">Markdown ショートカット</p>
+        <ul class="task-description-editor__help-list">
+          <li><code>#</code> 見出し1 / <code>##</code> 見出し2</li>
+          <li><code>**太字**</code> / <code>*斜体*</code></li>
+          <li><code>-</code> または <code>*</code> 箇条書き</li>
+          <li><code>1.</code> 番号付きリスト</li>
+          <li><code>- [ ]</code> チェックリスト</li>
+          <li><code>&gt;</code> 引用 / <code>---</code> 区切り線</li>
+          <li><code>[表示名](URL)</code> リンク</li>
+        </ul>
+      </template>
+
+      <form
+        v-else-if="openMenu === 'link'"
+        class="task-description-editor__link-form"
+        @submit.prevent="insertLink"
+      >
+        <label class="task-description-editor__link-field">
+          <span class="task-description-editor__link-label">
+            リンク<span class="task-description-editor__link-required" aria-hidden="true">*</span>
+          </span>
+          <input
+            ref="linkUrlInputRef"
+            v-model.trim="linkUrlDraft"
+            type="text"
+            class="task-description-editor__link-input"
+            placeholder="リンクを貼り付けてください"
+            required
+            inputmode="url"
+            autocomplete="url"
+          />
+        </label>
+        <label class="task-description-editor__link-field">
+          <span class="task-description-editor__link-label">表示名（任意）</span>
+          <input
+            v-model.trim="linkTextDraft"
+            type="text"
+            class="task-description-editor__link-input"
+            placeholder="表示名を入力してください"
+          />
+          <span class="task-description-editor__link-hint">リンクのタイトルや説明を入力できます</span>
+        </label>
+        <div class="task-description-editor__link-actions">
+          <button type="button" class="task-description-editor__link-cancel" @click="closeMenus">
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            class="task-description-editor__link-submit"
+            :disabled="!linkUrlDraft.trim()"
+          >
+            追加
+          </button>
+        </div>
+      </form>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -266,7 +343,7 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   maxlength?: number
 }>(), {
-  placeholder: '入力中に Markdown ショートカットも使えます。* でリスト、# で見出し、--- で区切り線。',
+  placeholder: '備考を入力してください',
   disabled: false,
   maxlength: 10000,
 })
@@ -277,17 +354,28 @@ const emit = defineEmits<{
 }>()
 
 const isFocused = ref(false)
-const openMenu = ref<'heading' | 'list' | 'more' | 'help' | null>(null)
+const isEditing = ref(false)
+const isHovered = ref(false)
+type MenuId = 'heading' | 'list' | 'more' | 'help' | 'link'
+const openMenu = ref<MenuId | null>(null)
 const headingMenuRef = ref<HTMLElement | null>(null)
 const listMenuRef = ref<HTMLElement | null>(null)
 const moreMenuRef = ref<HTMLElement | null>(null)
 const helpMenuRef = ref<HTMLElement | null>(null)
+const linkMenuRef = ref<HTMLElement | null>(null)
+const menuPanelRef = ref<HTMLElement | null>(null)
+const menuPanelStyle = ref<Record<string, string>>({})
+const linkUrlInputRef = ref<HTMLInputElement | null>(null)
+const linkUrlDraft = ref('')
+const linkTextDraft = ref('')
 const syncingExternal = ref(false)
+
+const isContentEmpty = computed(() => props.modelValue.trim() === '')
 
 const editor = useEditor({
   content: props.modelValue,
   contentType: 'markdown',
-  editable: !props.disabled,
+  editable: false,
   extensions: [
     StarterKit.configure({
       horizontalRule: false,
@@ -295,7 +383,7 @@ const editor = useEditor({
     HorizontalRule,
     UnderlineExtension,
     Link.configure({
-      openOnClick: false,
+      openOnClick: true,
       autolink: true,
       defaultProtocol: 'https',
     }),
@@ -311,6 +399,9 @@ const editor = useEditor({
   editorProps: {
     attributes: {
       class: 'task-description-editor__prose',
+    },
+    handleDOMEvents: {
+      click: (_view, event) => openViewModeLink(event),
     },
   },
   onUpdate: ({ editor: ed }) => {
@@ -331,6 +422,12 @@ const editor = useEditor({
   },
   onBlur: () => {
     isFocused.value = false
+    if (openMenu.value !== null) {
+      return
+    }
+    isEditing.value = false
+    editor.value?.setEditable(false)
+    closeMenus()
     emit('blur')
   },
 })
@@ -401,40 +498,211 @@ watch(() => props.modelValue, (value) => {
   syncingExternal.value = true
   ed.commands.setContent(value, { contentType: 'markdown', emitUpdate: false })
   syncingExternal.value = false
+  if (!isFocused.value) {
+    isEditing.value = false
+    ed.setEditable(false)
+  }
 })
 
 watch(() => props.disabled, (disabled) => {
-  editor.value?.setEditable(!disabled)
+  if (disabled) {
+    isEditing.value = false
+    isHovered.value = false
+    closeMenus()
+  }
+  editor.value?.setEditable(isEditing.value && !disabled)
 })
 
-function toggleMenu (menu: typeof openMenu.value) {
-  openMenu.value = openMenu.value === menu ? null : menu
+function onToolbarMouseDown () {
+  editor.value?.commands.focus()
 }
 
-function closeMenus () {
-  openMenu.value = null
+function openViewModeLink (event: Event): boolean {
+  if (isEditing.value) {
+    return false
+  }
+  const anchor = (event.target as HTMLElement).closest('a[href]')
+  if (!(anchor instanceof HTMLAnchorElement)) {
+    return false
+  }
+  const mouseEvent = event as MouseEvent
+  if (mouseEvent.button !== 0 || mouseEvent.metaKey || mouseEvent.ctrlKey || mouseEvent.shiftKey || mouseEvent.altKey) {
+    return false
+  }
+  event.preventDefault()
+  window.open(anchor.href, '_blank', 'noopener,noreferrer')
+  return true
 }
 
-function toggleLink () {
+function activateEditing () {
+  if (props.disabled || isEditing.value) {
+    return
+  }
+  isEditing.value = true
+  editor.value?.setEditable(true)
+  nextTick(() => editor.value?.commands.focus('end'))
+}
+
+function onContentClick (event: MouseEvent) {
+  if (openViewModeLink(event)) {
+    return
+  }
+  if (!isEditing.value) {
+    activateEditing()
+  }
+}
+
+function onMouseLeave () {
+  isHovered.value = false
+}
+
+function getMenuAnchor (menu: MenuId): HTMLElement | null {
+  const refs: Record<MenuId, typeof headingMenuRef> = {
+    heading: headingMenuRef,
+    list: listMenuRef,
+    more: moreMenuRef,
+    help: helpMenuRef,
+    link: linkMenuRef,
+  }
+  const container = refs[menu].value
+  if (!container) {
+    return null
+  }
+  return container.querySelector('button')
+}
+
+function updateMenuPosition () {
+  const menu = openMenu.value
+  if (!menu) {
+    return
+  }
+  const anchor = getMenuAnchor(menu)
+  const panel = menuPanelRef.value
+  if (!anchor || !panel) {
+    return
+  }
+
+  const gap = 4
+  const pad = 8
+  const anchorRect = anchor.getBoundingClientRect()
+  const panelWidth = panel.offsetWidth || (menu === 'link' ? 18 : menu === 'help' ? 15 : 9) * 16
+  let left = menu === 'help' ? anchorRect.right - panelWidth : anchorRect.left
+
+  if (left + panelWidth > window.innerWidth - pad) {
+    left = window.innerWidth - pad - panelWidth
+  }
+  if (left < pad) {
+    left = pad
+  }
+
+  let top = anchorRect.bottom + gap
+  const panelHeight = panel.offsetHeight || 120
+  if (top + panelHeight > window.innerHeight - pad) {
+    top = Math.max(pad, anchorRect.top - gap - panelHeight)
+  }
+
+  menuPanelStyle.value = {
+    position: 'fixed',
+    top: `${Math.round(top)}px`,
+    left: `${Math.round(left)}px`,
+    zIndex: '100',
+  }
+}
+
+function initLinkForm () {
+  linkUrlDraft.value = ''
+  linkTextDraft.value = ''
+}
+
+function normalizeLinkUrl (raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return ''
+  }
+  if (/^(https?:\/\/|mailto:|tel:|#)/i.test(trimmed)) {
+    return trimmed
+  }
+  return `https://${trimmed}`
+}
+
+function insertLink () {
   const ed = editor.value
   if (!ed) {
     return
   }
-  if (ed.isActive('link')) {
-    ed.chain().focus().unsetLink().run()
+  const href = normalizeLinkUrl(linkUrlDraft.value)
+  if (!href) {
     return
   }
-  const previous = ed.getAttributes('link').href as string | undefined
-  const url = window.prompt('リンク URL を入力', previous ?? 'https://')
-  if (url === null) {
+
+  const displayText = linkTextDraft.value.trim() || href
+  const { from, to, empty } = ed.state.selection
+  const selectedText = empty ? '' : ed.state.doc.textBetween(from, to, ' ')
+  const linkMark = {
+    type: 'link',
+    attrs: {
+      href,
+      target: '_blank',
+      rel: 'noopener noreferrer nofollow',
+    },
+  }
+
+  if (!empty && selectedText && (!linkTextDraft.value.trim() || linkTextDraft.value.trim() === selectedText)) {
+    ed.chain().focus().extendMarkRange('link').setLink({ href }).run()
+  } else if (!empty && linkTextDraft.value.trim() && linkTextDraft.value.trim() !== selectedText) {
+    ed.chain().focus().deleteSelection().insertContent({
+      type: 'text',
+      text: displayText,
+      marks: [linkMark],
+    }).run()
+  } else if (!empty && selectedText) {
+    ed.chain().focus().setLink({ href }).run()
+  } else {
+    ed.chain().focus().insertContent({
+      type: 'text',
+      text: displayText,
+      marks: [linkMark],
+    }).run()
+  }
+
+  closeMenus()
+}
+
+function onMenuPanelMouseDown (event: MouseEvent) {
+  if (openMenu.value === 'link') {
     return
   }
-  const trimmed = url.trim()
-  if (trimmed === '') {
-    ed.chain().focus().extendMarkRange('link').unsetLink().run()
+  event.preventDefault()
+  editor.value?.commands.focus()
+}
+
+function toggleMenu (menu: MenuId) {
+  if (openMenu.value === menu) {
+    closeMenus()
     return
   }
-  ed.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run()
+  if (menu === 'link') {
+    initLinkForm()
+  }
+  openMenu.value = menu
+  nextTick(() => {
+    updateMenuPosition()
+    requestAnimationFrame(() => updateMenuPosition())
+    if (menu === 'link') {
+      linkUrlInputRef.value?.focus()
+    }
+  })
+}
+
+function closeMenus () {
+  const shouldRefocus = isEditing.value
+  openMenu.value = null
+  menuPanelStyle.value = {}
+  linkUrlDraft.value = ''
+  linkTextDraft.value = ''
+  if (shouldRefocus) {
+    nextTick(() => editor.value?.commands.focus())
+  }
 }
 
 function onDocumentClick (event: MouseEvent) {
@@ -442,19 +710,33 @@ function onDocumentClick (event: MouseEvent) {
     return
   }
   const target = event.target as Node
-  const refs = [headingMenuRef, listMenuRef, moreMenuRef, helpMenuRef]
-  if (refs.some(ref => ref.value?.contains(target))) {
+  const anchorRefs = [headingMenuRef, listMenuRef, moreMenuRef, helpMenuRef, linkMenuRef]
+  if (anchorRefs.some(ref => ref.value?.contains(target))) {
+    return
+  }
+  if (menuPanelRef.value?.contains(target)) {
     return
   }
   closeMenus()
 }
 
+function onWindowRelayout () {
+  if (openMenu.value === null) {
+    return
+  }
+  updateMenuPosition()
+}
+
 onMounted(() => {
   document.addEventListener('mousedown', onDocumentClick)
+  window.addEventListener('resize', onWindowRelayout)
+  window.addEventListener('scroll', onWindowRelayout, true)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocumentClick)
+  window.removeEventListener('resize', onWindowRelayout)
+  window.removeEventListener('scroll', onWindowRelayout, true)
   editor.value?.destroy()
 })
 </script>
@@ -464,7 +746,7 @@ onBeforeUnmount(() => {
   border: 1px solid mixin.$border;
   border-radius: 8px;
   background: mixin.$white;
-  overflow: hidden;
+  overflow: visible;
   transition: border-color 0.15s ease;
 
   &--focused {
@@ -544,6 +826,11 @@ onBeforeUnmount(() => {
     min-width: 2.35rem;
     padding-inline: 0.3rem;
   }
+
+  &--link:hover:not(:disabled) {
+    background: #dbeafe;
+    color: mixin.$main;
+  }
 }
 
 .task-description-editor__toolbar-icon {
@@ -561,11 +848,8 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-.task-description-editor__menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 30;
+.task-description-editor__menu-portal {
+  box-sizing: border-box;
   min-width: 9rem;
   padding: 0.25rem;
   border: 1px solid mixin.$border;
@@ -574,10 +858,102 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 
   &--help {
-    right: 0;
-    left: auto;
     min-width: 15rem;
     padding: 0.65rem 0.75rem;
+  }
+
+  &--link {
+    width: min(18rem, calc(100vw - 1rem));
+    padding: 0.75rem;
+  }
+}
+
+.task-description-editor__link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.task-description-editor__link-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.task-description-editor__link-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: mixin.$text-sub;
+}
+
+.task-description-editor__link-required {
+  color: mixin.$danger;
+  margin-left: 0.1rem;
+}
+
+.task-description-editor__link-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid mixin.$border;
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  font-size: 0.86rem;
+  color: mixin.$text;
+  background: mixin.$white;
+
+  &::placeholder {
+    color: #94a3b8;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: mixin.$focus;
+    box-shadow: 0 0 0 1px mixin.$focus;
+  }
+}
+
+.task-description-editor__link-hint {
+  font-size: 0.74rem;
+  color: mixin.$text-muted;
+  line-height: 1.4;
+}
+
+.task-description-editor__link-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.task-description-editor__link-cancel {
+  border: none;
+  background: transparent;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: mixin.$text-sub;
+  cursor: pointer;
+
+  &:hover {
+    color: mixin.$text;
+  }
+}
+
+.task-description-editor__link-submit {
+  border: none;
+  border-radius: 6px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: mixin.$white;
+  background: mixin.$main;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 }
 
@@ -640,10 +1016,33 @@ onBeforeUnmount(() => {
   }
 }
 
+.task-description-editor__view-placeholder {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 6rem;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.94rem;
+  line-height: 1.6;
+  text-align: left;
+  cursor: pointer;
+}
+
 .task-description-editor__content {
   min-height: 6rem;
   max-height: 18rem;
   overflow-y: auto;
+}
+
+.task-description-editor--editing :deep(.task-description-editor__prose) {
+  cursor: text;
 }
 
 :deep(.task-description-editor__prose) {
@@ -653,6 +1052,7 @@ onBeforeUnmount(() => {
   line-height: 1.6;
   color: mixin.$text;
   outline: none;
+  cursor: pointer;
 
   p {
     margin: 0 0 0.55rem;
@@ -750,5 +1150,9 @@ onBeforeUnmount(() => {
     pointer-events: none;
     height: 0;
   }
+}
+
+.task-description-editor:not(.task-description-editor--editing) :deep(.task-description-editor__prose p.is-editor-empty:first-child::before) {
+  content: none;
 }
 </style>

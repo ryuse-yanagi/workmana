@@ -5,6 +5,7 @@ export type RealtimeBoardTask = {
   title: string
   status: string
   list_id: number | null
+  sort_order?: number
   labels?: Array<{ id: number; name: string; color: string }>
   assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
 }
@@ -40,9 +41,11 @@ export type ProjectRealtimeHandlers = {
   onTaskArchived?: (payload: { id: number; task?: RealtimeArchivedTask }) => void
   onTaskRestored?: (task: RealtimeBoardTask) => void
   onTaskDeleted?: (taskId: number) => void
+  onTasksReordered?: (payload: { list_id: number; task_ids: number[] }) => void
   onListCreated?: () => void
   onListUpdated?: (list: { id: number; name: string; sort_order: number }) => void
   onListDeleted?: (listId: number) => void
+  onListsReordered?: (payload: { list_ids: number[] }) => void
 }
 
 export function useProjectRealtimeChannel (
@@ -98,6 +101,18 @@ export function useProjectRealtimeChannel (
       })
     }
 
+    if (handlers.onTasksReordered) {
+      channel.listen('.TasksReordered', (payload: unknown) => {
+        const data = payload as { list_id?: number; task_ids?: number[] }
+        if (typeof data?.list_id === 'number' && Array.isArray(data.task_ids)) {
+          handlers.onTasksReordered!({
+            list_id: data.list_id,
+            task_ids: data.task_ids,
+          })
+        }
+      })
+    }
+
     if (handlers.onListCreated) {
       channel.listen('.ListCreated', () => {
         handlers.onListCreated!()
@@ -118,6 +133,15 @@ export function useProjectRealtimeChannel (
         const data = payload as { id?: number }
         if (typeof data?.id === 'number') {
           handlers.onListDeleted!(data.id)
+        }
+      })
+    }
+
+    if (handlers.onListsReordered) {
+      channel.listen('.ListsReordered', (payload: unknown) => {
+        const data = payload as { list_ids?: number[] }
+        if (Array.isArray(data?.list_ids)) {
+          handlers.onListsReordered!({ list_ids: data.list_ids })
         }
       })
     }

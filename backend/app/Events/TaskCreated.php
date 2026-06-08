@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use App\Models\Task;
+use App\Support\TaskBoardBroadcast;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -13,10 +14,7 @@ class TaskCreated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public Task $task)
-    {
-        $this->task->loadMissing(['labels:id,name,color']);
-    }
+    public function __construct(public Task $task) {}
 
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
@@ -33,17 +31,7 @@ class TaskCreated implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'task' => [
-                'id' => $this->task->id,
-                'list_id' => $this->task->list_id,
-                'title' => $this->task->title,
-                'status' => $this->task->status,
-                'labels' => $this->task->labels->map(fn ($l) => [
-                    'id' => $l->id,
-                    'name' => $l->name,
-                    'color' => $l->color,
-                ])->all(),
-            ],
+            'task' => TaskBoardBroadcast::taskPayload($this->task),
         ];
     }
 }

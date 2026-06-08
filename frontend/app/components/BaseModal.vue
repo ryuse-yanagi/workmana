@@ -5,6 +5,7 @@
         v-if="modelValue"
         class="base-modal-overlay"
         :class="[overlayAlignClass, overlayClass]"
+        :style="overlayStyle"
         role="presentation"
         @mousedown="onOverlayMouseDown"
         @click.self="onOverlayClick"
@@ -56,7 +57,7 @@ const props = withDefaults(defineProps<{
   title: '',
   closeDisabled: false,
   showClose: true,
-  closeOnBackdrop: true,
+  closeOnBackdrop: false,
   width: 'min(36rem, 100%)',
   borderRadius: '10px',
   align: 'center',
@@ -79,6 +80,10 @@ const overlayAlignClass = computed(() =>
 const cardStyle = computed(() => ({
   width: props.width,
   borderRadius: props.borderRadius,
+}))
+
+const overlayStyle = computed(() => ({
+  zIndex: props.zIndex,
 }))
 
 function requestClose () {
@@ -112,7 +117,6 @@ defineExpose({ cardRef })
   display: flex;
   justify-content: center;
   padding: 1rem;
-  z-index: v-bind('props.zIndex');
 }
 
 .base-modal-overlay--center {

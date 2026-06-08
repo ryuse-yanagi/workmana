@@ -78,6 +78,12 @@ function close () {
   @include mixin.btn-base;
 }
 
+.ghost-btn:disabled,
+.primary-btn:disabled,
+.danger-btn:disabled {
+  cursor: wait;
+}
+
 .ghost-btn--rounded,
 .primary-btn--rounded,
 .danger-btn--rounded {

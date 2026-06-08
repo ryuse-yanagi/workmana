@@ -56,5 +56,8 @@ Route::middleware(['cognito'])->group(function () {
 
         Route::get('/projects/{project}/tasks/{task}/comments', [TaskCommentController::class, 'index']);
         Route::post('/projects/{project}/tasks/{task}/comments', [TaskCommentController::class, 'store']);
+        Route::patch('/projects/{project}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'update']);
+        Route::delete('/projects/{project}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy']);
+        Route::post('/projects/{project}/tasks/{task}/comments/{comment}/reactions', [TaskCommentController::class, 'toggleReaction']);
     });
 });

@@ -36,7 +36,6 @@
             title="アーカイブ済みカード"
           >
             <Trash2 :size="24" :stroke-width="2.25" aria-hidden="true" />
-            <span>アーカイブ</span>
           </NuxtLink>
           <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
           <ChartGantt :size="24" :stroke-width="2.25" aria-hidden="true" />
@@ -852,6 +851,7 @@ function onTaskDetailUpdated (detail: TaskDetail) {
     title: detail.title,
     status: detail.status,
     list_id: detail.list_id,
+    sort_order: (detail as Task).sort_order ?? existing.sort_order,
     labels: detail.labels,
     assignees: detail.assignees,
     task_heading_id: detail.task_heading_id ?? detail.heading?.id ?? null,
@@ -877,6 +877,28 @@ function addTaskToBoard (task: Task) {
   }
   tasks.value.push(task)
   rebuildBoardFromTasks()
+}
+
+function applyTasksReordered (listId: number, taskIds: number[]) {
+  if (!tasks.value) {
+    return
+  }
+  taskIds.forEach((id, index) => {
+    const task = tasks.value?.find(t => t.id === id)
+    if (task) {
+      task.sort_order = index
+    }
+  })
+  rebuildBoardFromTasks()
+}
+
+function applyListsReordered (listIds: number[]) {
+  const orderMap = new Map(listIds.map((id, index) => [id, index]))
+  lists.value.sort((a, b) => {
+    const aOrder = orderMap.get(a.listId) ?? Number.MAX_SAFE_INTEGER
+    const bOrder = orderMap.get(b.listId) ?? Number.MAX_SAFE_INTEGER
+    return aOrder - bOrder
+  })
 }
 
 async function confirmArchiveFromModal () {
@@ -1929,6 +1951,9 @@ useProjectRealtimeChannel(projectId, {
   onTaskDeleted (taskId) {
     removeTaskFromBoard(taskId)
   },
+  onTasksReordered ({ list_id, task_ids }) {
+    applyTasksReordered(list_id, task_ids)
+  },
   onListCreated () {
     void load({ refresh: true })
   },
@@ -1942,6 +1967,9 @@ useProjectRealtimeChannel(projectId, {
   },
   onListDeleted () {
     void load({ refresh: true })
+  },
+  onListsReordered ({ list_ids }) {
+    applyListsReordered(list_ids)
   },
 })
 

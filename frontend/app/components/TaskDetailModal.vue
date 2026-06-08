@@ -6,8 +6,6 @@
         class="modal-overlay"
         :class="{ 'modal-overlay--popover-open': !!activePopover }"
         role="presentation"
-        @mousedown="onOverlayMouseDown"
-        @click.self="onOverlayBackdropClick"
       >
         <section
           ref="modalCardRef"
@@ -736,8 +734,6 @@ const saveError = ref<string | null>(null)
 
 const ignoreOverlayCloseUntil = ref(0)
 /** モーダル内で押し始めた操作（文字選択ドラッグなど）では外側で離しても閉じない */
-const mouseDownInsideModal = ref(false)
-
 const activePopover = ref<PopoverType | null>(null)
 const selectedMember = ref<TaskDetailMember | null>(null)
 const popoverError = ref<string | null>(null)
@@ -929,7 +925,6 @@ function resetState () {
   saveError.value = null
   dismissPopover()
   ignoreOverlayCloseUntil.value = 0
-  mouseDownInsideModal.value = false
   popoverStyle.value = {}
   popoverAnchorEl.value = null
   calendarCursor.value = new Date()
@@ -1305,35 +1300,6 @@ function armOverlayCloseGuard (ms = 400) {
 
 function isOverlayCloseBlocked (): boolean {
   return Date.now() < ignoreOverlayCloseUntil.value
-}
-
-function onOverlayMouseDown (event: MouseEvent) {
-  const card = modalCardRef.value
-  const target = event.target
-  mouseDownInsideModal.value = !!(
-    card && target instanceof Node && card.contains(target)
-  )
-}
-
-function hasActiveTextSelectionInModal (): boolean {
-  const sel = window.getSelection()
-  if (!sel || sel.isCollapsed) return false
-  const card = modalCardRef.value
-  if (!card) return false
-  const anchor = sel.anchorNode
-  const focus = sel.focusNode
-  return !!(
-    (anchor && card.contains(anchor))
-    || (focus && card.contains(focus))
-  )
-}
-
-function onOverlayBackdropClick (event: MouseEvent) {
-  const startedInside = mouseDownInsideModal.value
-  mouseDownInsideModal.value = false
-  if (startedInside || hasActiveTextSelectionInModal()) return
-  if (event.target !== event.currentTarget) return
-  close()
 }
 
 function close () {
@@ -2879,7 +2845,6 @@ async function saveDescription () {
 }
 
 .description-block {
-  margin-top: auto;
   flex-shrink: 0;
 }
 
