@@ -382,6 +382,7 @@ onBeforeUnmount(() => {
   font-weight: 900;
   color: #2b2e2f;
   line-height: 1.1;
+  letter-spacing: 0.05em;
   flex-shrink: 0;
 }
 
@@ -395,7 +396,7 @@ onBeforeUnmount(() => {
 
 .header-search,
 .header-sort {
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0 0.55rem;
   font-size: 0.82rem;
@@ -414,6 +415,11 @@ onBeforeUnmount(() => {
 
 .header-search::placeholder {
   color: #94a3b8;
+}
+
+.header-search:focus,
+.header-sort:focus {
+  @include mixin.input-focus-ring;
 }
 
 .header-sort {

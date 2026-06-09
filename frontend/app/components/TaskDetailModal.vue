@@ -1875,14 +1875,13 @@ async function saveDescription () {
 }
 
 .icon-close {
+  @include mixin.modal-close-hit-area;
   background: transparent;
   border: none;
   color: #fff;
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
-  padding: 0;
-  margin: 0;
 }
 
 .modal-body {
@@ -1995,7 +1994,7 @@ async function saveDescription () {
 }
 
 .title-input {
-  border: 1px solid transparent;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.5rem 0.6rem;
   font-size: 1.8rem;
@@ -2029,8 +2028,7 @@ async function saveDescription () {
 }
 
 .title-input:focus {
-  outline: none;
-  border-color: #2563eb;
+  @include mixin.input-focus-ring;
 }
 
 .action-buttons {
@@ -2043,7 +2041,7 @@ async function saveDescription () {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.38rem 0.7rem;
   font-size: 0.84rem;
@@ -2150,7 +2148,7 @@ async function saveDescription () {
   width: calc(100% - 1.3rem);
   margin: 0.55rem 0.65rem 0.45rem;
   box-sizing: border-box;
-  border: 2px solid mixin.$accent-border;
+  border: 1px solid mixin.$border;
   border-radius: 6px;
   padding: 0.45rem 0.55rem;
   font-size: 0.88rem;
@@ -2158,7 +2156,7 @@ async function saveDescription () {
 }
 
 .label-search-input:focus {
-  outline: none;
+  @include mixin.input-focus-ring;
 }
 
 .label-section-heading {
@@ -2275,7 +2273,7 @@ async function saveDescription () {
 .heading-create-input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.5rem 0.6rem;
   font-size: 0.88rem;
@@ -2284,8 +2282,7 @@ async function saveDescription () {
 }
 
 .heading-create-input:focus {
-  outline: none;
-  border-color: #2563eb;
+  @include mixin.input-focus-ring;
 }
 
 .heading-create-actions {
@@ -2568,7 +2565,7 @@ async function saveDescription () {
   flex: 1 1 auto;
   min-width: 0;
   box-sizing: border-box;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.45rem 0.6rem;
   font-size: 0.94rem;
@@ -2578,14 +2575,13 @@ async function saveDescription () {
 }
 
 .popover--effort .effort-input:focus {
-  outline: none;
-  border-color: #2563eb;
+  @include mixin.input-focus-ring;
 }
 
 .popover--effort .effort-unit-select {
   flex: 0 0 auto;
   box-sizing: border-box;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.45rem 0.5rem;
   font-size: 0.88rem;
@@ -2596,8 +2592,7 @@ async function saveDescription () {
 }
 
 .popover--effort .effort-unit-select:focus {
-  outline: none;
-  border-color: #2563eb;
+  @include mixin.input-focus-ring;
 }
 
 .detail-item {
@@ -2674,7 +2669,7 @@ async function saveDescription () {
 .calendar-nav-btn {
   width: 2rem;
   height: 2rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 6px;
   background: #fff;
   color: #334155;
@@ -2820,7 +2815,7 @@ async function saveDescription () {
   width: 2rem;
   height: 2rem;
   box-sizing: border-box;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 6px;
   padding: 0;
   background: #fff;
@@ -2918,7 +2913,7 @@ button:disabled {
 }
 
 .member-avatar-btn--add {
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   background: #fff;
   color: #64748b;
 }

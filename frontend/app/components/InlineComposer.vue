@@ -85,7 +85,7 @@ defineExpose({ inputRef })
 .inline-composer__textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   font: inherit;
@@ -96,6 +96,11 @@ defineExpose({ inputRef })
 .inline-composer__textarea {
   resize: vertical;
   min-height: 4.5rem;
+}
+
+.inline-composer__input:focus,
+.inline-composer__textarea:focus {
+  @include mixin.input-focus-ring;
 }
 
 .inline-composer__actions {

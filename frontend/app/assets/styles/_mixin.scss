@@ -3,13 +3,12 @@
 
 $main: #0c66e4;
 $main-hover: #053580;
-/** $main よりやや水色寄り（明るめ・シアン寄り） */
-$main-aqua: #00b7f4;
+$main-aqua: #25c0f3;
 $main-aqua-hover: #0096d1;
 $accent-border: #388bff;
 $brand: #0b2bab;
 $action: $main;
-$focus: #2563eb;
+$focus: $main;
 $text: #0f172a;
 $text-sub: #475569;
 $text-muted: #64748b;
@@ -31,6 +30,12 @@ $white: #fff;
   background: $main;
   color: $white;
   flex-shrink: 0;
+}
+
+/** モーダルヘッダー ✕ — 見た目はそのまま、周囲 16px をヒット領域に含める */
+@mixin modal-close-hit-area {
+  padding: 12px;
+  margin: -12px;
 }
 
 @mixin btn-base {
@@ -59,4 +64,22 @@ $white: #fff;
   border-color: #cbd5e1;
   color: #64748b;
   background: #f1f5f9;
+}
+
+/** 入力欄 — 非フォーカス時の border */
+@mixin input-border-default {
+  border: 1px solid $border;
+}
+
+/** 入力欄フォーカス — border あり input / textarea / select 向け */
+@mixin input-focus-ring {
+  outline: none;
+  border-color: $main;
+  box-shadow: 0 0 0 1px $main;
+}
+
+/** 入力欄フォーカス — border なしで outline のみ使う場合 */
+@mixin input-focus-outline {
+  outline: 2px solid $main;
+  outline-offset: 2px;
 }

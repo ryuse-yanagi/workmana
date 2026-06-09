@@ -651,11 +651,15 @@ h2 {
 }
 
 input {
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   font-size: 0.95rem;
   background: #fff;
+
+  &:focus {
+    @include mixin.input-focus-ring;
+  }
 }
 
 .button-row {

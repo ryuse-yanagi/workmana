@@ -110,11 +110,15 @@ function submit () {
 }
 
 .field input[type='text'] {
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   font-size: 0.94rem;
   background: #fff;
+
+  &:focus {
+    @include mixin.input-focus-ring;
+  }
 }
 
 .label-picker {

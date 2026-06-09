@@ -743,7 +743,7 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .task-description-editor {
-  border: 1px solid mixin.$border;
+  @include mixin.input-border-default;
   border-radius: 8px;
   background: mixin.$white;
   overflow: visible;
@@ -907,9 +907,7 @@ onBeforeUnmount(() => {
   }
 
   &:focus {
-    outline: none;
-    border-color: mixin.$focus;
-    box-shadow: 0 0 0 1px mixin.$focus;
+    @include mixin.input-focus-ring;
   }
 }
 

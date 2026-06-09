@@ -29,16 +29,21 @@
               aria-label="カード名検索"
             />
           </div>
-          <NuxtLink
-            class="header-primary-btn header-primary-btn--with-label linkish"
-            :to="`/org/${slug}/projects/${projectId}/archived`"
-            aria-label="アーカイブ済みカード"
-            title="アーカイブ済みカード"
-          >
-            <Trash2 :size="24" :stroke-width="2.25" aria-hidden="true" />
-          </NuxtLink>
           <NotebookText :size="24" :stroke-width="2.25" aria-hidden="true" />
           <ChartGantt :size="24" :stroke-width="2.25" aria-hidden="true" />
+          <div class="subheader-menu" data-subheader-menu-root>
+            <button
+              ref="subheaderMenuTriggerRef"
+              type="button"
+              class="subheader-menu-trigger"
+              :aria-expanded="subheaderMenuOpen"
+              aria-haspopup="menu"
+              aria-label="メニュー"
+              @click.stop="toggleSubheaderMenu"
+            >
+              <Ellipsis :size="24" :stroke-width="2.25" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -383,6 +388,22 @@
     </template>
 
     <Teleport to="body">
+      <div
+        v-if="subheaderMenuOpen && subheaderMenuPosition"
+        class="subheader-menu-dropdown"
+        role="menu"
+        :style="subheaderMenuStyle"
+      >
+        <NuxtLink
+          class="subheader-menu-item subheader-menu-item--danger"
+          :to="`/org/${slug}/projects/${projectId}/archived`"
+          role="menuitem"
+          @click="closeSubheaderMenu"
+        >
+          <Trash2 :size="18" :stroke-width="2.25" aria-hidden="true" />
+          アーカイブ済み
+        </NuxtLink>
+      </div>
       <ul
         v-if="openMenuTask && cardMenuPosition"
         class="card-menu"
@@ -415,7 +436,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChartGantt, Trash2, NotebookText, Pencil } from 'lucide-vue-next'
+import { ChartGantt, Trash2, NotebookText, Pencil, Ellipsis } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../../../../../components/TaskDetailModal.vue'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
@@ -457,6 +478,10 @@ const pending = ref(false)
 const pageReady = ref(false)
 const fatalLoadError = ref<string | null>(null)
 const searchQuery = ref('')
+const subheaderMenuOpen = ref(false)
+const subheaderMenuTriggerRef = ref<HTMLElement | null>(null)
+const subheaderMenuPosition = ref<{ top: number; left: number } | null>(null)
+const SUBHEADER_MENU_MIN_WIDTH = 200
 const showListCreator = ref(false)
 const newListTitle = ref('')
 const activeComposerKey = ref<string | null>(null)
@@ -557,14 +582,6 @@ const taskDetailOpen = computed({
   },
 })
 
-const openMenuTask = computed(() => {
-  const id = openCardMenuTaskId.value
-  if (id == null || !tasks.value) {
-    return null
-  }
-  return tasks.value.find(t => t.id === id) ?? null
-})
-
 const cardMenuStyle = computed(() => {
   if (!cardMenuPosition.value) {
     return {}
@@ -577,6 +594,28 @@ const cardMenuStyle = computed(() => {
     zIndex: 1000,
   }
 })
+
+const openMenuTask = computed(() => {
+  const id = openCardMenuTaskId.value
+  if (id == null || !tasks.value) {
+    return null
+  }
+  return tasks.value.find(t => t.id === id) ?? null
+})
+
+const subheaderMenuStyle = computed(() => {
+  if (!subheaderMenuPosition.value) {
+    return {}
+  }
+  const { top, left } = subheaderMenuPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    zIndex: 1000,
+  }
+})
+
 const filteredTaskIds = computed<Set<number> | null>(() => {
   const query = searchQuery.value.toLowerCase()
   if (!query) return null
@@ -681,6 +720,37 @@ function taskHeadingName (task: Task): string | null {
   return projectHeadings.value.find(h => h.id === id)?.name ?? null
 }
 
+function closeSubheaderMenu () {
+  subheaderMenuOpen.value = false
+  subheaderMenuPosition.value = null
+}
+
+function positionSubheaderMenu () {
+  const anchor = subheaderMenuTriggerRef.value
+  if (!anchor || !import.meta.client) {
+    subheaderMenuPosition.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const pad = 8
+  const gap = 6
+  let left = rect.right - SUBHEADER_MENU_MIN_WIDTH
+  left = Math.max(pad, Math.min(left, window.innerWidth - SUBHEADER_MENU_MIN_WIDTH - pad))
+  subheaderMenuPosition.value = {
+    top: rect.bottom + gap,
+    left,
+  }
+}
+
+function toggleSubheaderMenu () {
+  if (subheaderMenuOpen.value) {
+    closeSubheaderMenu()
+    return
+  }
+  subheaderMenuOpen.value = true
+  nextTick(() => positionSubheaderMenu())
+}
+
 function closeCardMenu () {
   openCardMenuTaskId.value = null
   cardMenuPosition.value = null
@@ -741,12 +811,20 @@ function onGlobalClick (ev: Event) {
     if (el && el.closest('.card-menu')) {
       return
     }
+    if (el && el.closest('[data-subheader-menu-root]')) {
+      return
+    }
+    if (el && el.closest('.subheader-menu-dropdown')) {
+      return
+    }
   }
   closeCardMenu()
+  closeSubheaderMenu()
 }
 
 function onWindowResize () {
   closeCardMenu()
+  closeSubheaderMenu()
   updateStickyOffsets()
   updateDropZoneScrollableState()
 }
@@ -2046,7 +2124,7 @@ onBeforeUnmount(() => {
   height: 48px;
   display: flex;
   align-items: center;
-  padding: 0 0.9rem;
+  padding: 0 1.4rem 0 0.9rem;
   background: #ffffff;
   border-bottom: 1px solid rgba(15, 23, 42, 0.35);
   box-shadow: 0 1px 8px rgba(15, 23, 42, 0.18);
@@ -2084,9 +2162,10 @@ onBeforeUnmount(() => {
 .subheader-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3rem;
   text-decoration: none;
-  color: mixin.$main;
+  color: mixin.$main-aqua;
+  letter-spacing: 0.05em;
   line-height: 1.1;
   transition: color 0.16s ease;
 
@@ -2108,11 +2187,6 @@ onBeforeUnmount(() => {
   }
 }
 
-.subheader-back-link:hover {
-  color: mixin.$main-hover;
-  text-decoration: none;
-}
-
 .subheader-filters {
   display: flex;
   align-items: center;
@@ -2123,7 +2197,7 @@ onBeforeUnmount(() => {
 
 .header-search,
 .header-sort {
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0 0.55rem;
   font-size: 0.82rem;
@@ -2144,6 +2218,11 @@ onBeforeUnmount(() => {
   color: #94a3b8;
 }
 
+.header-search:focus,
+.header-sort:focus {
+  @include mixin.input-focus-ring;
+}
+
 .header-sort {
   flex-shrink: 0;
   width: 6.75rem;
@@ -2160,38 +2239,52 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.header-primary-btn {
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: 999px;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.82rem;
-  font-weight: 800;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.92);
-  color: #172554;
-  white-space: nowrap;
+.subheader-menu {
   flex-shrink: 0;
 }
 
-.header-primary-btn.linkish {
+.subheader-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #334155;
+  cursor: pointer;
+  padding: 0;
+  line-height: 0;
+}
+
+.subheader-menu-dropdown {
+  min-width: 12.5rem;
   box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  padding: 0.35rem;
 }
 
-.header-primary-btn--with-label {
-  gap: 0.4rem;
-  min-height: 2.35rem;
-  padding-inline: 0.75rem;
+.subheader-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.86rem;
+  text-decoration: none;
+  cursor: pointer;
 }
 
-.header-primary-btn--icon-group {
-  width: auto;
-  min-height: 2.35rem;
-  padding: 0.14rem 0.55rem;
-  gap: 1.4rem;
+.subheader-menu-item--danger {
+  color: mixin.$danger;
+}
+
+.subheader-menu-item--danger:hover {
+  background: #fef2f2;
 }
 
 .page-shell-fade > .board {
@@ -2341,7 +2434,7 @@ onBeforeUnmount(() => {
 
 .list-title-input {
   display: block;
-  border: none;
+  border: 1px solid mixin.$border;
   background: transparent;
   border-radius: 4px;
   appearance: none;
@@ -2349,8 +2442,7 @@ onBeforeUnmount(() => {
 }
 
 .list-title-input:focus {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
+  @include mixin.input-focus-outline;
 }
 
 .list-header--editing .list-title-field,
@@ -2388,7 +2480,7 @@ onBeforeUnmount(() => {
 .card-title-input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 6px;
   padding: 0.2rem 0.35rem;
   font: inherit;
@@ -2405,8 +2497,7 @@ onBeforeUnmount(() => {
 }
 
 .card-title-input:focus {
-  outline: none;
-  border-color: #2563eb;
+  @include mixin.input-focus-ring;
 }
 
 .list-count {
@@ -2560,7 +2651,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   flex-shrink: 0;
   background: #fff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 10px;
   padding: 0.45rem 0.55rem;
   cursor: pointer;
@@ -2618,7 +2709,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   flex-shrink: 0;
   background: #fff !important;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 10px;
 }
 
@@ -2845,7 +2936,7 @@ onBeforeUnmount(() => {
 .composer-input {
   width: 100%;
   box-sizing: border-box;
-  border: 2px solid #388bfd;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.55rem 0.65rem;
   font: inherit;
@@ -2861,8 +2952,7 @@ onBeforeUnmount(() => {
 }
 
 .composer-input:focus {
-  outline: none;
-  border-color: mixin.$main;
+  @include mixin.input-focus-ring;
 }
 
 .composer-actions {
@@ -2978,7 +3068,7 @@ button:disabled {
   box-sizing: border-box;
   flex-shrink: 0;
   background: #fff;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 10px;
   padding: 0.45rem 0.55rem;
   cursor: grabbing;

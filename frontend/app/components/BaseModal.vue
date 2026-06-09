@@ -146,14 +146,13 @@ defineExpose({ cardRef })
 }
 
 .base-modal-close {
+  @include mixin.modal-close-hit-area;
   background: transparent;
   border: none;
   color: #fff;
   font-size: 1.4rem;
   line-height: 1;
   cursor: pointer;
-  padding: 0;
-  margin: 0;
 }
 
 .base-modal-close:disabled {

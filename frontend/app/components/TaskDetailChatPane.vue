@@ -556,7 +556,7 @@ defineExpose({ resetComments })
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.4rem 0.85rem;
+  padding: 0.6rem 0.85rem;
   background: #6b7f94;
   color: mixin.$white;
 }
@@ -671,9 +671,7 @@ defineExpose({ resetComments })
 }
 
 .comment-item__edit-input:focus {
-  outline: none;
-  border-color: mixin.$main;
-  box-shadow: 0 0 0 1px mixin.$main;
+  @include mixin.input-focus-ring;
 }
 
 .comment-item__edit-actions {
@@ -861,9 +859,7 @@ defineExpose({ resetComments })
 }
 
 .chat-input:focus {
-  outline: none;
-  border-color: mixin.$main;
-  box-shadow: 0 0 0 1px mixin.$main;
+  @include mixin.input-focus-ring;
 }
 
 .chat-send-btn {

@@ -102,4 +102,19 @@ body {
 .load-fatal-retry:hover {
   opacity: 0.92;
 }
+
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']),
+textarea,
+select {
+  @include mixin.input-border-default;
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']):focus,
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']):focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  @include mixin.input-focus-ring;
+}
 </style>
