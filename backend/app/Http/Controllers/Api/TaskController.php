@@ -11,12 +11,11 @@ use App\Events\TaskDeleted;
 use App\Events\TaskRestored;
 use App\Events\TaskUpdated;
 use App\Models\BoardList;
-use App\Models\TaskHeading;
-use App\Models\TaskLabel;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TaskHistory;
+use App\Models\TaskLabel;
 use App\Models\User;
 use App\Enums\TaskHistoryEventType;
 use App\Support\SafeBroadcast;
@@ -47,20 +46,23 @@ class TaskController extends ApiController
             ->with([
                 'labels:id,name,color',
                 'assignees:id,name,email,avatar_path',
-                'heading:id,name',
             ])
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get([
                 'id',
                 'list_id',
-                'task_heading_id',
                 'sort_order',
+                'is_parent_task',
+                'parent_task_id',
                 'title',
                 'status',
                 'priority',
                 'start_date',
                 'due_date',
+                'effort_hours',
+                'effort_value',
+                'effort_unit',
                 'assignee_id',
                 'reporter_id',
                 'created_at',
@@ -68,6 +70,65 @@ class TaskController extends ApiController
 
         return response()->json([
             'data' => $tasks->map(fn (Task $task) => $this->taskListPayload($task)),
+        ]);
+    }
+
+    public function wbsIndex(Request $request, Organization $organization, Project $project): JsonResponse
+    {
+        $this->ensureProjectBelongsToOrganization($project, $organization);
+        $this->ensureProjectMember($request->user(), $project);
+
+        $tasks = $project->tasks()
+            ->notArchived()
+            ->with([
+                'labels:id,name,color',
+                'assignees:id,name,email,avatar_path',
+                'list:id,name,project_id',
+            ])
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'list_id',
+                'sort_order',
+                'is_parent_task',
+                'parent_task_id',
+                'title',
+                'description',
+                'status',
+                'priority',
+                'start_date',
+                'due_date',
+                'effort_hours',
+                'effort_value',
+                'effort_unit',
+                'assignee_id',
+                'reporter_id',
+                'created_at',
+            ]);
+
+        return response()->json([
+            'data' => $tasks->map(fn (Task $task) => $this->taskWbsPayload($task)),
+        ]);
+    }
+
+    public function parentTasksIndex(Request $request, Organization $organization, Project $project): JsonResponse
+    {
+        $this->ensureProjectBelongsToOrganization($project, $organization);
+        $this->ensureProjectMember($request->user(), $project);
+
+        $tasks = $project->tasks()
+            ->notArchived()
+            ->where('is_parent_task', true)
+            ->orderBy('title')
+            ->orderBy('id')
+            ->get(['id', 'title']);
+
+        return response()->json([
+            'data' => $tasks->map(fn (Task $task) => [
+                'id' => $task->id,
+                'title' => $task->title,
+            ]),
         ]);
     }
 
@@ -100,6 +161,9 @@ class TaskController extends ApiController
                 'priority',
                 'start_date',
                 'due_date',
+                'effort_hours',
+                'effort_value',
+                'effort_unit',
                 'assignee_id',
                 'reporter_id',
                 'archived_at',
@@ -134,7 +198,8 @@ class TaskController extends ApiController
             'assignee_ids.*' => ['integer', 'distinct'],
             'label_ids' => ['nullable', 'array'],
             'label_ids.*' => ['integer', 'distinct'],
-            'task_heading_id' => ['sometimes', 'nullable', 'integer'],
+            'is_parent_task' => ['sometimes', 'boolean'],
+            'parent_task_id' => ['sometimes', 'nullable', 'integer'],
         ]);
 
         $title = trim($validated['title']);
@@ -151,6 +216,7 @@ class TaskController extends ApiController
 
         $user = $request->user();
         $assigneeIds = $this->resolveAssigneeIds($project, $validated);
+        [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($project, $validated);
 
         $sortOrder = 0;
         if (! empty($validated['list_id'])) {
@@ -162,16 +228,13 @@ class TaskController extends ApiController
             $sortOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
         }
 
-        $taskHeadingId = array_key_exists('task_heading_id', $validated)
-            ? $this->resolveTaskHeadingId($project, $validated['task_heading_id'] ?? null)
-            : null;
-
         $task = Task::query()->create([
             'organization_id' => $organization->id,
             'project_id' => $project->id,
             'list_id' => $validated['list_id'] ?? null,
-            'task_heading_id' => $taskHeadingId,
             'sort_order' => $sortOrder,
+            'is_parent_task' => $isParentTask,
+            'parent_task_id' => $parentTaskId,
             'title' => $title,
             'description' => $validated['description'] ?? null,
             'status' => $validated['status'] ?? TaskStatus::Todo->value,
@@ -250,7 +313,8 @@ class TaskController extends ApiController
             'assignee_ids.*' => ['integer', 'distinct'],
             'label_ids' => ['nullable', 'array'],
             'label_ids.*' => ['integer', 'distinct'],
-            'task_heading_id' => ['sometimes', 'nullable', 'integer'],
+            'is_parent_task' => ['sometimes', 'boolean'],
+            'parent_task_id' => ['sometimes', 'nullable', 'integer'],
         ]);
 
         if (array_key_exists('title', $validated)) {
@@ -303,11 +367,10 @@ class TaskController extends ApiController
             $task->assignee_id = $assigneeIdsToSync[0] ?? null;
         }
 
-        if (array_key_exists('task_heading_id', $validated)) {
-            $task->task_heading_id = $this->resolveTaskHeadingId(
-                $project,
-                $validated['task_heading_id'],
-            );
+        if (array_key_exists('is_parent_task', $validated) || array_key_exists('parent_task_id', $validated)) {
+            [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($project, $validated, $task);
+            $task->is_parent_task = $isParentTask;
+            $task->parent_task_id = $parentTaskId;
         }
 
         $task->save();
@@ -349,9 +412,18 @@ class TaskController extends ApiController
         $task->archived_at = now();
         $task->save();
 
-        SafeBroadcast::toOthers(TaskArchived::fromTask($task));
+        $fresh = $task->fresh();
+        $fresh->loadMissing([
+            'labels:id,name,color',
+            'assignees:id,name,email,avatar_path',
+        ]);
+        SafeBroadcast::toOthers(TaskArchived::fromSnapshot(
+            (int) $fresh->project_id,
+            (int) $fresh->id,
+            $this->taskListPayload($fresh),
+        ));
 
-        return response()->json($this->taskPayload($task->fresh()));
+        return response()->json($this->taskPayload($fresh));
     }
 
     public function unarchive(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
@@ -414,15 +486,14 @@ class TaskController extends ApiController
         $task->loadMissing([
             'labels:id,name,color',
             'assignees:id,name,email,avatar_path',
-            'heading:id,name',
         ]);
 
         return [
             'id' => $task->id,
             'list_id' => $task->list_id,
-            'task_heading_id' => $task->task_heading_id,
-            'heading' => $this->formatHeading($task),
             'sort_order' => $task->sort_order,
+            'is_parent_task' => (bool) $task->is_parent_task,
+            'parent_task_id' => $task->parent_task_id,
             'title' => $task->title,
             'description' => $task->description,
             'status' => $task->status,
@@ -450,14 +521,17 @@ class TaskController extends ApiController
         return [
             'id' => $task->id,
             'list_id' => $task->list_id,
-            'task_heading_id' => $task->task_heading_id,
-            'heading' => $this->formatHeading($task),
             'sort_order' => $task->sort_order,
+            'is_parent_task' => (bool) $task->is_parent_task,
+            'parent_task_id' => $task->parent_task_id,
             'title' => $task->title,
             'status' => $task->status,
             'priority' => $task->priority,
             'start_date' => $task->start_date,
             'due_date' => $task->due_date,
+            'effort_hours' => $task->effort_hours,
+            'effort_value' => $task->effort_value,
+            'effort_unit' => $task->effort_unit,
             'assignee_id' => $task->assignee_id,
             'assignees' => $this->formatAssignees($task->assignees),
             'reporter_id' => $task->reporter_id,
@@ -468,51 +542,62 @@ class TaskController extends ApiController
     }
 
     /**
-     * @return array{id: int, name: string}|null
+     * @return array<string, mixed>
      */
-    private function formatHeading(Task $task): ?array
+    private function taskWbsPayload(Task $task): array
     {
-        if ($task->relationLoaded('heading') && $task->heading !== null) {
-            return [
-                'id' => $task->heading->id,
-                'name' => $task->heading->name,
-            ];
-        }
+        $payload = $this->taskListPayload($task);
+        $payload['description'] = $task->description;
+        $payload['list_name'] = $task->relationLoaded('list') && $task->list !== null
+            ? $task->list->name
+            : null;
 
-        if ($task->task_heading_id === null) {
-            return null;
-        }
-
-        $heading = TaskHeading::query()
-            ->where('project_id', $task->project_id)
-            ->find($task->task_heading_id);
-
-        if ($heading === null) {
-            return null;
-        }
-
-        return [
-            'id' => $heading->id,
-            'name' => $heading->name,
-        ];
+        return $payload;
     }
 
-    private function resolveTaskHeadingId(Project $project, mixed $rawId): ?int
+    /**
+     * @param array<string, mixed> $validated
+     * @return array{0: bool, 1: int|null}
+     */
+    private function resolveParentTaskFields(Project $project, array $validated, ?Task $task = null): array
     {
-        if ($rawId === null || $rawId === '') {
-            return null;
+        $isParent = (bool) ($validated['is_parent_task'] ?? false);
+        $parentId = null;
+        if (array_key_exists('parent_task_id', $validated) && $validated['parent_task_id'] !== null) {
+            $parentId = (int) $validated['parent_task_id'];
         }
 
-        $id = (int) $rawId;
-        $exists = TaskHeading::query()
+        if ($isParent) {
+            if ($parentId !== null) {
+                abort(422, 'Parent tasks cannot have a parent task.');
+            }
+
+            return [true, null];
+        }
+
+        if ($parentId === null) {
+            return [false, null];
+        }
+
+        if ($task !== null && $parentId === (int) $task->id) {
+            abort(422, 'A task cannot be its own parent.');
+        }
+
+        $parent = Task::query()
             ->where('project_id', $project->id)
-            ->where('id', $id)
-            ->exists();
-        if (! $exists) {
-            abort(422, 'Invalid task heading for this project.');
+            ->where('id', $parentId)
+            ->notArchived()
+            ->first();
+
+        if ($parent === null || ! $parent->is_parent_task) {
+            abort(422, 'Invalid parent task for this project.');
         }
 
-        return $id;
+        if ($task !== null && (int) $parent->parent_task_id === (int) $task->id) {
+            abort(422, 'Invalid parent task relationship.');
+        }
+
+        return [false, $parentId];
     }
 
     /**

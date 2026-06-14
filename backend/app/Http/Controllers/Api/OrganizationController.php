@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Organization;
+use App\Support\DefaultBoardLists;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -73,6 +74,7 @@ class OrganizationController extends ApiController
             'name' => $organization->name,
             'slug' => $organization->slug,
             'work_unit_label' => $organization->work_unit_label ?? 'プロジェクト',
+            'default_board_list_names' => DefaultBoardLists::namesForOrganization($organization),
         ]);
     }
 
@@ -84,21 +86,30 @@ class OrganizationController extends ApiController
         }
 
         $validated = $request->validate([
-            'work_unit_label' => ['required', 'string', 'max:40'],
+            'work_unit_label' => ['sometimes', 'string', 'max:40'],
+            'default_board_list_names' => ['sometimes', 'array', 'max:20'],
+            'default_board_list_names.*' => ['string', 'max:255'],
         ]);
 
-        $label = trim($validated['work_unit_label']);
-        if ($label === '') {
-            return response()->json(['message' => 'Work unit label cannot be empty.'], 422);
+        if (array_key_exists('work_unit_label', $validated)) {
+            $label = trim($validated['work_unit_label']);
+            if ($label === '') {
+                return response()->json(['message' => 'Work unit label cannot be empty.'], 422);
+            }
+            $organization->work_unit_label = $label;
         }
 
-        $organization->work_unit_label = $label;
+        if (array_key_exists('default_board_list_names', $validated)) {
+            $organization->default_board_list_names = DefaultBoardLists::normalizeNames($validated['default_board_list_names']);
+        }
+
         $organization->save();
 
         return response()->json([
             'id' => $organization->id,
             'slug' => $organization->slug,
             'work_unit_label' => $organization->work_unit_label,
+            'default_board_list_names' => DefaultBoardLists::namesForOrganization($organization),
         ]);
     }
 }

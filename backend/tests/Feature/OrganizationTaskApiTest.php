@@ -42,31 +42,6 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('title', 'First task');
 
-        $headingRes = $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/task-headings", [
-                'name' => 'Phase 1',
-            ])
-            ->assertCreated()
-            ->assertJsonPath('name', 'Phase 1');
-
-        $headingId = $headingRes->json('id');
-
-        $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
-                'task_heading_id' => $headingId,
-            ])
-            ->assertOk()
-            ->assertJsonPath('heading.name', 'Phase 1')
-            ->assertJsonPath('task_heading_id', $headingId);
-
-        $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
-                'task_heading_id' => null,
-            ])
-            ->assertOk()
-            ->assertJsonPath('heading', null)
-            ->assertJsonPath('task_heading_id', null);
-
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
                 'effort_hours' => 8.5,
@@ -86,12 +61,79 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('effort_hours', '0.066667');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks")
+            ->assertOk()
+            ->assertJsonPath('data.0.effort_value', '4.0000')
+            ->assertJsonPath('data.0.effort_unit', 'minute')
+            ->assertJsonPath('data.0.effort_hours', '0.066667');
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'description' => 'WBS note',
+            ])
+            ->assertOk();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->assertOk()
+            ->assertJsonPath('data.0.description', 'WBS note')
+            ->assertJsonPath('data.0.list_name', null);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
                 'effort_hours' => null,
             ])
             ->assertOk()
             ->assertJsonPath('effort_hours', null)
             ->assertJsonPath('effort_unit', null);
+    }
+
+    public function test_user_can_create_parent_and_child_tasks(): void
+    {
+        $user = User::factory()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/organizations', [
+                'name' => 'Acme',
+                'slug' => 'acme',
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/orgs/acme/projects', [
+                'name' => 'Sprint 1',
+            ])
+            ->assertCreated();
+
+        $project = Project::query()->first();
+        $this->assertNotNull($project);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Parent task',
+                'status' => 'todo',
+                'is_parent_task' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('title', 'Parent task')
+            ->assertJsonPath('is_parent_task', true)
+            ->assertJsonPath('parent_task_id', null);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/parents")
+            ->assertOk()
+            ->assertJsonPath('data.0.title', 'Parent task');
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Child task',
+                'status' => 'todo',
+                'parent_task_id' => 1,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('title', 'Child task')
+            ->assertJsonPath('is_parent_task', false)
+            ->assertJsonPath('parent_task_id', 1);
     }
 
     public function test_non_member_cannot_access_org(): void

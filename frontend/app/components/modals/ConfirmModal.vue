@@ -61,7 +61,7 @@ function close () {
 .confirm-modal-message {
   margin: 0;
   font-size: 0.9rem;
-  color: #475569;
+  color: mixin.$text-sub;
   line-height: 1.45;
 }
 

@@ -16,8 +16,9 @@ class Task extends Model
         'organization_id',
         'project_id',
         'list_id',
-        'task_heading_id',
         'sort_order',
+        'is_parent_task',
+        'parent_task_id',
         'title',
         'description',
         'status',
@@ -35,6 +36,7 @@ class Task extends Model
     protected function casts(): array
     {
         return [
+            'is_parent_task' => 'boolean',
             'start_date' => 'datetime',
             'due_date' => 'datetime',
             'effort_hours' => 'decimal:6',
@@ -58,9 +60,14 @@ class Task extends Model
         return $this->belongsTo(BoardList::class, 'list_id');
     }
 
-    public function heading(): BelongsTo
+    public function parentTask(): BelongsTo
     {
-        return $this->belongsTo(TaskHeading::class, 'task_heading_id');
+        return $this->belongsTo(Task::class, 'parent_task_id');
+    }
+
+    public function childTasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'parent_task_id');
     }
 
     public function assignee(): BelongsTo

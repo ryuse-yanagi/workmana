@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { memberInitial, type MemberLike } from '../composables/useMemberDisplay'
+import { memberInitial, type MemberLike } from '../../composables/useMemberDisplay'
 
 const props = withDefaults(defineProps<{
   member: MemberLike
@@ -80,7 +80,7 @@ const initial = computed(() => memberInitial(props.member))
 
 .member-avatar__initial {
   font-weight: 800;
-  color: #475569;
+  color: mixin.$text-sub;
   line-height: 1;
 }
 

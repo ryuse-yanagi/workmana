@@ -11,7 +11,7 @@
           :disabled="!orgSlug"
           aria-label="設定"
           title="設定"
-          @click="goSettingsProfile"
+          @click="goOrgSettings"
         >
           <Settings :size="16" :stroke-width="2.25" aria-hidden="true" />
         </button>
@@ -38,14 +38,17 @@
         </div>
       </div>
     </div>
+
+    <ProfileSettingsModal v-model="profileModalOpen" />
   </header>
 </template>
 
 <script setup lang="ts">
 import { Settings } from 'lucide-vue-next'
-import { useApi } from '../composables/useApi'
-import { useAuth } from '../composables/useAuth'
-import { useOrgTerminology, useWorkUnitLabel } from '../composables/useOrgTerminology'
+import ProfileSettingsModal from '../modals/ProfileSettingsModal.vue'
+import { useApi } from '../../composables/useApi'
+import { useAuth } from '../../composables/useAuth'
+import { useOrgTerminology, useWorkUnitLabel } from '../../composables/useOrgTerminology'
 
 type MeResponse = {
   name?: string | null
@@ -64,6 +67,7 @@ const orgSlug = ref<string | null>(slugFromRoute())
 const avatarUrl = ref<string | null>(null)
 const displayName = ref('')
 const menuOpen = ref(false)
+const profileModalOpen = ref(false)
 const { workUnitListLabel } = useWorkUnitLabel(() => orgSlug.value ?? '')
 
 const initials = computed(() => {
@@ -74,7 +78,13 @@ const initials = computed(() => {
 
 function slugFromRoute (): string | null {
   const name = String(route.name || '')
-  if (name === 'org-slug' || name === 'org-slug-settings' || name === 'org-slug-projects-id') {
+  if (
+    name === 'org-slug'
+    || name === 'org-slug-settings'
+    || name === 'org-slug-projects-id'
+    || name === 'org-slug-projects-id-wbs'
+    || name === 'org-slug-projects-id-documents'
+  ) {
     const s = route.params.slug
     return typeof s === 'string' && s.trim() ? s : null
   }
@@ -151,14 +161,15 @@ function goProjectList () {
   void router.push(`/org/${orgSlug.value}`)
 }
 
-function goSettingsProfile () {
+function goOrgSettings () {
   if (!orgSlug.value) return
   closeMenu()
-  void router.push({ path: `/org/${orgSlug.value}/settings`, query: { tab: 'profile' } })
+  void router.push({ path: `/org/${orgSlug.value}/settings`, query: { tab: 'work_unit_label' } })
 }
 
 function goProfileFromMenu () {
-  goSettingsProfile()
+  closeMenu()
+  profileModalOpen.value = true
 }
 
 function logout () {
@@ -185,10 +196,16 @@ function onWorkUnitLabelUpdated (e: Event) {
 }
 
 function onUserProfileUpdated (e: Event) {
-  const detail = (e as CustomEvent<{ name?: string }>).detail
+  const detail = (e as CustomEvent<{ name?: string; avatar_url?: string | null }>).detail
   const name = (detail?.name || '').trim()
   if (name) {
     displayName.value = name
+  }
+  if (detail && 'avatar_url' in detail) {
+    avatarUrl.value = detail.avatar_url || null
+    return
+  }
+  if (name) {
     return
   }
   void refreshMeContext()

@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use App\Models\Task;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -42,20 +41,11 @@ class TaskArchived implements ShouldBroadcastNow
         ];
     }
 
-    public static function fromTask(Task $task): self
+    /**
+     * @param  array<string, mixed>  $taskSnapshot
+     */
+    public static function fromSnapshot(int $projectId, int $taskId, array $taskSnapshot): self
     {
-        $task->loadMissing(['labels:id,name,color']);
-
-        return new self(
-            (int) $task->project_id,
-            (int) $task->id,
-            [
-                'id' => $task->id,
-                'list_id' => $task->list_id,
-                'title' => $task->title,
-                'status' => $task->status,
-                'archived_at' => $task->archived_at?->toIso8601String(),
-            ],
-        );
+        return new self($projectId, $taskId, $taskSnapshot);
     }
 }

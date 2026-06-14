@@ -39,13 +39,14 @@
             <div ref="modalBodyRef" class="modal-pane modal-pane--detail">
             <section class="field-block title-block">
               <button
-                v-if="task?.heading"
+                v-if="showParentTaskControl"
                 type="button"
-                class="task-detail-heading"
-                :disabled="saving || headingSaving"
-                @click="openHeadingPicker($event)"
+                class="task-detail-parent-task"
+                :class="{ 'task-detail-parent-task--placeholder': !task?.parent_task_id }"
+                :disabled="saving || parentTaskSaving"
+                @click="openParentTaskPicker($event)"
               >
-                {{ task.heading.name }}
+                {{ parentTaskButtonLabel }}
               </button>
               <div class="title-input-wrap">
                 <textarea
@@ -57,12 +58,14 @@
                   :disabled="saving || titleSaving"
                   rows="1"
                   @input="adjustTitleTextareaHeight"
+                  @compositionstart="titleComposing = true"
+                  @compositionend="titleComposing = false"
                   @blur="onTitleBlur"
                   @keydown.enter.prevent="onTitleEnter"
                   @keydown.escape.prevent="revertTitleDraft"
                 />
                 <span
-                  v-if="!titleDraft"
+                  v-if="showTitlePlaceholder"
                   class="title-input-placeholder"
                   aria-hidden="true"
                 >タスク名</span>
@@ -77,7 +80,9 @@
                 :disabled="saving"
                 @click="openDatePicker('start', $event)"
               >
-                <span class="action-btn-icon" aria-hidden="true">🗓</span>
+                <span class="action-btn-icon" aria-hidden="true">
+                  <CalendarDays :size="16" :stroke-width="2.25" />
+                </span>
                 開始日
               </button>
               <button
@@ -87,7 +92,9 @@
                 :disabled="saving"
                 @click="openDatePicker('due', $event)"
               >
-                <span class="action-btn-icon" aria-hidden="true">⏱</span>
+                <span class="action-btn-icon" aria-hidden="true">
+                  <CalendarCheck :size="16" :stroke-width="2.25" />
+                </span>
                 終了日
               </button>
               <button
@@ -97,7 +104,9 @@
                 :disabled="saving || effortSaving"
                 @click="openEffortPicker($event)"
               >
-                <span class="action-btn-icon" aria-hidden="true">⏳</span>
+                <span class="action-btn-icon" aria-hidden="true">
+                  <Clock :size="16" :stroke-width="2.25" />
+                </span>
                 工数
               </button>
               <button
@@ -107,8 +116,10 @@
                 :disabled="saving"
                 @click="openMemberPicker($event)"
               >
-                <span class="action-btn-icon" aria-hidden="true">👤</span>
-                メンバー
+                <span class="action-btn-icon" aria-hidden="true">
+                  <Users :size="16" :stroke-width="2.25" />
+                </span>
+                担当者
               </button>
               <button
                 type="button"
@@ -117,18 +128,10 @@
                 :disabled="saving"
                 @click="openLabelPicker($event)"
               >
-                <span class="action-btn-icon" aria-hidden="true">🏷</span>
+                <span class="action-btn-icon" aria-hidden="true">
+                  <Tags :size="16" :stroke-width="2.25" />
+                </span>
                 ラベル
-              </button>
-              <button
-                type="button"
-                class="action-btn"
-                :class="{ 'action-btn--active': activePopover === 'heading' }"
-                :disabled="saving"
-                @click="openHeadingPicker($event)"
-              >
-                <span class="action-btn-icon" aria-hidden="true">§</span>
-                親タスク
               </button>
             </div>
 
@@ -185,7 +188,7 @@
                 v-if="(task?.assignees ?? []).length"
                 class="detail-item detail-item--members"
               >
-                <span class="detail-item-label">メンバー</span>
+                <span class="detail-item-label">担当者</span>
                 <div class="member-avatar-list detail-chip-wrap">
                   <button
                     v-for="member in task?.assignees ?? []"
@@ -213,7 +216,7 @@
                     class="member-avatar-btn member-avatar-btn--add"
                     :class="{ 'member-avatar-btn--active': activePopover === 'members' }"
                     :disabled="saving"
-                    aria-label="メンバーを追加"
+                    aria-label="担当者を追加"
                     @click="openMemberPicker($event)"
                   >
                     <span class="member-avatar-btn-plus" aria-hidden="true">+</span>
@@ -257,8 +260,11 @@
 
             <section class="field-block description-block">
               <span class="field-label">備考</span>
-              <TaskDescriptionEditor
+              <textarea
                 v-model="descriptionDraft"
+                class="description-input"
+                rows="4"
+                aria-label="備考"
                 :disabled="saving || descriptionSaving"
                 @blur="onDescriptionBlur"
               />
@@ -426,8 +432,8 @@
                 shell-class="popover popover--members"
                 header-class="popover-header--labels"
                 :style="popoverStyle"
-                title="メンバー"
-                aria-label="メンバー"
+                title="担当者"
+                aria-label="担当者"
                 :close-disabled="saving"
                 @close="closePopover"
               >
@@ -438,7 +444,6 @@
                         type="button"
                         class="member-picker-row"
                         :class="{ 'member-picker-row--selected': isMemberAssigned(member.id) }"
-                        :disabled="saving"
                         @click.stop="toggleMember(member)"
                       >
                         <img
@@ -455,6 +460,62 @@
                   </ul>
                   <p v-if="!projectMembers.length" class="empty-text">プロジェクトメンバーがいません。</p>
 
+                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
+                </div>
+              </PopoverShell>
+
+              <PopoverShell
+                v-else-if="activePopover === 'parent-task'"
+                ref="popoverElRef"
+                shell-class="popover popover--parent-task"
+                :style="popoverStyle"
+                title="親タスク"
+                aria-label="親タスク"
+                :close-disabled="parentTaskSaving"
+                @close="closePopover"
+              >
+                <div class="popover-scroll">
+                  <p v-if="parentTasksLoading" class="empty-text parent-task-loading">
+                    読み込み中...
+                  </p>
+                  <ul v-else class="parent-task-picker-list">
+                    <li>
+                      <button
+                        type="button"
+                        class="parent-task-picker-row"
+                        :class="{ 'parent-task-picker-row--selected': !task?.parent_task_id }"
+                        @click.stop="selectParentTask(null)"
+                      >
+                        <span
+                          class="parent-task-picker-radio"
+                          :class="{ 'parent-task-picker-radio--checked': !task?.parent_task_id }"
+                          aria-hidden="true"
+                        />
+                        <span class="parent-task-picker-label">なし</span>
+                      </button>
+                    </li>
+                    <li
+                      v-for="parent in parentTasks"
+                      :key="parent.id"
+                    >
+                      <button
+                        type="button"
+                        class="parent-task-picker-row"
+                        :class="{ 'parent-task-picker-row--selected': task?.parent_task_id === parent.id }"
+                        @click.stop="selectParentTask(parent.id)"
+                      >
+                        <span
+                          class="parent-task-picker-radio"
+                          :class="{ 'parent-task-picker-radio--checked': task?.parent_task_id === parent.id }"
+                          aria-hidden="true"
+                        />
+                        <span class="parent-task-picker-label">{{ parent.title }}</span>
+                      </button>
+                    </li>
+                  </ul>
+                  <p v-if="!parentTasksLoading && !parentTasks.length" class="empty-text parent-task-empty">
+                    親タスクがありません。
+                  </p>
                   <p v-if="popoverError" class="err">{{ popoverError }}</p>
                 </div>
               </PopoverShell>
@@ -487,7 +548,6 @@
                       <button
                         type="button"
                         class="label-picker-row"
-                        :disabled="saving"
                         @click.stop="toggleLabel(label)"
                       >
                         <span
@@ -519,121 +579,6 @@
                   <p v-if="popoverError" class="err">{{ popoverError }}</p>
                 </div>
               </PopoverShell>
-
-              <PopoverShell
-                v-else-if="activePopover === 'heading'"
-                ref="popoverElRef"
-                shell-class="popover popover--labels"
-                header-class="popover-header--labels"
-                :style="popoverStyle"
-                title="親タスク"
-                aria-label="親タスク"
-                :close-disabled="saving"
-                @close="closePopover"
-              >
-                <input
-                  v-model="headingSearchQuery"
-                  type="search"
-                  class="label-search-input"
-                  placeholder="親タスクを検索..."
-                  :disabled="saving"
-                  @click.stop
-                />
-
-                <div class="popover-scroll">
-                  <ul class="label-picker-list">
-                    <li>
-                      <button
-                        type="button"
-                        class="label-picker-row"
-                        :disabled="saving"
-                        @click.stop="selectHeading(null)"
-                      >
-                        <span
-                          class="label-picker-checkbox heading-picker-checkbox"
-                          :class="{ 'label-picker-checkbox--checked': !task?.heading }"
-                          aria-hidden="true"
-                        >
-                          <span v-if="!task?.heading">✓</span>
-                        </span>
-                        <span class="heading-picker-label heading-picker-label--none">
-                          なし
-                        </span>
-                      </button>
-                    </li>
-                    <li v-for="heading in filteredProjectHeadings" :key="heading.id">
-                      <button
-                        type="button"
-                        class="label-picker-row"
-                        :disabled="saving"
-                        @click.stop="selectHeading(heading)"
-                      >
-                        <span
-                          class="label-picker-checkbox heading-picker-checkbox"
-                          :class="{ 'label-picker-checkbox--checked': isHeadingSelected(heading.id) }"
-                          aria-hidden="true"
-                        >
-                          <span v-if="isHeadingSelected(heading.id)">✓</span>
-                        </span>
-                        <span class="heading-picker-label">
-                          {{ heading.name }}
-                        </span>
-                      </button>
-                    </li>
-                  </ul>
-                  <p v-if="!filteredProjectHeadings.length" class="empty-text label-picker-empty">
-                    該当する親タスクがありません。
-                  </p>
-
-                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
-                </div>
-
-                <div class="heading-picker-footer">
-                  <template v-if="!headingCreateOpen">
-                    <button
-                      type="button"
-                      class="heading-create-trigger"
-                      :disabled="saving || headingCreatePending"
-                      @click.stop="openHeadingCreateInline"
-                    >
-                      <span>＋</span>親タスクの作成
-                    </button>
-                  </template>
-                  <template v-else>
-                    <input
-                      ref="headingCreateInputRef"
-                      v-model.trim="headingCreateDraft"
-                      type="text"
-                      maxlength="80"
-                      class="heading-create-input"
-                      placeholder="親タスク名を入力してください"
-                      :disabled="headingCreatePending"
-                      @keydown.enter.prevent="submitHeadingCreateInline"
-                      @keydown.escape.prevent="cancelHeadingCreateInline"
-                      @click.stop
-                    />
-                    <div class="heading-create-actions">
-                      <button
-                        type="button"
-                        class="heading-create-submit"
-                        :disabled="headingCreatePending"
-                        @click.stop="submitHeadingCreateInline"
-                      >
-                        {{ headingCreatePending ? '作成中...' : '作成' }}
-                      </button>
-                      <button
-                        type="button"
-                        class="heading-create-cancel"
-                        aria-label="キャンセル"
-                        :disabled="headingCreatePending"
-                        @click.stop="cancelHeadingCreateInline"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </template>
-                </div>
-              </PopoverShell>
               </div>
               </Transition>
             </Teleport>
@@ -653,11 +598,17 @@
 </template>
 
 <script setup lang="ts">
-import { useApi } from '../composables/useApi'
-import { memberDisplayName, memberInitial } from '../composables/useMemberDisplay'
+import {
+  CalendarCheck,
+  CalendarDays,
+  Clock,
+  Tags,
+  Users,
+} from 'lucide-vue-next'
+import { useApi } from '../../composables/useApi'
+import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
 
 export type TaskDetailLabel = { id: number; name: string; color: string }
-export type TaskDetailHeading = { id: number; name: string }
 export type TaskDetailMember = {
   id: number
   name: string | null
@@ -670,8 +621,6 @@ export type TaskDetail = {
   description: string | null
   status: string
   list_id: number | null
-  task_heading_id?: number | null
-  heading?: TaskDetailHeading | null
   start_date: string | null
   due_date: string | null
   effort_hours: number | string | null
@@ -679,11 +628,15 @@ export type TaskDetail = {
   effort_unit?: EffortUnit | string | null
   assignees: TaskDetailMember[]
   labels: TaskDetailLabel[]
+  is_parent_task?: boolean
+  parent_task_id?: number | null
 }
+
+type ParentTaskOption = { id: number; title: string }
 
 type EffortUnit = 'minute' | 'hour' | 'day'
 
-type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'heading'
+type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'parent-task'
 
 const EFFORT_UNIT_OPTIONS: { value: EffortUnit, label: string }[] = [
   { value: 'minute', label: '分' },
@@ -702,25 +655,21 @@ type CalendarCell = {
 
 export type TaskDetailRemotePatch = Pick<TaskDetail, 'id'> & Partial<Omit<TaskDetail, 'id'>>
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   modelValue: boolean
   orgSlug: string
   projectId: string
   taskId: number | null
   orgLabels: TaskDetailLabel[]
-  projectHeadings?: TaskDetailHeading[]
   projectMembers: TaskDetailMember[]
   /** 他クライアントからの TaskUpdated など（rev が変わるたびに適用） */
   remoteUpdate?: TaskDetailRemotePatch | null
   remoteUpdateRev?: number
-}>(), {
-  projectHeadings: () => [],
-})
+}>()
 
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   updated: [TaskDetail]
-  'heading-created': [TaskDetailHeading]
 }>()
 
 const { api } = useApi()
@@ -759,26 +708,41 @@ const calendarCursor = ref(new Date())
 const pendingDate = ref<string | null>(null)
 
 const titleDraft = ref('')
+const titleComposing = ref(false)
 const titleSaving = ref(false)
 const titleTextareaRef = ref<HTMLTextAreaElement | null>(null)
+
+const showTitlePlaceholder = computed(() => {
+  if (titleComposing.value) return false
+  return titleDraft.value.length === 0
+})
 
 const descriptionDraft = ref('')
 const descriptionSaving = ref(false)
 
 const labelSearchQuery = ref('')
-const headingSearchQuery = ref('')
-const projectHeadingsLocal = ref<TaskDetailHeading[]>([])
-const headingSaving = ref(false)
-let headingSaveRequestId = 0
-const headingCreateOpen = ref(false)
-const headingCreateDraft = ref('')
-const headingCreatePending = ref(false)
-const headingCreateInputRef = ref<HTMLInputElement | null>(null)
 
 const effortDraft = ref<string | number>('')
 const effortUnitDraft = ref<EffortUnit>('hour')
 const effortSaving = ref(false)
 const effortInputRef = ref<HTMLInputElement | null>(null)
+
+const parentTasks = ref<ParentTaskOption[]>([])
+const parentTasksLoading = ref(false)
+const parentTaskSaving = ref(false)
+const pickerMutationPending = ref(false)
+
+const showParentTaskControl = computed(() => {
+  return Boolean(task.value && !task.value.is_parent_task)
+})
+
+const parentTaskButtonLabel = computed(() => {
+  if (!task.value?.parent_task_id) {
+    return '親タスク'
+  }
+  const parent = parentTasks.value.find(item => item.id === task.value!.parent_task_id)
+  return parent?.title ?? '親タスク'
+})
 
 const showEffortDetailSection = computed(() => {
   if (!task.value) return false
@@ -804,24 +768,10 @@ const effortDetailDisplayText = computed(() => {
   return formatEffortDisplayForTask(task.value)
 })
 
-const effectiveProjectHeadings = computed(() => {
-  if (projectHeadingsLocal.value.length) {
-    return projectHeadingsLocal.value
-  }
-  return props.projectHeadings
-})
-
 const filteredOrgLabels = computed(() => {
   const query = labelSearchQuery.value.trim().toLowerCase()
   if (!query) return props.orgLabels
   return props.orgLabels.filter(label => label.name.toLowerCase().includes(query))
-})
-
-const filteredProjectHeadings = computed(() => {
-  const query = headingSearchQuery.value.trim().toLowerCase()
-  const source = effectiveProjectHeadings.value
-  if (!query) return source
-  return source.filter(heading => heading.name.toLowerCase().includes(query))
 })
 
 const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土']
@@ -894,25 +844,11 @@ function memberEmailLine (member: TaskDetailMember): string {
   return `@user${member.id}`
 }
 
-function resolveHeadingForDetail (detail: TaskDetail): TaskDetailHeading | null {
-  if (detail.heading) {
-    return detail.heading
-  }
-  const headingId = detail.task_heading_id
-  if (headingId == null) {
-    return null
-  }
-  return effectiveProjectHeadings.value.find(h => h.id === headingId) ?? null
-}
-
 function normalizeTaskDetail (detail: TaskDetail): TaskDetail {
-  const heading = resolveHeadingForDetail(detail)
   return {
     ...detail,
     labels: detail.labels ?? [],
     assignees: detail.assignees ?? [],
-    heading,
-    task_heading_id: detail.task_heading_id ?? heading?.id ?? null,
   }
 }
 
@@ -929,23 +865,21 @@ function resetState () {
   popoverAnchorEl.value = null
   calendarCursor.value = new Date()
   titleDraft.value = ''
+  titleComposing.value = false
   titleSaving.value = false
   titleTextareaRef.value = null
   descriptionDraft.value = ''
   descriptionSaving.value = false
   labelSearchQuery.value = ''
-  headingSearchQuery.value = ''
-  projectHeadingsLocal.value = []
-  headingSaving.value = false
-  headingCreateOpen.value = false
-  headingCreateDraft.value = ''
-  headingCreatePending.value = false
-  headingCreateInputRef.value = null
   effortDraft.value = ''
   effortUnitDraft.value = 'hour'
   effortSaving.value = false
   effortInputRef.value = null
   effortDetailAnchorRef.value = null
+  parentTasks.value = []
+  parentTasksLoading.value = false
+  parentTaskSaving.value = false
+  pickerMutationPending.value = false
 }
 
 function normalizeEffortUnit (value: EffortUnit | string | null | undefined): EffortUnit {
@@ -1195,14 +1129,17 @@ async function saveEffort () {
   }
 }
 
-async function loadProjectHeadings () {
+async function fetchParentTasks () {
+  parentTasksLoading.value = true
   try {
-    const res = await api<{ data: TaskDetailHeading[] }>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/task-headings`,
+    const res = await api<{ data: ParentTaskOption[] }>(
+      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/parents`,
     )
-    projectHeadingsLocal.value = res.data ?? []
+    parentTasks.value = res.data
   } catch {
-    projectHeadingsLocal.value = [...props.projectHeadings]
+    parentTasks.value = []
+  } finally {
+    parentTasksLoading.value = false
   }
 }
 
@@ -1211,10 +1148,12 @@ async function loadTask () {
   loading.value = true
   loadError.value = null
   try {
-    await loadProjectHeadings()
-    const detail = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${props.taskId}`,
-    )
+    const [detail] = await Promise.all([
+      api<TaskDetail>(
+        `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${props.taskId}`,
+      ),
+      fetchParentTasks(),
+    ])
     task.value = normalizeTaskDetail(detail)
     titleDraft.value = task.value.title
     nextTick(() => adjustTitleTextareaHeight())
@@ -1234,7 +1173,7 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
   if (!task.value || patch.id !== task.value.id) {
     return
   }
-  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || headingSaving.value || effortSaving.value || activePopover.value === 'effort') {
+  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || effortSaving.value || parentTaskSaving.value || activePopover.value === 'effort') {
     return
   }
 
@@ -1246,10 +1185,6 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
     ...patch,
     labels: patch.labels ?? task.value.labels,
     assignees: patch.assignees ?? task.value.assignees,
-    heading: patch.heading !== undefined ? patch.heading : task.value.heading,
-    task_heading_id: patch.task_heading_id !== undefined
-      ? patch.task_heading_id
-      : task.value.task_heading_id,
   })
 
   if (!titleDirty) {
@@ -1303,7 +1238,7 @@ function isOverlayCloseBlocked (): boolean {
 }
 
 function close () {
-  if (isOverlayCloseBlocked() || saving.value || titleSaving.value || descriptionSaving.value || effortSaving.value) return
+  if (isOverlayCloseBlocked() || saving.value || titleSaving.value || descriptionSaving.value || effortSaving.value || parentTaskSaving.value) return
   if (activePopover.value) {
     void closePopover()
     return
@@ -1317,8 +1252,6 @@ function dismissPopover () {
   popoverError.value = null
   pendingDate.value = null
   popoverStyle.value = {}
-  headingCreateOpen.value = false
-  headingCreateDraft.value = ''
 }
 
 async function closePopover () {
@@ -1497,8 +1430,9 @@ function isMemberAssigned (memberId: number): boolean {
 }
 
 async function toggleMember (member: TaskDetailMember) {
-  if (!task.value) return
+  if (!task.value || pickerMutationPending.value) return
   armOverlayCloseGuard()
+  pickerMutationPending.value = true
   const previousAssignees = [...task.value.assignees]
   const currentIds = previousAssignees.map(m => m.id)
   const isAssigned = currentIds.includes(member.id)
@@ -1522,7 +1456,9 @@ async function toggleMember (member: TaskDetailMember) {
     emit('updated', task.value)
   } catch (e: unknown) {
     task.value = { ...task.value, assignees: previousAssignees }
-    popoverError.value = e instanceof Error ? e.message : 'メンバーの更新に失敗しました'
+    popoverError.value = e instanceof Error ? e.message : '担当者の更新に失敗しました'
+  } finally {
+    pickerMutationPending.value = false
   }
 }
 
@@ -1550,18 +1486,6 @@ watch(activePopover, (open) => {
 
 watch(labelSearchQuery, () => {
   if (activePopover.value === 'labels') {
-    updatePopoverPosition()
-  }
-})
-
-watch(headingSearchQuery, () => {
-  if (activePopover.value === 'heading') {
-    updatePopoverPosition()
-  }
-})
-
-watch(headingCreateOpen, () => {
-  if (activePopover.value === 'heading') {
     updatePopoverPosition()
   }
 })
@@ -1615,7 +1539,7 @@ async function saveTitle () {
     nextTick(() => adjustTitleTextareaHeight())
     emit('updated', task.value)
   } catch (e: unknown) {
-    saveError.value = e instanceof Error ? e.message : 'カード名の更新に失敗しました'
+    saveError.value = e instanceof Error ? e.message : 'タスク名の更新に失敗しました'
   } finally {
     titleSaving.value = false
   }
@@ -1636,6 +1560,50 @@ function isLabelSelected (labelId: number): boolean {
   return (task.value?.labels ?? []).some(label => label.id === labelId)
 }
 
+async function openParentTaskPicker (event?: Event) {
+  if (!task.value || task.value.is_parent_task) return
+  if (activePopover.value === 'parent-task') {
+    closePopover()
+    return
+  }
+  popoverAnchorEl.value = capturePopoverAnchor(event)
+  activePopover.value = 'parent-task'
+  popoverError.value = null
+  if (!parentTasks.value.length) {
+    await fetchParentTasks()
+  }
+  updatePopoverPosition()
+}
+
+async function selectParentTask (parentTaskId: number | null) {
+  if (!task.value || parentTaskSaving.value) return
+  armOverlayCloseGuard()
+  await saveParentTask(parentTaskId)
+}
+
+async function saveParentTask (parentTaskId: number | null) {
+  if (!task.value || parentTaskSaving.value) return
+  if ((task.value.parent_task_id ?? null) === parentTaskId) return
+
+  const previousParentTaskId = task.value.parent_task_id ?? null
+  parentTaskSaving.value = true
+  popoverError.value = null
+  task.value = { ...task.value, parent_task_id: parentTaskId }
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${task.value.id}`,
+      { method: 'PATCH', body: { parent_task_id: parentTaskId } },
+    )
+    task.value = normalizeTaskDetail(updated)
+    emit('updated', task.value)
+  } catch (e: unknown) {
+    task.value = { ...task.value, parent_task_id: previousParentTaskId }
+    popoverError.value = e instanceof Error ? e.message : '親タスクの更新に失敗しました'
+  } finally {
+    parentTaskSaving.value = false
+  }
+}
+
 function openLabelPicker (event?: Event) {
   if (!task.value) return
   if (activePopover.value === 'labels') {
@@ -1649,140 +1617,10 @@ function openLabelPicker (event?: Event) {
   updatePopoverPosition()
 }
 
-function isHeadingSelected (headingId: number): boolean {
-  return task.value?.heading?.id === headingId
-}
-
-async function openHeadingPicker (event?: Event) {
-  if (!task.value) return
-  if (activePopover.value === 'heading') {
-    closePopover()
-    return
-  }
-  const anchorEl = capturePopoverAnchor(event)
-  if (!anchorEl) return
-  headingSearchQuery.value = ''
-  popoverError.value = null
-  headingCreateOpen.value = false
-  headingCreateDraft.value = ''
-  popoverAnchorEl.value = anchorEl
-  activePopover.value = 'heading'
-  updatePopoverPosition()
-  await loadProjectHeadings()
-  updatePopoverPosition()
-}
-
-function openHeadingCreateInline () {
-  headingCreateOpen.value = true
-  headingCreateDraft.value = ''
-  popoverError.value = null
-  nextTick(() => {
-    headingCreateInputRef.value?.focus()
-    updatePopoverPosition()
-  })
-}
-
-function cancelHeadingCreateInline () {
-  if (headingCreatePending.value) return
-  headingCreateOpen.value = false
-  headingCreateDraft.value = ''
-  popoverError.value = null
-  nextTick(() => updatePopoverPosition())
-}
-
-async function submitHeadingCreateInline () {
-  const name = headingCreateDraft.value.trim()
-  if (headingCreatePending.value) return
-  if (!name) {
-    cancelHeadingCreateInline()
-    return
-  }
-  headingCreatePending.value = true
-  popoverError.value = null
-  try {
-    const created = await api<TaskDetailHeading>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/task-headings`,
-      { method: 'POST', body: { name } },
-    )
-    const exists = projectHeadingsLocal.value.some(h => h.id === created.id)
-    if (!exists) {
-      projectHeadingsLocal.value = [...projectHeadingsLocal.value, created]
-        .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
-    }
-    emit('heading-created', created)
-    headingCreateOpen.value = false
-    headingCreateDraft.value = ''
-    nextTick(() => updatePopoverPosition())
-  } catch (e: unknown) {
-    popoverError.value = e instanceof Error ? e.message : '親タスクの作成に失敗しました'
-  } finally {
-    headingCreatePending.value = false
-  }
-}
-
-async function selectHeading (heading: TaskDetailHeading | null) {
-  if (!task.value) return
-  armOverlayCloseGuard()
-
-  const previousHeading = task.value.heading ?? null
-  const previousId = task.value.task_heading_id ?? previousHeading?.id ?? null
-  const nextId = heading?.id ?? null
-
-  if (nextId === previousId) {
-    return
-  }
-
-  const nextHeading = heading ?? (nextId != null
-    ? effectiveProjectHeadings.value.find(h => h.id === nextId) ?? null
-    : null)
-
-  task.value = {
-    ...task.value,
-    heading: nextHeading,
-    task_heading_id: nextId,
-  }
-  popoverError.value = null
-  const requestId = ++headingSaveRequestId
-  headingSaving.value = true
-  try {
-    const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${task.value.id}`,
-      {
-        method: 'PATCH',
-        body: { task_heading_id: nextId },
-        headers: { 'Content-Type': 'application/json' },
-      },
-    )
-    if (requestId !== headingSaveRequestId) return
-    task.value = normalizeTaskDetail({
-      ...updated,
-      heading: updated.heading ?? nextHeading,
-      task_heading_id: updated.task_heading_id ?? nextId,
-    })
-    emit('updated', task.value)
-  } catch (e: unknown) {
-    if (requestId !== headingSaveRequestId) return
-    task.value = {
-      ...task.value,
-      heading: previousHeading,
-      task_heading_id: previousId,
-    }
-    const raw = e instanceof Error ? e.message : ''
-    popoverError.value = raw.includes('task_heading_id')
-      || raw.includes('task headings')
-      || raw.toLowerCase().includes('column')
-      ? '親タスクの保存に失敗しました。データベースのマイグレーション（php artisan migrate）が未実行の可能性があります。'
-      : (raw || '親タスクの更新に失敗しました')
-  } finally {
-    if (requestId === headingSaveRequestId) {
-      headingSaving.value = false
-    }
-  }
-}
-
 async function toggleLabel (label: TaskDetailLabel) {
-  if (!task.value) return
+  if (!task.value || pickerMutationPending.value) return
   armOverlayCloseGuard()
+  pickerMutationPending.value = true
   const previousLabels = [...task.value.labels]
   const currentIds = previousLabels.map(item => item.id)
   const isSelected = currentIds.includes(label.id)
@@ -1807,6 +1645,8 @@ async function toggleLabel (label: TaskDetailLabel) {
   } catch (e: unknown) {
     task.value = { ...task.value, labels: previousLabels }
     popoverError.value = e instanceof Error ? e.message : 'ラベルの更新に失敗しました'
+  } finally {
+    pickerMutationPending.value = false
   }
 }
 
@@ -1934,15 +1774,8 @@ async function saveDescription () {
 
 .state-message {
   margin: 0;
-  color: #475569;
+  color: mixin.$text-sub;
   font-weight: 600;
-}
-
-.picker-heading {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 800;
-  color: #0f172a;
 }
 
 .field-block {
@@ -1954,25 +1787,25 @@ async function saveDescription () {
 .field-label {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #475569;
+  color: mixin.$text-sub;
 }
 
 .title-block {
   margin-bottom: 0.1rem;
-  gap: 0;
+  gap: 0.2rem;
 }
 
-.task-detail-heading {
-  display: inline-block;
+.task-detail-parent-task {
   align-self: flex-start;
   max-width: 100%;
+  margin: 0 0 0.1rem 0.6rem;
   padding: 0;
   border: none;
   background: transparent;
-  font-size: 1rem;
+  font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.3;
-  color: #64748b;
+  color: mixin.$text;
   text-align: left;
   cursor: pointer;
   overflow: hidden;
@@ -1980,12 +1813,13 @@ async function saveDescription () {
   white-space: nowrap;
 }
 
-.task-detail-heading:hover:not(:disabled) {
-  color: #475569;
+.task-detail-parent-task--placeholder {
+  color: #94a3b8;
 }
 
-.task-detail-heading:disabled {
+.task-detail-parent-task:disabled {
   cursor: default;
+  opacity: 0.65;
 }
 
 .title-input-wrap {
@@ -1994,7 +1828,7 @@ async function saveDescription () {
 }
 
 .title-input {
-  border: 1px solid mixin.$border;
+  border: 1px solid transparent;
   border-radius: 8px;
   padding: 0.5rem 0.6rem;
   font-size: 1.8rem;
@@ -2010,6 +1844,8 @@ async function saveDescription () {
   overflow-wrap: anywhere;
   word-break: break-word;
   display: block;
+  outline: none;
+  box-shadow: none;
 }
 
 .title-input-placeholder {
@@ -2027,7 +1863,8 @@ async function saveDescription () {
   text-overflow: ellipsis;
 }
 
-.title-input:focus {
+.title-input:focus,
+.title-input:focus-visible {
   @include mixin.input-focus-ring;
 }
 
@@ -2143,6 +1980,81 @@ async function saveDescription () {
   transform: translateY(-50%);
 }
 
+.popover--parent-task {
+  width: min(19.5rem, calc(100vw - 1.5rem));
+}
+
+.parent-task-loading,
+.parent-task-empty {
+  margin: 0.55rem 0.65rem 0.65rem;
+}
+
+.parent-task-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.65rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.parent-task-picker-row {
+  @include mixin.picker-checkbox-row;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 0.35rem;
+  background: transparent;
+  text-align: left;
+}
+
+.parent-task-picker-row:hover {
+  background: #f8fafc;
+}
+
+.parent-task-picker-row--selected {
+  background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
+}
+
+.parent-task-picker-radio {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #8590a2;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+
+.parent-task-picker-radio--checked {
+  border-color: mixin.$main-aqua;
+  background: mixin.$main-aqua;
+}
+
+.parent-task-picker-radio--checked::after {
+  content: '✓';
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  color: mixin.$white;
+}
+
+.parent-task-picker-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: mixin.$text;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .label-search-input {
   display: block;
   width: calc(100% - 1.3rem);
@@ -2176,6 +2088,7 @@ async function saveDescription () {
 }
 
 .label-picker-row {
+  @include mixin.picker-checkbox-row;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -2183,11 +2096,10 @@ async function saveDescription () {
   border: none;
   background: transparent;
   padding: 0.15rem 0;
-  cursor: pointer;
   text-align: left;
 }
 
-.label-picker-row:hover:not(:disabled) .label-picker-bar {
+.label-picker-row:hover .label-picker-bar {
   filter: brightness(0.96);
 }
 
@@ -2211,10 +2123,6 @@ async function saveDescription () {
   border-color: #2563eb;
 }
 
-.heading-picker-checkbox {
-  border-radius: 999px;
-}
-
 .label-picker-bar {
   flex: 1;
   min-height: 2rem;
@@ -2229,102 +2137,6 @@ async function saveDescription () {
 
 .label-picker-empty {
   padding: 0 0.65rem 0.75rem;
-}
-
-.heading-picker-label {
-  flex: 1;
-  min-width: 0;
-  padding: 0.35rem 0.55rem;
-  border-radius: 6px;
-  background: #fff;
-  color: #0f172a;
-  font-size: 0.88rem;
-  font-weight: 700;
-  text-align: left;
-}
-
-.heading-picker-label--none {
-  color: #64748b;
-  font-weight: 600;
-}
-
-.heading-picker-footer {
-  flex-shrink: 0;
-  padding: 0.6rem;
-  border-top: 1px solid #dfe1e6;
-}
-
-.heading-create-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  width: 100%;
-  border: none;
-  border-radius: 8px;
-  background: mixin.$gray;
-  padding: 0.65rem 0.85rem;
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: mixin.$text;
-  text-align: left;
-  cursor: pointer;
-}
-
-.heading-create-input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 0.5rem 0.6rem;
-  font-size: 0.88rem;
-  color: #0f172a;
-  background: #fff;
-}
-
-.heading-create-input:focus {
-  @include mixin.input-focus-ring;
-}
-
-.heading-create-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 0.45rem;
-}
-
-.heading-create-submit {
-  border: none;
-  border-radius: 6px;
-  background: mixin.$main;
-  color: mixin.$white;
-  padding: 0.45rem 0.85rem;
-  font-size: 0.88rem;
-  font-weight: 700;
-  line-height: 1.2;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.heading-create-cancel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: #44546f;
-  font-size: 1.15rem;
-  font-weight: 400;
-  line-height: 1;
-  padding: 0.2rem 0.35rem;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.heading-create-submit:disabled,
-.heading-create-cancel:disabled,
-.heading-create-trigger:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .popover--member-detail {
@@ -2486,8 +2298,11 @@ async function saveDescription () {
 }
 
 .action-btn-icon {
-  font-size: 0.9rem;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
 }
 
 .detail-meta-row {
@@ -2569,7 +2384,6 @@ async function saveDescription () {
   border-radius: 8px;
   padding: 0.45rem 0.6rem;
   font-size: 0.94rem;
-  font-weight: 700;
   color: #0f172a;
   background: #fff;
 }
@@ -2744,6 +2558,7 @@ async function saveDescription () {
 }
 
 .member-picker-row {
+  @include mixin.picker-checkbox-row;
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -2752,11 +2567,10 @@ async function saveDescription () {
   border-radius: 8px;
   padding: 0.5rem 0.65rem;
   background: #fff;
-  cursor: pointer;
   text-align: left;
 }
 
-.member-picker-row:hover:not(:disabled) {
+.member-picker-row:hover {
   background: #f8fafc;
 }
 
@@ -2843,6 +2657,10 @@ async function saveDescription () {
   flex-shrink: 0;
 }
 
+.description-input {
+  @include mixin.description-textarea;
+}
+
 .primary-btn,
 .ghost-btn {
   border-radius: 999px;
@@ -2867,7 +2685,7 @@ async function saveDescription () {
 
 .ghost-btn {
   border-color: #cbd5e1;
-  color: #475569;
+  color: mixin.$text-sub;
   background: #f1f5f9;
 }
 
@@ -2885,7 +2703,7 @@ async function saveDescription () {
   font-size: 0.86rem;
 }
 
-button:disabled {
+button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-picker-row) {
   opacity: 0.55;
   cursor: not-allowed;
 }

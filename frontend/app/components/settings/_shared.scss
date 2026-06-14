@@ -1,0 +1,122 @@
+@use "~/assets/styles/mixin" as mixin;
+
+.settings-panel {
+  background: #fff;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.settings-panel__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+}
+
+.settings-panel__note {
+  margin: 0 0 1rem;
+  color: #64748b;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: #1e293b;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.settings-input {
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  background: #fff;
+
+  &:focus {
+    @include mixin.input-focus-ring;
+  }
+}
+
+.settings-button-row {
+  margin-top: 0.55rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.settings-button-row--start {
+  justify-content: flex-start;
+}
+
+.settings-primary-btn,
+.settings-ghost-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-primary-btn {
+  background: mixin.$main;
+  color: mixin.$white;
+}
+
+.settings-ghost-btn {
+  background: #fff;
+  color: #334155;
+  border-color: #94a3b8;
+}
+
+.settings-primary-btn:disabled,
+.settings-ghost-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.settings-msg {
+  margin: 0.55rem 0 0;
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.settings-msg--err {
+  color: #b91c1c;
+}
+
+.settings-label-list {
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.settings-label-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  padding: 0.3rem 0.55rem;
+  background: #fff;
+}
+
+.settings-label-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+}
+
+.settings-label-name {
+  font-size: 0.85rem;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.settings-label-empty {
+  color: #64748b;
+  font-size: 0.9rem;
+}

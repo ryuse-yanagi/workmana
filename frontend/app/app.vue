@@ -9,6 +9,8 @@
 </template>
 
 <style lang="scss">
+@use '~/assets/styles/text-select';
+
 :root {
   --tm-global-header-height: 46px;
   --tm-page-header-height: 48px;
@@ -23,6 +25,12 @@ body {
   margin: 0;
   background: linear-gradient(160deg, #eef2ff 0%, #dbeafe 35%, #f8fafc 100%);
   background-attachment: fixed;
+}
+
+html.project-view-page-root,
+body.project-view-page-root {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .app-shell {
@@ -116,5 +124,18 @@ textarea:focus-visible,
 select:focus,
 select:focus-visible {
   @include mixin.input-focus-ring;
+}
+
+// チェックボックス風の選択 UI — 保存中などで disabled でも禁止カーソルにしない
+button.label-picker-row,
+button.parent-task-picker-row,
+button.member-picker-row,
+button.color-preset-picker__btn {
+  @include mixin.picker-checkbox-row;
+}
+
+input[type='checkbox']:disabled,
+input[type='radio']:disabled {
+  cursor: pointer;
 }
 </style>

@@ -137,7 +137,7 @@
         v-model.trim="commentDraft"
         class="chat-input"
         rows="1"
-        placeholder="コメントを書く..."
+        placeholder="コメントを入力する..."
         :disabled="commentSending || commentsLoading || !!commentsLoadError || !taskId"
         @input="adjustCommentInputHeight"
         @keydown.enter.exact.prevent="sendComment"
@@ -168,8 +168,8 @@
 
 <script setup lang="ts">
 import { Smile } from 'lucide-vue-next'
-import { useApi } from '../composables/useApi'
-import { memberDisplayName, type MemberLike } from '../composables/useMemberDisplay'
+import { useApi } from '../../composables/useApi'
+import { memberDisplayName, type MemberLike } from '../../composables/useMemberDisplay'
 
 type CommentAuthor = {
   id: number

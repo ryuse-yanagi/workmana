@@ -13,8 +13,16 @@ class Organization extends Model
         'name',
         'slug',
         'work_unit_label',
+        'default_board_list_names',
         'created_by',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'default_board_list_names' => 'array',
+        ];
+    }
 
     public function getRouteKeyName(): string
     {

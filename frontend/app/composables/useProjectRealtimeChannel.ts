@@ -6,6 +6,11 @@ export type RealtimeBoardTask = {
   status: string
   list_id: number | null
   sort_order?: number
+  start_date?: string | null
+  due_date?: string | null
+  effort_hours?: number | string | null
+  effort_value?: number | string | null
+  effort_unit?: string | null
   labels?: Array<{ id: number; name: string; color: string }>
   assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
 }
@@ -16,6 +21,13 @@ export type RealtimeArchivedTask = {
   status: string
   list_id: number | null
   archived_at?: string | null
+  start_date?: string | null
+  due_date?: string | null
+  effort_hours?: number | string | null
+  effort_value?: number | string | null
+  effort_unit?: string | null
+  labels?: Array<{ id: number; name: string; color: string }>
+  assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
 }
 
 type EchoChannel = {

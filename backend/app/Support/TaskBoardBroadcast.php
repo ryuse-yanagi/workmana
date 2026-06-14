@@ -15,19 +15,21 @@ final class TaskBoardBroadcast
         $task->loadMissing([
             'labels:id,name,color',
             'assignees:id,name,email,avatar_path',
-            'heading:id,name',
         ]);
 
         return [
             'id' => $task->id,
             'list_id' => $task->list_id,
-            'task_heading_id' => $task->task_heading_id,
-            'heading' => $task->heading
-                ? ['id' => $task->heading->id, 'name' => $task->heading->name]
-                : null,
             'sort_order' => $task->sort_order,
+            'is_parent_task' => (bool) $task->is_parent_task,
+            'parent_task_id' => $task->parent_task_id,
             'title' => $task->title,
             'status' => $task->status,
+            'start_date' => $task->start_date,
+            'due_date' => $task->due_date,
+            'effort_hours' => $task->effort_hours,
+            'effort_value' => $task->effort_value,
+            'effort_unit' => $task->effort_unit,
             'labels' => $task->labels->map(fn ($l) => [
                 'id' => $l->id,
                 'name' => $l->name,
@@ -51,11 +53,6 @@ final class TaskBoardBroadcast
     {
         return array_merge(self::taskPayload($task), [
             'description' => $task->description,
-            'start_date' => $task->start_date,
-            'due_date' => $task->due_date,
-            'effort_hours' => $task->effort_hours,
-            'effort_value' => $task->effort_value,
-            'effort_unit' => $task->effort_unit,
         ]);
     }
 }

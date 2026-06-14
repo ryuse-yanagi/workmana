@@ -6,6 +6,7 @@ use App\Enums\MembershipRole;
 use App\Models\ProjectLabel;
 use App\Models\Organization;
 use App\Models\Project;
+use App\Support\DefaultBoardLists;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -81,6 +82,8 @@ class ProjectController extends ApiController
             'role' => MembershipRole::Admin->value,
             'added_by' => $user->id,
         ]);
+
+        DefaultBoardLists::seedForProject($project, $organization);
 
         return response()->json([
             'id' => $project->id,

@@ -9,9 +9,8 @@
         class="color-preset-picker__btn"
         :class="{ 'color-preset-picker__btn--active': colorItem === modelValue }"
         :style="{ backgroundColor: colorItem }"
-        :disabled="disabled"
         :aria-label="`色 ${colorItem}`"
-        @click="emit('update:modelValue', colorItem)"
+        @click="selectColor(colorItem)"
       />
     </div>
   </div>
@@ -31,7 +30,7 @@ const colorPresets: string[] = [
   '#ec4899',
 ]
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: string
   disabled?: boolean
 }>(), {
@@ -41,6 +40,11 @@ withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [string]
 }>()
+
+function selectColor (colorItem: string) {
+  if (props.disabled) return
+  emit('update:modelValue', colorItem)
+}
 </script>
 
 <style lang="scss" scoped>
@@ -59,20 +63,15 @@ const emit = defineEmits<{
 }
 
 .color-preset-picker__btn {
+  @include mixin.picker-checkbox-row;
   width: 1.25rem;
   height: 1.25rem;
   border-radius: 999px;
   border: 1px solid rgba(15, 23, 42, 0.15);
-  cursor: pointer;
   padding: 0;
 }
 
 .color-preset-picker__btn--active {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px #334155;
-}
-
-.color-preset-picker__btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 </style>
