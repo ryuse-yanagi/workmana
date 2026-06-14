@@ -157,7 +157,7 @@
                 chosen-class="drag-chosen"
                 drag-class="drag-active"
                 fallback-class="sortable-fallback"
-                filter=".no-drag, .task-title, .task-parent-title, .task-title-row, .task-label-list, .task-card-meta, a, input, textarea, select, button, .card-menu-wrap"
+                filter=".no-drag, a, input, textarea, select, button, .card-menu-wrap"
                 :prevent-on-filter="true"
                 direction="vertical"
                 :force-fallback="true"
@@ -502,6 +502,8 @@ const listReorderPending = ref(false)
 const listColumnDragging = ref(false)
 /** リストヘッダーのドラッグ直後にタイトル click で編集が開くのを防ぐ */
 const suppressListTitleClick = ref(false)
+/** カードドラッグ直後に click で詳細が開くのを防ぐ */
+const suppressTaskCardClick = ref(false)
 let listOrderSnapshot: ListDef[] | null = null
 const editingTaskId = ref<number | null>(null)
 const taskTitleDraft = ref('')
@@ -887,7 +889,7 @@ function openArchiveConfirm (task: Task) {
 }
 
 function openTaskDetail (task: Task) {
-  if (editingTaskId.value === task.id) return
+  if (editingTaskId.value === task.id || suppressTaskCardClick.value) return
   closeCardMenu()
   detailTaskId.value = task.id
 }
@@ -1579,6 +1581,10 @@ function onBoardDragEnd (evt?: { originalEvent?: Event }) {
   const appendToEnd = previewMode === 'tail'
 
   boardDragging.value = false
+  suppressTaskCardClick.value = true
+  window.setTimeout(() => {
+    suppressTaskCardClick.value = false
+  }, 100)
   clearDragPlaceholderSize()
   boardDragTaskId = null
   boardDragCrossList.value = false
@@ -2389,6 +2395,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  touch-action: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .card-title-input {
@@ -2570,6 +2579,9 @@ onBeforeUnmount(() => {
   padding: 0.45rem 0.55rem;
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 
 .task-card:hover {
