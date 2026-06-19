@@ -78,6 +78,16 @@ export function normalizeEffortUnit (value: TaskFormEffortUnit | string | null |
   return 'hour'
 }
 
+export function resolveEffortUnit (
+  taskUnit: TaskFormEffortUnit | string | null | undefined,
+  orgUnit?: TaskFormEffortUnit | string | null | undefined,
+): TaskFormEffortUnit {
+  if (taskUnit === 'minute' || taskUnit === 'hour' || taskUnit === 'day') {
+    return taskUnit
+  }
+  return normalizeEffortUnit(orgUnit)
+}
+
 export function effortUnitLabel (unit: TaskFormEffortUnit | string | null | undefined): string {
   const normalized = normalizeEffortUnit(unit)
   return EFFORT_UNIT_OPTIONS.find(option => option.value === normalized)?.label ?? '時間'
@@ -129,10 +139,13 @@ export function effortValueToDraft (draft: Pick<TaskFormDraft, 'effort_value' | 
   return formatEffortAmount(value)
 }
 
-export function formatEffortDisplay (draft: Pick<TaskFormDraft, 'effort_value' | 'effort_hours' | 'effort_unit'>): string {
+export function formatEffortDisplay (
+  draft: Pick<TaskFormDraft, 'effort_value' | 'effort_hours' | 'effort_unit'>,
+  orgUnit?: TaskFormEffortUnit | string | null,
+): string {
   const value = resolveStoredEffortValue(draft)
   if (value === null) return ''
-  const unit = normalizeEffortUnit(draft.effort_unit)
+  const unit = resolveEffortUnit(draft.effort_unit, orgUnit)
   return `${formatEffortAmount(value)} ${effortUnitLabel(unit)}`
 }
 
@@ -218,11 +231,14 @@ export function buildTaskCreateBody (
     listId: number
     createAsParent: boolean
     parentTaskId: number | null
+    orgEffortUnit?: TaskFormEffortUnit | string | null
   },
 ) {
   const title = draft.title.trim()
   const effortValue = resolveStoredEffortValue(draft)
-  const effortUnit = effortValue === null ? null : normalizeEffortUnit(draft.effort_unit)
+  const effortUnit = effortValue === null
+    ? null
+    : resolveEffortUnit(draft.effort_unit, opts.orgEffortUnit)
 
   return {
     title,

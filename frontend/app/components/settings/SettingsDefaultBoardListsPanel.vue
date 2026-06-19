@@ -69,12 +69,13 @@ import {
 
 const props = defineProps<{
   orgSlug: string
+  initialNames: string[]
 }>()
 
 const { api } = useApi()
 
-const namesCurrent = ref<string[]>([])
-const namesDraft = ref<string[]>([])
+const namesCurrent = ref<string[]>([...props.initialNames])
+const namesDraft = ref<string[]>([...props.initialNames])
 const loading = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
@@ -127,10 +128,6 @@ async function save () {
 }
 
 defineExpose({ load })
-
-onMounted(() => {
-  void load()
-})
 </script>
 
 <style lang="scss">

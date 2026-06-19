@@ -43,7 +43,9 @@ Route::middleware(['cognito'])->group(function () {
 
         Route::get('/projects/{project}/tasks', [TaskController::class, 'index']);
         Route::get('/projects/{project}/tasks/parents', [TaskController::class, 'parentTasksIndex']);
+        Route::get('/projects/{project}/tasks/comments', [TaskCommentController::class, 'projectIndex']);
         Route::get('/projects/{project}/tasks/wbs', [TaskController::class, 'wbsIndex']);
+        Route::patch('/projects/{project}/tasks/wbs/reorder', [TaskController::class, 'wbsReorder']);
         Route::get('/projects/{project}/tasks/archived', [TaskController::class, 'archivedIndex']);
         Route::post('/projects/{project}/tasks', [TaskController::class, 'store']);
         Route::get('/projects/{project}/tasks/{task}', [TaskController::class, 'show']);

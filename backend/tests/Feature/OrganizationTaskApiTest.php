@@ -88,6 +88,144 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('effort_unit', null);
     }
 
+    public function test_user_can_reorder_wbs_tasks(): void
+    {
+        $user = User::factory()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/organizations', [
+                'name' => 'Acme',
+                'slug' => 'acme',
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/orgs/acme/projects', [
+                'name' => 'Sprint 1',
+            ])
+            ->assertCreated();
+
+        $project = Project::query()->first();
+        $this->assertNotNull($project);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Parent task',
+                'status' => 'todo',
+                'is_parent_task' => true,
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Child task',
+                'status' => 'todo',
+                'parent_task_id' => 1,
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Standalone task',
+                'status' => 'todo',
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs/reorder", [
+                'tasks' => [
+                    ['id' => 3, 'sort_order' => 0, 'parent_task_id' => null],
+                    ['id' => 1, 'sort_order' => 1, 'parent_task_id' => null],
+                    ['id' => 2, 'sort_order' => 2, 'parent_task_id' => 1],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', 3)
+            ->assertJsonPath('data.1.id', 1)
+            ->assertJsonPath('data.2.id', 2)
+            ->assertJsonPath('data.2.parent_task_id', 1);
+    }
+
+    public function test_changing_task_list_preserves_wbs_sort_order(): void
+    {
+        $user = User::factory()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/organizations', [
+                'name' => 'Acme',
+                'slug' => 'acme',
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/orgs/acme/projects', [
+                'name' => 'Sprint 1',
+            ])
+            ->assertCreated();
+
+        $project = Project::query()->first();
+        $this->assertNotNull($project);
+
+        $lists = $project->lists()->orderBy('sort_order')->get();
+        $this->assertGreaterThanOrEqual(2, $lists->count());
+        $firstList = $lists[0];
+        $secondList = $lists[1];
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Task A',
+                'status' => 'todo',
+                'list_id' => $firstList->id,
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Task B',
+                'status' => 'todo',
+                'list_id' => $secondList->id,
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Task C',
+                'status' => 'todo',
+                'list_id' => $firstList->id,
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs/reorder", [
+                'tasks' => [
+                    ['id' => 1, 'sort_order' => 0, 'parent_task_id' => null],
+                    ['id' => 2, 'sort_order' => 1, 'parent_task_id' => null],
+                    ['id' => 3, 'sort_order' => 2, 'parent_task_id' => null],
+                ],
+            ])
+            ->assertOk();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/2", [
+                'list_id' => $firstList->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('list_id', $firstList->id)
+            ->assertJsonPath('sort_order', 1);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', 1)
+            ->assertJsonPath('data.1.id', 2)
+            ->assertJsonPath('data.2.id', 3);
+    }
+
     public function test_user_can_create_parent_and_child_tasks(): void
     {
         $user = User::factory()->create();

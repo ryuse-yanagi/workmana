@@ -1,6 +1,5 @@
 import type { Ref } from 'vue'
 import {
-  EFFORT_UNIT_OPTIONS,
   type TaskFormDraft,
   type TaskFormEffortUnit,
   type TaskFormLabel,
@@ -12,9 +11,9 @@ import {
   formatEffortDisplay,
   labelBarTextColor,
   memberEmailLine,
-  normalizeEffortUnit,
   normalizeEffortValue,
   parseEffortDraft,
+  resolveEffortUnit,
   resolveStoredEffortValue,
   toDateInputValue,
   unitValueToHours,
@@ -40,6 +39,7 @@ type UseTaskFormPaneOptions = {
   draft: Ref<TaskFormDraft>
   orgLabels: Ref<TaskFormLabel[]>
   projectMembers: Ref<TaskFormMember[]>
+  orgEffortUnit: Ref<TaskFormEffortUnit>
   disabled: Ref<boolean>
 }
 
@@ -62,7 +62,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
   const titleTextareaRef = ref<HTMLTextAreaElement | null>(null)
   const labelSearchQuery = ref('')
   const effortDraft = ref<string | number>('')
-  const effortUnitDraft = ref<TaskFormEffortUnit>('hour')
   const effortInputRef = ref<HTMLInputElement | null>(null)
 
   let removePopoverResizeListener: (() => void) | null = null
@@ -87,10 +86,9 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     if (activePopover.value === 'effort') {
       const parsed = parseEffortDraft(effortDraft.value)
       if (parsed === null || parsed === 'invalid') return ''
-      const unit = normalizeEffortUnit(effortUnitDraft.value)
-      return `${formatEffortAmount(parsed)} ${effortUnitLabel(unit)}`
+      return `${formatEffortAmount(parsed)} ${effortUnitLabel(options.orgEffortUnit.value)}`
     }
-    return formatEffortDisplay(options.draft.value)
+    return formatEffortDisplay(options.draft.value, options.orgEffortUnit.value)
   })
 
   const calendarMonthLabel = computed(() => {
@@ -219,7 +217,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
 
     popoverError.value = null
     if (parsed !== null) {
-      const unit = normalizeEffortUnit(effortUnitDraft.value)
+      const unit = options.orgEffortUnit.value
       const effortValue = normalizeEffortValue(parsed)
       options.draft.value = {
         ...options.draft.value,
@@ -360,7 +358,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     popoverAnchorEl.value = resolveEffortPopoverAnchor(event)
     activePopover.value = 'effort'
     popoverError.value = null
-    effortUnitDraft.value = normalizeEffortUnit(options.draft.value.effort_unit)
     effortDraft.value = effortValueToDraft(options.draft.value)
     updatePopoverPosition()
     nextTick(() => {
@@ -451,13 +448,11 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     dismissPopover()
     labelSearchQuery.value = ''
     effortDraft.value = ''
-    effortUnitDraft.value = 'hour'
     titleTextareaRef.value = null
     effortDetailAnchorRef.value = null
   }
 
   return {
-    EFFORT_UNIT_OPTIONS,
     activePopover,
     selectedMember,
     popoverError,
@@ -468,7 +463,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     titleTextareaRef,
     labelSearchQuery,
     effortDraft,
-    effortUnitDraft,
     effortInputRef,
     weekdayLabels,
     filteredOrgLabels,

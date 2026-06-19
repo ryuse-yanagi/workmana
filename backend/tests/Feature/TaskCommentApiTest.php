@@ -127,4 +127,20 @@ class TaskCommentApiTest extends TestCase
             ->deleteJson("/api/orgs/acme/projects/{$project->id}/tasks/{$task->id}/comments/{$comment->id}")
             ->assertForbidden();
     }
+
+    public function test_user_can_list_project_task_comments_grouped_by_task(): void
+    {
+        [$user, $project, $task] = $this->seedProjectContext();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks/{$task->id}/comments", [
+                'body' => 'Bulk listed comment',
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/comments")
+            ->assertOk()
+            ->assertJsonPath("data.{$task->id}.0.body", 'Bulk listed comment');
+    }
 }

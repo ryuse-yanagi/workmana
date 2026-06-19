@@ -169,41 +169,27 @@
 <script setup lang="ts">
 import { Smile } from 'lucide-vue-next'
 import { useApi } from '../../composables/useApi'
+import { useCurrentUser } from '../../composables/useCurrentUser'
 import { memberDisplayName, type MemberLike } from '../../composables/useMemberDisplay'
+import type { TaskCommentReaction, TaskDetailComment } from './taskCommentTypes'
 
-type CommentAuthor = {
-  id: number
-  name: string | null
-  email: string | null
-  avatar_url: string | null
-}
-
-type CommentReaction = {
-  emoji: string
-  count: number
-  reacted_by_me: boolean
-  users: CommentAuthor[]
-}
-
-type TaskComment = {
-  id: number
-  author_id: number
-  author: CommentAuthor | null
-  body: string
-  created_at: string
-  updated_at: string
-  edited: boolean
-  reactions: CommentReaction[]
-}
+type TaskComment = TaskDetailComment
 
 const props = defineProps<{
   orgSlug: string
   projectId: string
   taskId: number | null
   projectMembers: MemberLike[]
+  /** カンバン画面で取得済みのコメント（あれば読み込み表示を出さない） */
+  initialComments?: TaskComment[] | null
+}>()
+
+const emit = defineEmits<{
+  'comments-updated': [{ taskId: number; comments: TaskComment[] }]
 }>()
 
 const { api } = useApi()
+const { currentUserId, ensureCurrentUser } = useCurrentUser()
 
 const reactionChoices = ['👍', '😄', '🎉', '❤️', '👀', '🚀']
 
@@ -213,7 +199,6 @@ const commentsLoadError = ref<string | null>(null)
 const commentDraft = ref('')
 const commentSending = ref(false)
 const commentSendError = ref<string | null>(null)
-const currentUserId = ref<number | null>(null)
 const chatMessagesRef = ref<HTMLElement | null>(null)
 const commentInputRef = ref<HTMLTextAreaElement | null>(null)
 const editInputRef = ref<HTMLTextAreaElement | null>(null)
@@ -229,13 +214,20 @@ const reactionPendingId = ref<number | null>(null)
 const openReactionMenuCommentId = ref<number | null>(null)
 
 watch(
-  () => props.taskId,
-  async (taskId) => {
+  () => [props.taskId, props.initialComments] as const,
+  async ([taskId, initialComments]) => {
     resetComments()
     if (taskId === null) {
       return
     }
-    await Promise.all([loadCurrentUser(), loadComments()])
+    if (initialComments != null) {
+      comments.value = [...initialComments]
+      commentsLoading.value = false
+      void ensureCurrentUser()
+      nextTick(() => scrollChatToBottom())
+      return
+    }
+    await Promise.all([ensureCurrentUser(), loadComments()])
   },
   { immediate: true },
 )
@@ -305,7 +297,7 @@ function isCommentMine (comment: TaskComment): boolean {
   return currentUserId.value !== null && currentUserId.value === comment.author_id
 }
 
-function reactionTooltip (reaction: CommentReaction): string {
+function reactionTooltip (reaction: TaskCommentReaction): string {
   const names = reaction.users
     .map(user => memberDisplayName(user))
     .join('、')
@@ -346,10 +338,18 @@ function formatCommentFullTime (iso: string): string {
   })
 }
 
+function notifyCommentsUpdated () {
+  if (props.taskId === null) {
+    return
+  }
+  emit('comments-updated', { taskId: props.taskId, comments: [...comments.value] })
+}
+
 function replaceComment (updated: TaskComment) {
   comments.value = comments.value.map(comment => (
     comment.id === updated.id ? updated : comment
   ))
+  notifyCommentsUpdated()
 }
 
 function scrollChatToBottom () {
@@ -367,15 +367,6 @@ function adjustCommentInputHeight () {
   }
   el.style.height = 'auto'
   el.style.height = `${Math.min(el.scrollHeight, 120)}px`
-}
-
-async function loadCurrentUser () {
-  try {
-    const me = await api<{ id: number }>('/me')
-    currentUserId.value = me.id
-  } catch {
-    currentUserId.value = null
-  }
 }
 
 async function loadComments () {
@@ -417,6 +408,7 @@ async function sendComment () {
       { method: 'POST', body: { body } },
     )
     comments.value = [...comments.value, created]
+    notifyCommentsUpdated()
     commentDraft.value = ''
     nextTick(() => {
       adjustCommentInputHeight()
@@ -500,6 +492,7 @@ async function confirmDeleteComment () {
       { method: 'DELETE' },
     )
     comments.value = comments.value.filter(item => item.id !== commentId)
+    notifyCommentsUpdated()
     if (editingCommentId.value === commentId) {
       cancelEdit()
     }
@@ -545,6 +538,9 @@ defineExpose({ resetComments })
 .task-detail-chat-pane {
   flex: 1 1 22rem;
   min-width: 18rem;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   border-left: 1px solid mixin.$border-light;

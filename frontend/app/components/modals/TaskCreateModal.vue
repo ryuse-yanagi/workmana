@@ -1,12 +1,11 @@
 <template>
   <Teleport to="body">
-    <Transition name="tm-fade">
-      <div
-        v-if="modelValue"
-        class="modal-overlay"
-        :class="{ 'modal-overlay--popover-open': panePopoverOpen }"
-        role="presentation"
-      >
+    <div
+      v-if="modelValue"
+      class="modal-overlay"
+      :class="{ 'modal-overlay--popover-open': panePopoverOpen }"
+      role="presentation"
+    >
         <section
           class="modal-card"
           role="dialog"
@@ -90,6 +89,7 @@
               <TaskFormPane
                 ref="taskFormPaneRef"
                 v-model="draft"
+                :org-slug="orgSlug"
                 :org-labels="orgLabels"
                 :project-members="projectMembers"
                 :disabled="submitting"
@@ -119,8 +119,7 @@
             </footer>
           </div>
         </section>
-      </div>
-    </Transition>
+    </div>
   </Teleport>
 </template>
 
@@ -138,6 +137,7 @@ import {
   type TaskFormMember,
 } from '../../composables/useTaskFormHelpers'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
+import { useOrgEffortSettings } from '../../composables/useOrgEffortSettings'
 
 type ParentTaskOption = {
   id: number
@@ -196,6 +196,10 @@ const emit = defineEmits<{
 }>()
 
 const { api } = useApi()
+const {
+  ensureOrgEffortSettings,
+  getOrgEffortUnit,
+} = useOrgEffortSettings()
 
 const draft = ref<TaskFormDraft>(createEmptyTaskFormDraft())
 const createAsParent = ref(false)
@@ -296,10 +300,12 @@ async function submit () {
   submitError.value = null
 
   try {
+    await ensureOrgEffortSettings(props.orgSlug)
     const body = buildTaskCreateBody(draft.value, {
       listId: props.listId,
       createAsParent: createAsParent.value,
       parentTaskId: parentTaskId.value,
+      orgEffortUnit: getOrgEffortUnit(props.orgSlug),
     })
 
     const created = await api<CreatedTask>(

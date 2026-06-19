@@ -35,13 +35,14 @@ import type { OrgSettingsResponse } from './types'
 
 const props = defineProps<{
   orgSlug: string
+  initialLabel: string
 }>()
 
 const { api } = useApi()
 const { syncLabelState, DEFAULT_WORK_UNIT_LABEL } = useOrgTerminology()
 
-const labelCurrent = ref(DEFAULT_WORK_UNIT_LABEL)
-const labelDraft = ref(DEFAULT_WORK_UNIT_LABEL)
+const labelCurrent = ref(props.initialLabel)
+const labelDraft = ref(props.initialLabel)
 const loading = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
@@ -91,10 +92,6 @@ async function save () {
 }
 
 defineExpose({ load })
-
-onMounted(() => {
-  void load()
-})
 </script>
 
 <style lang="scss">

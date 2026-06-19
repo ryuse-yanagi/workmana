@@ -1,34 +1,48 @@
 <template>
   <div class="color-preset-picker">
     <span class="color-preset-picker__label">カラー</span>
-    <div class="color-preset-picker__list">
+    <div
+      class="color-preset-picker__list"
+      :style="{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }"
+    >
       <button
         v-for="colorItem in colorPresets"
         :key="colorItem"
         type="button"
         class="color-preset-picker__btn"
         :class="{ 'color-preset-picker__btn--active': colorItem === modelValue }"
-        :style="{ backgroundColor: colorItem }"
+        :style="{
+          backgroundColor: colorItem,
+          borderColor: labelSwatchBorderColor(colorItem),
+        }"
         :aria-label="`色 ${colorItem}`"
+        :aria-pressed="colorItem === modelValue"
         @click="selectColor(colorItem)"
-      />
+      >
+        <Check
+          v-if="colorItem === modelValue"
+          class="color-preset-picker__check"
+          :size="20"
+          :stroke-width="3.5"
+          :color="labelSwatchCheckColor(colorItem)"
+          aria-hidden="true"
+        />
+      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-const colorPresets: string[] = [
-  '#c084fc',
-  '#6366f1',
-  '#3b82f6',
-  '#06b6d4',
-  '#34d399',
-  '#84cc16',
-  '#eab308',
-  '#f97316',
-  '#ef4444',
-  '#ec4899',
-]
+import { Check } from 'lucide-vue-next'
+import {
+  LABEL_COLOR_GRID_COLUMNS,
+  LABEL_COLOR_PRESETS,
+  labelSwatchBorderColor,
+  labelSwatchCheckColor,
+} from '../../constants/labelColorPresets'
+
+const colorPresets = LABEL_COLOR_PRESETS
+const gridColumns = LABEL_COLOR_GRID_COLUMNS
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -57,21 +71,28 @@ function selectColor (colorItem: string) {
 }
 
 .color-preset-picker__list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  display: grid;
+  gap: 0.35rem;
 }
 
 .color-preset-picker__btn {
   @include mixin.picker-checkbox-row;
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.15);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1.55;
+  min-height: 1.65rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
   padding: 0;
 }
 
 .color-preset-picker__btn--active {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #334155;
+  box-shadow: none;
+}
+
+.color-preset-picker__check {
+  flex-shrink: 0;
 }
 </style>

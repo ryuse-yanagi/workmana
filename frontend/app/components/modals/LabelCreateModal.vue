@@ -31,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+import { DEFAULT_LABEL_COLOR } from '../../constants/labelColorPresets'
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title: string
@@ -44,7 +45,7 @@ const emit = defineEmits<{
   submit: [{ name: string; color: string }]
 }>()
 
-const defaultColor = '#c084fc'
+const defaultColor = DEFAULT_LABEL_COLOR
 
 const name = ref('')
 const color = ref<string>(defaultColor)

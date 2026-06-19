@@ -42,31 +42,8 @@ body.project-view-page-root {
 }
 
 /*
- * .tm-fade-* はページ内のデータ表示・モーダルなどで利用:
- *
- * データ取得完了後のフェード（opacity 0.32s）。
- *
- * 初回ゲート後の本文フェード（ページ別ヘッダーはフェード対象外で常時表示）:
- *   <header class="page-header">…</header>
- *   <Transition name="tm-fade" appear>
- *     <div key="…" class="page-shell-fade"> … 本文 … </div>
- *   </Transition>
- * モーダル本体は各 *Modal.vue 内で <Transition name="tm-fade">（開閉フェード）。
  * Toast・一覧メニュー用 Teleport などはページ側の都度。
- *
- * 一覧と本文で別トランジションが必要な場合は inner に追加の <Transition name="tm-fade"> を使う。
  */
-.tm-fade-enter-active,
-.tm-fade-leave-active {
-  transition: opacity 0.32s ease;
-}
-
-.tm-fade-enter-from,
-.tm-fade-leave-to {
-  opacity: 0;
-}
-
-/* ページ別ヘッダー＋本文ラッパー（幅だけ確保。レイアウトは各ページの子要素に任せる） */
 .page-shell-fade {
   width: 100%;
 }

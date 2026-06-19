@@ -4,41 +4,49 @@
       <PageLoadFatal :message="settingsFatalError" @retry="retrySettingsLoad" />
     </template>
 
-    <template v-else>
+    <template v-else-if="settingsPageReady && settingsSnapshot">
       <header class="settings-header">
         <h1>設定</h1>
         <p class="subtitle">左のメニューから変更したい設定を選択してください。</p>
       </header>
 
-      <div v-if="!settingsPageReady" class="page-await-spacer" aria-busy="true" />
+      <div class="settings-main">
+        <section class="settings-layout">
+          <SettingsSidebar
+            :items="menuItems"
+            :active-tab="activeTab"
+            @select="selectTab"
+          />
 
-      <Transition v-else name="tm-fade" appear>
-        <div key="settings-body" class="settings-main page-shell-fade">
-          <section class="settings-layout">
-            <SettingsSidebar
-              :items="menuItems"
-              :active-tab="activeTab"
-              @select="selectTab"
+          <section class="settings-content">
+            <SettingsWorkUnitLabelPanel
+              v-show="activeTab === 'work_unit_label'"
+              :org-slug="slug"
+              :initial-label="workUnitLabelFromSnapshot"
             />
-
-            <section class="settings-content">
-              <SettingsWorkUnitLabelPanel
-                v-if="activeTab === 'work_unit_label'"
-                :org-slug="slug"
-              />
-              <SettingsDefaultBoardListsPanel
-                v-else-if="activeTab === 'default_board_lists'"
-                :org-slug="slug"
-              />
-              <SettingsProjectLabelsPanel
-                v-else-if="activeTab === 'project_labels'"
-                :org-slug="slug"
-              />
-              <SettingsTaskLabelsPanel v-else :org-slug="slug" />
-            </section>
+            <SettingsDefaultBoardListsPanel
+              v-show="activeTab === 'default_board_lists'"
+              :org-slug="slug"
+              :initial-names="defaultBoardListNamesFromSnapshot"
+            />
+            <SettingsEffortPanel
+              v-show="activeTab === 'effort_settings'"
+              :org-slug="slug"
+              :initial-unit="effortUnitFromSnapshot"
+            />
+            <SettingsProjectLabelsPanel
+              v-show="activeTab === 'project_labels'"
+              :org-slug="slug"
+              :initial-labels="settingsSnapshot.projectLabels"
+            />
+            <SettingsTaskLabelsPanel
+              v-show="activeTab === 'task_labels'"
+              :org-slug="slug"
+              :initial-labels="settingsSnapshot.taskLabels"
+            />
           </section>
-        </div>
-      </Transition>
+        </section>
+      </div>
     </template>
   </main>
 </template>
@@ -46,12 +54,19 @@
 <script setup lang="ts">
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
 import { useApi } from '../../../composables/useApi'
+import { useOrgSettingsPageData } from '../../../composables/useOrgSettingsPageData'
 import SettingsDefaultBoardListsPanel from '../../../components/settings/SettingsDefaultBoardListsPanel.vue'
+import SettingsEffortPanel from '../../../components/settings/SettingsEffortPanel.vue'
 import SettingsProjectLabelsPanel from '../../../components/settings/SettingsProjectLabelsPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
 import SettingsTaskLabelsPanel from '../../../components/settings/SettingsTaskLabelsPanel.vue'
 import SettingsWorkUnitLabelPanel from '../../../components/settings/SettingsWorkUnitLabelPanel.vue'
-import type { SettingsTabKey } from '../../../components/settings/types'
+import {
+  normalizeDefaultBoardListNames,
+  type SettingsPageSnapshot,
+  type SettingsTabKey,
+} from '../../../components/settings/types'
+import { normalizeEffortUnit } from '../../../composables/useTaskFormHelpers'
 
 definePageMeta({ name: 'org-slug-settings' })
 
@@ -59,10 +74,17 @@ const route = useRoute()
 const router = useRouter()
 const slug = computed(() => route.params.slug as string)
 const { api } = useApi()
+const {
+  fetchSnapshot,
+  getCached,
+  invalidateCached,
+  DEFAULT_WORK_UNIT_LABEL,
+} = useOrgSettingsPageData()
 
 const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
   { key: 'work_unit_label', label: 'work_unit_label設定' },
   { key: 'default_board_lists', label: 'デフォルトリスト設定' },
+  { key: 'effort_settings', label: '工数設定' },
   { key: 'project_labels', label: 'プロジェクトラベル設定' },
   { key: 'task_labels', label: 'タスクラベル設定' },
 ]
@@ -70,23 +92,50 @@ const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
 const activeTab = ref<SettingsTabKey>('work_unit_label')
 const settingsPageReady = ref(false)
 const settingsFatalError = ref<string | null>(null)
+const settingsSnapshot = ref<SettingsPageSnapshot | null>(null)
+
+const workUnitLabelFromSnapshot = computed(() => {
+  const raw = settingsSnapshot.value?.orgSettings.work_unit_label
+  return (raw || '').trim() || DEFAULT_WORK_UNIT_LABEL
+})
+
+const defaultBoardListNamesFromSnapshot = computed(() => {
+  return normalizeDefaultBoardListNames(settingsSnapshot.value?.orgSettings.default_board_list_names)
+})
+
+const effortUnitFromSnapshot = computed(() => {
+  return normalizeEffortUnit(settingsSnapshot.value?.orgSettings.effort_unit)
+})
 
 async function loadInitialData () {
   settingsFatalError.value = null
+  settingsPageReady.value = false
+  settingsSnapshot.value = null
+
+  const slugValue = slug.value
+  const cached = getCached(slugValue)
+  if (cached) {
+    settingsSnapshot.value = cached
+    settingsPageReady.value = true
+    return
+  }
 
   const r = await raceWithTimeout(async () => {
     await api('/me')
+    return fetchSnapshot(slugValue)
   }, TM_PAGE_LOAD_TIMEOUT_MS)
 
   if (!r.ok) {
     settingsFatalError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
     return
   }
+
+  settingsSnapshot.value = r.value
   settingsPageReady.value = true
 }
 
 function retrySettingsLoad () {
-  settingsFatalError.value = null
+  invalidateCached(slug.value)
   void loadInitialData()
 }
 
@@ -99,6 +148,10 @@ function applyTabFromRoute () {
   }
   if (tab === 'default_board_lists') {
     activeTab.value = 'default_board_lists'
+    return
+  }
+  if (tab === 'effort_settings') {
+    activeTab.value = 'effort_settings'
     return
   }
   if (tab === 'project_labels') {

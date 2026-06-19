@@ -36,11 +36,12 @@ import type { SettingsLabelItem } from './types'
 
 const props = defineProps<{
   orgSlug: string
+  initialLabels: SettingsLabelItem[]
 }>()
 
 const { api } = useApi()
 
-const labels = ref<SettingsLabelItem[]>([])
+const labels = ref<SettingsLabelItem[]>([...props.initialLabels])
 const loading = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
@@ -89,10 +90,6 @@ async function createLabel (payload: { name: string; color: string }) {
 }
 
 defineExpose({ load })
-
-onMounted(() => {
-  void load()
-})
 </script>
 
 <style lang="scss">

@@ -85,23 +85,7 @@
               @keydown.escape.prevent="void finalizeEffortPopover()"
               @click.stop
             />
-            <select
-              v-model="effortUnitDraft"
-              class="effort-unit-select"
-              aria-label="工数の単位"
-              :disabled="disabled"
-              @mousedown.stop
-              @click.stop
-              @change="updatePopoverPosition"
-            >
-              <option
-                v-for="option in EFFORT_UNIT_OPTIONS"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
+            <span class="effort-unit-label">{{ effortUnitLabel(orgEffortUnit) }}</span>
           </div>
 
           <p v-if="popoverError" class="err">{{ popoverError }}</p>
@@ -164,28 +148,40 @@
           :close-disabled="disabled"
           @close="closePopover"
         >
+          <input
+            v-model="memberSearchQuery"
+            type="search"
+            class="label-search-input"
+            placeholder="担当者を検索..."
+            :disabled="disabled"
+            @click.stop
+          />
+
+          <p class="label-section-heading">担当者</p>
+
           <div class="popover-scroll">
-            <ul class="member-picker-list">
-              <li v-for="member in projectMembers" :key="member.id">
+            <ul class="label-picker-list">
+              <li v-for="member in filteredProjectMembers" :key="member.id">
                 <button
                   type="button"
-                  class="member-picker-row"
-                  :class="{ 'member-picker-row--selected': isMemberAssigned(member.id) }"
+                  class="label-picker-row"
                   @click.stop="toggleMember(member)"
                 >
-                  <img
-                    v-if="member.avatar_url"
-                    :src="member.avatar_url"
-                    alt=""
-                    class="member-picker-avatar"
-                  />
-                  <span v-else class="member-picker-initial">{{ memberInitial(member) }}</span>
-                  <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
-                  <span v-if="isMemberAssigned(member.id)" class="member-picker-check">✓</span>
+                  <span
+                    class="label-picker-checkbox"
+                    :class="{ 'label-picker-checkbox--checked': isMemberAssigned(member.id) }"
+                    aria-hidden="true"
+                  >
+                    <span v-if="isMemberAssigned(member.id)">✓</span>
+                  </span>
+                  <span class="label-picker-bar member-picker-bar">
+                    {{ memberDisplayName(member) }}
+                  </span>
                 </button>
               </li>
             </ul>
-            <p v-if="!projectMembers.length" class="empty-text">プロジェクトメンバーがいません。</p>
+            <p v-if="!projectMembers.length" class="empty-text label-picker-empty">プロジェクトメンバーがいません。</p>
+            <p v-else-if="!filteredProjectMembers.length" class="empty-text label-picker-empty">該当する担当者がいません。</p>
 
             <p v-if="popoverError" class="err">{{ popoverError }}</p>
           </div>
@@ -341,6 +337,7 @@ const emit = defineEmits<{
 }>()
 
 const taskRef = ref<TaskPopoverEditable | null>(null)
+const memberSearchQuery = ref('')
 
 function bindTask (task: TaskPopoverEditable | null) {
   if (taskRef.value?.id !== task?.id) {
@@ -350,7 +347,8 @@ function bindTask (task: TaskPopoverEditable | null) {
 }
 
 const {
-  EFFORT_UNIT_OPTIONS,
+  orgEffortUnit,
+  effortUnitLabel,
   activePopover,
   selectedMember,
   popoverError,
@@ -358,7 +356,6 @@ const {
   popoverElRef,
   labelSearchQuery,
   effortDraft,
-  effortUnitDraft,
   effortInputRef,
   descriptionDraft,
   descriptionSaving,
@@ -399,6 +396,16 @@ const {
   disabled: computed(() => props.disabled),
   onUpdated: (task) => emit('updated', task),
   zIndex: 80,
+})
+
+const filteredProjectMembers = computed(() => {
+  const query = memberSearchQuery.value.trim().toLowerCase()
+  if (!query) return props.projectMembers
+  return props.projectMembers.filter((member) => {
+    const name = memberDisplayName(member).toLowerCase()
+    const email = (member.email ?? '').toLowerCase()
+    return name.includes(query) || email.includes(query)
+  })
 })
 
 defineExpose({
@@ -457,10 +464,6 @@ defineExpose({
   overflow: hidden;
   padding: 0;
   gap: 0;
-}
-
-.popover--members .member-picker-list {
-  padding: 0.65rem 0.5rem 0.65rem;
 }
 
 .popover--members .empty-text,
@@ -588,6 +591,11 @@ defineExpose({
   line-height: 1.25;
   display: flex;
   align-items: center;
+}
+
+.member-picker-bar {
+  background: #f8fafc;
+  color: #172b4d;
 }
 
 .label-picker-empty {
@@ -736,21 +744,14 @@ defineExpose({
   @include mixin.input-focus-ring;
 }
 
-.popover--effort .effort-unit-select {
+.popover--effort .effort-unit-label {
   flex: 0 0 auto;
   box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
   padding: 0.45rem 0.5rem;
   font-size: 0.88rem;
   font-weight: 700;
-  color: #0f172a;
-  background: #fff;
-  cursor: pointer;
-}
-
-.popover--effort .effort-unit-select:focus {
-  @include mixin.input-focus-ring;
+  color: #64748b;
+  white-space: nowrap;
 }
 
 .popover--date .calendar {
@@ -868,68 +869,6 @@ defineExpose({
   border-color: mixin.$main;
 }
 
-.member-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.member-picker-row {
-  @include mixin.picker-checkbox-row;
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 0.5rem 0.65rem;
-  background: #fff;
-  text-align: left;
-}
-
-.member-picker-row:hover {
-  background: #f8fafc;
-}
-
-.member-picker-row--selected {
-  border-color: mixin.$main;
-  background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
-}
-
-.member-picker-name {
-  flex: 1;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.member-picker-check {
-  color: #0891b2;
-  font-weight: 800;
-}
-
-.member-picker-avatar {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  object-fit: cover;
-}
-
-.member-picker-initial {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #dbeafe;
-  color: #1e3a8a;
-  font-size: 0.72rem;
-  font-weight: 800;
-}
 
 .empty-text {
   margin: 0;
@@ -991,8 +930,8 @@ defineExpose({
 }
 
 .list-picker-radio--checked {
-  border-color: mixin.$main-aqua;
-  background: mixin.$main-aqua;
+  border-color: mixin.$main;
+  background: mixin.$main;
 }
 
 .list-picker-radio--checked::after {

@@ -1,14 +1,13 @@
 <template>
   <main
     class="list-page"
-    :class="{ 'list-page--await': !pageReady && !fatalLoadError }"
     :style="listPageCssVars"
   >
     <template v-if="fatalLoadError">
       <PageLoadFatal :message="fatalLoadError" @retry="retryInitialLoad" />
     </template>
 
-    <template v-else>
+    <template v-else-if="pageReady">
       <header class="page-header">
             <div class="subheader">
               <p class="subheader-title">{{ workUnitListLabel }}</p>
@@ -45,10 +44,7 @@
             </div>
       </header>
 
-      <div v-if="!pageReady" class="page-await-spacer" aria-busy="true" />
-
-      <Transition v-else name="tm-fade" appear>
-        <div key="list-body" class="page-shell-fade">
+      <div class="page-shell-fade">
           <!-- エラー表示 -->
           <p v-if="error" class="err">{{ error }}</p>
 
@@ -96,12 +92,10 @@
               </table>
             </div>
           </section>
-        </div>
-      </Transition>
+      </div>
 
       <!-- 作成モーダル（オーバーレイのためフェード対象外） -->
       <ProjectCreateModal
-        v-if="pageReady"
         v-model="projectCreateModalOpen"
         :title="workUnitLabel ? `${workUnitLabel}の作成` : '作成'"
         :work-unit-label="workUnitLabel ?? ''"
@@ -117,6 +111,8 @@
 import { FolderPlus } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
 import { useApi } from '../../../composables/useApi'
+import { useOrgIndexPageData, type OrgIndexPageSnapshot } from '../../../composables/useOrgIndexPageData'
+import { useProjectBoardPageData } from '../../../composables/useProjectBoardPageData'
 import { useOrgTerminology, useWorkUnitLabel } from '../../../composables/useOrgTerminology'
 
 definePageMeta({ name: 'org-slug' })
@@ -127,8 +123,14 @@ type Project = { id: number; name: string; labels?: Label[] }
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const { api } = useApi()
-const { fetchWorkUnitLabel, syncLabelState } = useOrgTerminology()
+const { syncLabelState } = useOrgTerminology()
 const { workUnitLabel, workUnitListLabel } = useWorkUnitLabel(() => slug.value)
+const {
+  fetchSnapshot: fetchOrgIndexSnapshot,
+  getCached: getOrgIndexCached,
+  invalidateCached: invalidateOrgIndexCached,
+} = useOrgIndexPageData()
+const { prefetch: prefetchProjectBoard } = useProjectBoardPageData()
 
 const projects = ref<Project[]>([])
 /** 初回取得成功まで UI を出さない */
@@ -143,6 +145,7 @@ const projectCreateModalOpen = ref(false)
 const orgLabels = ref<Label[]>([])
 const labelFilterId = ref('')
 const justCreatedProjectIds = reactive<Record<number, true>>({})
+const projectNavPending = ref(false)
 
 const globalHeaderOffsetPx = ref(46)
 
@@ -188,19 +191,10 @@ function openProjectCreateModal () {
   projectCreateModalOpen.value = true
 }
 
-async function fetchOrgIndex () {
-  const [projectsRes, label, labelsRes] = await Promise.all([
-    api<{ data: Project[] }>(`/orgs/${slug.value}/projects`),
-    fetchWorkUnitLabel(slug.value),
-    api<{ data: Label[] }>(`/orgs/${slug.value}/project-labels`),
-  ])
-  return { projectsRes, label, labelsRes }
-}
-
-function applyOrgIndex (data: Awaited<ReturnType<typeof fetchOrgIndex>>) {
-  projects.value = data.projectsRes.data
-  orgLabels.value = data.labelsRes.data
-  syncLabelState(slug.value, data.label)
+function applyOrgIndexSnapshot (snapshot: OrgIndexPageSnapshot) {
+  projects.value = snapshot.projects
+  orgLabels.value = snapshot.orgLabels
+  syncLabelState(slug.value, snapshot.workUnitLabel)
 }
 
 async function load (opts?: { refresh?: boolean }) {
@@ -212,16 +206,25 @@ async function load (opts?: { refresh?: boolean }) {
 
   try {
     if (!pageReady.value && !refresh) {
-      const r = await raceWithTimeout(() => fetchOrgIndex(), TM_PAGE_LOAD_TIMEOUT_MS)
+      const cached = getOrgIndexCached(slug.value)
+      if (cached) {
+        applyOrgIndexSnapshot(cached)
+        pageReady.value = true
+        return
+      }
+      const r = await raceWithTimeout(
+        () => fetchOrgIndexSnapshot(slug.value),
+        TM_PAGE_LOAD_TIMEOUT_MS,
+      )
       if (!r.ok) {
         fatalLoadError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
         return
       }
-      applyOrgIndex(r.value)
+      applyOrgIndexSnapshot(r.value)
       pageReady.value = true
     } else {
-      const data = await fetchOrgIndex()
-      applyOrgIndex(data)
+      const snapshot = await fetchOrgIndexSnapshot(slug.value)
+      applyOrgIndexSnapshot(snapshot)
       pageReady.value = true
     }
   } catch (e: unknown) {
@@ -241,6 +244,8 @@ async function load (opts?: { refresh?: boolean }) {
 
 function retryInitialLoad () {
   fatalLoadError.value = null
+  invalidateOrgIndexCached(slug.value)
+  pageReady.value = false
   void load()
 }
 
@@ -262,8 +267,23 @@ async function createProject (payload: { name: string; label_ids: number[] }) {
   }
 }
 
-function goToProject (projectId: number) {
-  navigateTo(`/org/${slug.value}/projects/${projectId}`)
+async function goToProject (projectId: number) {
+  if (projectNavPending.value) {
+    return
+  }
+  projectNavPending.value = true
+  try {
+    const r = await raceWithTimeout(
+      () => prefetchProjectBoard(slug.value, String(projectId)),
+      TM_PAGE_LOAD_TIMEOUT_MS,
+    )
+    if (!r.ok) {
+      return
+    }
+    await navigateTo(`/org/${slug.value}/projects/${projectId}`)
+  } finally {
+    projectNavPending.value = false
+  }
 }
 
 let globalHeaderObserver: ResizeObserver | null = null
@@ -286,10 +306,18 @@ function updateStickyOffsets () {
   globalHeaderOffsetPx.value = readGlobalHeaderHeight()
 }
 
+onBeforeMount(() => {
+  const cached = getOrgIndexCached(slug.value)
+  if (cached) {
+    applyOrgIndexSnapshot(cached)
+    pageReady.value = true
+  }
+})
+
 onMounted(() => {
-  void (async () => {
-    await load()
-  })()
+  if (!pageReady.value) {
+    void load()
+  }
 
   if (!import.meta.client) {
     return

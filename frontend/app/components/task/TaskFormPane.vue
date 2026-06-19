@@ -312,23 +312,7 @@
                 @keydown.escape.prevent="void finalizeEffortPopover()"
                 @click.stop
               />
-              <select
-                v-model="effortUnitDraft"
-                class="effort-unit-select"
-                aria-label="工数の単位"
-                :disabled="disabled"
-                @mousedown.stop
-                @click.stop
-                @change="updatePopoverPosition"
-              >
-                <option
-                  v-for="option in EFFORT_UNIT_OPTIONS"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
+              <span class="effort-unit-label">{{ effortUnitLabel(orgEffortUnit) }}</span>
             </div>
 
             <p v-if="popoverError" class="err">{{ popoverError }}</p>
@@ -391,28 +375,40 @@
             :close-disabled="disabled"
             @close="closePopover"
           >
+            <input
+              v-model="memberSearchQuery"
+              type="search"
+              class="label-search-input"
+              placeholder="担当者を検索..."
+              :disabled="disabled"
+              @click.stop
+            />
+
+            <p class="label-section-heading">担当者</p>
+
             <div class="popover-scroll">
-              <ul class="member-picker-list">
-                <li v-for="member in projectMembers" :key="member.id">
+              <ul class="label-picker-list">
+                <li v-for="member in filteredProjectMembers" :key="member.id">
                   <button
                     type="button"
-                    class="member-picker-row"
-                    :class="{ 'member-picker-row--selected': isMemberAssigned(member.id) }"
+                    class="label-picker-row"
                     @click.stop="toggleMember(member)"
                   >
-                    <img
-                      v-if="member.avatar_url"
-                      :src="member.avatar_url"
-                      alt=""
-                      class="member-picker-avatar"
-                    />
-                    <span v-else class="member-picker-initial">{{ memberInitial(member) }}</span>
-                    <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
-                    <span v-if="isMemberAssigned(member.id)" class="member-picker-check">✓</span>
+                    <span
+                      class="label-picker-checkbox"
+                      :class="{ 'label-picker-checkbox--checked': isMemberAssigned(member.id) }"
+                      aria-hidden="true"
+                    >
+                      <span v-if="isMemberAssigned(member.id)">✓</span>
+                    </span>
+                    <span class="label-picker-bar member-picker-bar">
+                      {{ memberDisplayName(member) }}
+                    </span>
                   </button>
                 </li>
               </ul>
-              <p v-if="!projectMembers.length" class="empty-text">プロジェクトメンバーがいません。</p>
+              <p v-if="!projectMembers.length" class="empty-text label-picker-empty">プロジェクトメンバーがいません。</p>
+              <p v-else-if="!filteredProjectMembers.length" class="empty-text label-picker-empty">該当する担当者がいません。</p>
 
               <p v-if="popoverError" class="err">{{ popoverError }}</p>
             </div>
@@ -497,11 +493,14 @@ import type {
   TaskFormLabel,
   TaskFormMember,
 } from '../../composables/useTaskFormHelpers'
+import { effortUnitLabel } from '../../composables/useTaskFormHelpers'
+import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
 import PopoverShell from '../ui/PopoverShell.vue'
 
 const props = withDefaults(defineProps<{
   modelValue: TaskFormDraft
+  orgSlug: string
   orgLabels: TaskFormLabel[]
   projectMembers: TaskFormMember[]
   disabled?: boolean
@@ -521,6 +520,7 @@ const draft = computed({
   get: () => props.modelValue,
   set: (value: TaskFormDraft) => emit('update:modelValue', value),
 })
+const memberSearchQuery = ref('')
 
 const descriptionModel = computed({
   get: () => props.modelValue.description,
@@ -561,8 +561,9 @@ function onTitleInput () {
   adjustTitleTextareaHeight()
 }
 
+const { orgEffortUnit, ensureOrgEffortUnit } = useOrgEffortUnit(() => props.orgSlug)
+
 const {
-  EFFORT_UNIT_OPTIONS,
   activePopover,
   selectedMember,
   popoverError,
@@ -573,7 +574,6 @@ const {
   titleTextareaRef,
   labelSearchQuery,
   effortDraft,
-  effortUnitDraft,
   effortInputRef,
   weekdayLabels,
   filteredOrgLabels,
@@ -605,7 +605,18 @@ const {
   draft,
   orgLabels: toRef(props, 'orgLabels'),
   projectMembers: toRef(props, 'projectMembers'),
+  orgEffortUnit,
   disabled: computed(() => props.disabled ?? false),
+})
+
+const filteredProjectMembers = computed(() => {
+  const query = memberSearchQuery.value.trim().toLowerCase()
+  if (!query) return props.projectMembers
+  return props.projectMembers.filter((member) => {
+    const name = memberDisplayName(member).toLowerCase()
+    const email = (member.email ?? '').toLowerCase()
+    return name.includes(query) || email.includes(query)
+  })
 })
 
 const activeCalendarDate = computed(() => {
@@ -617,6 +628,7 @@ const activeCalendarDate = computed(() => {
 defineExpose({ resetPaneState, activePopover })
 
 onMounted(() => {
+  void ensureOrgEffortUnit()
   nextTick(() => adjustTitleTextareaHeight())
 })
 </script>
@@ -813,10 +825,6 @@ onMounted(() => {
   gap: 0;
 }
 
-.popover--members .member-picker-list {
-  padding: 0.65rem 0.5rem 0.65rem;
-}
-
 .popover--members .empty-text,
 .popover--members .err {
   margin-left: 0.65rem;
@@ -923,6 +931,11 @@ onMounted(() => {
   line-height: 1.25;
   display: flex;
   align-items: center;
+}
+
+.member-picker-bar {
+  background: #f8fafc;
+  color: #172b4d;
 }
 
 .label-picker-empty {
@@ -1130,21 +1143,14 @@ onMounted(() => {
   @include mixin.input-focus-ring;
 }
 
-.popover--effort .effort-unit-select {
+.popover--effort .effort-unit-label {
   flex: 0 0 auto;
   box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
   padding: 0.45rem 0.5rem;
   font-size: 0.88rem;
   font-weight: 700;
-  color: #0f172a;
-  background: #fff;
-  cursor: pointer;
-}
-
-.popover--effort .effort-unit-select:focus {
-  @include mixin.input-focus-ring;
+  color: #64748b;
+  white-space: nowrap;
 }
 
 .detail-item {
@@ -1284,49 +1290,6 @@ onMounted(() => {
   background: mixin.$main;
   color: mixin.$white;
   border-color: mixin.$main;
-}
-
-.member-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.member-picker-row {
-  @include mixin.picker-checkbox-row;
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 0.5rem 0.65rem;
-  background: #fff;
-  text-align: left;
-}
-
-.member-picker-row:hover {
-  background: #f8fafc;
-}
-
-.member-picker-row--selected {
-  border-color: mixin.$main;
-  background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
-}
-
-.member-picker-name {
-  flex: 1;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.member-picker-check {
-  color: #0891b2;
-  font-weight: 800;
 }
 
 .label-chip-list {

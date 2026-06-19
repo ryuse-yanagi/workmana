@@ -34,7 +34,7 @@
         :to="view.to"
         class="project-view-switcher-item"
         role="menuitem"
-        @click="closeMenu"
+        @click="onViewLinkClick(view, $event)"
       >
         <component
           :is="viewIcons[view.key]"
@@ -59,7 +59,8 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { ChartGantt, Check, LayoutPanelLeft, NotebookPen } from 'lucide-vue-next'
-import { useProjectViewRoutes, type ProjectViewKey } from '../../composables/useProjectViewRoutes'
+import { useProjectBoardPageData } from '../../composables/useProjectBoardPageData'
+import { useProjectViewRoutes, type ProjectViewKey, type ProjectViewOption } from '../../composables/useProjectViewRoutes'
 
 const viewIcons: Record<ProjectViewKey, Component> = {
   kanban: LayoutPanelLeft,
@@ -84,6 +85,7 @@ const { views, activeView } = useProjectViewRoutes(
   () => props.orgSlug,
   () => props.projectId,
 )
+const { prefetch: prefetchProjectBoard, markCachedStale } = useProjectBoardPageData()
 
 const activeViewIcon = computed(() => viewIcons[activeView.value])
 
@@ -109,6 +111,21 @@ const menuStyle = computed(() => {
 function closeMenu () {
   menuOpen.value = false
   menuPosition.value = null
+}
+
+async function onViewLinkClick (view: ProjectViewOption, event: MouseEvent) {
+  closeMenu()
+  if (view.key !== 'kanban' || activeView.value === 'kanban') {
+    return
+  }
+
+  event.preventDefault()
+  try {
+    await prefetchProjectBoard(props.orgSlug, props.projectId)
+  } catch {
+    markCachedStale(props.orgSlug, props.projectId)
+  }
+  await navigateTo(view.to)
 }
 
 function positionMenu () {

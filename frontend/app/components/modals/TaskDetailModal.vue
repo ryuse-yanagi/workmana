@@ -1,12 +1,11 @@
 <template>
   <Teleport to="body">
-    <Transition name="tm-fade">
-      <div
-        v-if="modelValue"
-        class="modal-overlay"
-        :class="{ 'modal-overlay--popover-open': !!activePopover }"
-        role="presentation"
-      >
+    <div
+      v-if="modelValue"
+      class="modal-overlay"
+      :class="{ 'modal-overlay--popover-open': !!activePopover }"
+      role="presentation"
+    >
         <section
           ref="modalCardRef"
           class="modal-card"
@@ -261,11 +260,13 @@
             <section class="field-block description-block">
               <span class="field-label">備考</span>
               <textarea
+                ref="descriptionTextareaRef"
                 v-model="descriptionDraft"
                 class="description-input"
-                rows="4"
+                rows="1"
                 aria-label="備考"
                 :disabled="saving || descriptionSaving"
+                @input="adjustDescriptionTextareaHeight"
                 @blur="onDescriptionBlur"
               />
             </section>
@@ -358,23 +359,7 @@
                     @keydown.escape.prevent="void finalizeEffortPopover()"
                     @click.stop
                   />
-                  <select
-                    v-model="effortUnitDraft"
-                    class="effort-unit-select"
-                    aria-label="工数の単位"
-                    :disabled="saving || effortSaving"
-                    @mousedown.stop
-                    @click.stop
-                    @change="updatePopoverPosition"
-                  >
-                    <option
-                      v-for="option in EFFORT_UNIT_OPTIONS"
-                      :key="option.value"
-                      :value="option.value"
-                    >
-                      {{ option.label }}
-                    </option>
-                  </select>
+                  <span class="effort-unit-label">{{ effortUnitLabel(orgEffortUnit) }}</span>
                 </div>
 
                 <p v-if="popoverError" class="err">{{ popoverError }}</p>
@@ -437,28 +422,40 @@
                 :close-disabled="saving"
                 @close="closePopover"
               >
+                <input
+                  v-model="memberSearchQuery"
+                  type="search"
+                  class="label-search-input"
+                  placeholder="担当者を検索..."
+                  :disabled="saving"
+                  @click.stop
+                />
+
+                <p class="label-section-heading">担当者</p>
+
                 <div class="popover-scroll">
-                  <ul class="member-picker-list">
-                    <li v-for="member in projectMembers" :key="member.id">
+                  <ul class="label-picker-list">
+                    <li v-for="member in filteredProjectMembers" :key="member.id">
                       <button
                         type="button"
-                        class="member-picker-row"
-                        :class="{ 'member-picker-row--selected': isMemberAssigned(member.id) }"
+                        class="label-picker-row"
                         @click.stop="toggleMember(member)"
                       >
-                        <img
-                          v-if="member.avatar_url"
-                          :src="member.avatar_url"
-                          alt=""
-                          class="member-picker-avatar"
-                        />
-                        <span v-else class="member-picker-initial">{{ memberInitial(member) }}</span>
-                        <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
-                        <span v-if="isMemberAssigned(member.id)" class="member-picker-check">✓</span>
+                        <span
+                          class="label-picker-checkbox"
+                          :class="{ 'label-picker-checkbox--checked': isMemberAssigned(member.id) }"
+                          aria-hidden="true"
+                        >
+                          <span v-if="isMemberAssigned(member.id)">✓</span>
+                        </span>
+                        <span class="label-picker-bar member-picker-bar">
+                          {{ memberDisplayName(member) }}
+                        </span>
                       </button>
                     </li>
                   </ul>
-                  <p v-if="!projectMembers.length" class="empty-text">プロジェクトメンバーがいません。</p>
+                  <p v-if="!projectMembers.length" class="empty-text label-picker-empty">プロジェクトメンバーがいません。</p>
+                  <p v-else-if="!filteredProjectMembers.length" class="empty-text label-picker-empty">該当する担当者がいません。</p>
 
                   <p v-if="popoverError" class="err">{{ popoverError }}</p>
                 </div>
@@ -589,11 +586,12 @@
               :project-id="projectId"
               :task-id="taskId"
               :project-members="projectMembers"
+              :initial-comments="initialComments"
+              @comments-updated="emit('comments-updated', $event)"
             />
           </div>
         </section>
-      </div>
-    </Transition>
+    </div>
   </Teleport>
 </template>
 
@@ -606,7 +604,13 @@ import {
   Users,
 } from 'lucide-vue-next'
 import { useApi } from '../../composables/useApi'
+import {
+  effortUnitLabel,
+  resolveEffortUnit,
+} from '../../composables/useTaskFormHelpers'
+import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
+import type { TaskDetailComment } from '../task/taskCommentTypes'
 
 export type TaskDetailLabel = { id: number; name: string; color: string }
 export type TaskDetailMember = {
@@ -638,11 +642,6 @@ type EffortUnit = 'minute' | 'hour' | 'day'
 
 type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'parent-task'
 
-const EFFORT_UNIT_OPTIONS: { value: EffortUnit, label: string }[] = [
-  { value: 'minute', label: '分' },
-  { value: 'hour', label: '時間' },
-  { value: 'day', label: '日' },
-]
 type DatePickerTarget = 'start' | 'due'
 
 type CalendarCell = {
@@ -662,6 +661,12 @@ const props = defineProps<{
   taskId: number | null
   orgLabels: TaskDetailLabel[]
   projectMembers: TaskDetailMember[]
+  /** カンバン画面で取得済みのタスク詳細（あれば読み込み画面を出さない） */
+  initialTaskDetail?: TaskDetail | null
+  /** カンバン画面で取得済みの親タスク一覧 */
+  initialParentTasks?: ParentTaskOption[] | null
+  /** カンバン画面で取得済みのコメント */
+  initialComments?: TaskDetailComment[] | null
   /** 他クライアントからの TaskUpdated など（rev が変わるたびに適用） */
   remoteUpdate?: TaskDetailRemotePatch | null
   remoteUpdateRev?: number
@@ -670,9 +675,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   updated: [TaskDetail]
+  'comments-updated': [{ taskId: number; comments: TaskDetailComment[] }]
 }>()
 
 const { api } = useApi()
+const { orgEffortUnit, ensureOrgEffortUnit } = useOrgEffortUnit(() => props.orgSlug)
 
 const task = ref<TaskDetail | null>(null)
 const loading = ref(false)
@@ -711,6 +718,7 @@ const titleDraft = ref('')
 const titleComposing = ref(false)
 const titleSaving = ref(false)
 const titleTextareaRef = ref<HTMLTextAreaElement | null>(null)
+const descriptionTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const showTitlePlaceholder = computed(() => {
   if (titleComposing.value) return false
@@ -721,9 +729,9 @@ const descriptionDraft = ref('')
 const descriptionSaving = ref(false)
 
 const labelSearchQuery = ref('')
+const memberSearchQuery = ref('')
 
 const effortDraft = ref<string | number>('')
-const effortUnitDraft = ref<EffortUnit>('hour')
 const effortSaving = ref(false)
 const effortInputRef = ref<HTMLInputElement | null>(null)
 
@@ -759,7 +767,7 @@ const effortDetailDisplayText = computed(() => {
     if (parsed === null || parsed === 'invalid') {
       return ''
     }
-    const unit = normalizeEffortUnit(effortUnitDraft.value)
+    const unit = resolveEffortUnit(null, orgEffortUnit.value)
     return `${formatEffortAmount(parsed)} ${effortUnitLabel(unit)}`
   }
   if (!task.value) {
@@ -772,6 +780,16 @@ const filteredOrgLabels = computed(() => {
   const query = labelSearchQuery.value.trim().toLowerCase()
   if (!query) return props.orgLabels
   return props.orgLabels.filter(label => label.name.toLowerCase().includes(query))
+})
+
+const filteredProjectMembers = computed(() => {
+  const query = memberSearchQuery.value.trim().toLowerCase()
+  if (!query) return props.projectMembers
+  return props.projectMembers.filter((member) => {
+    const name = memberDisplayName(member).toLowerCase()
+    const email = (member.email ?? '').toLowerCase()
+    return name.includes(query) || email.includes(query)
+  })
 })
 
 const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土']
@@ -852,6 +870,47 @@ function normalizeTaskDetail (detail: TaskDetail): TaskDetail {
   }
 }
 
+function resetInteractionState () {
+  saving.value = false
+  dateSaving.value = false
+  saveError.value = null
+  dismissPopover()
+  ignoreOverlayCloseUntil.value = 0
+  popoverStyle.value = {}
+  popoverAnchorEl.value = null
+  calendarCursor.value = new Date()
+  titleComposing.value = false
+  titleSaving.value = false
+  descriptionSaving.value = false
+  labelSearchQuery.value = ''
+  memberSearchQuery.value = ''
+  effortDraft.value = ''
+  effortSaving.value = false
+  effortInputRef.value = null
+  effortDetailAnchorRef.value = null
+  parentTaskSaving.value = false
+  pickerMutationPending.value = false
+}
+
+function applyLoadedTask (
+  detail: TaskDetail,
+  parentTasksList?: ParentTaskOption[] | null,
+) {
+  task.value = normalizeTaskDetail(detail)
+  titleDraft.value = task.value.title
+  descriptionDraft.value = task.value.description ?? ''
+  if (parentTasksList != null) {
+    parentTasks.value = parentTasksList
+    parentTasksLoading.value = false
+  }
+  loading.value = false
+  loadError.value = null
+  nextTick(() => {
+    adjustTitleTextareaHeight()
+    adjustDescriptionTextareaHeight()
+  })
+}
+
 function resetState () {
   task.value = null
   loading.value = false
@@ -868,11 +927,12 @@ function resetState () {
   titleComposing.value = false
   titleSaving.value = false
   titleTextareaRef.value = null
+  descriptionTextareaRef.value = null
   descriptionDraft.value = ''
   descriptionSaving.value = false
   labelSearchQuery.value = ''
+  memberSearchQuery.value = ''
   effortDraft.value = ''
-  effortUnitDraft.value = 'hour'
   effortSaving.value = false
   effortInputRef.value = null
   effortDetailAnchorRef.value = null
@@ -887,11 +947,6 @@ function normalizeEffortUnit (value: EffortUnit | string | null | undefined): Ef
     return value
   }
   return 'hour'
-}
-
-function effortUnitLabel (unit: EffortUnit | string | null | undefined): string {
-  const normalized = normalizeEffortUnit(unit)
-  return EFFORT_UNIT_OPTIONS.find(option => option.value === normalized)?.label ?? '時間'
 }
 
 function hoursToUnitValue (hours: number, unit: EffortUnit): number {
@@ -946,7 +1001,7 @@ function resolveStoredEffortValue (detail: TaskDetail): number | null {
     return null
   }
   return normalizeEffortValue(
-    hoursToUnitValue(hours, normalizeEffortUnit(detail.effort_unit)),
+    hoursToUnitValue(hours, resolveEffortUnit(detail.effort_unit, orgEffortUnit.value)),
   )
 }
 
@@ -969,7 +1024,7 @@ function formatEffortDisplayForTask (detail: TaskDetail): string {
   if (value === null) {
     return ''
   }
-  const unit = normalizeEffortUnit(detail.effort_unit)
+  const unit = resolveEffortUnit(detail.effort_unit, orgEffortUnit.value)
   return `${formatEffortAmount(value)} ${effortUnitLabel(unit)}`
 }
 
@@ -1007,7 +1062,6 @@ function openEffortPicker (event?: Event) {
   popoverAnchorEl.value = resolveEffortPopoverAnchor(event)
   activePopover.value = 'effort'
   popoverError.value = null
-  effortUnitDraft.value = normalizeEffortUnit(task.value.effort_unit)
   effortDraft.value = effortValueToDraftFromTask(task.value)
   updatePopoverPosition()
   nextTick(() => {
@@ -1075,18 +1129,17 @@ async function saveEffort () {
   const parsed = parseEffortDraft(effortDraft.value)
   if (parsed === 'invalid') {
     popoverError.value = '工数は0以上の数値で入力してください'
-    effortUnitDraft.value = normalizeEffortUnit(task.value.effort_unit)
     effortDraft.value = effortValueToDraftFromTask(task.value)
     return
   }
 
-  const unit = normalizeEffortUnit(effortUnitDraft.value)
+  const unit = resolveEffortUnit(null, orgEffortUnit.value)
   const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
   const effortUnit = effortValue === null ? null : unit
   const currentValue = resolveStoredEffortValue(task.value)
   const currentUnit = currentValue === null
     ? null
-    : normalizeEffortUnit(task.value.effort_unit)
+    : resolveEffortUnit(task.value.effort_unit, orgEffortUnit.value)
 
   if (effortValue === currentValue && effortUnit === currentUnit) {
     popoverError.value = null
@@ -1111,7 +1164,6 @@ async function saveEffort () {
       { method: 'PATCH', body: { effort_value: effortValue, effort_unit: effortUnit } },
     )
     task.value = normalizeTaskDetail(updated)
-    effortUnitDraft.value = normalizeEffortUnit(task.value.effort_unit)
     effortDraft.value = effortValueToDraftFromTask(task.value)
     emit('updated', task.value)
   } catch (e: unknown) {
@@ -1121,7 +1173,6 @@ async function saveEffort () {
       effort_hours: previousHours,
       effort_unit: previousUnit,
     }
-    effortUnitDraft.value = normalizeEffortUnit(previousUnit)
     effortDraft.value = effortValueToDraftFromTask(task.value)
     saveError.value = e instanceof Error ? e.message : '工数の更新に失敗しました'
   } finally {
@@ -1148,19 +1199,15 @@ async function loadTask () {
   loading.value = true
   loadError.value = null
   try {
-    const [detail] = await Promise.all([
-      api<TaskDetail>(
-        `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${props.taskId}`,
-      ),
-      fetchParentTasks(),
-    ])
-    task.value = normalizeTaskDetail(detail)
-    titleDraft.value = task.value.title
-    nextTick(() => adjustTitleTextareaHeight())
-    descriptionDraft.value = task.value.description ?? ''
+    const detail = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${props.taskId}`,
+    )
+    if (props.initialParentTasks == null) {
+      await fetchParentTasks()
+    }
+    applyLoadedTask(detail, props.initialParentTasks)
   } catch (e: unknown) {
     loadError.value = e instanceof Error ? e.message : '読み込みに失敗しました'
-  } finally {
     loading.value = false
   }
 }
@@ -1192,6 +1239,7 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
   }
   if (!descDirty) {
     descriptionDraft.value = task.value.description ?? ''
+    nextTick(() => adjustDescriptionTextareaHeight())
   }
 }
 
@@ -1221,7 +1269,15 @@ watch(
       return
     }
     if (id === null) return
+    void ensureOrgEffortUnit()
     if (prevOpen && prevId === id) return
+
+    const initial = props.initialTaskDetail
+    if (initial && initial.id === id) {
+      resetInteractionState()
+      applyLoadedTask(initial, props.initialParentTasks)
+      return
+    }
 
     resetState()
     await loadTask()
@@ -1490,6 +1546,12 @@ watch(labelSearchQuery, () => {
   }
 })
 
+watch(memberSearchQuery, () => {
+  if (activePopover.value === 'members') {
+    updatePopoverPosition()
+  }
+})
+
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onPopoverEscape)
   document.removeEventListener('mousedown', handlePopoverOutsidePointerDown, true)
@@ -1510,6 +1572,13 @@ function onTitleEnter () {
 
 function adjustTitleTextareaHeight () {
   const el = titleTextareaRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+function adjustDescriptionTextareaHeight () {
+  const el = descriptionTextareaRef.value
   if (!el) return
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
@@ -1668,6 +1737,7 @@ async function saveDescription () {
     )
     task.value = normalizeTaskDetail(updated)
     descriptionDraft.value = task.value.description ?? ''
+    nextTick(() => adjustDescriptionTextareaHeight())
     emit('updated', task.value)
   } catch (e: unknown) {
     saveError.value = e instanceof Error ? e.message : '備考の更新に失敗しました'
@@ -1685,9 +1755,9 @@ async function saveDescription () {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 4rem 1rem 1rem;
+  padding: 4rem 1rem;
   z-index: 70;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .modal-overlay--popover-open {
@@ -1697,10 +1767,13 @@ async function saveDescription () {
 .modal-card {
   position: relative;
   width: min(calc(40rem + 22rem), 100%);
+  max-height: calc(100vh - 8rem);
   border-radius: 12px;
   overflow: hidden;
   background: #fff;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-header {
@@ -1736,7 +1809,9 @@ async function saveDescription () {
 .modal-split {
   display: flex;
   align-items: stretch;
-  max-height: calc(100vh - 8rem);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .modal-pane--detail {
@@ -1744,23 +1819,42 @@ async function saveDescription () {
   flex: 0 0 40rem;
   width: 40rem;
   max-width: 40rem;
-  min-height: 100%;
+  min-height: 0;
   padding: 1.2rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   overflow-x: visible;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #0f172a1a transparent;
+}
+
+.modal-pane--detail::-webkit-scrollbar {
+  width: 3px;
+}
+
+.modal-pane--detail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-pane--detail::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+}
+
+.modal-pane--detail::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.14);
 }
 
 @media (max-width: 62rem) {
   .modal-split {
     flex-direction: column;
-    max-height: none;
   }
 
   .modal-pane--detail {
-    flex: 0 0 auto;
+    flex: 1 1 45%;
     width: 100%;
     max-width: 100%;
   }
@@ -2032,8 +2126,8 @@ async function saveDescription () {
 }
 
 .parent-task-picker-radio--checked {
-  border-color: mixin.$main-aqua;
-  background: mixin.$main-aqua;
+  border-color: mixin.$main;
+  background: mixin.$main;
 }
 
 .parent-task-picker-radio--checked::after {
@@ -2133,6 +2227,11 @@ async function saveDescription () {
   line-height: 1.25;
   display: flex;
   align-items: center;
+}
+
+.member-picker-bar {
+  background: #f8fafc;
+  color: #172b4d;
 }
 
 .label-picker-empty {
@@ -2392,21 +2491,14 @@ async function saveDescription () {
   @include mixin.input-focus-ring;
 }
 
-.popover--effort .effort-unit-select {
+.popover--effort .effort-unit-label {
   flex: 0 0 auto;
   box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
   padding: 0.45rem 0.5rem;
   font-size: 0.88rem;
   font-weight: 700;
-  color: #0f172a;
-  background: #fff;
-  cursor: pointer;
-}
-
-.popover--effort .effort-unit-select:focus {
-  @include mixin.input-focus-ring;
+  color: #64748b;
+  white-space: nowrap;
 }
 
 .detail-item {
@@ -2548,49 +2640,6 @@ async function saveDescription () {
   border-color: mixin.$main;
 }
 
-.member-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.member-picker-row {
-  @include mixin.picker-checkbox-row;
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 0.5rem 0.65rem;
-  background: #fff;
-  text-align: left;
-}
-
-.member-picker-row:hover {
-  background: #f8fafc;
-}
-
-.member-picker-row--selected {
-  border-color: mixin.$main;
-  background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
-}
-
-.member-picker-name {
-  flex: 1;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.member-picker-check {
-  color: #0891b2;
-  font-weight: 800;
-}
-
 .edit-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2659,6 +2708,8 @@ async function saveDescription () {
 
 .description-input {
   @include mixin.description-textarea;
+  resize: none;
+  overflow: hidden;
 }
 
 .primary-btn,
@@ -2766,23 +2817,4 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
   border-radius: 999px;
 }
 
-.member-picker-avatar {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  object-fit: cover;
-}
-
-.member-picker-initial {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #dbeafe;
-  color: #1e3a8a;
-  font-size: 0.72rem;
-  font-weight: 800;
-}
 </style>

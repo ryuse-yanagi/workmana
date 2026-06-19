@@ -1,21 +1,22 @@
 import type { Ref } from 'vue'
 import { useApi } from './useApi'
 import {
-  EFFORT_UNIT_OPTIONS,
   type TaskFormDraft,
   type TaskFormEffortUnit,
   type TaskFormLabel,
   type TaskFormMember,
+  effortUnitLabel,
   effortValueToDraft,
   labelBarTextColor,
   memberEmailLine,
-  normalizeEffortUnit,
   normalizeEffortValue,
   parseEffortDraft,
+  resolveEffortUnit,
   resolveStoredEffortValue,
   toDateInputValue,
   unitValueToHours,
 } from './useTaskFormHelpers'
+import { useOrgEffortSettings } from './useOrgEffortSettings'
 
 export type ProjectListOption = { id: number; name: string; sort_order?: number }
 
@@ -87,12 +88,13 @@ const POPOVER_DEFAULT_WIDTH_PX = 312
 
 function effortSource (
   task: TaskPopoverEditable,
+  orgEffortUnit: TaskFormEffortUnit,
 ): Pick<TaskFormDraft, 'effort_value' | 'effort_hours' | 'effort_unit'> {
   const effortValue = task.effort_value ?? null
   return {
     effort_value: effortValue,
     effort_hours: task.effort_hours ?? null,
-    effort_unit: effortValue === null ? null : normalizeEffortUnit(task.effort_unit),
+    effort_unit: effortValue === null ? null : resolveEffortUnit(task.effort_unit, orgEffortUnit),
   }
 }
 
@@ -130,7 +132,9 @@ function patchToEditable (
 
 export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   const { api } = useApi()
+  const { getOrgEffortUnit, ensureOrgEffortSettings } = useOrgEffortSettings()
   const popoverZIndex = options.zIndex ?? 80
+  const orgEffortUnit = computed(() => getOrgEffortUnit(options.orgSlug))
 
   const activePopover = ref<PopoverType | null>(null)
   const selectedMember = ref<TaskFormMember | null>(null)
@@ -142,7 +146,6 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   const pendingDate = ref<string | null>(null)
   const labelSearchQuery = ref('')
   const effortDraft = ref<string | number>('')
-  const effortUnitDraft = ref<TaskFormEffortUnit>('hour')
   const effortInputRef = ref<HTMLInputElement | null>(null)
   const descriptionDraft = ref('')
 
@@ -303,16 +306,15 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const parsed = parseEffortDraft(effortDraft.value)
     if (parsed === 'invalid') {
       popoverError.value = '工数は0以上の数値で入力してください'
-      effortUnitDraft.value = normalizeEffortUnit(task.effort_unit)
-      effortDraft.value = effortValueToDraft(effortSource(task))
+      effortDraft.value = effortValueToDraft(effortSource(task, orgEffortUnit.value))
       return
     }
 
-    const unit = normalizeEffortUnit(effortUnitDraft.value)
+    const unit = orgEffortUnit.value
     const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
     const effortUnit = effortValue === null ? null : unit
-    const currentValue = resolveStoredEffortValue(effortSource(task))
-    const currentUnit = currentValue === null ? null : normalizeEffortUnit(task.effort_unit)
+    const currentValue = resolveStoredEffortValue(effortSource(task, orgEffortUnit.value))
+    const currentUnit = currentValue === null ? null : resolveEffortUnit(task.effort_unit, orgEffortUnit.value)
 
     if (effortValue === currentValue && effortUnit === currentUnit) {
       popoverError.value = null
@@ -335,16 +337,14 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
         body: { effort_value: effortValue, effort_unit: effortUnit },
       })
       await applyPatchResponse(updated)
-      effortUnitDraft.value = normalizeEffortUnit(options.task.value?.effort_unit)
-      effortDraft.value = effortValueToDraft(effortSource(options.task.value ?? task))
+      effortDraft.value = effortValueToDraft(effortSource(options.task.value ?? task, orgEffortUnit.value))
     } catch (e: unknown) {
       patchLocalTask({
         effort_value: previousValue,
         effort_hours: previousHours,
         effort_unit: previousUnit,
       })
-      effortUnitDraft.value = normalizeEffortUnit(previousUnit)
-      effortDraft.value = effortValueToDraft(effortSource(task))
+      effortDraft.value = effortValueToDraft(effortSource(task, orgEffortUnit.value))
       popoverError.value = e instanceof Error ? e.message : '工数の更新に失敗しました'
     } finally {
       effortSaving.value = false
@@ -518,18 +518,18 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     }
   }
 
-  function openEffortPicker (event?: Event) {
+  async function openEffortPicker (event?: Event) {
     const task = options.task.value
     if (!task || isDisabled() || effortSaving.value) return
     if (activePopover.value === 'effort') {
       void closePopover()
       return
     }
+    await ensureOrgEffortSettings(options.orgSlug)
     popoverAnchorEl.value = capturePopoverAnchor(event)
     activePopover.value = 'effort'
     popoverError.value = null
-    effortUnitDraft.value = normalizeEffortUnit(task.effort_unit)
-    effortDraft.value = effortValueToDraft(effortSource(task))
+    effortDraft.value = effortValueToDraft(effortSource(task, orgEffortUnit.value))
     updatePopoverPosition()
     nextTick(() => {
       effortInputRef.value?.focus()
@@ -720,7 +720,8 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   }
 
   return {
-    EFFORT_UNIT_OPTIONS,
+    orgEffortUnit,
+    effortUnitLabel,
     activePopover,
     selectedMember,
     popoverError,
@@ -728,7 +729,6 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     popoverElRef,
     labelSearchQuery,
     effortDraft,
-    effortUnitDraft,
     effortInputRef,
     descriptionDraft,
     descriptionSaving,

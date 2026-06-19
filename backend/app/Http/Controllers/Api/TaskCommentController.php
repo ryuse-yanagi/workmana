@@ -16,6 +16,29 @@ use Illuminate\Support\Collection;
 
 class TaskCommentController extends ApiController
 {
+    public function projectIndex(Request $request, Organization $organization, Project $project): JsonResponse
+    {
+        $this->ensureProjectBelongsToOrganization($project, $organization);
+        $this->ensureProjectMember($request->user(), $project);
+
+        $comments = TaskComment::query()
+            ->where('project_id', $project->id)
+            ->whereHas('task', fn ($query) => $query->notArchived())
+            ->with(['author:id,name,email,avatar_path', 'reactions.user:id,name,email,avatar_path'])
+            ->orderBy('created_at')
+            ->get();
+
+        $grouped = [];
+        foreach ($comments->groupBy('task_id') as $taskId => $taskComments) {
+            $grouped[(string) $taskId] = $taskComments
+                ->map(fn (TaskComment $comment) => $this->serializeComment($comment, $request->user()))
+                ->values()
+                ->all();
+        }
+
+        return response()->json(['data' => $grouped]);
+    }
+
     public function index(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
     {
         $this->ensureProjectBelongsToOrganization($project, $organization);

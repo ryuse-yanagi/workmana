@@ -22,6 +22,7 @@ use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class TaskController extends ApiController
@@ -56,6 +57,7 @@ class TaskController extends ApiController
                 'is_parent_task',
                 'parent_task_id',
                 'title',
+                'description',
                 'status',
                 'priority',
                 'start_date',
@@ -110,6 +112,91 @@ class TaskController extends ApiController
         return response()->json([
             'data' => $tasks->map(fn (Task $task) => $this->taskWbsPayload($task)),
         ]);
+    }
+
+    public function wbsReorder(Request $request, Organization $organization, Project $project): JsonResponse
+    {
+        $this->ensureProjectBelongsToOrganization($project, $organization);
+        $this->ensureProjectMember($request->user(), $project);
+        $this->denyIfProjectViewer($request->user(), $project);
+        $this->assertProjectNotArchived($project);
+
+        $validated = $request->validate([
+            'tasks' => ['required', 'array', 'min:1'],
+            'tasks.*.id' => ['required', 'integer', 'distinct'],
+            'tasks.*.sort_order' => ['required', 'integer', 'min:0'],
+            'tasks.*.parent_task_id' => ['nullable', 'integer'],
+        ]);
+
+        /** @var array<int, array{id: int, sort_order: int, parent_task_id: int|null}> $items */
+        $items = collect($validated['tasks'])
+            ->map(fn (array $item) => [
+                'id' => (int) $item['id'],
+                'sort_order' => (int) $item['sort_order'],
+                'parent_task_id' => array_key_exists('parent_task_id', $item) && $item['parent_task_id'] !== null
+                    ? (int) $item['parent_task_id']
+                    : null,
+            ])
+            ->values()
+            ->all();
+
+        $taskIds = array_column($items, 'id');
+        $activeTaskIds = $project->tasks()
+            ->notArchived()
+            ->pluck('id')
+            ->sort()
+            ->values()
+            ->all();
+
+        $sortedIncoming = $taskIds;
+        sort($sortedIncoming);
+
+        if ($activeTaskIds !== $sortedIncoming) {
+            return response()->json([
+                'message' => 'tasks must include every active task in the project exactly once.',
+            ], 422);
+        }
+
+        $parentIds = Task::query()
+            ->where('project_id', $project->id)
+            ->whereIn('id', $taskIds)
+            ->where('is_parent_task', true)
+            ->pluck('id')
+            ->all();
+        $parentIdSet = array_fill_keys($parentIds, true);
+
+        foreach ($items as $item) {
+            $parentTaskId = $item['parent_task_id'];
+            if ($parentTaskId === null) {
+                continue;
+            }
+
+            if (! isset($parentIdSet[$parentTaskId])) {
+                return response()->json([
+                    'message' => 'Invalid parent task for this project.',
+                ], 422);
+            }
+
+            if ($parentTaskId === $item['id']) {
+                return response()->json([
+                    'message' => 'A task cannot be its own parent.',
+                ], 422);
+            }
+        }
+
+        DB::transaction(function () use ($items, $project) {
+            foreach ($items as $item) {
+                Task::query()
+                    ->where('id', $item['id'])
+                    ->where('project_id', $project->id)
+                    ->update([
+                        'sort_order' => $item['sort_order'],
+                        'parent_task_id' => $item['parent_task_id'],
+                    ]);
+            }
+        });
+
+        return response()->json(['data' => ['ok' => true]]);
     }
 
     public function parentTasksIndex(Request $request, Organization $organization, Project $project): JsonResponse
@@ -330,19 +417,10 @@ class TaskController extends ApiController
         if (array_key_exists('list_id', $validated)) {
             if ($validated['list_id'] === null) {
                 $task->list_id = null;
-                $task->sort_order = 0;
             } else {
                 $list = BoardList::query()->find($validated['list_id']);
                 if ($list === null || (int) $list->project_id !== (int) $project->id) {
                     return response()->json(['message' => 'Invalid list for this project.'], 422);
-                }
-                if ((int) $task->list_id !== (int) $list->id) {
-                    $maxOrder = Task::query()
-                        ->where('project_id', $project->id)
-                        ->where('list_id', $list->id)
-                        ->notArchived()
-                        ->max('sort_order');
-                    $task->sort_order = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
                 }
                 $task->list_id = $list->id;
             }
@@ -525,6 +603,7 @@ class TaskController extends ApiController
             'is_parent_task' => (bool) $task->is_parent_task,
             'parent_task_id' => $task->parent_task_id,
             'title' => $task->title,
+            'description' => $task->description,
             'status' => $task->status,
             'priority' => $task->priority,
             'start_date' => $task->start_date,

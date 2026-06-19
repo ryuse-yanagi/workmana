@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Organization;
 use App\Support\DefaultBoardLists;
+use App\Enums\TaskEffortUnit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -51,6 +52,7 @@ class OrganizationController extends ApiController
             'name' => $name,
             'slug' => Str::lower($validated['slug']),
             'work_unit_label' => 'プロジェクト',
+            'effort_unit' => TaskEffortUnit::Hour->value,
             'created_by' => $user->id,
         ]);
 
@@ -75,6 +77,7 @@ class OrganizationController extends ApiController
             'slug' => $organization->slug,
             'work_unit_label' => $organization->work_unit_label ?? 'プロジェクト',
             'default_board_list_names' => DefaultBoardLists::namesForOrganization($organization),
+            'effort_unit' => $organization->effort_unit ?? TaskEffortUnit::Hour->value,
         ]);
     }
 
@@ -89,6 +92,7 @@ class OrganizationController extends ApiController
             'work_unit_label' => ['sometimes', 'string', 'max:40'],
             'default_board_list_names' => ['sometimes', 'array', 'max:20'],
             'default_board_list_names.*' => ['string', 'max:255'],
+            'effort_unit' => ['sometimes', 'string', Rule::in(TaskEffortUnit::values())],
         ]);
 
         if (array_key_exists('work_unit_label', $validated)) {
@@ -103,6 +107,10 @@ class OrganizationController extends ApiController
             $organization->default_board_list_names = DefaultBoardLists::normalizeNames($validated['default_board_list_names']);
         }
 
+        if (array_key_exists('effort_unit', $validated)) {
+            $organization->effort_unit = $validated['effort_unit'];
+        }
+
         $organization->save();
 
         return response()->json([
@@ -110,6 +118,7 @@ class OrganizationController extends ApiController
             'slug' => $organization->slug,
             'work_unit_label' => $organization->work_unit_label,
             'default_board_list_names' => DefaultBoardLists::namesForOrganization($organization),
+            'effort_unit' => $organization->effort_unit ?? TaskEffortUnit::Hour->value,
         ]);
     }
 }

@@ -93,6 +93,16 @@ function normalizeEffortUnit (value: EffortUnit | string | null | undefined): Ef
   return 'hour'
 }
 
+function resolveEffortUnit (
+  taskUnit: EffortUnit | string | null | undefined,
+  orgUnit?: EffortUnit | string | null | undefined,
+): EffortUnit {
+  if (taskUnit === 'minute' || taskUnit === 'hour' || taskUnit === 'day') {
+    return taskUnit
+  }
+  return normalizeEffortUnit(orgUnit)
+}
+
 function normalizeEffortValue (value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === '') {
     return null
@@ -131,7 +141,10 @@ function formatEffortAmount (value: number): string {
     : value.toFixed(2).replace(/\.?0+$/, '')
 }
 
-function resolveStoredEffortValue (task: TaskCardScheduleFields): number | null {
+function resolveStoredEffortValue (
+  task: TaskCardScheduleFields,
+  orgUnit?: EffortUnit | string | null,
+): number | null {
   const stored = normalizeEffortValue(task.effort_value)
   if (stored !== null) {
     return stored
@@ -141,16 +154,19 @@ function resolveStoredEffortValue (task: TaskCardScheduleFields): number | null 
     return null
   }
   return normalizeEffortValue(
-    hoursToUnitValue(hours, normalizeEffortUnit(task.effort_unit)),
+    hoursToUnitValue(hours, resolveEffortUnit(task.effort_unit, orgUnit)),
   )
 }
 
-export function formatTaskCardEffort (task: TaskCardScheduleFields): string | null {
-  const value = resolveStoredEffortValue(task)
+export function formatTaskCardEffort (
+  task: TaskCardScheduleFields,
+  orgUnit?: EffortUnit | string | null,
+): string | null {
+  const value = resolveStoredEffortValue(task, orgUnit)
   if (value === null) {
     return null
   }
-  const unit = normalizeEffortUnit(task.effort_unit)
+  const unit = resolveEffortUnit(task.effort_unit, orgUnit)
   return `${formatEffortAmount(value)}${EFFORT_UNIT_LABELS[unit]}`
 }
 

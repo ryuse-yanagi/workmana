@@ -1,6 +1,7 @@
 export type SettingsTabKey =
   | 'work_unit_label'
   | 'default_board_lists'
+  | 'effort_settings'
   | 'project_labels'
   | 'task_labels'
 
@@ -13,6 +14,13 @@ export type SettingsLabelItem = {
 export type OrgSettingsResponse = {
   work_unit_label?: string | null
   default_board_list_names?: string[] | null
+  effort_unit?: string | null
+}
+
+export type SettingsPageSnapshot = {
+  orgSettings: OrgSettingsResponse
+  projectLabels: SettingsLabelItem[]
+  taskLabels: SettingsLabelItem[]
 }
 
 export const DEFAULT_BOARD_LIST_NAMES = ['未着手', '進行中', '完了'] as const

@@ -1,42 +1,40 @@
 <template>
   <Teleport to="body">
-    <Transition name="tm-fade">
-      <div
-        v-if="modelValue"
-        class="base-modal-overlay"
-        :class="[overlayAlignClass, overlayClass]"
-        :style="overlayStyle"
-        role="presentation"
-        @mousedown="onOverlayMouseDown"
-        @click.self="onOverlayClick"
+    <div
+      v-if="modelValue"
+      class="base-modal-overlay"
+      :class="[overlayAlignClass, overlayClass]"
+      :style="overlayStyle"
+      role="presentation"
+      @mousedown="onOverlayMouseDown"
+      @click.self="onOverlayClick"
+    >
+      <section
+        ref="cardRef"
+        class="base-modal-card"
+        :style="cardStyle"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="ariaLabel ?? title"
       >
-        <section
-          ref="cardRef"
-          class="base-modal-card"
-          :style="cardStyle"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="ariaLabel ?? title"
-        >
-          <header class="base-modal-header">
-            <slot name="header">
-              <h3 class="base-modal-title">{{ title }}</h3>
-            </slot>
-            <button
-              v-if="showClose"
-              type="button"
-              class="base-modal-close"
-              :disabled="closeDisabled"
-              aria-label="閉じる"
-              @click="requestClose"
-            >
-              ✕
-            </button>
-          </header>
-          <slot />
-        </section>
-      </div>
-    </Transition>
+        <header class="base-modal-header">
+          <slot name="header">
+            <h3 class="base-modal-title">{{ title }}</h3>
+          </slot>
+          <button
+            v-if="showClose"
+            type="button"
+            class="base-modal-close"
+            :disabled="closeDisabled"
+            aria-label="閉じる"
+            @click="requestClose"
+          >
+            ✕
+          </button>
+        </header>
+        <slot />
+      </section>
+    </div>
   </Teleport>
 </template>
 

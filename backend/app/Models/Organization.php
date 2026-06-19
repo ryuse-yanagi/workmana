@@ -14,6 +14,7 @@ class Organization extends Model
         'slug',
         'work_unit_label',
         'default_board_list_names',
+        'effort_unit',
         'created_by',
     ];
 

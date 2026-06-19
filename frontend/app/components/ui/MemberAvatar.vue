@@ -79,13 +79,14 @@ const initial = computed(() => memberInitial(props.member))
 }
 
 .member-avatar__initial {
-  font-weight: 800;
+  font-weight: 700;
   color: mixin.$text-sub;
   line-height: 1;
 }
 
 .member-avatar--xs .member-avatar__initial {
-  font-size: 0.72rem;
+  font-size: 0.58rem;
+  font-weight: 600;
 }
 
 .member-avatar--sm .member-avatar__initial {

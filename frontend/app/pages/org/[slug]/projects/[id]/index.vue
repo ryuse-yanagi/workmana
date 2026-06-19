@@ -7,12 +7,17 @@
       <PageLoadFatal :message="fatalLoadError" @retry="retryBoardLoad" />
     </template>
 
-    <template v-else>
+    <template v-else-if="pageReady">
       <header class="page-header">
         <div class="subheader">
-          <NuxtLink :to="`/org/${slug}`" class="subheader-title subheader-back-link">
+          <button
+            type="button"
+            class="subheader-title subheader-back-link"
+            :disabled="backNavPending"
+            @click="goBackToProjectList"
+          >
             {{ workUnitListLabel }}
-          </NuxtLink>
+          </button>
           <ProjectViewSwitcher :org-slug="slug" :project-id="projectId" />
           <div class="subheader-filters">
             <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
@@ -30,14 +35,6 @@
               aria-label="タスク名検索"
             />
           </div>
-          <button
-            type="button"
-            class="primary-btn"
-            :disabled="pending"
-            @click="listCreateOpen = true"
-          >
-            リスト追加
-          </button>
           <div class="subheader-menu" data-subheader-menu-root>
             <button
               ref="subheaderMenuTriggerRef"
@@ -54,10 +51,7 @@
         </div>
       </header>
 
-      <div v-if="!pageReady" class="page-await-spacer" aria-busy="true" />
-
-      <Transition v-else name="tm-fade" appear>
-        <div key="board-body" class="page-shell-fade">
+      <div class="page-shell-fade">
           <p v-if="error" class="err">{{ error }}</p>
 
           <section
@@ -315,8 +309,7 @@
             </draggable>
             </div>
           </section>
-        </div>
-      </Transition>
+      </div>
 
       <ArchivedTasksModal
         ref="archivedModalRef"
@@ -353,15 +346,20 @@
       />
 
       <TaskDetailModal
+        v-if="detailInitialTask"
         v-model="taskDetailOpen"
         :org-slug="slug"
         :project-id="projectId"
         :task-id="detailTaskId"
         :org-labels="orgLabels"
         :project-members="projectMembers"
+        :initial-task-detail="detailInitialTask"
+        :initial-parent-tasks="boardParentTasks"
+        :initial-comments="detailInitialComments"
         :remote-update="detailModalRemotePatch"
         :remote-update-rev="detailModalRemoteRev"
         @updated="onTaskDetailUpdated"
+        @comments-updated="onTaskCommentsUpdated"
       />
 
       <div
@@ -382,6 +380,16 @@
         role="menu"
         :style="subheaderMenuStyle"
       >
+        <button
+          type="button"
+          class="subheader-menu-item"
+          role="menuitem"
+          :disabled="pending"
+          @click="openListCreateModal"
+        >
+          <ListPlus :size="18" :stroke-width="2.25" aria-hidden="true" />
+          リスト追加
+        </button>
         <button
           type="button"
           class="subheader-menu-item subheader-menu-item--danger"
@@ -424,14 +432,22 @@
 </template>
 
 <script setup lang="ts">
-import { CalendarDays, Clock, Ellipsis, ListTree, Pencil, Trash2 } from 'lucide-vue-next'
+import { CalendarDays, Clock, Ellipsis, ListPlus, ListTree, Pencil, Trash2 } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import ArchivedTasksModal from '../../../../../components/modals/ArchivedTasksModal.vue'
 import ProjectViewSwitcher from '../../../../../components/project/ProjectViewSwitcher.vue'
 import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../../../../../components/modals/TaskDetailModal.vue'
+import type { TaskCommentsByTaskId, TaskDetailComment } from '../../../../../components/task/taskCommentTypes'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../composables/raceWithTimeout'
 import { useApi } from '../../../../../composables/useApi'
+import { useOrgIndexPageData } from '../../../../../composables/useOrgIndexPageData'
+import {
+  boardTaskToTaskDetail,
+  useProjectBoardPageData,
+  type ProjectBoardPageSnapshot,
+} from '../../../../../composables/useProjectBoardPageData'
 import { useOrgTerminology, useWorkUnitLabel } from '../../../../../composables/useOrgTerminology'
+import { useOrgEffortUnit } from '../../../../../composables/useOrgEffortSettings'
 import { memberDisplayName } from '../../../../../composables/useMemberDisplay'
 import {
   formatTaskCardDateRange,
@@ -447,14 +463,25 @@ const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const projectId = computed(() => route.params.id as string)
 const { api } = useApi()
-const { fetchWorkUnitLabel, syncLabelState } = useOrgTerminology()
+const { syncLabelState } = useOrgTerminology()
 const { workUnitListLabel, workUnitLabel } = useWorkUnitLabel(() => slug.value)
+const { orgEffortUnit } = useOrgEffortUnit(() => slug.value)
+const {
+  fetchSnapshot: fetchBoardSnapshot,
+  getCached: getBoardCached,
+  invalidateCached: invalidateBoardCached,
+  isCachedStale: isBoardCacheStale,
+  clearCachedStale: clearBoardCacheStale,
+  replaceCachedBoardState,
+} = useProjectBoardPageData()
+const { prefetch: prefetchOrgIndex } = useOrgIndexPageData()
 
 type Label = { id: number; name: string; color: string }
 type TaskAssignee = { id: number; name: string | null; email: string | null; avatar_url: string | null }
 type Task = {
   id: number
   title: string
+  description?: string | null
   status: string
   list_id: number | null
   is_parent_task?: boolean
@@ -469,7 +496,6 @@ type Task = {
   assignees?: TaskAssignee[]
 }
 type ListDef = { key: string; title: string; listId: number }
-type ListRowRes = { id: number; name: string; sort_order: number }
 
 const tasks = ref<Task[] | null>(null)
 const tasksByList = reactive<Record<string, Task[]>>({})
@@ -477,6 +503,7 @@ const error = ref<string | null>(null)
 const pending = ref(false)
 const pageReady = ref(false)
 const fatalLoadError = ref<string | null>(null)
+const backNavPending = ref(false)
 const searchQuery = ref('')
 const subheaderMenuOpen = ref(false)
 const archivedModalOpen = ref(false)
@@ -494,6 +521,8 @@ const listTitleInputEl = ref<HTMLInputElement | null>(null)
 const lists = ref<ListDef[]>([])
 const orgLabels = ref<Label[]>([])
 const projectMembers = ref<TaskDetailMember[]>([])
+const boardParentTasks = ref<Array<{ id: number; title: string }>>([])
+const taskCommentsByTaskId = ref<TaskCommentsByTaskId>({})
 const labelFilterId = ref('')
 const editingListKey = ref<string | null>(null)
 const listEditDrafts = reactive<Record<string, string>>({})
@@ -577,10 +606,27 @@ let undoTimerId: ReturnType<typeof setTimeout> | null = null
 const detailTaskId = ref<number | null>(null)
 const detailModalRemotePatch = ref<TaskDetail | null>(null)
 const detailModalRemoteRev = ref(0)
+const detailInitialTask = computed((): TaskDetail | null => {
+  const id = detailTaskId.value
+  if (id === null || !tasks.value) {
+    return null
+  }
+  const row = tasks.value.find(task => task.id === id)
+  return row ? boardTaskToTaskDetail(row) : null
+})
+const detailInitialComments = computed((): TaskDetailComment[] | null => {
+  const id = detailTaskId.value
+  if (id === null) {
+    return null
+  }
+  return taskCommentsByTaskId.value[String(id)] ?? []
+})
 const taskDetailOpen = computed({
-  get: () => detailTaskId.value !== null,
+  get: () => detailTaskId.value !== null && detailInitialTask.value !== null,
   set: (open: boolean) => {
-    if (!open) detailTaskId.value = null
+    if (!open) {
+      detailTaskId.value = null
+    }
   },
 })
 
@@ -720,7 +766,12 @@ function taskCardDateRange (task: Task): string | null {
 }
 
 function taskCardEffortText (task: Task): string | null {
-  return formatTaskCardEffort(task)
+  return formatTaskCardEffort(task, orgEffortUnit.value)
+}
+
+function openListCreateModal () {
+  closeSubheaderMenu()
+  listCreateOpen.value = true
 }
 
 function openArchivedModal () {
@@ -902,6 +953,13 @@ function pushDetailModalRemote (detail: TaskDetail) {
   detailModalRemoteRev.value += 1
 }
 
+function onTaskCommentsUpdated (payload: { taskId: number; comments: TaskDetailComment[] }) {
+  taskCommentsByTaskId.value = {
+    ...taskCommentsByTaskId.value,
+    [String(payload.taskId)]: payload.comments,
+  }
+}
+
 function onTaskDetailUpdated (detail: TaskDetail) {
   if (!tasks.value) return
   const idx = tasks.value.findIndex(t => t.id === detail.id)
@@ -911,6 +969,7 @@ function onTaskDetailUpdated (detail: TaskDetail) {
   const updated: Task = {
     ...existing,
     title: detail.title,
+    description: detail.description ?? null,
     status: detail.status,
     list_id: detail.list_id,
     sort_order: (detail as Task).sort_order ?? existing.sort_order,
@@ -927,6 +986,7 @@ function onTaskDetailUpdated (detail: TaskDetail) {
   tasks.value.splice(idx, 1, updated)
   // list_id 変更（リスト間ドラッグ）では列ごとの配列を入れ替えないとカードが元の列に残る
   rebuildBoardFromTasks()
+  syncBoardPageCache()
 }
 
 function removeTaskFromBoard (taskId: number) {
@@ -936,6 +996,7 @@ function removeTaskFromBoard (taskId: number) {
     tasks.value.splice(i, 1)
   }
   rebuildBoardFromTasks()
+  syncBoardPageCache()
 }
 
 function onArchivedTaskRestored (task: Task) {
@@ -950,6 +1011,7 @@ function addTaskToBoard (task: Task) {
   }
   tasks.value.push(task)
   rebuildBoardFromTasks()
+  syncBoardPageCache()
 }
 
 function applyTasksReordered (listId: number, taskIds: number[]) {
@@ -963,6 +1025,7 @@ function applyTasksReordered (listId: number, taskIds: number[]) {
     }
   })
   rebuildBoardFromTasks()
+  syncBoardPageCache()
 }
 
 function applyListsReordered (listIds: number[]) {
@@ -1102,7 +1165,7 @@ function getHoverListKey (originalEvent?: Event): string | null {
   return getListKeyAtClientX(boardDragPointerX)
 }
 
-/** composer より下、または列の白枠より下＝末尾ドロップ帯（Trello 同様） */
+/** composer より下、または列の白枠より下＝末尾ドロップ帯 */
 function isPointerInListTailZone (listColumn: HTMLElement): boolean {
   const colBottom = listColumn.getBoundingClientRect().bottom
   const composer = listColumn.querySelector('.composer')
@@ -1336,6 +1399,8 @@ async function finalizeBoardDrag (
       return
     }
   }
+
+  syncBoardPageCache()
 }
 
 /**
@@ -1609,26 +1674,11 @@ function onBoardDragEnd (evt?: { originalEvent?: Event }) {
 }
 
 async function fetchBoardPayload () {
-  const [listsRes, tasksRes, labelsRes, membersRes, label] = await Promise.all([
-    api<{ data: ListRowRes[] }>(
-      `/orgs/${slug.value}/projects/${projectId.value}/lists`,
-    ),
-    api<{ data: Task[] }>(
-      `/orgs/${slug.value}/projects/${projectId.value}/tasks`,
-    ),
-    api<{ data: Label[] }>(
-      `/orgs/${slug.value}/task-labels`,
-    ),
-    api<{ data: TaskDetailMember[] }>(
-      `/orgs/${slug.value}/projects/${projectId.value}/members`,
-    ),
-    fetchWorkUnitLabel(slug.value),
-  ])
-  return { listsRes, tasksRes, labelsRes, membersRes, label }
+  return fetchBoardSnapshot(slug.value, projectId.value)
 }
 
-function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>) {
-  const sortedLists = [...data.listsRes.data].sort((a, b) => a.sort_order - b.sort_order)
+function applyBoardSnapshot (snapshot: ProjectBoardPageSnapshot) {
+  const sortedLists = [...snapshot.lists].sort((a, b) => a.sort_order - b.sort_order)
   lists.value = sortedLists.map(row => ({
     key: `list_${row.id}`,
     title: row.name,
@@ -1638,11 +1688,27 @@ function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>)
     if (!(list.key in tasksByList)) tasksByList[list.key] = []
   }
 
-  tasks.value = data.tasksRes.data
-  orgLabels.value = data.labelsRes.data
-  projectMembers.value = data.membersRes.data
-  syncLabelState(slug.value, data.label)
+  tasks.value = snapshot.tasks
+  orgLabels.value = snapshot.orgLabels
+  projectMembers.value = snapshot.projectMembers
+  boardParentTasks.value = snapshot.parentTasks
+  taskCommentsByTaskId.value = snapshot.taskCommentsByTaskId
+  syncLabelState(slug.value, snapshot.workUnitLabel)
   rebuildBoardFromTasks()
+}
+
+function syncBoardPageCache () {
+  if (!pageReady.value || !tasks.value) {
+    return
+  }
+  replaceCachedBoardState(slug.value, projectId.value, {
+    tasks: tasks.value,
+    parentTasks: boardParentTasks.value,
+  })
+}
+
+function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>) {
+  applyBoardSnapshot(data)
 }
 
 async function load (opts?: { refresh?: boolean }) {
@@ -1654,6 +1720,12 @@ async function load (opts?: { refresh?: boolean }) {
 
   try {
     if (!pageReady.value && !refresh) {
+      const cached = getBoardCached(slug.value, projectId.value)
+      if (cached) {
+        applyBoardSnapshot(cached)
+        pageReady.value = true
+        return
+      }
       const r = await raceWithTimeout(() => fetchBoardPayload(), TM_PAGE_LOAD_TIMEOUT_MS)
       if (!r.ok) {
         fatalLoadError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
@@ -1665,6 +1737,7 @@ async function load (opts?: { refresh?: boolean }) {
       const data = await fetchBoardPayload()
       applyBoardPayload(data)
       pageReady.value = true
+      clearBoardCacheStale(slug.value, projectId.value)
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '読み込みに失敗しました'
@@ -1684,7 +1757,28 @@ async function load (opts?: { refresh?: boolean }) {
 
 function retryBoardLoad () {
   fatalLoadError.value = null
+  invalidateBoardCached(slug.value, projectId.value)
+  pageReady.value = false
   void load()
+}
+
+async function goBackToProjectList () {
+  if (backNavPending.value) {
+    return
+  }
+  backNavPending.value = true
+  try {
+    const r = await raceWithTimeout(
+      () => prefetchOrgIndex(slug.value),
+      TM_PAGE_LOAD_TIMEOUT_MS,
+    )
+    if (!r.ok) {
+      return
+    }
+    await navigateTo(`/org/${slug.value}`)
+  } finally {
+    backNavPending.value = false
+  }
 }
 
 function stripManualLineBreaks (value: string) {
@@ -1970,8 +2064,21 @@ useProjectRealtimeChannel(projectId, {
   },
 })
 
-onMounted(() => {
-  void load()
+onBeforeMount(() => {
+  if (isBoardCacheStale(slug.value, projectId.value)) {
+    return
+  }
+  const cached = getBoardCached(slug.value, projectId.value)
+  if (cached) {
+    applyBoardSnapshot(cached)
+    pageReady.value = true
+  }
+})
+
+onMounted(async () => {
+  if (isBoardCacheStale(slug.value, projectId.value) || !pageReady.value) {
+    await load({ refresh: isBoardCacheStale(slug.value, projectId.value) || pageReady.value })
+  }
 
   if (!import.meta.client) {
     return
@@ -1995,6 +2102,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  syncBoardPageCache()
   if (import.meta.client) {
     window.removeEventListener('click', onGlobalClick)
     window.removeEventListener('resize', onWindowResize)
@@ -2082,11 +2190,23 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0;
   text-decoration: none;
   color: mixin.$main-aqua;
   letter-spacing: 0.05em;
   line-height: 1.1;
   transition: color 0.16s ease;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
 
   &::before {
     content: '';
@@ -2200,6 +2320,15 @@ onBeforeUnmount(() => {
   text-decoration: none;
   text-align: left;
   cursor: pointer;
+}
+
+.subheader-menu-item:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.subheader-menu-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .subheader-menu-item--danger {
@@ -2478,7 +2607,7 @@ onBeforeUnmount(() => {
   gap: 0;
 }
 
-/* 他リストへ移動中はソース列にプレースホルダを出さない（Trello 同様） */
+/* 他リストへ移動中はソース列にプレースホルダを出さない */
 .board-drag-cross-list .list-column--drag-source .sortable-ghost,
 .board-drag-cross-list .list-column--drag-source .drag-ghost {
   display: none !important;
@@ -2612,7 +2741,7 @@ onBeforeUnmount(() => {
   cursor: grabbing;
 }
 
-/* リスト内の挿入位置プレースホルダ（Trello のグレースロット） */
+/* リスト内の挿入位置プレースホルダ */
 .drag-ghost {
   opacity: 1 !important;
   background: #091e420f;

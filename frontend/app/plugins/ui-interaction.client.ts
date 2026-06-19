@@ -1,13 +1,15 @@
 import {
-  findScrollableAncestor,
   isInsideSelectableText,
+  resolveDragScrollContainer,
   shouldEnableDragScroll,
+  type ScrollAxes,
 } from '../utils/uiInteraction'
 
 const DRAG_SCROLL_THRESHOLD_PX = 4
 
 interface DragScrollSession {
   container: Element
+  axes: ScrollAxes
   pointerId: number
   startX: number
   startY: number
@@ -41,13 +43,15 @@ export default defineNuxtPlugin(() => {
       return
     }
 
-    const container = findScrollableAncestor(event.target as Element)
-    if (!container) {
+    const resolved = resolveDragScrollContainer(event.target as Element)
+    if (!resolved) {
       return
     }
 
+    const { container, axes } = resolved
     dragScroll = {
       container,
+      axes,
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
@@ -66,17 +70,22 @@ export default defineNuxtPlugin(() => {
     const deltaY = event.clientY - dragScroll.startY
 
     if (!dragScroll.active) {
-      if (
-        Math.abs(deltaX) < DRAG_SCROLL_THRESHOLD_PX
-        && Math.abs(deltaY) < DRAG_SCROLL_THRESHOLD_PX
-      ) {
+      const movedX = Math.abs(deltaX) >= DRAG_SCROLL_THRESHOLD_PX
+      const movedY = Math.abs(deltaY) >= DRAG_SCROLL_THRESHOLD_PX
+      const { x: canX, y: canY } = dragScroll.axes
+      const movedOnEnabledAxis = (canX && movedX) || (canY && movedY)
+      if (!movedOnEnabledAxis) {
         return
       }
       dragScroll.active = true
     }
 
-    dragScroll.container.scrollLeft = dragScroll.scrollLeft - deltaX
-    dragScroll.container.scrollTop = dragScroll.scrollTop - deltaY
+    if (dragScroll.axes.x) {
+      dragScroll.container.scrollLeft = dragScroll.scrollLeft - deltaX
+    }
+    if (dragScroll.axes.y) {
+      dragScroll.container.scrollTop = dragScroll.scrollTop - deltaY
+    }
     event.preventDefault()
   }
 

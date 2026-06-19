@@ -12,6 +12,7 @@ export type WbsTask = {
   id: number
   title: string
   description?: string | null
+  created_at?: string | null
   list_id: number | null
   list_name?: string | null
   start_date?: string | null
@@ -26,13 +27,378 @@ export type WbsTask = {
   parent_task_id?: number | null
 }
 
+export const WBS_ORPHAN_PARENT_TASK_ID = -1
+
 export type WbsDisplayRow =
   | { kind: 'parent'; task: WbsTask; childCount: number }
   | { kind: 'child'; task: WbsTask }
   | { kind: 'task'; task: WbsTask }
 
+export function isWbsOrphanParentTask (task: Pick<WbsTask, 'id'>): boolean {
+  return task.id === WBS_ORPHAN_PARENT_TASK_ID
+}
+
+export function createWbsOrphanParentTask (): WbsTask {
+  return {
+    id: WBS_ORPHAN_PARENT_TASK_ID,
+    title: '親タスクなし',
+    list_id: null,
+    is_parent_task: true,
+  }
+}
+
 export function sortWbsTasks (tasks: WbsTask[]): WbsTask[] {
-  return [...tasks].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id)
+  return [...tasks].sort((a, b) => (
+    (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    || a.id - b.id
+  ))
+}
+
+export type WbsReorderItem = {
+  id: number
+  sort_order: number
+  parent_task_id: number | null
+}
+
+export function buildFullWbsDisplayRows (tasks: WbsTask[]): WbsDisplayRow[] {
+  return buildWbsDisplayRows(tasks, new Set())
+}
+
+export function isTopLevelDropIndex (rows: WbsDisplayRow[], index: number): boolean {
+  if (index <= 0 || index >= rows.length) {
+    return true
+  }
+  return rows[index]!.kind !== 'child'
+}
+
+function getFirstRealParentRowIndex (rows: WbsDisplayRow[]): number {
+  return rows.findIndex(row => row.kind === 'parent' && !isWbsOrphanParentTask(row.task))
+}
+
+function getOrphanParentRowIndex (rows: WbsDisplayRow[]): number {
+  return rows.findIndex(row => row.kind === 'parent' && isWbsOrphanParentTask(row.task))
+}
+
+function clampParentInsertIndex (rows: WbsDisplayRow[], insertAt: number): number {
+  const orphanParentIndex = getOrphanParentRowIndex(rows)
+  if (orphanParentIndex < 0) {
+    return insertAt
+  }
+  return Math.min(insertAt, orphanParentIndex)
+}
+
+function clampChildInsertIndex (
+  rows: WbsDisplayRow[],
+  block: WbsDisplayRow[],
+  insertAt: number,
+): number {
+  const draggedKind = block[0]?.kind
+  if (draggedKind !== 'child') {
+    return insertAt
+  }
+
+  const firstParentIndex = getFirstRealParentRowIndex(rows)
+  if (firstParentIndex < 0) {
+    return insertAt
+  }
+
+  return Math.max(insertAt, firstParentIndex + 1)
+}
+
+export function mapCollapsedTargetToFullIndex (
+  collapsedRows: WbsDisplayRow[],
+  fullRows: WbsDisplayRow[],
+  targetIndex: number,
+): number {
+  if (targetIndex >= collapsedRows.length) {
+    return fullRows.length
+  }
+
+  const anchorRow = collapsedRows[targetIndex]!
+  const fullIndex = fullRows.findIndex(row => row.task.id === anchorRow.task.id)
+  return fullIndex >= 0 ? fullIndex : fullRows.length
+}
+
+export function getWbsDragBlock (
+  rows: WbsDisplayRow[],
+  rowIndex: number,
+  tasks: WbsTask[] = [],
+  collapsedParentIds: ReadonlySet<number> = new Set(),
+): { block: WbsDisplayRow[]; indices: number[] } {
+  const row = rows[rowIndex]
+  if (!row) {
+    return { block: [], indices: [] }
+  }
+  if (row.kind === 'child' || row.kind === 'task') {
+    const index = rows.findIndex(item => item.task.id === row.task.id)
+    return { block: [row], indices: index >= 0 ? [index] : [] }
+  }
+
+  if (isWbsOrphanParentTask(row.task)) {
+    return { block: [], indices: [] }
+  }
+
+  const childTasks = sortWbsTasks(tasks.filter(task => task.parent_task_id === row.task.id))
+  const isCollapsed = collapsedParentIds.has(row.task.id)
+  const block: WbsDisplayRow[] = isCollapsed
+    ? [row]
+    : [
+        row,
+        ...childTasks.map(task => ({ kind: 'child' as const, task })),
+      ]
+  const indices = block
+    .map(item => rows.findIndex(existing => existing.task.id === item.task.id))
+    .filter(index => index >= 0)
+
+  return { block, indices }
+}
+
+function countRowsBeforeIndex (
+  rows: WbsDisplayRow[],
+  index: number,
+  excludeTaskIds: Set<number>,
+): number {
+  let count = 0
+  const clampedIndex = Math.max(0, Math.min(index, rows.length))
+  for (let i = 0; i < clampedIndex; i++) {
+    if (!excludeTaskIds.has(rows[i]!.task.id)) {
+      count++
+    }
+  }
+  return count
+}
+
+export function snapToTopLevelDropIndex (
+  rows: WbsDisplayRow[],
+  insertAt: number,
+): number {
+  if (isTopLevelDropIndex(rows, insertAt)) {
+    return insertAt
+  }
+
+  for (let index = insertAt; index <= rows.length; index++) {
+    if (isTopLevelDropIndex(rows, index)) {
+      return index
+    }
+  }
+
+  for (let index = insertAt - 1; index >= 0; index--) {
+    if (isTopLevelDropIndex(rows, index)) {
+      return index
+    }
+  }
+
+  return rows.length
+}
+
+export function moveWbsDisplayRows (
+  rows: WbsDisplayRow[],
+  sourceIndex: number,
+  targetIndex: number,
+  tasks: WbsTask[] = [],
+  collapsedParentIds: ReadonlySet<number> = new Set(),
+): WbsDisplayRow[] | null {
+  const { block } = getWbsDragBlock(rows, sourceIndex, tasks, collapsedParentIds)
+  if (!block.length) {
+    return null
+  }
+
+  const blockTaskIds = new Set(block.map(item => item.task.id))
+  const without = rows.filter(item => !blockTaskIds.has(item.task.id))
+  const isParentBlock = block[0]!.kind === 'parent'
+
+  let insertAt = countRowsBeforeIndex(rows, targetIndex, blockTaskIds)
+  insertAt = Math.max(0, Math.min(insertAt, without.length))
+
+  if (isParentBlock) {
+    insertAt = snapToTopLevelDropIndex(without, insertAt)
+    insertAt = clampParentInsertIndex(without, insertAt)
+  } else {
+    insertAt = clampChildInsertIndex(without, block, insertAt)
+  }
+
+  const sourceInsertAt = countRowsBeforeIndex(rows, sourceIndex, blockTaskIds)
+  if (insertAt === sourceInsertAt) {
+    return rows
+  }
+
+  return [
+    ...without.slice(0, insertAt),
+    ...block,
+    ...without.slice(insertAt),
+  ]
+}
+
+/** ドラッグ中のゴースト・配置プレビューに表示する行（折りたたみ状態を維持） */
+export function getWbsDragGhostBlock (block: WbsDisplayRow[]): WbsDisplayRow[] {
+  return block
+}
+
+export function previewWbsDragInsert (
+  rows: WbsDisplayRow[],
+  ghostBlock: WbsDisplayRow[],
+  targetIndex: number,
+): WbsDisplayRow[] {
+  if (!ghostBlock.length) {
+    return rows
+  }
+
+  const blockTaskIds = new Set(ghostBlock.map(item => item.task.id))
+  const without = rows.filter(item => !blockTaskIds.has(item.task.id))
+  const isParentBlock = ghostBlock[0]!.kind === 'parent'
+
+  let insertAt = countRowsBeforeIndex(rows, targetIndex, blockTaskIds)
+  insertAt = Math.max(0, Math.min(insertAt, without.length))
+
+  if (isParentBlock) {
+    insertAt = snapToTopLevelDropIndex(without, insertAt)
+    insertAt = clampParentInsertIndex(without, insertAt)
+  } else {
+    insertAt = clampChildInsertIndex(without, ghostBlock, insertAt)
+  }
+
+  return [
+    ...without.slice(0, insertAt),
+    ...ghostBlock,
+    ...without.slice(insertAt),
+  ]
+}
+
+export function resolveWbsDropIndexFromDom (
+  clientX: number,
+  clientY: number,
+  tbody: HTMLElement,
+  baseRows: WbsDisplayRow[],
+  excludeTaskIds: ReadonlySet<number>,
+): number {
+  const rowEls = tbody.querySelectorAll<HTMLElement>('[data-wbs-task-id]')
+
+  const hitEl = document.elementFromPoint(clientX, clientY)
+  const hitRowEl = hitEl?.closest<HTMLElement>('[data-wbs-task-id]')
+  if (hitRowEl && tbody.contains(hitRowEl)) {
+    const taskId = Number(hitRowEl.dataset.wbsTaskId)
+    if (!excludeTaskIds.has(taskId)) {
+      const baseIndex = baseRows.findIndex(row => row.task.id === taskId)
+      if (baseIndex >= 0) {
+        return baseIndex
+      }
+    }
+  }
+
+  for (const rowEl of rowEls) {
+    const taskId = Number(rowEl.dataset.wbsTaskId)
+    if (excludeTaskIds.has(taskId)) {
+      continue
+    }
+
+    const rect = rowEl.getBoundingClientRect()
+    if (
+      clientX >= rect.left
+      && clientX <= rect.right
+      && clientY >= rect.top
+      && clientY <= rect.bottom
+    ) {
+      const baseIndex = baseRows.findIndex(row => row.task.id === taskId)
+      if (baseIndex >= 0) {
+        return baseIndex
+      }
+    }
+  }
+
+  if (rowEls.length > 0) {
+    const firstEl = rowEls[0]!
+    const firstRect = firstEl.getBoundingClientRect()
+    if (clientY < firstRect.top) {
+      const firstTaskId = Number(firstEl.dataset.wbsTaskId)
+      if (!excludeTaskIds.has(firstTaskId)) {
+        return 0
+      }
+    }
+
+    const lastEl = rowEls[rowEls.length - 1]!
+    const lastRect = lastEl.getBoundingClientRect()
+    if (clientY > lastRect.bottom) {
+      return baseRows.length
+    }
+  }
+
+  let nearestIndex = baseRows.length
+  let nearestDistance = Number.POSITIVE_INFINITY
+  for (const rowEl of rowEls) {
+    const taskId = Number(rowEl.dataset.wbsTaskId)
+    if (excludeTaskIds.has(taskId)) {
+      continue
+    }
+
+    const rect = rowEl.getBoundingClientRect()
+    const distance = Math.abs(clientY - (rect.top + rect.height / 2))
+    if (distance < nearestDistance) {
+      const baseIndex = baseRows.findIndex(row => row.task.id === taskId)
+      if (baseIndex >= 0) {
+        nearestDistance = distance
+        nearestIndex = baseIndex
+      }
+    }
+  }
+
+  return nearestIndex
+}
+
+export function resolveParentIdForChildAt (
+  rows: WbsDisplayRow[],
+  childIndex: number,
+): number | null {
+  for (let index = childIndex - 1; index >= 0; index--) {
+    const row = rows[index]!
+    if (row.kind === 'parent') {
+      return isWbsOrphanParentTask(row.task) ? null : row.task.id
+    }
+    if (row.kind === 'child') {
+      return row.task.parent_task_id ?? null
+    }
+    if (row.kind === 'task') {
+      return null
+    }
+  }
+  return null
+}
+
+export function applyWbsRowOrder (
+  tasks: WbsTask[],
+  rows: WbsDisplayRow[],
+  reparentedChildIds?: ReadonlySet<number>,
+): WbsTask[] {
+  const taskById = new Map(tasks.map(task => [task.id, { ...task }]))
+  let sortOrder = 0
+
+  rows.forEach((row, index) => {
+    if (isWbsOrphanParentTask(row.task)) {
+      return
+    }
+
+    const task = taskById.get(row.task.id)
+    if (!task) {
+      return
+    }
+
+    task.sort_order = sortOrder
+    sortOrder += 1
+
+    if (reparentedChildIds?.has(row.task.id)) {
+      task.is_parent_task = false
+      task.parent_task_id = resolveParentIdForChildAt(rows, index)
+    }
+  })
+
+  return Array.from(taskById.values())
+}
+
+export function buildWbsReorderPayload (tasks: WbsTask[]): WbsReorderItem[] {
+  return sortWbsTasks(tasks.filter(task => !isWbsOrphanParentTask(task))).map((task, index) => ({
+    id: task.id,
+    sort_order: task.sort_order ?? index,
+    parent_task_id: task.parent_task_id ?? null,
+  }))
 }
 
 function isOrphanChild (task: WbsTask, taskById: Map<number, WbsTask>): boolean {
@@ -61,6 +427,7 @@ export function buildWbsDisplayRows (
   }
 
   const rows: WbsDisplayRow[] = []
+  const orphanTasks: WbsTask[] = []
 
   for (const task of sorted) {
     if (task.parent_task_id != null && !isOrphanChild(task, taskById)) {
@@ -78,7 +445,19 @@ export function buildWbsDisplayRows (
       continue
     }
 
-    rows.push({ kind: 'task', task })
+    orphanTasks.push(task)
+  }
+
+  const orphanParent = createWbsOrphanParentTask()
+  rows.push({
+    kind: 'parent',
+    task: orphanParent,
+    childCount: orphanTasks.length,
+  })
+  if (!collapsedParentIds.has(orphanParent.id) && orphanTasks.length > 0) {
+    for (const task of orphanTasks) {
+      rows.push({ kind: 'child', task })
+    }
   }
 
   return rows
@@ -88,8 +467,11 @@ export function formatWbsDate (value: string | null | undefined): string {
   return formatTaskCardSingleDate(value) ?? ''
 }
 
-export function formatWbsEffort (task: WbsTask): string {
-  return formatTaskCardEffort(task) ?? ''
+export function formatWbsEffort (
+  task: WbsTask,
+  orgUnit?: 'minute' | 'hour' | 'day' | string | null,
+): string {
+  return formatTaskCardEffort(task, orgUnit) ?? ''
 }
 
 export function formatWbsDescription (value: string | null | undefined): string {
@@ -101,6 +483,6 @@ export function formatWbsDescription (value: string | null | undefined): string 
     .replace(/^\s*[-*+]\s+/gm, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/[*_~`]/g, '')
-    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s+/g, ' ')
     .trim()
 }
