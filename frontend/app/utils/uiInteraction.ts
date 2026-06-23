@@ -20,6 +20,7 @@ const DRAG_SCROLL_SKIP_SELECTOR = [
   '.sortable-fallback',
   '.sortable-chosen',
   '.project-wbs-table__drag-handle',
+  '.settings-sidebar',
   '[data-no-drag-scroll]',
 ].join(', ')
 
@@ -81,7 +82,7 @@ function isBoardDragScrollBackground (target: Element): boolean {
   return !target.closest(DRAG_SCROLL_SKIP_SELECTOR)
 }
 
-/** カンバン背景ドラッグは横スクロールのみ。それ以外は最寄りのスクロール容器を使う。 */
+/** ボード背景ドラッグは横スクロールのみ。それ以外は最寄りのスクロール容器を使う。 */
 export function resolveDragScrollContainer (target: Element): {
   container: Element
   axes: ScrollAxes
@@ -113,4 +114,94 @@ export function shouldEnableDragScroll (target: EventTarget | null): boolean {
     return false
   }
   return resolveDragScrollContainer(target) !== null
+}
+
+/** オーバーレイ上で pointerdown/pointerup したときだけ閉じる（モーダル内開始→外終了は閉じない） */
+const MODAL_OVERLAY_SELECTOR = '.modal-overlay, .base-modal-overlay'
+
+let suppressNextOverlayBackdropClose = false
+
+/** モーダル背面（カード外の暗い領域）を直接クリックしたか */
+export function isModalOverlayBackdropTarget (target: Node): boolean {
+  if (!(target instanceof Element)) {
+    return false
+  }
+  const overlay = target.closest(MODAL_OVERLAY_SELECTOR)
+  return overlay instanceof Element && target === overlay
+}
+
+/**
+ * プルダウン外クリックでモーダル背面を押したとき、続く mouseup によるモーダル閉じを抑止する。
+ * （capture 段階でプルダウンが先に閉じると、mouseup 時には開いていないためモーダルまで閉じてしまうのを防ぐ）
+ */
+export function suppressOverlayBackdropCloseOnce () {
+  suppressNextOverlayBackdropClose = true
+}
+
+function consumeOverlayBackdropCloseSuppression (): boolean {
+  if (!suppressNextOverlayBackdropClose) {
+    return false
+  }
+  suppressNextOverlayBackdropClose = false
+  return true
+}
+
+/** ポップオーバーの外側クリックで閉じる。モーダル背面ならモーダルは閉じない */
+export function dismissPopoverFromOutsidePointer (
+  target: Node,
+  dismiss: () => void | Promise<void>,
+) {
+  if (isModalOverlayBackdropTarget(target)) {
+    suppressOverlayBackdropCloseOnce()
+  }
+  void dismiss()
+}
+
+export function createOverlayBackdropClose (options: {
+  onClose: () => void
+  canClose?: () => boolean
+}) {
+  let pendingOverlay: HTMLElement | null = null
+
+  function detachDocumentMouseUp () {
+    document.removeEventListener('mouseup', onDocumentMouseUp, true)
+  }
+
+  function onDocumentMouseUp (event: MouseEvent) {
+    detachDocumentMouseUp()
+    const overlay = pendingOverlay
+    pendingOverlay = null
+    if (!overlay || event.button !== 0) {
+      return
+    }
+    if (!(options.canClose?.() ?? true)) {
+      return
+    }
+    if (consumeOverlayBackdropCloseSuppression()) {
+      return
+    }
+    if (event.target === overlay) {
+      options.onClose()
+    }
+  }
+
+  function onOverlayMouseDown (event: MouseEvent) {
+    if (event.button !== 0 || event.target !== event.currentTarget) {
+      return
+    }
+    pendingOverlay = event.currentTarget as HTMLElement
+    detachDocumentMouseUp()
+    document.addEventListener('mouseup', onDocumentMouseUp, true)
+  }
+
+  function resetOverlayBackdropClose () {
+    pendingOverlay = null
+    suppressNextOverlayBackdropClose = false
+    detachDocumentMouseUp()
+  }
+
+  return {
+    onOverlayMouseDown,
+    resetOverlayBackdropClose,
+  }
 }

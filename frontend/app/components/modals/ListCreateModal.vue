@@ -22,6 +22,13 @@
         />
       </label>
 
+      <ColorPresetPicker
+        v-model="color"
+        :presets="STANDARD_LABEL_COLORS"
+        :grid-columns="5"
+        :disabled="loading"
+      />
+
       <p v-if="submitError" class="err">{{ submitError }}</p>
 
       <div class="actions">
@@ -37,6 +44,9 @@
 </template>
 
 <script setup lang="ts">
+import ColorPresetPicker from '../ui/ColorPresetPicker.vue'
+import { DEFAULT_BOARD_LIST_COLOR, STANDARD_LABEL_COLORS } from '../../constants/labelColorPresets'
+
 const props = withDefaults(defineProps<{
   modelValue: boolean
   loading?: boolean
@@ -46,10 +56,11 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [boolean]
-  submit: [{ name: string }]
+  submit: [{ name: string; color: string }]
 }>()
 
 const name = ref('')
+const color = ref<string>(DEFAULT_BOARD_LIST_COLOR)
 const submitError = ref<string | null>(null)
 const nameInputRef = ref<HTMLInputElement | null>(null)
 
@@ -58,6 +69,7 @@ watch(
   (open) => {
     if (!open) return
     name.value = ''
+    color.value = DEFAULT_BOARD_LIST_COLOR
     submitError.value = null
     nextTick(() => {
       nameInputRef.value?.focus()
@@ -74,7 +86,7 @@ function submit () {
   const trimmed = name.value.trim()
   if (!trimmed || props.loading) return
   submitError.value = null
-  emit('submit', { name: trimmed })
+  emit('submit', { name: trimmed, color: color.value })
 }
 
 function setSubmitError (message: string) {

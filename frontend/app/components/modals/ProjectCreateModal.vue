@@ -15,7 +15,7 @@
           type="text"
           required
           minlength="2"
-          maxlength="80"
+          :maxlength="PROJECT_NAME_MAX_LENGTH"
           :placeholder="`${workUnitLabel}名を入力してください`"
           :disabled="loading"
         />
@@ -51,6 +51,7 @@
 </template>
 
 <script setup lang="ts">
+import { PROJECT_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 export type ProjectCreateLabel = { id: number; name: string; color: string }
 
 const props = withDefaults(defineProps<{

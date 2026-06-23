@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import { dismissPopoverFromOutsidePointer } from '../utils/uiInteraction'
 import {
   type TaskFormDraft,
   type TaskFormEffortUnit,
@@ -15,6 +16,7 @@ import {
   parseEffortDraft,
   resolveEffortUnit,
   resolveStoredEffortValue,
+  sanitizeEffortDraftInput,
   toDateInputValue,
   unitValueToHours,
 } from './useTaskFormHelpers'
@@ -59,7 +61,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
   const popoverAnchorEl = ref<HTMLElement | null>(null)
   const calendarCursor = ref(new Date())
   const pendingDate = ref<string | null>(null)
-  const titleTextareaRef = ref<HTMLTextAreaElement | null>(null)
+  const titleInputRef = ref<HTMLInputElement | null>(null)
   const labelSearchQuery = ref('')
   const effortDraft = ref<string | number>('')
   const effortInputRef = ref<HTMLInputElement | null>(null)
@@ -236,6 +238,27 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     dismissPopover()
   }
 
+  function clearEffort () {
+    if (activePopover.value !== 'effort') return
+    effortDraft.value = ''
+    options.draft.value = {
+      ...options.draft.value,
+      effort_value: null,
+      effort_hours: null,
+      effort_unit: null,
+    }
+    dismissPopover()
+  }
+
+  const canClearCalendarDate = computed(() => !!pendingDate.value)
+
+  const canClearEffort = computed(() => {
+    if (String(effortDraft.value ?? '').trim() !== '') {
+      return true
+    }
+    return resolveStoredEffortValue(options.draft.value) !== null
+  })
+
   async function closePopover () {
     if (activePopover.value === 'effort') {
       await finalizeEffortPopover()
@@ -266,7 +289,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     if (!(target instanceof Node)) return
     if (resolvePopoverElement()?.contains(target)) return
     if (shouldIgnorePopoverOutsideClose(target)) return
-    void closePopover()
+    dismissPopoverFromOutsidePointer(target, closePopover)
   }
 
   function onPopoverEscape (event: KeyboardEvent) {
@@ -304,17 +327,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     if (activePopover.value === 'labels') updatePopoverPosition()
   })
 
-  watch(() => options.draft.value.title, () => {
-    nextTick(() => adjustTitleTextareaHeight())
-  })
-
-  function adjustTitleTextareaHeight () {
-    const el = titleTextareaRef.value
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = `${el.scrollHeight}px`
-  }
-
   function openDatePicker (target: 'start' | 'due', event?: Event) {
     const next: TaskFormPopoverType = target === 'start' ? 'start-date' : 'due-date'
     if (activePopover.value === next) {
@@ -346,7 +358,16 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
     pendingDate.value = iso
     options.draft.value = { ...options.draft.value, [field]: iso }
-    dismissPopover()
+  }
+
+  function clearCalendarDate () {
+    if (!activePopover.value) return
+    if (activePopover.value !== 'start-date' && activePopover.value !== 'due-date') {
+      return
+    }
+    const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
+    pendingDate.value = null
+    options.draft.value = { ...options.draft.value, [field]: null }
   }
 
   function openEffortPicker (event?: Event) {
@@ -364,6 +385,15 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
       effortInputRef.value?.focus()
       effortInputRef.value?.select()
     })
+  }
+
+  function updateEffortDraft (raw: string | number) {
+    const sanitized = sanitizeEffortDraftInput(String(raw ?? ''))
+    effortDraft.value = sanitized
+    const inputEl = effortInputRef.value
+    if (inputEl && inputEl.value !== sanitized) {
+      inputEl.value = sanitized
+    }
   }
 
   function openMemberPicker (event?: Event) {
@@ -448,7 +478,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     dismissPopover()
     labelSearchQuery.value = ''
     effortDraft.value = ''
-    titleTextareaRef.value = null
+    titleInputRef.value = null
     effortDetailAnchorRef.value = null
   }
 
@@ -460,7 +490,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     popoverElRef,
     actionButtonsRef,
     effortDetailAnchorRef,
-    titleTextareaRef,
+    titleInputRef,
     labelSearchQuery,
     effortDraft,
     effortInputRef,
@@ -473,12 +503,16 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     formatDateDisplay,
     labelBarTextColor,
     memberEmailLine,
-    adjustTitleTextareaHeight,
+    canClearCalendarDate,
+    canClearEffort,
     openDatePicker,
     shiftCalendarMonth,
     pickCalendarDay,
+    clearCalendarDate,
     openEffortPicker,
+    updateEffortDraft,
     finalizeEffortPopover,
+    clearEffort,
     closePopover,
     openMemberPicker,
     openMemberDetail,

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Task extends Model
@@ -25,6 +26,7 @@ class Task extends Model
         'priority',
         'start_date',
         'due_date',
+        'gantt_bar_color',
         'effort_hours',
         'effort_value',
         'effort_unit',
@@ -88,6 +90,11 @@ class Task extends Model
     public function comments(): HasMany
     {
         return $this->hasMany(TaskComment::class);
+    }
+
+    public function checklist(): HasOne
+    {
+        return $this->hasOne(TaskChecklist::class);
     }
 
     public function labels(): BelongsToMany

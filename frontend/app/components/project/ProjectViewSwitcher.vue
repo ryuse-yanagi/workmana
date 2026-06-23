@@ -34,7 +34,7 @@
         :to="view.to"
         class="project-view-switcher-item"
         role="menuitem"
-        @click="onViewLinkClick(view, $event)"
+        @click="closeMenu"
       >
         <component
           :is="viewIcons[view.key]"
@@ -45,7 +45,7 @@
         />
         <span class="project-view-switcher-item__label">{{ view.label }}</span>
         <Check
-          v-if="activeView === view.key"
+          v-if="isViewSelected(view.key)"
           :size="18"
           :stroke-width="2.5"
           class="project-view-switcher-item__check"
@@ -58,14 +58,16 @@
 
 <script setup lang="ts">
 import type { Component } from 'vue'
-import { ChartGantt, Check, LayoutPanelLeft, NotebookPen } from 'lucide-vue-next'
-import { useProjectBoardPageData } from '../../composables/useProjectBoardPageData'
-import { useProjectViewRoutes, type ProjectViewKey, type ProjectViewOption } from '../../composables/useProjectViewRoutes'
+import { ChartGantt, Check, LayoutPanelLeft, NotebookPen, TableProperties } from 'lucide-vue-next'
+import {
+  useProjectViewRoutes,
+  type ProjectViewKey,
+} from '../../composables/useProjectViewRoutes'
 
 const viewIcons: Record<ProjectViewKey, Component> = {
-  kanban: LayoutPanelLeft,
-  wbs: ChartGantt,
-  documents: NotebookPen,
+  board: LayoutPanelLeft,
+  table: TableProperties,
+  gantt: ChartGantt,
 }
 
 const props = defineProps<{
@@ -85,13 +87,24 @@ const { views, activeView } = useProjectViewRoutes(
   () => props.orgSlug,
   () => props.projectId,
 )
-const { prefetch: prefetchProjectBoard, markCachedStale } = useProjectBoardPageData()
 
-const activeViewIcon = computed(() => viewIcons[activeView.value])
+const activeViewIcon = computed(() => {
+  if (activeView.value === 'documents') {
+    return NotebookPen
+  }
+  return viewIcons[activeView.value]
+})
 
 const activeViewLabel = computed(() => {
-  return views.value.find(view => view.key === activeView.value)?.label ?? 'カンバン'
+  if (activeView.value === 'documents') {
+    return '共有資料'
+  }
+  return views.value.find(view => view.key === activeView.value)?.label ?? 'ボード'
 })
+
+const isViewSelected = (key: ProjectViewKey) => {
+  return activeView.value === key
+}
 
 const menuStyle = computed(() => {
   if (!menuPosition.value) {
@@ -111,21 +124,6 @@ const menuStyle = computed(() => {
 function closeMenu () {
   menuOpen.value = false
   menuPosition.value = null
-}
-
-async function onViewLinkClick (view: ProjectViewOption, event: MouseEvent) {
-  closeMenu()
-  if (view.key !== 'kanban' || activeView.value === 'kanban') {
-    return
-  }
-
-  event.preventDefault()
-  try {
-    await prefetchProjectBoard(props.orgSlug, props.projectId)
-  } catch {
-    markCachedStale(props.orgSlug, props.projectId)
-  }
-  await navigateTo(view.to)
 }
 
 function positionMenu () {

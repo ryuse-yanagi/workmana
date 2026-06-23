@@ -149,9 +149,53 @@ export function formatEffortDisplay (
   return `${formatEffortAmount(value)} ${effortUnitLabel(unit)}`
 }
 
+/** 工数入力の整数部桁数上限（小数点は除く） */
+export const EFFORT_DRAFT_MAX_INTEGER_DIGITS = 4
+
+/** 工数入力の小数部桁数上限 */
+export const EFFORT_DRAFT_MAX_DECIMAL_DIGITS = 2
+
+export function countEffortIntegerDigits (raw: string): number {
+  const trimmed = String(raw ?? '').trim()
+  if (!trimmed || trimmed === '.') return 0
+  const [integerPart = ''] = trimmed.split('.')
+  return integerPart.replace(/\D/g, '').length
+}
+
+export function countEffortDecimalDigits (raw: string): number {
+  const trimmed = String(raw ?? '').trim()
+  const dotIndex = trimmed.indexOf('.')
+  if (dotIndex === -1) return 0
+  return trimmed.slice(dotIndex + 1).replace(/\D/g, '').length
+}
+
+export function sanitizeEffortDraftInput (raw: string): string {
+  let value = String(raw ?? '')
+  value = value.replace(/[^\d.]/g, '')
+  const firstDot = value.indexOf('.')
+  if (firstDot !== -1) {
+    value = value.slice(0, firstDot + 1) + value.slice(firstDot + 1).replace(/\./g, '')
+  }
+  const dotIndex = value.indexOf('.')
+  const integerPart = dotIndex === -1 ? value : value.slice(0, dotIndex)
+  let decimalPart = dotIndex === -1 ? '' : value.slice(dotIndex)
+  const limitedInteger = integerPart.length > EFFORT_DRAFT_MAX_INTEGER_DIGITS
+    ? integerPart.slice(0, EFFORT_DRAFT_MAX_INTEGER_DIGITS)
+    : integerPart
+  if (decimalPart.length > 1) {
+    const decimalDigits = decimalPart.slice(1)
+    if (decimalDigits.length > EFFORT_DRAFT_MAX_DECIMAL_DIGITS) {
+      decimalPart = `.${decimalDigits.slice(0, EFFORT_DRAFT_MAX_DECIMAL_DIGITS)}`
+    }
+  }
+  return limitedInteger + decimalPart
+}
+
 export function parseEffortDraft (raw: string | number | null | undefined): number | null | 'invalid' {
   const trimmed = String(raw ?? '').trim()
   if (!trimmed) return null
+  if (countEffortIntegerDigits(trimmed) > EFFORT_DRAFT_MAX_INTEGER_DIGITS) return 'invalid'
+  if (countEffortDecimalDigits(trimmed) > EFFORT_DRAFT_MAX_DECIMAL_DIGITS) return 'invalid'
   const num = Number(trimmed)
   if (!Number.isFinite(num) || num < 0) return 'invalid'
   return Math.round(num * 100) / 100
@@ -190,7 +234,7 @@ function normalizeDraftDate (value: string | null | undefined): string | null {
   return normalized || null
 }
 
-/** タスク名・備考以外のフォーム項目をソースタスクの値で上書きする */
+/** タスク名・説明以外のフォーム項目をソースタスクの値で上書きする */
 export function applyTaskDefaultsToDraft (
   draft: TaskFormDraft,
   source: TaskFormDefaultsSource,
@@ -210,7 +254,7 @@ export function applyTaskDefaultsToDraft (
   }
 }
 
-/** 親タスク由来のデフォルト項目（タスク名・備考以外）を空に戻す */
+/** 親タスク由来のデフォルト項目（タスク名・説明以外）を空に戻す */
 export function clearTaskDraftDefaults (draft: TaskFormDraft): TaskFormDraft {
   const empty = createEmptyTaskFormDraft()
   return {

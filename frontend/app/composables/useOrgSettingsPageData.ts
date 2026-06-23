@@ -5,6 +5,7 @@ import { useOrgEffortSettings } from './useOrgEffortSettings'
 import { useOrgTerminology } from './useOrgTerminology'
 
 const cacheBySlug = new Map<string, SettingsPageSnapshot>()
+const inflightBySlug = new Map<string, Promise<SettingsPageSnapshot>>()
 
 export function useOrgSettingsPageData () {
   const { api } = useApi()
@@ -13,33 +14,47 @@ export function useOrgSettingsPageData () {
 
   async function fetchSnapshot (orgSlug: string): Promise<SettingsPageSnapshot> {
     const slug = orgSlug.trim()
-    const [orgSettings, projectLabelsRes, taskLabelsRes] = await Promise.all([
-      api<SettingsPageSnapshot['orgSettings']>(`/orgs/${slug}/settings`),
-      api<{ data: SettingsPageSnapshot['projectLabels'] }>(`/orgs/${slug}/project-labels`),
-      api<{ data: SettingsPageSnapshot['taskLabels'] }>(`/orgs/${slug}/task-labels`),
-    ])
-    const label = (orgSettings.work_unit_label || '').trim() || DEFAULT_WORK_UNIT_LABEL
-    syncLabelState(slug, label)
-    syncEffortSettings(slug, {
-      effort_unit: normalizeEffortUnit(orgSettings.effort_unit),
-    })
-    const snapshot: SettingsPageSnapshot = {
-      orgSettings,
-      projectLabels: projectLabelsRes.data,
-      taskLabels: taskLabelsRes.data,
+    const inflight = inflightBySlug.get(slug)
+    if (inflight) {
+      return inflight
     }
-    cacheBySlug.set(slug, snapshot)
-    return snapshot
+
+    const job = (async () => {
+      const [orgSettings, projectLabelsRes, taskLabelsRes] = await Promise.all([
+        api<SettingsPageSnapshot['orgSettings']>(`/orgs/${slug}/settings`),
+        api<{ data: SettingsPageSnapshot['projectLabels'] }>(`/orgs/${slug}/project-labels`),
+        api<{ data: SettingsPageSnapshot['taskLabels'] }>(`/orgs/${slug}/task-labels`),
+      ])
+      const label = (orgSettings.work_unit_label || '').trim() || DEFAULT_WORK_UNIT_LABEL
+      syncLabelState(slug, label)
+      syncEffortSettings(slug, {
+        effort_unit: normalizeEffortUnit(orgSettings.effort_unit),
+      })
+      const snapshot: SettingsPageSnapshot = {
+        orgSettings,
+        projectLabels: projectLabelsRes.data,
+        taskLabels: taskLabelsRes.data,
+      }
+      cacheBySlug.set(slug, snapshot)
+      return snapshot
+    })()
+
+    inflightBySlug.set(slug, job)
+    try {
+      return await job
+    } finally {
+      if (inflightBySlug.get(slug) === job) {
+        inflightBySlug.delete(slug)
+      }
+    }
   }
 
-  /** 設定画面へ遷移する前に呼ぶ（キャッシュ済みなら API を叩かない） */
   async function prefetch (orgSlug: string): Promise<SettingsPageSnapshot> {
     const slug = orgSlug.trim()
     const cached = cacheBySlug.get(slug)
     if (cached) {
       return cached
     }
-    await api('/me')
     return fetchSnapshot(slug)
   }
 

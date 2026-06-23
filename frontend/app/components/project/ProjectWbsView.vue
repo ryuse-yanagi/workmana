@@ -1,38 +1,65 @@
 <template>
-  <main class="project-view-page project-view-page--wbs" :style="pageCssVars">
+  <div class="project-wbs-view project-view-page project-view-page--wbs" :style="pageCssVars">
     <header class="page-header">
       <div class="subheader">
-        <NuxtLink :to="`/org/${slug}`" class="subheader-title subheader-back-link">
+        <NuxtLink :to="`/org/${orgSlug}`" class="subheader-title subheader-back-link">
           {{ workUnitListLabel }}
         </NuxtLink>
-        <ProjectViewSwitcher :org-slug="slug" :project-id="projectId" />
+        <ProjectViewSwitcher :org-slug="orgSlug" :project-id="projectId" />
         <div class="subheader-spacer" />
       </div>
     </header>
 
     <section class="project-view-page__body project-view-page__body--wbs">
-      <ProjectWbsBoard :org-slug="slug" :project-id="projectId" />
+      <ProjectWbsBoard
+        v-if="mode === 'table'"
+        ref="tableBoardRef"
+        :org-slug="orgSlug"
+        :project-id="projectId"
+      />
+      <ProjectWbsGanttBoard
+        v-else
+        ref="ganttBoardRef"
+        :org-slug="orgSlug"
+        :project-id="projectId"
+      />
     </section>
-  </main>
+  </div>
 </template>
 
 <script setup lang="ts">
-import ProjectViewSwitcher from '../../../../../components/project/ProjectViewSwitcher.vue'
-import ProjectWbsBoard from '../../../../../components/project/ProjectWbsBoard.vue'
-import { useWorkUnitLabel } from '../../../../../composables/useOrgTerminology'
-import { useProjectViewPageCssVars } from '../../../../../composables/useProjectViewPageRoot'
+import ProjectViewSwitcher from './ProjectViewSwitcher.vue'
+import ProjectWbsBoard from './ProjectWbsBoard.vue'
+import ProjectWbsGanttBoard from './ProjectWbsGanttBoard.vue'
+import { useWorkUnitLabel } from '../../composables/useOrgTerminology'
+import { useProjectViewPageCssVars } from '../../composables/useProjectViewPageRoot'
 
-definePageMeta({ name: 'org-slug-projects-id-wbs' })
+const props = defineProps<{
+  orgSlug: string
+  projectId: string
+  mode: 'table' | 'gantt'
+}>()
 
-const route = useRoute()
-const slug = computed(() => route.params.slug as string)
-const projectId = computed(() => route.params.id as string)
-const { workUnitListLabel } = useWorkUnitLabel(() => slug.value)
+const tableBoardRef = ref<InstanceType<typeof ProjectWbsBoard> | null>(null)
+const ganttBoardRef = ref<InstanceType<typeof ProjectWbsGanttBoard> | null>(null)
+
+const { workUnitListLabel } = useWorkUnitLabel(() => props.orgSlug)
 const pageCssVars = useProjectViewPageCssVars()
+
+function refreshOnViewSwitch (): Promise<void> {
+  if (props.mode === 'table') {
+    return tableBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
+  }
+  return ganttBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
+}
+
+defineExpose({
+  refreshOnViewSwitch,
+})
 </script>
 
 <style lang="scss" scoped>
-.project-view-page {
+.project-wbs-view {
   box-sizing: border-box;
   height: calc(100dvh - var(--global-header-offset, 46px) - var(--app-shell-page-pad, 0.25rem));
   max-height: calc(100dvh - var(--global-header-offset, 46px) - var(--app-shell-page-pad, 0.25rem));
@@ -124,6 +151,11 @@ const pageCssVars = useProjectViewPageCssVars()
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0.45rem 0 0.75rem;
+  padding: 0 0 0.75rem;
+}
+
+.project-view-page__body--wbs > :deep(*) {
+  flex: 1;
+  min-height: 0;
 }
 </style>

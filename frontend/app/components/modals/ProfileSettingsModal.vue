@@ -17,7 +17,7 @@
             v-model.trim="nameDraft"
             class="profile-input"
             type="text"
-            maxlength="255"
+            :maxlength="USER_NAME_MAX_LENGTH"
             required
             placeholder="表示名を入力してください"
             :disabled="nameLoading"
@@ -69,6 +69,7 @@
 
 <script setup lang="ts">
 import { useApi } from '../../composables/useApi'
+import { USER_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import BaseModal from './BaseModal.vue'
 
 type MeResponse = {

@@ -57,6 +57,17 @@
             </div>
           </div>
 
+          <div class="popover-field-actions">
+            <button
+              type="button"
+              class="popover-field-clear-btn"
+              :disabled="disabled || dateSaving || !canClearCalendarDate"
+              @click.stop="void clearCalendarDate()"
+            >
+              削除
+            </button>
+          </div>
+
           <p v-if="popoverError" class="err">{{ popoverError }}</p>
         </PopoverShell>
 
@@ -73,7 +84,7 @@
           <div class="effort-input-row">
             <input
               ref="effortInputRef"
-              v-model="effortDraft"
+              :value="effortDraft"
               type="number"
               min="0"
               step="0.01"
@@ -81,11 +92,23 @@
               placeholder="工数を入力してください"
               aria-label="工数"
               :disabled="disabled"
+              @input="updateEffortDraft(($event.target as HTMLInputElement).value)"
               @keydown.enter.prevent="void finalizeEffortPopover()"
               @keydown.escape.prevent="void finalizeEffortPopover()"
               @click.stop
             />
             <span class="effort-unit-label">{{ effortUnitLabel(orgEffortUnit) }}</span>
+          </div>
+
+          <div class="popover-field-actions">
+            <button
+              type="button"
+              class="popover-field-clear-btn"
+              :disabled="disabled || effortSaving || !canClearEffort"
+              @click.stop="void clearEffort()"
+            >
+              削除
+            </button>
           </div>
 
           <p v-if="popoverError" class="err">{{ popoverError }}</p>
@@ -130,7 +153,7 @@
                 :disabled="disabled"
                 @click.stop="removeMember(selectedMember)"
               >
-                タスクから解除
+                タスクから削除
               </button>
             </div>
           </div>
@@ -291,8 +314,8 @@
           ref="popoverElRef"
           shell-class="popover popover--description"
           :style="popoverStyle"
-          title="備考"
-          aria-label="備考"
+          title="説明"
+          aria-label="説明"
           :close-disabled="disabled"
           @close="closePopover"
         >
@@ -300,7 +323,8 @@
             v-model="descriptionDraft"
             class="description-input"
             rows="6"
-            aria-label="備考"
+            :maxlength="TASK_DESCRIPTION_MAX_LENGTH"
+            aria-label="説明"
             :disabled="disabled || descriptionSaving"
             @blur="void saveDescription()"
           />
@@ -314,10 +338,12 @@
 <script setup lang="ts">
 import {
   useTaskPopoverEditor,
+  type PopoverType,
   type ProjectListOption,
   type TaskPopoverEditable,
 } from '../../composables/useTaskPopoverEditor'
 import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFormHelpers'
+import { TASK_DESCRIPTION_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
 import PopoverShell from '../ui/PopoverShell.vue'
 
@@ -334,6 +360,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   updated: [TaskPopoverEditable]
+  'popover-active-change': [{ taskId: number | null; popover: PopoverType | null }]
 }>()
 
 const taskRef = ref<TaskPopoverEditable | null>(null)
@@ -366,11 +393,19 @@ const {
   calendarCells,
   labelBarTextColor,
   memberEmailLine,
+  pendingDate,
+  dateSaving,
+  effortSaving,
+  canClearCalendarDate,
+  canClearEffort,
   openDatePicker,
   shiftCalendarMonth,
   pickCalendarDay,
+  clearCalendarDate,
   openEffortPicker,
+  updateEffortDraft,
   finalizeEffortPopover,
+  clearEffort,
   closePopover,
   openMemberPicker,
   openMemberDetail,
@@ -397,6 +432,14 @@ const {
   onUpdated: (task) => emit('updated', task),
   zIndex: 80,
 })
+
+watch(
+  [activePopover, () => taskRef.value?.id ?? null],
+  ([popover, taskId]) => {
+    emit('popover-active-change', { taskId, popover })
+  },
+  { flush: 'sync' },
+)
 
 const filteredProjectMembers = computed(() => {
   const query = memberSearchQuery.value.trim().toLowerCase()
@@ -738,6 +781,7 @@ defineExpose({
   font-size: 0.94rem;
   color: #0f172a;
   background: #fff;
+  @include mixin.hide-number-spin-buttons;
 }
 
 .popover--effort .effort-input:focus {
@@ -752,6 +796,36 @@ defineExpose({
   font-weight: 700;
   color: #64748b;
   white-space: nowrap;
+}
+
+.popover-field-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.55rem;
+}
+
+.popover-field-clear-btn {
+  min-width: 3.5rem;
+  height: 1.75rem;
+  padding: 0 0.65rem;
+  border: 1px solid mixin.$border-light;
+  border-radius: 6px;
+  background: #fff;
+  color: mixin.$text-sub;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.popover-field-clear-btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.04);
+  color: mixin.$text;
+}
+
+.popover-field-clear-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .popover--date .calendar {

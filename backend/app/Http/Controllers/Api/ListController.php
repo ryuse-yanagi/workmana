@@ -11,6 +11,7 @@ use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Task;
+use App\Support\BoardListColors;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class ListController extends ApiController
         $this->ensureProjectBelongsToOrganization($project, $organization);
         $this->ensureProjectMember($request->user(), $project);
 
-        $lists = $project->lists()->get(['id', 'name', 'sort_order', 'created_at']);
+        $lists = $project->lists()->get(['id', 'name', 'color', 'sort_order', 'created_at']);
 
         return response()->json(['data' => $lists]);
     }
@@ -36,6 +37,7 @@ class ListController extends ApiController
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'color' => ['required', 'string', 'max:20'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
@@ -44,8 +46,14 @@ class ListController extends ApiController
             return response()->json(['message' => 'Name cannot be empty.'], 422);
         }
 
+        $color = strtolower(trim($validated['color']));
+        if (! BoardListColors::isStandard($color)) {
+            return response()->json(['message' => 'Invalid list color.'], 422);
+        }
+
         $list = $project->lists()->create([
             'name' => $name,
+            'color' => $color,
             'sort_order' => $validated['sort_order'] ?? 0,
         ]);
 
@@ -54,6 +62,7 @@ class ListController extends ApiController
         return response()->json([
             'id' => $list->id,
             'name' => $list->name,
+            'color' => $list->color,
             'sort_order' => $list->sort_order,
         ], 201);
     }
@@ -91,6 +100,7 @@ class ListController extends ApiController
         return response()->json([
             'id' => $boardList->id,
             'name' => $boardList->name,
+            'color' => $boardList->color,
             'sort_order' => $boardList->sort_order,
         ]);
     }

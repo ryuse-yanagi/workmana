@@ -22,7 +22,11 @@ import ProjectViewSwitcher from '../../../../../components/project/ProjectViewSw
 import { useWorkUnitLabel } from '../../../../../composables/useOrgTerminology'
 import { useProjectViewPageCssVars, useProjectViewPageRoot } from '../../../../../composables/useProjectViewPageRoot'
 
-definePageMeta({ name: 'org-slug-projects-id-documents' })
+definePageMeta({
+  name: 'org-slug-projects-id-documents',
+  key: route => route.fullPath,
+  keepalive: true,
+})
 
 useProjectViewPageRoot()
 

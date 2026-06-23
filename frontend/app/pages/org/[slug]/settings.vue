@@ -34,15 +34,12 @@
               :org-slug="slug"
               :initial-unit="effortUnitFromSnapshot"
             />
-            <SettingsProjectLabelsPanel
-              v-show="activeTab === 'project_labels'"
+            <SettingsLabelsPanel
+              v-show="activeTab === 'labels'"
               :org-slug="slug"
-              :initial-labels="settingsSnapshot.projectLabels"
-            />
-            <SettingsTaskLabelsPanel
-              v-show="activeTab === 'task_labels'"
-              :org-slug="slug"
-              :initial-labels="settingsSnapshot.taskLabels"
+              :initial-project-labels="settingsSnapshot.projectLabels"
+              :initial-task-labels="settingsSnapshot.taskLabels"
+              :initial-label-tab="initialLabelTab"
             />
           </section>
         </section>
@@ -53,27 +50,31 @@
 
 <script setup lang="ts">
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
-import { useApi } from '../../../composables/useApi'
+import { withAppLoadingCursor } from '../../../composables/useAppLoadingCursor'
 import { useOrgSettingsPageData } from '../../../composables/useOrgSettingsPageData'
 import SettingsDefaultBoardListsPanel from '../../../components/settings/SettingsDefaultBoardListsPanel.vue'
 import SettingsEffortPanel from '../../../components/settings/SettingsEffortPanel.vue'
-import SettingsProjectLabelsPanel from '../../../components/settings/SettingsProjectLabelsPanel.vue'
+import SettingsLabelsPanel from '../../../components/settings/SettingsLabelsPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
-import SettingsTaskLabelsPanel from '../../../components/settings/SettingsTaskLabelsPanel.vue'
 import SettingsWorkUnitLabelPanel from '../../../components/settings/SettingsWorkUnitLabelPanel.vue'
 import {
   normalizeDefaultBoardListNames,
+  type SettingsLabelTabKey,
   type SettingsPageSnapshot,
   type SettingsTabKey,
 } from '../../../components/settings/types'
 import { normalizeEffortUnit } from '../../../composables/useTaskFormHelpers'
 
-definePageMeta({ name: 'org-slug-settings' })
+definePageMeta({
+  name: 'org-slug-settings',
+  // タブ切替は query のみ変わるため path を key にする（fullPath だと KeepAlive がタブごとに別インスタンスになり activeTab がずれる）
+  key: route => route.path,
+  keepalive: true,
+})
 
 const route = useRoute()
 const router = useRouter()
 const slug = computed(() => route.params.slug as string)
-const { api } = useApi()
 const {
   fetchSnapshot,
   getCached,
@@ -83,13 +84,13 @@ const {
 
 const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
   { key: 'work_unit_label', label: 'work_unit_label設定' },
-  { key: 'default_board_lists', label: 'デフォルトリスト設定' },
+  { key: 'default_board_lists', label: 'リスト設定' },
   { key: 'effort_settings', label: '工数設定' },
-  { key: 'project_labels', label: 'プロジェクトラベル設定' },
-  { key: 'task_labels', label: 'タスクラベル設定' },
+  { key: 'labels', label: 'ラベル設定' },
 ]
 
 const activeTab = ref<SettingsTabKey>('work_unit_label')
+const initialLabelTab = ref<SettingsLabelTabKey>('project')
 const settingsPageReady = ref(false)
 const settingsFatalError = ref<string | null>(null)
 const settingsSnapshot = ref<SettingsPageSnapshot | null>(null)
@@ -107,23 +108,26 @@ const effortUnitFromSnapshot = computed(() => {
   return normalizeEffortUnit(settingsSnapshot.value?.orgSettings.effort_unit)
 })
 
-async function loadInitialData () {
+async function loadInitialData (opts?: { refresh?: boolean }) {
   settingsFatalError.value = null
-  settingsPageReady.value = false
-  settingsSnapshot.value = null
-
   const slugValue = slug.value
-  const cached = getCached(slugValue)
-  if (cached) {
-    settingsSnapshot.value = cached
-    settingsPageReady.value = true
-    return
+
+  if (!opts?.refresh) {
+    const cached = getCached(slugValue)
+    if (cached) {
+      settingsSnapshot.value = cached
+      settingsPageReady.value = true
+      return
+    }
+  } else {
+    settingsPageReady.value = false
+    settingsSnapshot.value = null
   }
 
-  const r = await raceWithTimeout(async () => {
-    await api('/me')
-    return fetchSnapshot(slugValue)
-  }, TM_PAGE_LOAD_TIMEOUT_MS)
+  const r = await withAppLoadingCursor(() => raceWithTimeout(
+    () => fetchSnapshot(slugValue),
+    TM_PAGE_LOAD_TIMEOUT_MS,
+  ))
 
   if (!r.ok) {
     settingsFatalError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
@@ -136,7 +140,7 @@ async function loadInitialData () {
 
 function retrySettingsLoad () {
   invalidateCached(slug.value)
-  void loadInitialData()
+  void loadInitialData({ refresh: true })
 }
 
 function applyTabFromRoute () {
@@ -154,12 +158,15 @@ function applyTabFromRoute () {
     activeTab.value = 'effort_settings'
     return
   }
-  if (tab === 'project_labels') {
-    activeTab.value = 'project_labels'
+  if (tab === 'task_labels') {
+    activeTab.value = 'labels'
+    initialLabelTab.value = 'task'
     return
   }
-  if (tab === 'task_labels') {
-    activeTab.value = 'task_labels'
+  if (tab === 'project_labels' || tab === 'labels') {
+    activeTab.value = 'labels'
+    const labelTab = route.query.labelTab
+    initialLabelTab.value = labelTab === 'task' ? 'task' : 'project'
     return
   }
   activeTab.value = 'work_unit_label'
@@ -170,9 +177,23 @@ function selectTab (tab: SettingsTabKey) {
   void router.replace({ path: route.path, query: { tab } })
 }
 
+onBeforeMount(() => {
+  const cached = getCached(slug.value)
+  if (cached) {
+    settingsSnapshot.value = cached
+    settingsPageReady.value = true
+  }
+})
+
 onMounted(() => {
   applyTabFromRoute()
-  void loadInitialData()
+  if (!settingsPageReady.value) {
+    void loadInitialData()
+  }
+})
+
+onActivated(() => {
+  applyTabFromRoute()
 })
 
 watch(

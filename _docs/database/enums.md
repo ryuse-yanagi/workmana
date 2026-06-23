@@ -63,6 +63,6 @@
 - **`status`・`priority`・`assignee_id`・`due_date` の変更**は、**上表の専用 `event_type`（`status_changed` 等）を用いる**。
 - **`title`・`description` の変更**専用の `event_type` は定義しない。**`task_updated`** とし、差分は **`field_name`・`before_value`・`after_value`** で表す（`field_name` の取りうる値は `docs/api` で列挙する）。
 
-## 備考
+## 説明
 
 - HTTP エラー理由コード等は `docs/api` に記載する。

@@ -4,14 +4,10 @@
     :class="{ 'task-card--parent': task.is_parent_task }"
   >
     <div class="task-card-body">
-      <div v-if="task.labels?.length" class="task-label-list">
-        <LabelStrip
-          v-for="label in task.labels"
-          :key="label.id"
-          :label="label"
-          size="sm"
-        />
-      </div>
+      <TaskCardLabelList
+        v-if="task.labels?.length"
+        :labels="task.labels"
+      />
       <p
         v-if="parentTaskTitle"
         class="task-parent-title"
@@ -21,7 +17,7 @@
       <p class="task-title-row">
         <ListTree
           v-if="task.is_parent_task"
-          :size="14"
+          :size="15"
           :stroke-width="2.25"
           class="task-title-row__icon"
           aria-hidden="true"
@@ -64,6 +60,7 @@
 
 <script setup lang="ts">
 import { CalendarDays, Clock, ListTree } from 'lucide-vue-next'
+import TaskCardLabelList from './TaskCardLabelList.vue'
 import { memberDisplayName } from '../../composables/useMemberDisplay'
 import {
   formatTaskCardDateRange,
@@ -130,18 +127,13 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
 }
 
-.task-card--parent {
-  background: mixin.$main-aqua-surface;
-  border-color: mixin.$main;
-}
-
 .task-parent-title {
   margin: 0 0 0.2rem;
   max-width: 100%;
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.25;
-  color: mixin.$text;
+  color: mixin.$main;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -174,6 +166,11 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   word-break: break-word;
 }
 
+.task-card--parent .task-title {
+  font-size: 0.9375rem;
+  color: mixin.$main;
+}
+
 .task-card-meta {
   display: flex;
   flex-direction: column;
@@ -194,13 +191,6 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
 
 .task-card-meta__row span {
   min-width: 0;
-}
-
-.task-label-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.2rem;
-  margin-bottom: 0.25rem;
 }
 
 .task-card-body {

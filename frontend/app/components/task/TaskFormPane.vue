@@ -9,14 +9,14 @@
         class="field-label"
       >タスク名</span>
       <div class="title-input-wrap">
-        <textarea
-          ref="titleTextareaRef"
+        <input
+          ref="titleInputRef"
           v-model="titleDraft"
-          maxlength="500"
+          type="text"
+          :maxlength="TASK_TITLE_MAX_LENGTH"
           class="title-input"
           aria-label="タスク名"
           :disabled="disabled"
-          rows="1"
           @input="onTitleInput"
           @compositionstart="onTitleCompositionStart"
           @compositionend="onTitleCompositionEnd"
@@ -216,12 +216,13 @@
     </div>
 
     <section class="field-block description-block">
-      <span class="field-label">備考</span>
+      <span class="field-label">説明</span>
       <textarea
         v-model="descriptionModel"
         class="description-input"
         rows="4"
-        aria-label="備考"
+        :maxlength="TASK_DESCRIPTION_MAX_LENGTH"
+        aria-label="説明"
         :disabled="disabled"
       />
     </section>
@@ -284,6 +285,17 @@
               </div>
             </div>
 
+            <div class="popover-field-actions">
+              <button
+                type="button"
+                class="popover-field-clear-btn"
+                :disabled="disabled || !canClearCalendarDate"
+                @click.stop="clearCalendarDate()"
+              >
+                削除
+              </button>
+            </div>
+
             <p v-if="popoverError" class="err">{{ popoverError }}</p>
           </PopoverShell>
 
@@ -300,7 +312,7 @@
             <div class="effort-input-row">
               <input
                 ref="effortInputRef"
-                v-model="effortDraft"
+                :value="effortDraft"
                 type="number"
                 min="0"
                 step="0.01"
@@ -308,11 +320,23 @@
                 placeholder="工数を入力してください"
                 aria-label="工数"
                 :disabled="disabled"
+                @input="updateEffortDraft(($event.target as HTMLInputElement).value)"
                 @keydown.enter.prevent="void finalizeEffortPopover()"
                 @keydown.escape.prevent="void finalizeEffortPopover()"
                 @click.stop
               />
               <span class="effort-unit-label">{{ effortUnitLabel(orgEffortUnit) }}</span>
+            </div>
+
+            <div class="popover-field-actions">
+              <button
+                type="button"
+                class="popover-field-clear-btn"
+                :disabled="disabled || !canClearEffort"
+                @click.stop="clearEffort()"
+              >
+                削除
+              </button>
             </div>
 
             <p v-if="popoverError" class="err">{{ popoverError }}</p>
@@ -357,7 +381,7 @@
                   :disabled="disabled"
                   @click.stop="removeMember(selectedMember)"
                 >
-                  タスクから解除
+                  タスクから削除
                 </button>
               </div>
             </div>
@@ -488,6 +512,10 @@ import {
   Users,
 } from 'lucide-vue-next'
 import { useTaskFormPane } from '../../composables/useTaskFormPane'
+import {
+  TASK_DESCRIPTION_MAX_LENGTH,
+  TASK_TITLE_MAX_LENGTH,
+} from '../../constants/fieldLengthLimits'
 import type {
   TaskFormDraft,
   TaskFormLabel,
@@ -558,7 +586,6 @@ function onTitleInput () {
     ...props.modelValue,
     title: titleDraft.value,
   })
-  adjustTitleTextareaHeight()
 }
 
 const { orgEffortUnit, ensureOrgEffortUnit } = useOrgEffortUnit(() => props.orgSlug)
@@ -571,7 +598,7 @@ const {
   popoverElRef,
   actionButtonsRef,
   effortDetailAnchorRef,
-  titleTextareaRef,
+  titleInputRef,
   labelSearchQuery,
   effortDraft,
   effortInputRef,
@@ -584,12 +611,16 @@ const {
   formatDateDisplay,
   labelBarTextColor,
   memberEmailLine,
-  adjustTitleTextareaHeight,
+  canClearCalendarDate,
+  canClearEffort,
   openDatePicker,
   shiftCalendarMonth,
   pickCalendarDay,
+  clearCalendarDate,
   openEffortPicker,
+  updateEffortDraft,
   finalizeEffortPopover,
+  clearEffort,
   closePopover,
   openMemberPicker,
   openMemberDetail,
@@ -625,11 +656,10 @@ const activeCalendarDate = computed(() => {
   return null
 })
 
-defineExpose({ resetPaneState, activePopover })
+defineExpose({ resetPaneState, activePopover, closePopover })
 
 onMounted(() => {
   void ensureOrgEffortUnit()
-  nextTick(() => adjustTitleTextareaHeight())
 })
 </script>
 
@@ -706,12 +736,7 @@ onMounted(() => {
   background: transparent;
   width: 100%;
   box-sizing: border-box;
-  resize: none;
-  overflow: hidden;
   line-height: 1.25;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
   display: block;
   outline: none;
   box-shadow: none;
@@ -762,7 +787,8 @@ onMounted(() => {
   border-color: #94a3b8;
 }
 
-.action-btn--active {
+.action-btn--active,
+.action-btn--active:hover:not(:disabled) {
   background: color-mix(in srgb, mixin.$main 12%, mixin.$white);
   border-color: mixin.$main;
   color: mixin.$main-hover;
@@ -1137,6 +1163,7 @@ onMounted(() => {
   font-size: 0.94rem;
   color: #0f172a;
   background: #fff;
+  @include mixin.hide-number-spin-buttons;
 }
 
 .popover--effort .effort-input:focus {
@@ -1151,6 +1178,36 @@ onMounted(() => {
   font-weight: 700;
   color: #64748b;
   white-space: nowrap;
+}
+
+.popover-field-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.55rem;
+}
+
+.popover-field-clear-btn {
+  min-width: 3.5rem;
+  height: 1.75rem;
+  padding: 0 0.65rem;
+  border: 1px solid mixin.$border-light;
+  border-radius: 6px;
+  background: #fff;
+  color: mixin.$text-sub;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.popover-field-clear-btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.04);
+  color: mixin.$text;
+}
+
+.popover-field-clear-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .detail-item {

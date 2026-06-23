@@ -7,6 +7,7 @@ use App\Models\ProjectLabel;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Support\DefaultBoardLists;
+use App\Support\FieldLengthLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -50,7 +51,7 @@ class ProjectController extends ApiController
         $this->assertCanManageProjectsInOrganization($request);
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:'.FieldLengthLimits::PROJECT_NAME],
             'description' => ['nullable', 'string'],
             'label_ids' => ['nullable', 'array'],
             'label_ids.*' => ['integer', 'distinct'],
@@ -141,7 +142,7 @@ class ProjectController extends ApiController
         }
 
         $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:255'],
+            'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::PROJECT_NAME],
             'description' => ['nullable', 'string'],
             'label_ids' => ['nullable', 'array'],
             'label_ids.*' => ['integer', 'distinct'],

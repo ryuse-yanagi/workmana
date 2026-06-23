@@ -69,7 +69,6 @@
             :class="{
               'project-wbs-table__task-row--parent': row.kind === 'parent',
               'project-wbs-table__task-row--child': row.kind === 'child',
-              'project-wbs-table__task-row--orphan-parent': isWbsOrphanParentTask(row.task),
               'project-wbs-table__task-row--drag-preview': draggingTaskIds.has(row.task.id),
             }"
             :data-wbs-row-index="rowIndex"
@@ -77,7 +76,6 @@
           >
             <td class="project-wbs-table__drag-cell">
               <button
-                v-if="!isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__drag-handle"
                 aria-label="ドラッグしてタスクの並び順を変更"
@@ -94,7 +92,14 @@
             <td class="project-wbs-table__task-title">
               <div
                 class="project-wbs-table__title-cell"
-                :class="{ 'project-wbs-table__title-cell--child': row.kind === 'child' }"
+                :class="{
+                  'project-wbs-table__title-cell--child': row.kind === 'child',
+                  'project-wbs-table__title-cell--editable': editingTitleTaskId !== row.task.id,
+                }"
+                :tabindex="editingTitleTaskId !== row.task.id ? 0 : undefined"
+                @click="onTitleFieldActivate(row.task, $event)"
+                @mousedown="onTitleCellMouseDown(row.task, $event)"
+                @keydown.enter.prevent="onTitleFieldActivate(row.task)"
               >
                 <button
                   v-if="row.kind === 'parent'"
@@ -102,7 +107,7 @@
                   class="project-wbs-table__toggle"
                   :aria-expanded="!collapsedParentIds.has(row.task.id)"
                   :aria-label="collapsedParentIds.has(row.task.id) ? '子タスクを展開' : '子タスクを折りたたむ'"
-                  @click="toggleParentCollapse(row.task.id)"
+                  @click.stop="toggleParentCollapse(row.task.id)"
                 >
                   <ChevronDown
                     v-if="!collapsedParentIds.has(row.task.id)"
@@ -119,21 +124,11 @@
                 </button>
                 <div
                   class="project-wbs-table__title-field"
-                  :class="{
-                    'project-wbs-table__title-field--after-toggle': row.kind === 'parent',
-                    'project-wbs-table__title-field--editable': !isWbsOrphanParentTask(row.task),
-                  }"
-                  :tabindex="!isWbsOrphanParentTask(row.task) && editingTitleTaskId !== row.task.id ? 0 : undefined"
-                  @click="onTitleFieldActivate(row.task)"
-                  @keydown.enter.prevent="onTitleFieldActivate(row.task)"
+                  :class="{ 'project-wbs-table__title-field--after-toggle': row.kind === 'parent' }"
                 >
                   <span
-                    v-if="isWbsOrphanParentTask(row.task)"
-                    class="project-wbs-table__title-text project-wbs-table__title-text--orphan-parent"
-                  >{{ row.task.title }}</span>
-                  <span
-                    v-else-if="editingTitleTaskId !== row.task.id"
-                    class="project-wbs-table__title-text project-wbs-table__title-clickable"
+                    v-if="editingTitleTaskId !== row.task.id"
+                    class="project-wbs-table__title-text"
                     :title="row.task.title"
                   >{{ row.task.title }}</span>
                   <input
@@ -142,16 +137,13 @@
                     v-model="titleDraft"
                     type="text"
                     class="project-wbs-table__title-input"
+                    :maxlength="TASK_TITLE_MAX_LENGTH"
                     :disabled="titleSaving"
+                    @click.stop
                     @blur="confirmTitleEdit(row.task)"
                     @keydown.enter.prevent="confirmTitleEdit(row.task)"
                   />
                 </div>
-                <span
-                  v-if="row.kind === 'parent' && row.childCount > 0"
-                  class="project-wbs-table__child-count"
-                  :class="{ 'project-wbs-table__child-count--orphan-parent': isWbsOrphanParentTask(row.task) }"
-                >{{ row.childCount }}</span>
               </div>
             </td>
             <td>
@@ -159,6 +151,7 @@
                 v-if="!isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__cell-btn"
+                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'assignees') }"
                 aria-label="担当者を編集"
                 @click="openMembers(row.task, $event)"
               >
@@ -186,13 +179,14 @@
                   </span>
                 </div>
               </button>
-              <span v-else class="project-wbs-table__placeholder">—</span>
+              <span v-else class="project-wbs-table__placeholder" />
             </td>
             <td>
               <button
                 v-if="row.task.labels?.length && !isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__cell-btn"
+                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'labels') }"
                 @click="openLabels(row.task, $event)"
               >
                 <div class="project-wbs-table__labels">
@@ -208,6 +202,7 @@
                 v-else-if="!isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__cell-btn"
+                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'labels') }"
                 aria-label="ラベルを追加"
                 @click="openLabels(row.task, $event)"
               >
@@ -217,61 +212,70 @@
                   </span>
                 </div>
               </button>
-              <span v-else class="project-wbs-table__placeholder">—</span>
+              <span v-else class="project-wbs-table__placeholder" />
             </td>
             <td>
               <button
                 v-if="!isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
+                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'list') }"
                 @click="openList(row.task, $event)"
               >
-                <span v-if="row.task.list_name" class="project-wbs-table__ellipsis" :title="row.task.list_name">{{ row.task.list_name }}</span>
-                <span v-else class="project-wbs-table__placeholder">—</span>
+                <span
+                  v-if="row.task.list_name"
+                  class="project-wbs-table__ellipsis"
+                  :title="row.task.list_name"
+                >{{ row.task.list_name }}</span>
+                <span v-else class="project-wbs-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder">—</span>
+              <span v-else class="project-wbs-table__placeholder" />
             </td>
             <td>
               <button
                 v-if="!isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
+                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'startDate') }"
                 @click="openStartDate(row.task, $event)"
               >
                 <span v-if="formatWbsDate(row.task.start_date)">{{ formatWbsDate(row.task.start_date) }}</span>
-                <span v-else class="project-wbs-table__placeholder">—</span>
+                <span v-else class="project-wbs-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder">—</span>
+              <span v-else class="project-wbs-table__placeholder" />
             </td>
             <td>
               <button
                 v-if="!isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
+                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'dueDate') }"
                 @click="openDueDate(row.task, $event)"
               >
                 <span v-if="formatWbsDate(row.task.due_date)">{{ formatWbsDate(row.task.due_date) }}</span>
-                <span v-else class="project-wbs-table__placeholder">—</span>
+                <span v-else class="project-wbs-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder">—</span>
+              <span v-else class="project-wbs-table__placeholder" />
             </td>
             <td>
               <button
                 v-if="!isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
+                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'effort') }"
                 @click="openEffort(row.task, $event)"
               >
                 <span v-if="formatWbsEffort(row.task, orgEffortUnit)">{{ formatWbsEffort(row.task, orgEffortUnit) }}</span>
-                <span v-else class="project-wbs-table__placeholder">—</span>
+                <span v-else class="project-wbs-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder">—</span>
+              <span v-else class="project-wbs-table__placeholder" />
             </td>
             <td>
               <button
                 v-if="!isWbsOrphanParentTask(row.task)"
                 type="button"
                 class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text project-wbs-table__cell-btn--notes"
+                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'notes') }"
                 @click="openDescription(row.task, $event)"
               >
                 <span
@@ -279,9 +283,9 @@
                   class="project-wbs-table__notes project-wbs-table__ellipsis"
                   :title="formatWbsDescription(row.task.description)"
                 >{{ formatWbsDescription(row.task.description) }}</span>
-                <span v-else class="project-wbs-table__placeholder">備考を追加</span>
+                <span v-else class="project-wbs-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder">—</span>
+              <span v-else class="project-wbs-table__placeholder" />
             </td>
           </tr>
         </tbody>
@@ -310,6 +314,7 @@
       :project-members="projectMembers"
       :project-lists="projectLists"
       @updated="syncTaskUpdate"
+      @popover-active-change="onPopoverActiveChange"
     />
   </div>
 </template>
@@ -322,7 +327,9 @@ import {
   formatWbsDate,
   formatWbsDescription,
   formatWbsEffort,
+  hasWbsOrphanChildTasks,
   isWbsOrphanParentTask,
+  WBS_ORPHAN_PARENT_DEFAULT_LABEL,
   type WbsTask,
 } from '../../composables/useWbsTaskGroups'
 import { useWbsTaskDragReorder } from '../../composables/useWbsTaskDragReorder'
@@ -331,12 +338,19 @@ import {
   WBS_DRAG_COL_WIDTH,
   useWbsTableColumnResize,
 } from '../../composables/useWbsTableColumnResize'
-import type { ProjectListOption, TaskPopoverEditable } from '../../composables/useTaskPopoverEditor'
+import {
+  type ProjectListOption,
+  type PopoverType,
+  type TaskPopoverEditable,
+} from '../../composables/useTaskPopoverEditor'
 import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFormHelpers'
 import { memberDisplayName } from '../../composables/useMemberDisplay'
 import { useApi } from '../../composables/useApi'
+import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { useProjectBoardPageData } from '../../composables/useProjectBoardPageData'
+import { useProjectWbsPageData, type ProjectWbsPageSnapshot } from '../../composables/useProjectWbsPageData'
+import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import TaskEditPopoverLayer from '../task/TaskEditPopoverLayer.vue'
 
 const props = defineProps<{
@@ -346,20 +360,56 @@ const props = defineProps<{
 
 const { api } = useApi()
 const { patchCachedTasks } = useProjectBoardPageData()
+const { getCached: getWbsCached, setCached: setWbsCached } = useProjectWbsPageData()
 const { orgEffortUnit, ensureOrgEffortUnit } = useOrgEffortUnit(() => props.orgSlug)
 
-const loading = ref(true)
+const loading = ref(false)
 const error = ref<string | null>(null)
 const tasks = ref<WbsTask[]>([])
+const orphanParentLabel = ref(WBS_ORPHAN_PARENT_DEFAULT_LABEL)
+const orphanParentSortOrder = ref<number | null>(null)
 const orgLabels = ref<TaskFormLabel[]>([])
 const projectMembers = ref<TaskFormMember[]>([])
 const projectLists = ref<ProjectListOption[]>([])
 const collapsedParentIds = ref<Set<number>>(new Set())
 const editLayerRef = ref<InstanceType<typeof TaskEditPopoverLayer> | null>(null)
 
+type WbsPopoverCellField = 'assignees' | 'labels' | 'list' | 'startDate' | 'dueDate' | 'effort' | 'notes'
+
+const popoverActiveTaskId = ref<number | null>(null)
+const popoverActiveType = ref<PopoverType | null>(null)
+
+function onPopoverActiveChange (payload: { taskId: number | null; popover: PopoverType | null }) {
+  popoverActiveTaskId.value = payload.taskId
+  popoverActiveType.value = payload.popover
+}
+
+function popoverTypeToCellField (popover: PopoverType): WbsPopoverCellField | null {
+  switch (popover) {
+    case 'start-date': return 'startDate'
+    case 'due-date': return 'dueDate'
+    case 'effort': return 'effort'
+    case 'members':
+    case 'member-detail': return 'assignees'
+    case 'labels': return 'labels'
+    case 'list': return 'list'
+    case 'description': return 'notes'
+    default: return null
+  }
+}
+
+function isPopoverCellActive (taskId: number, field: WbsPopoverCellField): boolean {
+  if (popoverActiveTaskId.value !== taskId || !popoverActiveType.value) {
+    return false
+  }
+  return popoverTypeToCellField(popoverActiveType.value) === field
+}
+
 const editingTitleTaskId = ref<number | null>(null)
 const titleDraft = ref('')
 const titleSaving = ref(false)
+const wbsBusy = computed(() => loading.value || titleSaving.value)
+syncAppLoadingCursor(wbsBusy)
 const titleInputEl = ref<HTMLInputElement | HTMLInputElement[] | null>(null)
 
 const tableScrollEl = ref<HTMLElement | null>(null)
@@ -387,6 +437,8 @@ const {
   tasks,
   tableBodyEl,
   collapsedParentIds,
+  orphanParentLabel,
+  orphanParentSortOrder,
   onCommit: saveWbsOrder,
 })
 
@@ -394,7 +446,12 @@ const displayRows = computed(() => {
   if (dragging.value) {
     return activeRows.value
   }
-  return buildWbsDisplayRows(tasks.value, collapsedParentIds.value)
+  return buildWbsDisplayRows(
+    tasks.value,
+    collapsedParentIds.value,
+    orphanParentLabel.value,
+    orphanParentSortOrder.value,
+  )
 })
 
 function onDragHandleClick () {
@@ -403,15 +460,32 @@ function onDragHandleClick () {
   }
 }
 
-async function saveWbsOrder (updatedTasks: WbsTask[]) {
+async function saveWbsOrder (
+  updatedTasks: WbsTask[],
+  nextOrphanParentSortOrder: number | null,
+) {
   try {
+    const body: {
+      tasks: ReturnType<typeof buildWbsReorderPayload>
+      orphan_parent_sort_order?: number | null
+    } = {
+      tasks: buildWbsReorderPayload(updatedTasks),
+    }
+    if (!hasWbsOrphanChildTasks(updatedTasks)) {
+      body.orphan_parent_sort_order = nextOrphanParentSortOrder
+    }
+
     await api<{ data: { ok: boolean } }>(
       `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/wbs/reorder`,
       {
         method: 'PATCH',
-        body: { tasks: buildWbsReorderPayload(updatedTasks) },
+        body,
       },
     )
+    if (!hasWbsOrphanChildTasks(updatedTasks)) {
+      orphanParentSortOrder.value = nextOrphanParentSortOrder
+    }
+    persistWbsCache()
     patchCachedTasks(
       props.orgSlug,
       props.projectId,
@@ -474,6 +548,34 @@ function syncTaskUpdate (updated: TaskPopoverEditable) {
     assignees: updated.assignees,
     labels: updated.labels,
   }])
+  persistWbsCache()
+}
+
+function applyWbsSnapshot (snapshot: ProjectWbsPageSnapshot) {
+  tasks.value = snapshot.tasks
+  orphanParentLabel.value = snapshot.orphanParentLabel
+  orphanParentSortOrder.value = snapshot.orphanParentSortOrder
+  orgLabels.value = snapshot.orgLabels
+  projectMembers.value = snapshot.projectMembers
+  projectLists.value = snapshot.projectLists
+}
+
+function buildWbsSnapshot (): ProjectWbsPageSnapshot {
+  return {
+    tasks: tasks.value,
+    orphanParentLabel: orphanParentLabel.value,
+    orphanParentSortOrder: orphanParentSortOrder.value,
+    orgLabels: orgLabels.value,
+    projectMembers: projectMembers.value,
+    projectLists: projectLists.value,
+  }
+}
+
+function persistWbsCache () {
+  if (tasks.value.length === 0 && loading.value) {
+    return
+  }
+  setWbsCached(props.orgSlug, props.projectId, buildWbsSnapshot())
 }
 
 function bindAndOpen (
@@ -529,14 +631,23 @@ async function startTitleEdit (task: WbsTask) {
   el?.select()
 }
 
-function onTitleFieldActivate (task: WbsTask) {
-  if (isWbsOrphanParentTask(task)) {
-    return
-  }
+function onTitleFieldActivate (task: WbsTask, event?: Event) {
   if (editingTitleTaskId.value === task.id) {
     return
   }
+  if (event?.target instanceof Element && event.target.closest('.project-wbs-table__toggle')) {
+    return
+  }
   void startTitleEdit(task)
+}
+
+function onTitleCellMouseDown (task: WbsTask, event: MouseEvent) {
+  if (editingTitleTaskId.value !== task.id) return
+  const target = event.target
+  if (!(target instanceof Element)) return
+  if (target.closest('.project-wbs-table__title-input')) return
+  if (target.closest('.project-wbs-table__toggle')) return
+  event.preventDefault()
 }
 
 function cancelTitleEdit () {
@@ -553,11 +664,20 @@ async function confirmTitleEdit (task: WbsTask) {
   }
   titleSaving.value = true
   try {
-    await api<{ title: string }>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${task.id}`,
-      { method: 'PATCH', body: { title } },
-    )
-    syncTaskUpdate({ ...task, title })
+    if (isWbsOrphanParentTask(task)) {
+      const res = await api<{ data: { orphan_parent_label: string } }>(
+        `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/wbs/orphan-parent-label`,
+        { method: 'PATCH', body: { label: title } },
+      )
+      orphanParentLabel.value = res.data.orphan_parent_label
+      persistWbsCache()
+    } else {
+      await api<{ title: string }>(
+        `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${task.id}`,
+        { method: 'PATCH', body: { title } },
+      )
+      syncTaskUpdate({ ...task, title })
+    }
     cancelTitleEdit()
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'タスク名の更新に失敗しました'
@@ -566,13 +686,15 @@ async function confirmTitleEdit (task: WbsTask) {
   }
 }
 
-async function loadWbsTasks () {
-  loading.value = true
+async function loadWbsTasks (opts?: { silent?: boolean }) {
+  if (!opts?.silent) {
+    loading.value = true
+  }
   error.value = null
   try {
     const [, tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
       ensureOrgEffortUnit(),
-      api<{ data: WbsTask[] }>(
+      api<{ data: WbsTask[]; meta?: { orphan_parent_label?: string; orphan_parent_sort_order?: number | null } }>(
         `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/wbs`,
       ),
       api<{ data: TaskFormLabel[] }>(
@@ -586,29 +708,57 @@ async function loadWbsTasks () {
       ),
     ])
     tasks.value = tasksRes.data ?? []
+    orphanParentLabel.value = tasksRes.meta?.orphan_parent_label?.trim()
+      || WBS_ORPHAN_PARENT_DEFAULT_LABEL
+    orphanParentSortOrder.value = tasksRes.meta?.orphan_parent_sort_order ?? null
     orgLabels.value = labelsRes.data ?? []
     projectMembers.value = membersRes.data ?? []
     projectLists.value = [...(listsRes.data ?? [])].sort(
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
     )
+    persistWbsCache()
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'WBSの読み込みに失敗しました'
-    tasks.value = []
-    orgLabels.value = []
-    projectMembers.value = []
-    projectLists.value = []
+    if (!opts?.silent) {
+      error.value = e instanceof Error ? e.message : 'WBSの読み込みに失敗しました'
+      tasks.value = []
+      orphanParentLabel.value = WBS_ORPHAN_PARENT_DEFAULT_LABEL
+      orphanParentSortOrder.value = null
+      orgLabels.value = []
+      projectMembers.value = []
+      projectLists.value = []
+    }
   } finally {
-    loading.value = false
+    if (!opts?.silent) {
+      loading.value = false
+    }
   }
 }
 
 watch(
   () => [props.orgSlug, props.projectId] as const,
   () => {
+    const cached = getWbsCached(props.orgSlug, props.projectId)
+    if (cached) {
+      applyWbsSnapshot(cached)
+      void loadWbsTasks({ silent: true })
+      return
+    }
     void loadWbsTasks()
   },
   { immediate: true },
 )
+
+function refreshOnViewSwitch (): Promise<void> {
+  const cached = getWbsCached(props.orgSlug, props.projectId)
+  if (cached) {
+    applyWbsSnapshot(cached)
+  }
+  return loadWbsTasks({ silent: tasks.value.length > 0 })
+}
+
+defineExpose({
+  refreshOnViewSwitch,
+})
 
 watch(loading, async (isLoading) => {
   if (isLoading) return
@@ -640,7 +790,7 @@ watch(loading, async (isLoading) => {
 }
 
 .project-wbs-board__viewport--dragging {
-  cursor: grabbing;
+  cursor: default;
   user-select: none;
 }
 
@@ -648,8 +798,9 @@ watch(loading, async (isLoading) => {
   display: block;
   width: fit-content;
   border: 1px solid mixin.$border-light;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
+  overflow: hidden;
 }
 
 .project-wbs-table-wrap {
@@ -658,11 +809,11 @@ watch(loading, async (isLoading) => {
 }
 
 .project-wbs-table-wrap--dragging {
-  cursor: grabbing;
+  cursor: default;
 }
 
 .project-wbs-table-wrap--dragging .project-wbs-table__drag-handle {
-  cursor: grabbing;
+  cursor: default;
 }
 
 .project-wbs-table-wrap--dragging .project-wbs-table__task-row--drag-preview {
@@ -674,7 +825,7 @@ watch(loading, async (isLoading) => {
 }
 
 .project-wbs-table-wrap--resizing {
-  cursor: col-resize;
+  cursor: default;
   user-select: none;
 }
 
@@ -742,7 +893,7 @@ watch(loading, async (isLoading) => {
   border-radius: 4px;
   background: #fff;
   color: mixin.$text-sub;
-  cursor: grab;
+  cursor: pointer;
   touch-action: none;
 }
 
@@ -753,7 +904,11 @@ watch(loading, async (isLoading) => {
 }
 
 .project-wbs-table__drag-handle:active {
-  cursor: grabbing;
+  cursor: default;
+}
+
+.project-wbs-table-wrap--resizing .project-wbs-table__resize-handle {
+  cursor: default;
 }
 
 .project-wbs-table thead th {
@@ -817,19 +972,19 @@ watch(loading, async (isLoading) => {
 }
 
 .project-wbs-table thead th:first-child {
-  border-top-left-radius: 9px;
+  border-top-left-radius: 12px;
 }
 
 .project-wbs-table thead th:last-child {
-  border-top-right-radius: 9px;
+  border-top-right-radius: 12px;
 }
 
 .project-wbs-table__task-row:last-child td:first-child {
-  border-bottom-left-radius: 9px;
+  border-bottom-left-radius: 12px;
 }
 
 .project-wbs-table__task-row:last-child td:last-child {
-  border-bottom-right-radius: 9px;
+  border-bottom-right-radius: 12px;
 }
 
 .project-wbs-table__task-row td {
@@ -842,6 +997,11 @@ watch(loading, async (isLoading) => {
   color: mixin.$text;
   line-height: 1.2;
   overflow: hidden;
+}
+
+.project-wbs-table__task-row td:has(.project-wbs-table__cell-btn),
+.project-wbs-table__task-row td:has(.project-wbs-table__title-cell--editable) {
+  cursor: pointer;
 }
 
 .project-wbs-table__task-row td > .project-wbs-table__placeholder {
@@ -870,19 +1030,6 @@ watch(loading, async (isLoading) => {
   min-height: var(--wbs-parent-row-height);
 }
 
-.project-wbs-table__task-row--orphan-parent td {
-  background: #eef2f6;
-}
-
-.project-wbs-table__title-text--orphan-parent {
-  color: mixin.$text-muted;
-  font-weight: 600;
-}
-
-.project-wbs-table__child-count--orphan-parent {
-  color: mixin.$text-muted;
-}
-
 .project-wbs-table__task-title {
   font-weight: 700;
   padding-left: 0 !important;
@@ -890,13 +1037,28 @@ watch(loading, async (isLoading) => {
 
 .project-wbs-table__title-cell {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0;
   box-sizing: border-box;
   min-width: 0;
   width: 100%;
   height: var(--wbs-row-height);
   padding-right: 0.65rem;
+}
+
+.project-wbs-table__title-cell--editable {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.12s ease;
+}
+
+.project-wbs-table__title-cell--editable:hover {
+  background: mixin.$main-aqua-surface-light;
+}
+
+.project-wbs-table__title-cell--editable:focus-visible {
+  @include mixin.input-focus-ring;
+  border-radius: 4px;
 }
 
 .project-wbs-table__task-row--parent .project-wbs-table__title-cell {
@@ -914,19 +1076,11 @@ watch(loading, async (isLoading) => {
   align-items: center;
   align-self: stretch;
   box-sizing: border-box;
+  min-height: 100%;
 }
 
 .project-wbs-table__title-field--after-toggle {
   padding-left: 0.35rem;
-}
-
-.project-wbs-table__title-field--editable {
-  cursor: pointer;
-}
-
-.project-wbs-table__title-field--editable:focus-visible {
-  @include mixin.input-focus-ring;
-  border-radius: 4px;
 }
 
 .project-wbs-table__title-text,
@@ -967,10 +1121,6 @@ watch(loading, async (isLoading) => {
   @include mixin.input-focus-ring;
 }
 
-.project-wbs-table__title-field--editable:hover .project-wbs-table__title-clickable {
-  background: rgba(15, 23, 42, 0.05);
-}
-
 .project-wbs-table__toggle {
   flex-shrink: 0;
   align-self: stretch;
@@ -985,23 +1135,6 @@ watch(loading, async (isLoading) => {
   background: transparent;
   color: mixin.$text-sub;
   cursor: pointer;
-}
-
-.project-wbs-table__toggle:hover {
-  background: rgba(15, 23, 42, 0.06);
-  color: mixin.$text;
-}
-
-.project-wbs-table__child-count {
-  flex-shrink: 0;
-  margin-left: 0.15rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.08);
-  color: mixin.$text-sub;
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1.3;
 }
 
 .project-wbs-table__ellipsis {
@@ -1029,6 +1162,15 @@ watch(loading, async (isLoading) => {
   font: inherit;
   cursor: pointer;
   overflow: hidden;
+  transition: background-color 0.12s ease;
+}
+
+.project-wbs-table__cell-btn:hover {
+  background: mixin.$main-aqua-surface-light;
+}
+
+.project-wbs-table__cell-btn--popover-open {
+  box-shadow: inset 0 0 0 1.4px mixin.$main;
 }
 
 .project-wbs-table__cell-btn:focus-visible {
@@ -1036,7 +1178,12 @@ watch(loading, async (isLoading) => {
 }
 
 .project-wbs-table__cell-btn--text {
-  min-height: 0;
+  height: 100%;
+  min-height: var(--wbs-row-height);
+}
+
+.project-wbs-table__task-row--parent .project-wbs-table__cell-btn--text {
+  min-height: var(--wbs-parent-row-height);
 }
 
 .project-wbs-table__cell-btn--text > span:not(.project-wbs-table__placeholder) {
@@ -1174,7 +1321,7 @@ watch(loading, async (isLoading) => {
   left: 0;
   z-index: 10000;
   pointer-events: none;
-  cursor: grabbing;
+  cursor: default;
   opacity: 0.3;
 }
 </style>

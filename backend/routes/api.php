@@ -45,6 +45,7 @@ Route::middleware(['cognito'])->group(function () {
         Route::get('/projects/{project}/tasks/parents', [TaskController::class, 'parentTasksIndex']);
         Route::get('/projects/{project}/tasks/comments', [TaskCommentController::class, 'projectIndex']);
         Route::get('/projects/{project}/tasks/wbs', [TaskController::class, 'wbsIndex']);
+        Route::patch('/projects/{project}/tasks/wbs/orphan-parent-label', [TaskController::class, 'wbsUpdateOrphanParentLabel']);
         Route::patch('/projects/{project}/tasks/wbs/reorder', [TaskController::class, 'wbsReorder']);
         Route::get('/projects/{project}/tasks/archived', [TaskController::class, 'archivedIndex']);
         Route::post('/projects/{project}/tasks', [TaskController::class, 'store']);

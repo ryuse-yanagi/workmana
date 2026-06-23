@@ -20,6 +20,7 @@ export type OrgIndexPageSnapshot = {
 }
 
 const cacheBySlug = new Map<string, OrgIndexPageSnapshot>()
+const inflightBySlug = new Map<string, Promise<OrgIndexPageSnapshot>>()
 
 export function useOrgIndexPageData () {
   const { api } = useApi()
@@ -27,24 +28,39 @@ export function useOrgIndexPageData () {
 
   async function fetchSnapshot (orgSlug: string): Promise<OrgIndexPageSnapshot> {
     const slug = orgSlug.trim()
-    const [projectsRes, workUnitLabel, labelsRes] = await Promise.all([
-      api<{ data: OrgIndexProject[] }>(`/orgs/${slug}/projects`),
-      fetchWorkUnitLabel(slug),
-      api<{ data: OrgIndexLabel[] }>(`/orgs/${slug}/project-labels`),
-    ])
-    syncLabelState(slug, workUnitLabel)
-    const snapshot: OrgIndexPageSnapshot = {
-      projects: projectsRes.data,
-      orgLabels: labelsRes.data,
-      workUnitLabel,
+    const inflight = inflightBySlug.get(slug)
+    if (inflight) {
+      return inflight
     }
-    cacheBySlug.set(slug, snapshot)
-    return snapshot
+
+    const job = (async () => {
+      const [projectsRes, workUnitLabel, labelsRes] = await Promise.all([
+        api<{ data: OrgIndexProject[] }>(`/orgs/${slug}/projects`),
+        fetchWorkUnitLabel(slug),
+        api<{ data: OrgIndexLabel[] }>(`/orgs/${slug}/project-labels`),
+      ])
+      syncLabelState(slug, workUnitLabel)
+      const snapshot: OrgIndexPageSnapshot = {
+        projects: projectsRes.data,
+        orgLabels: labelsRes.data,
+        workUnitLabel,
+      }
+      cacheBySlug.set(slug, snapshot)
+      return snapshot
+    })()
+
+    inflightBySlug.set(slug, job)
+    try {
+      return await job
+    } finally {
+      if (inflightBySlug.get(slug) === job) {
+        inflightBySlug.delete(slug)
+      }
+    }
   }
 
-  /** プロジェクト一覧へ遷移する前に呼ぶ（常に最新データを取得してキャッシュする） */
+  /** @deprecated 互換用。fetchSnapshot と同じ */
   async function prefetch (orgSlug: string): Promise<OrgIndexPageSnapshot> {
-    await api('/me')
     return fetchSnapshot(orgSlug)
   }
 

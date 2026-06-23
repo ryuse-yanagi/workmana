@@ -40,6 +40,7 @@ class ProjectRealtimeBroadcastTest extends TestCase
         $listRes = $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->postJson("/api/orgs/acme/projects/{$project->id}/lists", [
                 'name' => 'Todo',
+                'color' => '#4bce97',
             ])
             ->assertCreated();
 
@@ -92,6 +93,7 @@ class ProjectRealtimeBroadcastTest extends TestCase
         $listB = $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->postJson("/api/orgs/acme/projects/{$project->id}/lists", [
                 'name' => 'Doing',
+                'color' => '#ffe600',
             ])
             ->assertCreated()
             ->json('id');

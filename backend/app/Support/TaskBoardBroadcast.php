@@ -27,6 +27,7 @@ final class TaskBoardBroadcast
             'status' => $task->status,
             'start_date' => $task->start_date,
             'due_date' => $task->due_date,
+            'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
             'effort_value' => $task->effort_value,
             'effort_unit' => $task->effort_unit,

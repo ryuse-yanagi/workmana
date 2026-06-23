@@ -1,10 +1,15 @@
 <template>
   <span
     class="label-strip"
-    :class="[`label-strip--${size}`]"
+    :class="[
+      `label-strip--${size}`,
+      displayMode !== 'inline' ? `label-strip--${displayMode}` : null,
+    ]"
     :style="stripStyle"
+    :aria-label="displayMode === 'bar' ? label.name : undefined"
+    :title="displayMode !== 'inline' ? label.name : undefined"
   >
-    {{ label.name }}
+    <span v-if="displayMode !== 'bar'" class="label-strip__text">{{ label.name }}</span>
   </span>
 </template>
 
@@ -15,13 +20,17 @@ export type LabelStripLabel = {
   color: string
 }
 
+export type LabelStripDisplayMode = 'inline' | 'bar' | 'named'
+
 const props = withDefaults(defineProps<{
   label: LabelStripLabel
   size?: 'sm' | 'md'
   textColor?: string | null
+  displayMode?: LabelStripDisplayMode
 }>(), {
   size: 'sm',
   textColor: null,
+  displayMode: 'inline',
 })
 
 function labelBarTextColor (hex: string): string {
@@ -62,5 +71,66 @@ const stripStyle = computed(() => ({
 .label-strip--md {
   padding: 0.18rem 0.55rem;
   font-size: 0.78rem;
+}
+
+.label-strip__text {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.label-strip--bar {
+  display: block;
+  flex-shrink: 0;
+  width: 40px;
+  height: 8px;
+  padding: 0;
+  border-radius: 3px;
+  line-height: 0;
+  overflow: hidden;
+  color: transparent;
+  font-size: 0;
+}
+
+.label-strip--named.label-strip--sm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 56px;
+  height: 16px;
+  min-width: 56px;
+  max-width: 56px;
+  min-height: 16px;
+  max-height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.label-strip--named.label-strip--md {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 56px;
+  height: 16px;
+  min-width: 56px;
+  max-width: 56px;
+  min-height: 16px;
+  max-height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  overflow: hidden;
 }
 </style>

@@ -2,8 +2,9 @@ export type SettingsTabKey =
   | 'work_unit_label'
   | 'default_board_lists'
   | 'effort_settings'
-  | 'project_labels'
-  | 'task_labels'
+  | 'labels'
+
+export type SettingsLabelTabKey = 'project' | 'task'
 
 export type SettingsLabelItem = {
   id: number

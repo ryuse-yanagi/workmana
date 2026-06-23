@@ -26,6 +26,8 @@
 </template>
 
 <script setup lang="ts">
+import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
+
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title: string
@@ -51,6 +53,8 @@ function close () {
   if (props.loading) return
   emit('update:modelValue', false)
 }
+
+syncAppLoadingCursor(() => props.loading)
 </script>
 
 <style lang="scss" scoped>
@@ -76,12 +80,6 @@ function close () {
 .primary-btn,
 .danger-btn {
   @include mixin.btn-base;
-}
-
-.ghost-btn:disabled,
-.primary-btn:disabled,
-.danger-btn:disabled {
-  cursor: wait;
 }
 
 .ghost-btn--rounded,

@@ -1,0 +1,120 @@
+@use 'mixin' as mixin;
+
+.project-wbs-table__task-row td:has(.project-wbs-table__cell-btn) {
+  cursor: pointer;
+}
+
+.project-wbs-table__task-row td > .project-wbs-table__placeholder {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: var(--wbs-row-height);
+  padding: 0 0.65rem;
+}
+
+.project-wbs-table__task-row--parent td > .project-wbs-table__placeholder {
+  min-height: var(--wbs-parent-row-height);
+}
+
+.project-wbs-table__task-row--parent .project-wbs-table__cell-btn {
+  min-height: var(--wbs-parent-row-height);
+}
+
+.project-wbs-table__cell-btn {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--wbs-row-height);
+  margin: 0;
+  padding: 0 0.9rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.project-wbs-table__cell-btn:focus-visible {
+  @include mixin.input-focus-ring;
+}
+
+.project-wbs-table__cell-btn--text {
+  height: 100%;
+  min-height: var(--wbs-row-height);
+}
+
+.project-wbs-table__task-row--parent .project-wbs-table__cell-btn--text {
+  min-height: var(--wbs-parent-row-height);
+}
+
+.project-wbs-table__cell-btn--text > span:not(.project-wbs-table__placeholder) {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-wbs-table__placeholder {
+  color: mixin.$text-sub;
+  font-weight: 500;
+}
+
+.project-wbs-table__members-cell {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  padding-left: 2px;
+}
+
+.project-wbs-table__avatar-btn {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.project-wbs-table__avatar-btn--add {
+  box-sizing: border-box;
+  width: var(--wbs-chip-height);
+  height: var(--wbs-chip-height);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid mixin.$border;
+}
+
+.project-wbs-table__avatar-btn-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 400;
+  line-height: 1;
+  transform: translateY(-0.08em);
+  color: #64748b;
+}
+
+.project-wbs-table__avatar-pill {
+  display: inline-flex;
+  border-radius: 999px;
+}
+
+.project-wbs-table__cell-btn:focus-visible .project-wbs-table__avatar-pill :deep(.member-avatar) {
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.project-wbs-table__avatar-pill :deep(.member-avatar) {
+  box-sizing: border-box;
+  border: 2px solid transparent;
+}

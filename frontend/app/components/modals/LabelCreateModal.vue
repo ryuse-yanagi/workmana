@@ -13,7 +13,7 @@
         <input
           v-model.trim="name"
           type="text"
-          maxlength="40"
+          :maxlength="LABEL_NAME_MAX_LENGTH"
           required
           placeholder="ラベル名を入力してください"
           :disabled="loading"
@@ -32,6 +32,7 @@
 
 <script setup lang="ts">
 import { DEFAULT_LABEL_COLOR } from '../../constants/labelColorPresets'
+import { LABEL_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title: string

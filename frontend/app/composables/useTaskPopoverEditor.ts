@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import { dismissPopoverFromOutsidePointer } from '../utils/uiInteraction'
 import { useApi } from './useApi'
 import {
   type TaskFormDraft,
@@ -13,12 +14,13 @@ import {
   parseEffortDraft,
   resolveEffortUnit,
   resolveStoredEffortValue,
+  sanitizeEffortDraftInput,
   toDateInputValue,
   unitValueToHours,
 } from './useTaskFormHelpers'
 import { useOrgEffortSettings } from './useOrgEffortSettings'
 
-export type ProjectListOption = { id: number; name: string; sort_order?: number }
+export type ProjectListOption = { id: number; name: string; color: string; sort_order?: number }
 
 export type TaskPopoverEditable = {
   id: number
@@ -106,6 +108,14 @@ function resolveListName (
   return lists.find(list => list.id === listId)?.name ?? null
 }
 
+export function resolveListColor (
+  listId: number | null | undefined,
+  lists: ProjectListOption[],
+): string | null {
+  if (listId == null) return null
+  return lists.find(list => list.id === listId)?.color ?? null
+}
+
 function patchToEditable (
   patch: TaskPatchResponse,
   previous: TaskPopoverEditable,
@@ -175,6 +185,19 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       return toDateInputValue(task.due_date) || null
     }
     return null
+  })
+
+  const canClearCalendarDate = computed(() => !!pendingDate.value)
+
+  const canClearEffort = computed(() => {
+    if (String(effortDraft.value ?? '').trim() !== '') {
+      return true
+    }
+    const task = options.task.value
+    if (!task) {
+      return false
+    }
+    return resolveStoredEffortValue(effortSource(task, orgEffortUnit.value)) !== null
   })
 
   const calendarMonthLabel = computed(() => {
@@ -287,7 +310,36 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   function patchLocalTask (patch: Partial<TaskPopoverEditable>) {
     const task = options.task.value
     if (!task) return
-    options.task.value = { ...task, ...patch }
+    const merged = { ...task, ...patch }
+    options.task.value = merged
+    options.onUpdated(merged)
+  }
+
+  function previewDescriptionInWbs () {
+    if (activePopover.value !== 'description') return
+    const task = options.task.value
+    if (!task) return
+    const description = descriptionDraft.value
+    options.onUpdated({
+      ...task,
+      description: description.trim() === '' ? null : description,
+    })
+  }
+
+  function previewEffortInWbs () {
+    if (activePopover.value !== 'effort') return
+    const task = options.task.value
+    if (!task) return
+    const parsed = parseEffortDraft(effortDraft.value)
+    if (parsed === 'invalid') return
+    const unit = orgEffortUnit.value
+    const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
+    options.onUpdated({
+      ...task,
+      effort_value: effortValue,
+      effort_hours: effortValue === null ? null : unitValueToHours(effortValue, unit),
+      effort_unit: effortValue === null ? null : unit,
+    })
   }
 
   async function applyPatchResponse (updated: TaskPatchResponse) {
@@ -367,6 +419,25 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     dismissPopover()
   }
 
+  async function clearEffort () {
+    if (activePopover.value !== 'effort' || effortSaving.value || isDisabled()) {
+      return
+    }
+
+    effortDraft.value = ''
+    const task = options.task.value
+    const currentValue = task
+      ? resolveStoredEffortValue(effortSource(task, orgEffortUnit.value))
+      : null
+    if (currentValue === null) {
+      dismissPopover()
+      return
+    }
+
+    await saveEffort()
+    dismissPopover()
+  }
+
   async function saveDescription () {
     const task = options.task.value
     const endpoint = taskEndpoint()
@@ -386,7 +457,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       await applyPatchResponse(updated)
       descriptionDraft.value = options.task.value?.description ?? ''
     } catch (e: unknown) {
-      popoverError.value = e instanceof Error ? e.message : '備考の更新に失敗しました'
+      popoverError.value = e instanceof Error ? e.message : '説明の更新に失敗しました'
     } finally {
       descriptionSaving.value = false
     }
@@ -417,7 +488,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (!(target instanceof Node)) return
     if (resolvePopoverElement()?.contains(target)) return
     if (shouldIgnorePopoverOutsideClose(target)) return
-    void closePopover()
+    dismissPopoverFromOutsidePointer(target, closePopover)
   }
 
   function onPopoverEscape (event: KeyboardEvent) {
@@ -453,6 +524,14 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
 
   watch(labelSearchQuery, () => {
     if (activePopover.value === 'labels') updatePopoverPosition()
+  })
+
+  watch(descriptionDraft, () => {
+    previewDescriptionInWbs()
+  })
+
+  watch(effortDraft, () => {
+    previewEffortInWbs()
   })
 
   function isDisabled (): boolean {
@@ -494,7 +573,6 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const current = field === 'start_date' ? task.start_date : task.due_date
     pendingDate.value = iso
     if (toDateInputValue(current) === iso) {
-      dismissPopover()
       return
     }
 
@@ -508,7 +586,42 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
         body: { [field]: iso },
       })
       await applyPatchResponse(updated)
-      dismissPopover()
+    } catch (e: unknown) {
+      patchLocalTask({ [field]: previousDate })
+      pendingDate.value = toDateInputValue(previousDate) || null
+      popoverError.value = e instanceof Error ? e.message : '日付の更新に失敗しました'
+    } finally {
+      dateSaving.value = false
+    }
+  }
+
+  async function clearCalendarDate () {
+    const task = options.task.value
+    const endpoint = taskEndpoint()
+    if (!task || !endpoint || !activePopover.value || dateSaving.value || isDisabled()) {
+      return
+    }
+    if (activePopover.value !== 'start-date' && activePopover.value !== 'due-date') {
+      return
+    }
+
+    const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
+    const current = field === 'start_date' ? task.start_date : task.due_date
+    pendingDate.value = null
+    if (!current) {
+      return
+    }
+
+    const previousDate = current ?? null
+    patchLocalTask({ [field]: null })
+    popoverError.value = null
+    dateSaving.value = true
+    try {
+      const updated = await api<TaskPatchResponse>(endpoint, {
+        method: 'PATCH',
+        body: { [field]: null },
+      })
+      await applyPatchResponse(updated)
     } catch (e: unknown) {
       patchLocalTask({ [field]: previousDate })
       pendingDate.value = toDateInputValue(previousDate) || null
@@ -535,6 +648,15 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       effortInputRef.value?.focus()
       effortInputRef.value?.select()
     })
+  }
+
+  function updateEffortDraft (raw: string | number) {
+    const sanitized = sanitizeEffortDraftInput(String(raw ?? ''))
+    effortDraft.value = sanitized
+    const inputEl = effortInputRef.value
+    if (inputEl && inputEl.value !== sanitized) {
+      inputEl.value = sanitized
+    }
   }
 
   function openMemberPicker (event?: Event) {
@@ -735,15 +857,23 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     weekdayLabels,
     filteredOrgLabels,
     activeCalendarDate,
+    canClearCalendarDate,
+    canClearEffort,
     calendarMonthLabel,
     calendarCells,
     labelBarTextColor,
     memberEmailLine,
+    pendingDate,
+    dateSaving,
+    effortSaving,
     openDatePicker,
     shiftCalendarMonth,
     pickCalendarDay,
+    clearCalendarDate,
     openEffortPicker,
+    updateEffortDraft,
     finalizeEffortPopover,
+    clearEffort,
     closePopover,
     openMemberPicker,
     openMemberDetail,

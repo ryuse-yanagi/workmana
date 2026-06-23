@@ -1,7 +1,7 @@
 <template>
   <SettingsPanel
-    title="デフォルトリスト設定"
-    note="プロジェクト新規作成時に自動で作成するリストの名前を設定します。上から順に左側の列として並びます。"
+    title="リスト設定"
+    note="プロジェクト新規追加時に自動で作成するリストの名前を設定します。上から順に左側の列として並びます。"
   >
     <form class="default-lists-form" @submit.prevent="save">
       <ul class="default-lists-editor">
@@ -118,9 +118,9 @@ async function save () {
     const savedNames = normalizeDefaultBoardListNames(res.default_board_list_names)
     namesCurrent.value = [...savedNames]
     namesDraft.value = [...savedNames]
-    setMessage('デフォルトリスト設定を更新しました。', 'ok')
+    setMessage('リスト設定を更新しました。', 'ok')
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'デフォルトリスト設定の更新に失敗しました'
+    const msg = e instanceof Error ? e.message : 'リスト設定の更新に失敗しました'
     setMessage(msg, 'err')
   } finally {
     loading.value = false

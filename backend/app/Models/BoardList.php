@@ -13,6 +13,7 @@ class BoardList extends Model
     protected $fillable = [
         'project_id',
         'name',
+        'color',
         'sort_order',
     ];
 

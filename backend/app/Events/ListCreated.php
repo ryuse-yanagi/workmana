@@ -33,6 +33,7 @@ class ListCreated implements ShouldBroadcastNow
             'list' => [
                 'id' => $this->list->id,
                 'name' => $this->list->name,
+                'color' => $this->list->color,
                 'sort_order' => $this->list->sort_order,
             ],
         ];

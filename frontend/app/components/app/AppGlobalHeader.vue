@@ -2,18 +2,18 @@
   <header class="global-header">
     <div class="global-header__inner">
       <div class="global-header__left">
-        <button type="button" class="nav-btn" :disabled="!orgSlug || projectListNavPending" @click="goProjectList">
+        <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goProjectList">
           {{ workUnitListLabel }}
         </button>
         <button
           type="button"
           class="nav-btn nav-btn--icon"
-          :disabled="!orgSlug || settingsNavPending"
+          :disabled="!orgSlug"
           aria-label="設定"
           title="設定"
           @click="goOrgSettings"
         >
-          <Settings :size="16" :stroke-width="2.25" aria-hidden="true" />
+          <Settings :size="24" :stroke-width="2.25" aria-hidden="true" />
         </button>
       </div>
 
@@ -48,10 +48,8 @@ import { Settings } from 'lucide-vue-next'
 import ProfileSettingsModal from '../modals/ProfileSettingsModal.vue'
 import { useApi } from '../../composables/useApi'
 import { useAuth } from '../../composables/useAuth'
-import { useOrgIndexPageData } from '../../composables/useOrgIndexPageData'
-import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
+import { useOrgPageCacheWarmup } from '../../composables/useOrgPageCacheWarmup'
 import { useOrgTerminology, useWorkUnitLabel } from '../../composables/useOrgTerminology'
-import { raceWithTimeout, TM_PAGE_LOAD_TIMEOUT_MS } from '../../composables/raceWithTimeout'
 
 type MeResponse = {
   name?: string | null
@@ -65,16 +63,13 @@ const router = useRouter()
 const { api } = useApi()
 const { getToken, clearToken, buildLogoutUrl } = useAuth()
 const { fetchWorkUnitLabel, seedWorkUnitLabels } = useOrgTerminology()
-const { prefetch: prefetchOrgSettingsPage } = useOrgSettingsPageData()
-const { prefetch: prefetchOrgIndexPage } = useOrgIndexPageData()
+const { warmOrgPageCaches } = useOrgPageCacheWarmup()
 
 const orgSlug = ref<string | null>(slugFromRoute())
 const avatarUrl = ref<string | null>(null)
 const displayName = ref('')
 const menuOpen = ref(false)
 const profileModalOpen = ref(false)
-const settingsNavPending = ref(false)
-const projectListNavPending = ref(false)
 const { workUnitListLabel } = useWorkUnitLabel(() => orgSlug.value ?? '')
 
 const initials = computed(() => {
@@ -89,7 +84,6 @@ function slugFromRoute (): string | null {
     name === 'org-slug'
     || name === 'org-slug-settings'
     || name === 'org-slug-projects-id'
-    || name === 'org-slug-projects-id-wbs'
     || name === 'org-slug-projects-id-documents'
   ) {
     const s = route.params.slug
@@ -142,7 +136,7 @@ async function refreshMeContext () {
 
     const activeSlug = orgSlug.value
     if (activeSlug) {
-      await refreshOrgWorkUnitLabel(activeSlug)
+      void warmOrgPageCaches(activeSlug)
     }
   } catch {
     // 認証失敗などは静かに無視（各画面でエラー表示）
@@ -163,41 +157,15 @@ function toggleMenu () {
 }
 
 async function goProjectList () {
-  if (!orgSlug.value || projectListNavPending.value) return
+  if (!orgSlug.value) return
   closeMenu()
-  const targetSlug = orgSlug.value
-  projectListNavPending.value = true
-  try {
-    const r = await raceWithTimeout(
-      () => prefetchOrgIndexPage(targetSlug),
-      TM_PAGE_LOAD_TIMEOUT_MS,
-    )
-    if (!r.ok) {
-      return
-    }
-    await router.push(`/org/${targetSlug}`)
-  } finally {
-    projectListNavPending.value = false
-  }
+  await router.push(`/org/${orgSlug.value}`)
 }
 
 async function goOrgSettings () {
-  if (!orgSlug.value || settingsNavPending.value) return
+  if (!orgSlug.value) return
   closeMenu()
-  const targetSlug = orgSlug.value
-  settingsNavPending.value = true
-  try {
-    const r = await raceWithTimeout(
-      () => prefetchOrgSettingsPage(targetSlug),
-      TM_PAGE_LOAD_TIMEOUT_MS,
-    )
-    if (!r.ok) {
-      return
-    }
-    await router.push({ path: `/org/${targetSlug}/settings`, query: { tab: 'work_unit_label' } })
-  } finally {
-    settingsNavPending.value = false
-  }
+  await router.push({ path: `/org/${orgSlug.value}/settings`, query: { tab: 'work_unit_label' } })
 }
 
 function goProfileFromMenu () {
@@ -323,6 +291,8 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   padding: 0.35rem 0.7rem;
   min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
   font-size: 0.98rem;
   line-height: 1.1;
   font-weight: 500;
@@ -331,13 +301,14 @@ onBeforeUnmount(() => {
 
 .nav-btn--icon {
   width: 2rem;
+  height: 2rem;
+  min-height: 2rem;
   padding: 0;
   justify-content: center;
 }
 
 .nav-btn:disabled {
   opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .profile {
@@ -436,6 +407,5 @@ onBeforeUnmount(() => {
 
 .dropdown-item:disabled {
   opacity: 0.45;
-  cursor: not-allowed;
 }
 </style>

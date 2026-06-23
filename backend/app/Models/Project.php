@@ -17,6 +17,8 @@ class Project extends Model
         'created_by',
         'name',
         'description',
+        'wbs_orphan_parent_label',
+        'wbs_orphan_parent_sort_order',
         'archived_at',
     ];
 

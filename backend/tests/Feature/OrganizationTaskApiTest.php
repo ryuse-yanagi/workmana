@@ -274,6 +274,124 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('parent_task_id', 1);
     }
 
+    public function test_user_can_update_wbs_orphan_parent_label(): void
+    {
+        $user = User::factory()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/organizations', [
+                'name' => 'Acme',
+                'slug' => 'acme',
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/orgs/acme/projects', [
+                'name' => 'Sprint 1',
+            ])
+            ->assertCreated();
+
+        $project = Project::query()->first();
+        $this->assertNotNull($project);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->assertOk()
+            ->assertJsonPath('meta.orphan_parent_label', '親タスクなし');
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs/orphan-parent-label", [
+                'label' => '未分類タスク',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.orphan_parent_label', '未分類タスク');
+
+        $this->assertSame('未分類タスク', $project->fresh()?->wbs_orphan_parent_label);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->assertOk()
+            ->assertJsonPath('meta.orphan_parent_label', '未分類タスク');
+    }
+
+    public function test_user_can_manage_task_checklist(): void
+    {
+        $user = User::factory()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/organizations', [
+                'name' => 'Acme',
+                'slug' => 'acme',
+            ])
+            ->assertCreated();
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/orgs/acme/projects', [
+                'name' => 'Sprint 1',
+            ])
+            ->assertCreated();
+
+        $project = Project::query()->first();
+        $this->assertNotNull($project);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+                'title' => 'Checklist task',
+                'status' => 'todo',
+            ])
+            ->assertCreated();
+
+        $itemId = '11111111-1111-4111-8111-111111111111';
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'checklist' => [
+                    'title' => 'Release prep',
+                    'items' => [
+                        [
+                            'id' => $itemId,
+                            'text' => 'Review PR',
+                            'checked' => false,
+                        ],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('checklist.title', 'Release prep')
+            ->assertJsonPath('checklist.items.0.id', $itemId)
+            ->assertJsonPath('checklist.items.0.text', 'Review PR')
+            ->assertJsonPath('checklist.items.0.checked', false);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/1")
+            ->assertOk()
+            ->assertJsonPath('checklist.title', 'Release prep')
+            ->assertJsonPath('checklist.items.0.checked', false);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'checklist' => [
+                    'title' => 'Release prep',
+                    'items' => [
+                        [
+                            'id' => $itemId,
+                            'text' => 'Review PR',
+                            'checked' => true,
+                        ],
+                    ],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('checklist.items.0.checked', true);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+                'checklist' => null,
+            ])
+            ->assertOk()
+            ->assertJsonPath('checklist', null);
+    }
+
     public function test_non_member_cannot_access_org(): void
     {
         $owner = User::factory()->create();

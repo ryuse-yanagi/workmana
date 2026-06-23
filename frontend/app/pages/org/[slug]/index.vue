@@ -39,7 +39,7 @@
                 @click="openProjectCreateModal"
               >
                 <FolderPlus :size="18" :stroke-width="2.25" aria-hidden="true" />
-                新規作成
+                新規追加
               </button>
             </div>
       </header>
@@ -68,6 +68,8 @@
                     :class="['clickable-row', { 'project-row--fade-in': isProjectJustCreated(project.id) }]"
                     role="button"
                     tabindex="0"
+                    @pointerenter="warmProjectBoard(project.id)"
+                    @focusin="warmProjectBoard(project.id)"
                     @click="goToProject(project.id)"
                     @keydown.enter.prevent="goToProject(project.id)"
                     @keydown.space.prevent="goToProject(project.id)"
@@ -110,12 +112,17 @@
 <script setup lang="ts">
 import { FolderPlus } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
+import { withAppLoadingCursor } from '../../../composables/useAppLoadingCursor'
 import { useApi } from '../../../composables/useApi'
 import { useOrgIndexPageData, type OrgIndexPageSnapshot } from '../../../composables/useOrgIndexPageData'
 import { useProjectBoardPageData } from '../../../composables/useProjectBoardPageData'
 import { useOrgTerminology, useWorkUnitLabel } from '../../../composables/useOrgTerminology'
 
-definePageMeta({ name: 'org-slug' })
+definePageMeta({
+  name: 'org-slug',
+  key: route => route.fullPath,
+  keepalive: true,
+})
 
 type Label = { id: number; name: string; color: string }
 type Project = { id: number; name: string; labels?: Label[] }
@@ -130,7 +137,7 @@ const {
   getCached: getOrgIndexCached,
   invalidateCached: invalidateOrgIndexCached,
 } = useOrgIndexPageData()
-const { prefetch: prefetchProjectBoard } = useProjectBoardPageData()
+const { warmProjectBoardCache } = useProjectBoardPageData()
 
 const projects = ref<Project[]>([])
 /** 初回取得成功まで UI を出さない */
@@ -145,7 +152,6 @@ const projectCreateModalOpen = ref(false)
 const orgLabels = ref<Label[]>([])
 const labelFilterId = ref('')
 const justCreatedProjectIds = reactive<Record<number, true>>({})
-const projectNavPending = ref(false)
 
 const globalHeaderOffsetPx = ref(46)
 
@@ -212,20 +218,24 @@ async function load (opts?: { refresh?: boolean }) {
         pageReady.value = true
         return
       }
-      const r = await raceWithTimeout(
-        () => fetchOrgIndexSnapshot(slug.value),
-        TM_PAGE_LOAD_TIMEOUT_MS,
-      )
-      if (!r.ok) {
-        fatalLoadError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
-        return
-      }
-      applyOrgIndexSnapshot(r.value)
-      pageReady.value = true
+      await withAppLoadingCursor(async () => {
+        const r = await raceWithTimeout(
+          () => fetchOrgIndexSnapshot(slug.value),
+          TM_PAGE_LOAD_TIMEOUT_MS,
+        )
+        if (!r.ok) {
+          fatalLoadError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
+          return
+        }
+        applyOrgIndexSnapshot(r.value)
+        pageReady.value = true
+      })
     } else {
-      const snapshot = await fetchOrgIndexSnapshot(slug.value)
-      applyOrgIndexSnapshot(snapshot)
-      pageReady.value = true
+      await withAppLoadingCursor(async () => {
+        const snapshot = await fetchOrgIndexSnapshot(slug.value)
+        applyOrgIndexSnapshot(snapshot)
+        pageReady.value = true
+      })
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '読み込みに失敗しました'
@@ -253,13 +263,15 @@ async function createProject (payload: { name: string; label_ids: number[] }) {
   pending.value = true
   error.value = null
   try {
-    const createdProject = await api<Project>(`/orgs/${slug.value}/projects`, {
-      method: 'POST',
-      body: { name: payload.name, label_ids: payload.label_ids },
+    await withAppLoadingCursor(async () => {
+      const createdProject = await api<Project>(`/orgs/${slug.value}/projects`, {
+        method: 'POST',
+        body: { name: payload.name, label_ids: payload.label_ids },
+      })
+      projectCreateModalOpen.value = false
+      await load({ refresh: true })
+      markProjectAsJustCreated(createdProject.id)
     })
-    projectCreateModalOpen.value = false
-    await load({ refresh: true })
-    markProjectAsJustCreated(createdProject.id)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '作成に失敗しました'
   } finally {
@@ -267,22 +279,21 @@ async function createProject (payload: { name: string; label_ids: number[] }) {
   }
 }
 
+function warmProjectBoard (projectId: number) {
+  void warmProjectBoardCache(slug.value, String(projectId))
+}
+
 async function goToProject (projectId: number) {
-  if (projectNavPending.value) {
+  void warmProjectBoardCache(slug.value, String(projectId))
+  await navigateTo(`/org/${slug.value}/projects/${projectId}`)
+}
+
+function warmVisibleProjectBoards () {
+  if (!pageReady.value) {
     return
   }
-  projectNavPending.value = true
-  try {
-    const r = await raceWithTimeout(
-      () => prefetchProjectBoard(slug.value, String(projectId)),
-      TM_PAGE_LOAD_TIMEOUT_MS,
-    )
-    if (!r.ok) {
-      return
-    }
-    await navigateTo(`/org/${slug.value}/projects/${projectId}`)
-  } finally {
-    projectNavPending.value = false
+  for (const project of visibleProjects.value) {
+    void warmProjectBoardCache(slug.value, String(project.id))
   }
 }
 
@@ -306,7 +317,23 @@ function updateStickyOffsets () {
   globalHeaderOffsetPx.value = readGlobalHeaderHeight()
 }
 
+watch(
+  () => [pageReady.value, visibleProjects.value] as const,
+  () => {
+    warmVisibleProjectBoards()
+  },
+  { immediate: true },
+)
+
 onBeforeMount(() => {
+  const cached = getOrgIndexCached(slug.value)
+  if (cached) {
+    applyOrgIndexSnapshot(cached)
+    pageReady.value = true
+  }
+})
+
+onActivated(() => {
   const cached = getOrgIndexCached(slug.value)
   if (cached) {
     applyOrgIndexSnapshot(cached)

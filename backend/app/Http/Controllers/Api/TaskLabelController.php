@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Organization;
 use App\Models\TaskLabel;
+use App\Support\FieldLengthLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -36,7 +37,7 @@ class TaskLabelController extends ApiController
             'name' => [
                 'required',
                 'string',
-                'max:40',
+                'max:'.FieldLengthLimits::LABEL_NAME,
                 Rule::unique('task_labels', 'name')->where(fn ($q) => $q->where('organization_id', $organization->id)),
             ],
             'color' => ['nullable', 'string', 'max:20', 'regex:/^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/'],

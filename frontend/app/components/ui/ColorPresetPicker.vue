@@ -41,15 +41,17 @@ import {
   labelSwatchCheckColor,
 } from '../../constants/labelColorPresets'
 
-const colorPresets = LABEL_COLOR_PRESETS
-const gridColumns = LABEL_COLOR_GRID_COLUMNS
-
 const props = withDefaults(defineProps<{
   modelValue: string
   disabled?: boolean
+  presets?: readonly string[]
+  gridColumns?: number
 }>(), {
   disabled: false,
 })
+
+const colorPresets = computed(() => props.presets ?? LABEL_COLOR_PRESETS)
+const gridColumns = computed(() => props.gridColumns ?? LABEL_COLOR_GRID_COLUMNS)
 
 const emit = defineEmits<{
   'update:modelValue': [string]

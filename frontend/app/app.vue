@@ -2,8 +2,9 @@
   <div class="app-shell">
     <NuxtRouteAnnouncer />
     <AppGlobalHeader />
+    <AppLoadingCursor />
     <div class="app-shell__page">
-      <NuxtPage />
+      <NuxtPage keepalive />
     </div>
   </div>
 </template>

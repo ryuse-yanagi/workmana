@@ -1,5 +1,5 @@
 <template>
-  <SettingsPanel title="プロジェクトラベル設定" note="プロジェクトで使うラベルを作成します。">
+  <div class="settings-label-panel-content">
     <div class="settings-button-row settings-button-row--start">
       <button type="button" class="settings-primary-btn" @click="modalOpen = true">作成</button>
       <button type="button" class="settings-ghost-btn" :disabled="loading" @click="load">
@@ -25,13 +25,12 @@
       :loading="loading"
       @submit="createLabel"
     />
-  </SettingsPanel>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { useApi } from '../../composables/useApi'
 import LabelCreateModal from '../modals/LabelCreateModal.vue'
-import SettingsPanel from './SettingsPanel.vue'
 import type { SettingsLabelItem } from './types'
 
 const props = defineProps<{

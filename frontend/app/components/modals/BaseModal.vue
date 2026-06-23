@@ -7,7 +7,6 @@
       :style="overlayStyle"
       role="presentation"
       @mousedown="onOverlayMouseDown"
-      @click.self="onOverlayClick"
     >
       <section
         ref="cardRef"
@@ -39,6 +38,8 @@
 </template>
 
 <script setup lang="ts">
+import { createOverlayBackdropClose } from '../../utils/uiInteraction'
+
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title?: string
@@ -55,7 +56,7 @@ const props = withDefaults(defineProps<{
   title: '',
   closeDisabled: false,
   showClose: true,
-  closeOnBackdrop: false,
+  closeOnBackdrop: true,
   width: 'min(36rem, 100%)',
   borderRadius: '10px',
   align: 'center',
@@ -92,17 +93,22 @@ function requestClose () {
   emit('close')
 }
 
+const {
+  onOverlayMouseDown: onBackdropMouseDown,
+  resetOverlayBackdropClose,
+} = createOverlayBackdropClose({
+  onClose: requestClose,
+  canClose: () => props.closeOnBackdrop && !props.closeDisabled,
+})
+
 function onOverlayMouseDown (event: MouseEvent) {
   emit('overlay-mousedown', event)
+  onBackdropMouseDown(event)
 }
 
-function onOverlayClick (event: MouseEvent) {
-  emit('overlay-click', event)
-  if (!props.closeOnBackdrop || props.closeDisabled) {
-    return
-  }
-  requestClose()
-}
+onBeforeUnmount(() => {
+  resetOverlayBackdropClose()
+})
 
 defineExpose({ cardRef })
 </script>

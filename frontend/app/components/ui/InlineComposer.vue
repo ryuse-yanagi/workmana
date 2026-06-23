@@ -26,6 +26,8 @@
 </template>
 
 <script setup lang="ts">
+import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
+
 const props = withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
@@ -41,7 +43,7 @@ const props = withDefaults(defineProps<{
   pending: false,
   multiline: false,
   rows: 3,
-  maxlength: 500,
+  maxlength: TASK_TITLE_MAX_LENGTH,
   submitLabel: '追加',
   pendingLabel: '追加中...',
   cancelLabel: 'キャンセル',

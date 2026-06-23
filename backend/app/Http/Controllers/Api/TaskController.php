@@ -14,10 +14,13 @@ use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\TaskChecklist;
+use App\Models\TaskChecklistItem;
 use App\Models\TaskHistory;
 use App\Models\TaskLabel;
 use App\Models\User;
 use App\Enums\TaskHistoryEventType;
+use App\Support\FieldLengthLimits;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +30,8 @@ use Illuminate\Validation\Rule;
 
 class TaskController extends ApiController
 {
+    private const WBS_ORPHAN_PARENT_DEFAULT_LABEL = '親タスクなし';
+
     public function index(Request $request, Organization $organization, Project $project): JsonResponse
     {
         $this->ensureProjectBelongsToOrganization($project, $organization);
@@ -47,6 +52,7 @@ class TaskController extends ApiController
             ->with([
                 'labels:id,name,color',
                 'assignees:id,name,email,avatar_path',
+                'checklist.items',
             ])
             ->orderBy('sort_order')
             ->orderBy('id')
@@ -62,6 +68,7 @@ class TaskController extends ApiController
                 'priority',
                 'start_date',
                 'due_date',
+                'gantt_bar_color',
                 'effort_hours',
                 'effort_value',
                 'effort_unit',
@@ -86,6 +93,7 @@ class TaskController extends ApiController
                 'labels:id,name,color',
                 'assignees:id,name,email,avatar_path',
                 'list:id,name,project_id',
+                'checklist.items',
             ])
             ->orderBy('sort_order')
             ->orderBy('id')
@@ -101,6 +109,7 @@ class TaskController extends ApiController
                 'priority',
                 'start_date',
                 'due_date',
+                'gantt_bar_color',
                 'effort_hours',
                 'effort_value',
                 'effort_unit',
@@ -111,6 +120,35 @@ class TaskController extends ApiController
 
         return response()->json([
             'data' => $tasks->map(fn (Task $task) => $this->taskWbsPayload($task)),
+            'meta' => [
+                'orphan_parent_label' => $this->wbsOrphanParentLabel($project),
+                'orphan_parent_sort_order' => $project->wbs_orphan_parent_sort_order,
+            ],
+        ]);
+    }
+
+    public function wbsUpdateOrphanParentLabel(Request $request, Organization $organization, Project $project): JsonResponse
+    {
+        $this->ensureProjectBelongsToOrganization($project, $organization);
+        $this->ensureProjectMember($request->user(), $project);
+        $this->denyIfProjectViewer($request->user(), $project);
+        $this->assertProjectNotArchived($project);
+
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:255'],
+        ]);
+
+        $label = trim($validated['label']);
+        if ($label === '') {
+            return response()->json(['message' => 'Label cannot be empty.'], 422);
+        }
+
+        $project->update(['wbs_orphan_parent_label' => $label]);
+
+        return response()->json([
+            'data' => [
+                'orphan_parent_label' => $label,
+            ],
         ]);
     }
 
@@ -126,6 +164,7 @@ class TaskController extends ApiController
             'tasks.*.id' => ['required', 'integer', 'distinct'],
             'tasks.*.sort_order' => ['required', 'integer', 'min:0'],
             'tasks.*.parent_task_id' => ['nullable', 'integer'],
+            'orphan_parent_sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
         /** @var array<int, array{id: int, sort_order: int, parent_task_id: int|null}> $items */
@@ -184,7 +223,7 @@ class TaskController extends ApiController
             }
         }
 
-        DB::transaction(function () use ($items, $project) {
+        DB::transaction(function () use ($items, $project, $validated) {
             foreach ($items as $item) {
                 Task::query()
                     ->where('id', $item['id'])
@@ -193,6 +232,12 @@ class TaskController extends ApiController
                         'sort_order' => $item['sort_order'],
                         'parent_task_id' => $item['parent_task_id'],
                     ]);
+            }
+
+            if (array_key_exists('orphan_parent_sort_order', $validated)) {
+                $project->update([
+                    'wbs_orphan_parent_sort_order' => $validated['orphan_parent_sort_order'],
+                ]);
             }
         });
 
@@ -248,6 +293,7 @@ class TaskController extends ApiController
                 'priority',
                 'start_date',
                 'due_date',
+                'gantt_bar_color',
                 'effort_hours',
                 'effort_value',
                 'effort_unit',
@@ -270,13 +316,14 @@ class TaskController extends ApiController
         $this->assertProjectNotArchived($project);
 
         $validated = $request->validate([
-            'title' => ['required', 'string', 'max:500'],
-            'description' => ['nullable', 'string'],
+            'title' => ['required', 'string', 'max:'.FieldLengthLimits::TASK_TITLE],
+            'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
             'list_id' => ['nullable', 'integer', 'exists:lists,id'],
             'status' => ['nullable', 'string', Rule::in(TaskStatus::values())],
             'priority' => ['nullable', 'string', Rule::in(TaskPriority::values())],
             'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
+            'gantt_bar_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'effort_hours' => ['nullable', 'numeric', 'min:0', 'max:99999.99'],
             'effort_value' => ['nullable', 'numeric', 'min:0', 'max:9999999.9999'],
             'effort_unit' => ['nullable', 'string', Rule::in(TaskEffortUnit::values())],
@@ -385,13 +432,14 @@ class TaskController extends ApiController
         }
 
         $validated = $request->validate([
-            'title' => ['sometimes', 'string', 'max:500'],
-            'description' => ['nullable', 'string'],
+            'title' => ['sometimes', 'string', 'max:'.FieldLengthLimits::TASK_TITLE],
+            'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
             'list_id' => ['nullable', 'integer', 'exists:lists,id'],
             'status' => ['sometimes', 'string', Rule::in(TaskStatus::values())],
             'priority' => ['sometimes', 'string', Rule::in(TaskPriority::values())],
             'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
+            'gantt_bar_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'effort_hours' => ['nullable', 'numeric', 'min:0', 'max:99999.99'],
             'effort_value' => ['nullable', 'numeric', 'min:0', 'max:9999999.9999'],
             'effort_unit' => ['nullable', 'string', Rule::in(TaskEffortUnit::values())],
@@ -402,6 +450,12 @@ class TaskController extends ApiController
             'label_ids.*' => ['integer', 'distinct'],
             'is_parent_task' => ['sometimes', 'boolean'],
             'parent_task_id' => ['sometimes', 'nullable', 'integer'],
+            'checklist' => ['sometimes', 'nullable', 'array'],
+            'checklist.title' => ['required_with:checklist', 'string', 'max:'.FieldLengthLimits::CHECKLIST_TITLE],
+            'checklist.items' => ['sometimes', 'array'],
+            'checklist.items.*.id' => ['required', 'uuid'],
+            'checklist.items.*.text' => ['required', 'string', 'max:2000'],
+            'checklist.items.*.checked' => ['required', 'boolean'],
         ]);
 
         if (array_key_exists('title', $validated)) {
@@ -437,6 +491,9 @@ class TaskController extends ApiController
         if (array_key_exists('due_date', $validated)) {
             $task->due_date = $validated['due_date'];
         }
+        if (array_key_exists('gantt_bar_color', $validated)) {
+            $task->gantt_bar_color = $validated['gantt_bar_color'];
+        }
         $this->applyEffortFields($task, $validated);
 
         $assigneeIdsToSync = null;
@@ -460,6 +517,10 @@ class TaskController extends ApiController
         if (array_key_exists('label_ids', $validated)) {
             $labelIds = $this->validateTaskLabelIds($organization, $validated['label_ids'] ?? []);
             $task->labels()->sync($labelIds);
+        }
+
+        if (array_key_exists('checklist', $validated)) {
+            $this->syncTaskChecklist($task, $validated['checklist']);
         }
 
         $fresh = $task->fresh();
@@ -564,7 +625,11 @@ class TaskController extends ApiController
         $task->loadMissing([
             'labels:id,name,color',
             'assignees:id,name,email,avatar_path',
+            'checklist.items',
+            'parentTask:id,title,project_id',
         ]);
+
+        [$parentTask, $childTasks] = $this->formatTaskHierarchy($task);
 
         return [
             'id' => $task->id,
@@ -572,12 +637,15 @@ class TaskController extends ApiController
             'sort_order' => $task->sort_order,
             'is_parent_task' => (bool) $task->is_parent_task,
             'parent_task_id' => $task->parent_task_id,
+            'parent_task' => $parentTask,
+            'child_tasks' => $childTasks,
             'title' => $task->title,
             'description' => $task->description,
             'status' => $task->status,
             'priority' => $task->priority,
             'start_date' => $task->start_date,
             'due_date' => $task->due_date,
+            'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
             'effort_value' => $task->effort_value,
             'effort_unit' => $task->effort_unit,
@@ -586,6 +654,7 @@ class TaskController extends ApiController
             'reporter_id' => $task->reporter_id,
             'archived_at' => $task->archived_at,
             'labels' => $task->labels,
+            'checklist' => $this->formatChecklist($task->checklist),
             'created_at' => $task->created_at,
             'updated_at' => $task->updated_at,
         ];
@@ -608,6 +677,7 @@ class TaskController extends ApiController
             'priority' => $task->priority,
             'start_date' => $task->start_date,
             'due_date' => $task->due_date,
+            'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
             'effort_value' => $task->effort_value,
             'effort_unit' => $task->effort_unit,
@@ -617,7 +687,15 @@ class TaskController extends ApiController
             'archived_at' => $task->archived_at,
             'created_at' => $task->created_at,
             'labels' => $task->labels,
+            'checklist' => $this->formatChecklist($task->checklist),
         ];
+    }
+
+    private function wbsOrphanParentLabel(Project $project): string
+    {
+        $label = trim((string) ($project->wbs_orphan_parent_label ?? ''));
+
+        return $label !== '' ? $label : self::WBS_ORPHAN_PARENT_DEFAULT_LABEL;
     }
 
     /**
@@ -872,5 +950,127 @@ class TaskController extends ApiController
         }
 
         return TaskEffortUnit::Hour->value;
+    }
+
+    /**
+     * @return array{0: array{id: int, title: string}|null, 1: list<array{id: int, title: string, due_date: mixed, list_name: string|null}>}
+     */
+    private function formatTaskHierarchy(Task $task): array
+    {
+        if ($task->is_parent_task) {
+            return [
+                [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                ],
+                $this->fetchChildTaskSummaries($task->project_id, $task->id),
+            ];
+        }
+
+        if ($task->parent_task_id === null) {
+            return [null, []];
+        }
+
+        $task->loadMissing('parentTask:id,title,project_id');
+        if ($task->parentTask === null) {
+            return [null, []];
+        }
+
+        return [
+            [
+                'id' => $task->parentTask->id,
+                'title' => $task->parentTask->title,
+            ],
+            $this->fetchChildTaskSummaries($task->project_id, $task->parentTask->id),
+        ];
+    }
+
+    /**
+     * @return list<array{id: int, title: string, due_date: mixed, list_name: string|null}>
+     */
+    private function fetchChildTaskSummaries(int $projectId, int $parentTaskId): array
+    {
+        return Task::query()
+            ->where('project_id', $projectId)
+            ->where('parent_task_id', $parentTaskId)
+            ->notArchived()
+            ->with('list:id,name')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'title', 'due_date', 'list_id'])
+            ->map(fn (Task $child) => [
+                'id' => $child->id,
+                'title' => $child->title,
+                'due_date' => $child->due_date,
+                'list_name' => $child->list?->name,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{title: string, items: list<array{id: string, text: string, checked: bool}>}|null
+     */
+    private function formatChecklist(?TaskChecklist $checklist): ?array
+    {
+        if ($checklist === null) {
+            return null;
+        }
+
+        return [
+            'title' => $checklist->title,
+            'items' => $checklist->items->map(fn (TaskChecklistItem $item) => [
+                'id' => $item->id,
+                'text' => $item->text,
+                'checked' => (bool) $item->checked,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $checklistData
+     */
+    private function syncTaskChecklist(Task $task, ?array $checklistData): void
+    {
+        if ($checklistData === null) {
+            TaskChecklist::query()->where('task_id', $task->id)->delete();
+
+            return;
+        }
+
+        $title = trim((string) ($checklistData['title'] ?? ''));
+        if ($title === '') {
+            $title = 'チェックリスト';
+        }
+
+        $checklist = TaskChecklist::query()->firstOrNew(['task_id' => $task->id]);
+        $checklist->organization_id = $task->organization_id;
+        $checklist->project_id = $task->project_id;
+        $checklist->title = $title;
+        $checklist->save();
+
+        $items = $checklistData['items'] ?? [];
+        $incomingIds = collect($items)->pluck('id')->filter()->values()->all();
+
+        $checklist->items()->whereNotIn('id', $incomingIds)->delete();
+
+        foreach ($items as $index => $item) {
+            $text = trim((string) ($item['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+
+            TaskChecklistItem::query()->updateOrCreate(
+                [
+                    'id' => $item['id'],
+                    'task_checklist_id' => $checklist->id,
+                ],
+                [
+                    'text' => $text,
+                    'checked' => (bool) ($item['checked'] ?? false),
+                    'sort_order' => $index,
+                ]
+            );
+        }
     }
 }

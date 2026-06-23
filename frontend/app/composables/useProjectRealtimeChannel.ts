@@ -55,7 +55,7 @@ export type ProjectRealtimeHandlers = {
   onTaskDeleted?: (taskId: number) => void
   onTasksReordered?: (payload: { list_id: number; task_ids: number[] }) => void
   onListCreated?: () => void
-  onListUpdated?: (list: { id: number; name: string; sort_order: number }) => void
+  onListUpdated?: (list: { id: number; name: string; color: string; sort_order: number }) => void
   onListDeleted?: (listId: number) => void
   onListsReordered?: (payload: { list_ids: number[] }) => void
 }
@@ -133,7 +133,7 @@ export function useProjectRealtimeChannel (
 
     if (handlers.onListUpdated) {
       channel.listen('.ListUpdated', (payload: unknown) => {
-        const data = payload as { list?: { id: number; name: string; sort_order: number } }
+        const data = payload as { list?: { id: number; name: string; color: string; sort_order: number } }
         if (data?.list) {
           handlers.onListUpdated!(data.list)
         }

@@ -6,6 +6,7 @@ $main-hover: #053580;
 $main-aqua: #25c0f3;
 $main-aqua-hover: #0096d1;
 $main-aqua-surface: #eef5ff;
+$main-aqua-surface-light: #f7fbff;
 $accent-border: #388bff;
 $brand: #0b2bab;
 $action: $main;
@@ -89,7 +90,19 @@ $white: #fff;
   outline-offset: 2px;
 }
 
-/** 備考など複数行テキスト入力 */
+/** number input の上下スピナーを非表示 */
+@mixin hide-number-spin-buttons {
+  -moz-appearance: textfield;
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+/** 説明など複数行テキスト入力 */
 @mixin description-textarea {
   display: block;
   width: 100%;

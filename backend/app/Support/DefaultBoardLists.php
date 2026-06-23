@@ -49,6 +49,7 @@ class DefaultBoardLists
         foreach (self::namesForOrganization($organization) as $index => $name) {
             $project->lists()->create([
                 'name' => $name,
+                'color' => BoardListColors::defaultForIndex($index),
                 'sort_order' => $index,
             ]);
         }

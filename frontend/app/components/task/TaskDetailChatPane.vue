@@ -13,13 +13,12 @@
     >
       <p v-if="commentsLoading" class="chat-state">読み込み中...</p>
       <p v-else-if="commentsLoadError" class="chat-state chat-state--error">{{ commentsLoadError }}</p>
-      <p v-else-if="!comments.length" class="chat-empty">コメントはまだありません</p>
-      <article
-        v-for="comment in comments"
-        v-else
-        :key="comment.id"
-        class="comment-item"
-      >
+      <template v-else>
+        <article
+          v-for="comment in comments"
+          :key="comment.id"
+          class="comment-item"
+        >
         <MemberAvatar
           :member="commentAuthorMember(comment)"
           size="sm"
@@ -129,6 +128,7 @@
           </footer>
         </div>
       </article>
+      </template>
     </div>
 
     <footer class="chat-composer">
@@ -169,6 +169,7 @@
 <script setup lang="ts">
 import { Smile } from 'lucide-vue-next'
 import { useApi } from '../../composables/useApi'
+import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import { useCurrentUser } from '../../composables/useCurrentUser'
 import { memberDisplayName, type MemberLike } from '../../composables/useMemberDisplay'
 import type { TaskCommentReaction, TaskDetailComment } from './taskCommentTypes'
@@ -180,7 +181,7 @@ const props = defineProps<{
   projectId: string
   taskId: number | null
   projectMembers: MemberLike[]
-  /** カンバン画面で取得済みのコメント（あれば読み込み表示を出さない） */
+  /** ボード画面で取得済みのコメント（あれば読み込み表示を出さない） */
   initialComments?: TaskComment[] | null
 }>()
 
@@ -212,6 +213,14 @@ const deleteTargetCommentId = ref<number | null>(null)
 const deleteError = ref<string | null>(null)
 const reactionPendingId = ref<number | null>(null)
 const openReactionMenuCommentId = ref<number | null>(null)
+const chatMutationPending = computed(() => (
+  commentsLoading.value
+  || commentSending.value
+  || editSaving.value
+  || deletePendingId.value !== null
+  || reactionPendingId.value !== null
+))
+syncAppLoadingCursor(chatMutationPending)
 
 watch(
   () => [props.taskId, props.initialComments] as const,
@@ -583,8 +592,7 @@ defineExpose({ resetComments })
   gap: 1rem;
 }
 
-.chat-state,
-.chat-empty {
+.chat-state {
   margin: auto 0;
   text-align: center;
   color: mixin.$text-muted;
@@ -740,7 +748,6 @@ defineExpose({ resetComments })
 
 .comment-item__reactions .comment-item__reaction:disabled {
   opacity: 0.6;
-  cursor: wait;
 }
 
 .comment-item__actions {
@@ -819,7 +826,6 @@ defineExpose({ resetComments })
 
   &:disabled {
     opacity: 0.55;
-    cursor: wait;
   }
 }
 

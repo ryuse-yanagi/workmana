@@ -31,7 +31,7 @@ export const WBS_TABLE_COLUMNS: readonly WbsTableColumnDef[] = [
   { key: 'startDate', label: '開始日', defaultRatio: 0.09 },
   { key: 'dueDate', label: '終了日', defaultRatio: 0.09 },
   { key: 'effort', label: '工数', defaultRatio: 0.07 },
-  { key: 'notes', label: '備考', defaultRatio: 0.24 },
+  { key: 'notes', label: '説明', defaultRatio: 0.24 },
 ] as const
 
 type WbsColumnWidths = Record<WbsColumnKey, number>

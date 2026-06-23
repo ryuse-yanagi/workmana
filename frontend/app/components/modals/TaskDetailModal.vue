@@ -5,6 +5,7 @@
       class="modal-overlay"
       :class="{ 'modal-overlay--popover-open': !!activePopover }"
       role="presentation"
+      @mousedown="onOverlayMouseDown"
     >
         <section
           ref="modalCardRef"
@@ -51,7 +52,7 @@
                 <textarea
                   ref="titleTextareaRef"
                   v-model.trim="titleDraft"
-                  maxlength="500"
+                  :maxlength="TASK_TITLE_MAX_LENGTH"
                   class="title-input"
                   aria-label="タスク名"
                   :disabled="saving || titleSaving"
@@ -132,6 +133,18 @@
                 </span>
                 ラベル
               </button>
+              <button
+                type="button"
+                class="action-btn"
+                :class="{ 'action-btn--active': activePopover === 'checklist-create' }"
+                :disabled="saving"
+                @click="openChecklistPicker($event)"
+              >
+                <span class="action-btn-icon" aria-hidden="true">
+                  <ListChecks :size="16" :stroke-width="2.25" />
+                </span>
+                チェックリスト
+              </button>
             </div>
 
             <div
@@ -194,10 +207,6 @@
                     :key="member.id"
                     type="button"
                     class="member-avatar-btn"
-                    :class="{
-                      'member-avatar-btn--active':
-                        activePopover === 'member-detail' && selectedMember?.id === member.id,
-                    }"
                     :disabled="saving"
                     :aria-label="memberDisplayName(member)"
                     @click="openMemberDetail(member, $event)"
@@ -213,7 +222,6 @@
                   <button
                     type="button"
                     class="member-avatar-btn member-avatar-btn--add"
-                    :class="{ 'member-avatar-btn--active': activePopover === 'members' }"
                     :disabled="saving"
                     aria-label="担当者を追加"
                     @click="openMemberPicker($event)"
@@ -258,18 +266,39 @@
             </div>
 
             <section class="field-block description-block">
-              <span class="field-label">備考</span>
+              <span class="field-label">説明</span>
               <textarea
                 ref="descriptionTextareaRef"
                 v-model="descriptionDraft"
                 class="description-input"
                 rows="1"
-                aria-label="備考"
+                :maxlength="TASK_DESCRIPTION_MAX_LENGTH"
+                aria-label="説明"
                 :disabled="saving || descriptionSaving"
                 @input="adjustDescriptionTextareaHeight"
                 @blur="onDescriptionBlur"
               />
             </section>
+
+            <div
+              v-if="checklist"
+              ref="checklistBlockRef"
+              class="task-checklist-wrap"
+            >
+              <TaskDetailChecklistBlock
+                :checklist="checklist"
+                :show-add-form="checklistAddFormOpen"
+                @update="updateCurrentChecklist"
+                @update:show-add-form="checklistAddFormOpen = $event"
+                @delete="deleteCurrentChecklist"
+              />
+            </div>
+
+            <TaskDetailHierarchyBlock
+              v-if="showHierarchySection"
+              :parent-task="hierarchyParent"
+              :child-tasks="hierarchyChildTasks"
+            />
 
             <p v-if="saveError" class="err">{{ saveError }}</p>
 
@@ -331,6 +360,17 @@
                   </div>
                 </div>
 
+                <div class="popover-field-actions">
+                  <button
+                    type="button"
+                    class="popover-field-clear-btn"
+                    :disabled="saving || dateSaving || !canClearCalendarDate"
+                    @click.stop="void clearCalendarDate()"
+                  >
+                    削除
+                  </button>
+                </div>
+
                 <p v-if="popoverError" class="err">{{ popoverError }}</p>
                 </PopoverShell>
 
@@ -347,7 +387,7 @@
                 <div class="effort-input-row">
                   <input
                     ref="effortInputRef"
-                    v-model="effortDraft"
+                    :value="effortDraft"
                     type="number"
                     min="0"
                     step="0.01"
@@ -355,11 +395,23 @@
                     placeholder="工数を入力してください"
                     aria-label="工数"
                     :disabled="saving || effortSaving"
+                    @input="updateEffortDraft(($event.target as HTMLInputElement).value)"
                     @keydown.enter.prevent="void finalizeEffortPopover()"
                     @keydown.escape.prevent="void finalizeEffortPopover()"
                     @click.stop
                   />
                   <span class="effort-unit-label">{{ effortUnitLabel(orgEffortUnit) }}</span>
+                </div>
+
+                <div class="popover-field-actions">
+                  <button
+                    type="button"
+                    class="popover-field-clear-btn"
+                    :disabled="saving || effortSaving || !canClearEffort"
+                    @click.stop="void clearEffort()"
+                  >
+                    削除
+                  </button>
                 </div>
 
                 <p v-if="popoverError" class="err">{{ popoverError }}</p>
@@ -404,7 +456,7 @@
                       :disabled="saving"
                       @click.stop="removeMemberFromTask(selectedMember)"
                     >
-                      タスクから解除
+                      タスクから削除
                     </button>
                   </div>
                 </div>
@@ -471,50 +523,15 @@
                 :close-disabled="parentTaskSaving"
                 @close="closePopover"
               >
-                <div class="popover-scroll">
-                  <p v-if="parentTasksLoading" class="empty-text parent-task-loading">
-                    読み込み中...
-                  </p>
-                  <ul v-else class="parent-task-picker-list">
-                    <li>
-                      <button
-                        type="button"
-                        class="parent-task-picker-row"
-                        :class="{ 'parent-task-picker-row--selected': !task?.parent_task_id }"
-                        @click.stop="selectParentTask(null)"
-                      >
-                        <span
-                          class="parent-task-picker-radio"
-                          :class="{ 'parent-task-picker-radio--checked': !task?.parent_task_id }"
-                          aria-hidden="true"
-                        />
-                        <span class="parent-task-picker-label">なし</span>
-                      </button>
-                    </li>
-                    <li
-                      v-for="parent in parentTasks"
-                      :key="parent.id"
-                    >
-                      <button
-                        type="button"
-                        class="parent-task-picker-row"
-                        :class="{ 'parent-task-picker-row--selected': task?.parent_task_id === parent.id }"
-                        @click.stop="selectParentTask(parent.id)"
-                      >
-                        <span
-                          class="parent-task-picker-radio"
-                          :class="{ 'parent-task-picker-radio--checked': task?.parent_task_id === parent.id }"
-                          aria-hidden="true"
-                        />
-                        <span class="parent-task-picker-label">{{ parent.title }}</span>
-                      </button>
-                    </li>
-                  </ul>
-                  <p v-if="!parentTasksLoading && !parentTasks.length" class="empty-text parent-task-empty">
-                    親タスクがありません。
-                  </p>
-                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
-                </div>
+                <ParentTaskPickerPanel
+                  :loading="parentTasksLoading"
+                  :parents="parentTasks"
+                  :selected-parent-id="task?.parent_task_id ?? null"
+                  :clear-disabled="parentTaskSaving"
+                  :error="popoverError"
+                  @select="selectParentTask($event)"
+                  @clear="selectParentTask(null)"
+                />
               </PopoverShell>
 
               <PopoverShell
@@ -576,6 +593,37 @@
                   <p v-if="popoverError" class="err">{{ popoverError }}</p>
                 </div>
               </PopoverShell>
+
+              <PopoverShell
+                v-else-if="activePopover === 'checklist-create'"
+                ref="popoverElRef"
+                shell-class="popover popover--checklist-create"
+                :style="popoverStyle"
+                title="チェックリスト"
+                aria-label="チェックリスト"
+                @close="closePopover"
+              >
+                <input
+                  ref="checklistTitleInputRef"
+                  v-model="checklistTitleDraft"
+                  type="text"
+                  class="checklist-create-input"
+                  :maxlength="CHECKLIST_TITLE_MAX_LENGTH"
+                  placeholder="タイトル"
+                  aria-label="チェックリストのタイトル"
+                  @keydown.enter.prevent="submitChecklistCreate"
+                  @click.stop
+                />
+                <div class="checklist-create-actions">
+                  <button
+                    type="button"
+                    class="checklist-create-submit"
+                    @click.stop="submitChecklistCreate"
+                  >
+                    追加
+                  </button>
+                </div>
+              </PopoverShell>
               </div>
               </Transition>
             </Teleport>
@@ -600,17 +648,39 @@ import {
   CalendarCheck,
   CalendarDays,
   Clock,
+  ListChecks,
   Tags,
   Users,
 } from 'lucide-vue-next'
+import ParentTaskPickerPanel from '../task/ParentTaskPickerPanel.vue'
+import TaskDetailChecklistBlock, {
+  type TaskChecklist,
+} from '../task/TaskDetailChecklistBlock.vue'
+import TaskDetailHierarchyBlock, {
+  type TaskHierarchyChild,
+  type TaskHierarchyParent,
+} from '../task/TaskDetailHierarchyBlock.vue'
 import { useApi } from '../../composables/useApi'
 import {
   effortUnitLabel,
+  parseEffortDraft,
   resolveEffortUnit,
+  sanitizeEffortDraftInput,
 } from '../../composables/useTaskFormHelpers'
 import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
 import type { TaskDetailComment } from '../task/taskCommentTypes'
+import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer } from '../../utils/uiInteraction'
+import {
+  CHECKLIST_TITLE_MAX_LENGTH,
+  TASK_DESCRIPTION_MAX_LENGTH,
+  TASK_TITLE_MAX_LENGTH,
+} from '../../constants/fieldLengthLimits'
+import {
+  isTaskInHierarchy,
+  resolveTaskHierarchyFromTasks,
+  type TaskHierarchySource,
+} from '../../composables/useTaskHierarchy'
 
 export type TaskDetailLabel = { id: number; name: string; color: string }
 export type TaskDetailMember = {
@@ -632,15 +702,18 @@ export type TaskDetail = {
   effort_unit?: EffortUnit | string | null
   assignees: TaskDetailMember[]
   labels: TaskDetailLabel[]
+  checklist?: TaskChecklist | null
   is_parent_task?: boolean
   parent_task_id?: number | null
+  parent_task?: TaskHierarchyParent | null
+  child_tasks?: TaskHierarchyChild[]
 }
 
 type ParentTaskOption = { id: number; title: string }
 
 type EffortUnit = 'minute' | 'hour' | 'day'
 
-type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'parent-task'
+type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'parent-task' | 'checklist-create'
 
 type DatePickerTarget = 'start' | 'due'
 
@@ -661,11 +734,13 @@ const props = defineProps<{
   taskId: number | null
   orgLabels: TaskDetailLabel[]
   projectMembers: TaskDetailMember[]
-  /** カンバン画面で取得済みのタスク詳細（あれば読み込み画面を出さない） */
+  /** ボード画面で取得済みのタスク詳細（あれば読み込み画面を出さない） */
   initialTaskDetail?: TaskDetail | null
-  /** カンバン画面で取得済みの親タスク一覧 */
+  /** ボード画面で取得済みの親タスク一覧 */
   initialParentTasks?: ParentTaskOption[] | null
-  /** カンバン画面で取得済みのコメント */
+  /** 親子関係の即時表示用（ボード上のタスク一覧） */
+  hierarchyTasks?: TaskHierarchySource[] | null
+  /** ボード画面で取得済みのコメント */
   initialComments?: TaskDetailComment[] | null
   /** 他クライアントからの TaskUpdated など（rev が変わるたびに適用） */
   remoteUpdate?: TaskDetailRemotePatch | null
@@ -731,6 +806,24 @@ const descriptionSaving = ref(false)
 const labelSearchQuery = ref('')
 const memberSearchQuery = ref('')
 
+const checklistTitleDraft = ref('')
+const checklistAddFormOpen = ref(false)
+const checklistSaving = ref(false)
+const checklist = ref<TaskChecklist | null>(null)
+const checklistBlockRef = ref<HTMLElement | null>(null)
+const checklistTitleInputRef = ref<HTMLInputElement | null>(null)
+
+let checklistSaveTimer: ReturnType<typeof setTimeout> | null = null
+let checklistSaveSeq = 0
+let lastPersistedChecklist: TaskChecklist | null = null
+
+function clearChecklistSaveTimer () {
+  if (checklistSaveTimer) {
+    clearTimeout(checklistSaveTimer)
+    checklistSaveTimer = null
+  }
+}
+
 const effortDraft = ref<string | number>('')
 const effortSaving = ref(false)
 const effortInputRef = ref<HTMLInputElement | null>(null)
@@ -742,6 +835,99 @@ const pickerMutationPending = ref(false)
 
 const showParentTaskControl = computed(() => {
   return Boolean(task.value && !task.value.is_parent_task)
+})
+
+function toHierarchyTaskRef (detail: TaskDetail): TaskHierarchySource {
+  return {
+    id: detail.id,
+    title: detail.title,
+    is_parent_task: detail.is_parent_task,
+    parent_task_id: detail.parent_task_id ?? null,
+    due_date: detail.due_date,
+    list_id: detail.list_id,
+  }
+}
+
+const hierarchyTaskSources = computed((): TaskHierarchySource[] => {
+  const base = props.hierarchyTasks ?? []
+  const current = task.value
+  if (!current) {
+    return base
+  }
+
+  const currentSource = toHierarchyTaskRef(current)
+
+  const index = base.findIndex(row => row.id === current.id)
+  if (index < 0) {
+    return [...base, currentSource]
+  }
+
+  const next = base.slice()
+  next[index] = { ...base[index]!, ...currentSource }
+  return next
+})
+
+const resolvedHierarchy = computed((): {
+  parent_task: TaskHierarchyParent | null
+  child_tasks: TaskHierarchyChild[]
+} => {
+  const current = task.value
+  if (!current || !isTaskInHierarchy(current)) {
+    return { parent_task: null, child_tasks: [] }
+  }
+
+  if (hierarchyTaskSources.value.length > 0) {
+    const resolved = resolveTaskHierarchyFromTasks(
+      toHierarchyTaskRef(current),
+      hierarchyTaskSources.value,
+    )
+    if (resolved.parent_task) {
+      return resolved
+    }
+    if (current.parent_task_id != null) {
+      const parent = parentTasks.value.find(item => item.id === current.parent_task_id)
+      if (parent) {
+        return {
+          ...resolved,
+          parent_task: { id: parent.id, title: parent.title },
+        }
+      }
+    }
+    return resolved
+  }
+
+  if (current.parent_task) {
+    return {
+      parent_task: current.parent_task,
+      child_tasks: current.child_tasks ?? [],
+    }
+  }
+  if (current.is_parent_task) {
+    return {
+      parent_task: { id: current.id, title: current.title },
+      child_tasks: current.child_tasks ?? [],
+    }
+  }
+  if (current.parent_task_id != null) {
+    const parent = parentTasks.value.find(item => item.id === current.parent_task_id)
+    return {
+      parent_task: parent ? { id: parent.id, title: parent.title } : null,
+      child_tasks: current.child_tasks ?? [],
+    }
+  }
+  return { parent_task: null, child_tasks: [] }
+})
+
+const hierarchyParent = computed((): TaskHierarchyParent | null => {
+  return resolvedHierarchy.value.parent_task
+})
+
+const hierarchyChildTasks = computed((): TaskHierarchyChild[] => {
+  return resolvedHierarchy.value.child_tasks
+})
+
+const showHierarchySection = computed(() => {
+  return isTaskInHierarchy(task.value)
 })
 
 const parentTaskButtonLabel = computed(() => {
@@ -774,6 +960,18 @@ const effortDetailDisplayText = computed(() => {
     return ''
   }
   return formatEffortDisplayForTask(task.value)
+})
+
+const canClearCalendarDate = computed(() => !!pendingDate.value)
+
+const canClearEffort = computed(() => {
+  if (String(effortDraft.value ?? '').trim() !== '') {
+    return true
+  }
+  if (!task.value) {
+    return false
+  }
+  return resolveStoredEffortValue(task.value) !== null
 })
 
 const filteredOrgLabels = computed(() => {
@@ -867,6 +1065,9 @@ function normalizeTaskDetail (detail: TaskDetail): TaskDetail {
     ...detail,
     labels: detail.labels ?? [],
     assignees: detail.assignees ?? [],
+    checklist: detail.checklist ?? null,
+    parent_task: detail.parent_task ?? null,
+    child_tasks: detail.child_tasks ?? [],
   }
 }
 
@@ -890,6 +1091,8 @@ function resetInteractionState () {
   effortDetailAnchorRef.value = null
   parentTaskSaving.value = false
   pickerMutationPending.value = false
+  checklistAddFormOpen.value = false
+  checklistSaving.value = false
 }
 
 function applyLoadedTask (
@@ -897,6 +1100,8 @@ function applyLoadedTask (
   parentTasksList?: ParentTaskOption[] | null,
 ) {
   task.value = normalizeTaskDetail(detail)
+  checklist.value = task.value.checklist ?? null
+  lastPersistedChecklist = checklist.value
   titleDraft.value = task.value.title
   descriptionDraft.value = task.value.description ?? ''
   if (parentTasksList != null) {
@@ -912,7 +1117,10 @@ function applyLoadedTask (
 }
 
 function resetState () {
+  clearChecklistSaveTimer()
   task.value = null
+  checklist.value = null
+  lastPersistedChecklist = null
   loading.value = false
   saving.value = false
   dateSaving.value = false
@@ -940,6 +1148,8 @@ function resetState () {
   parentTasksLoading.value = false
   parentTaskSaving.value = false
   pickerMutationPending.value = false
+  checklistAddFormOpen.value = false
+  checklistSaving.value = false
 }
 
 function normalizeEffortUnit (value: EffortUnit | string | null | undefined): EffortUnit {
@@ -1028,18 +1238,6 @@ function formatEffortDisplayForTask (detail: TaskDetail): string {
   return `${formatEffortAmount(value)} ${effortUnitLabel(unit)}`
 }
 
-function parseEffortDraft (raw: string | number | null | undefined): number | null | 'invalid' {
-  const trimmed = String(raw ?? '').trim()
-  if (!trimmed) {
-    return null
-  }
-  const num = Number(trimmed)
-  if (!Number.isFinite(num) || num < 0) {
-    return 'invalid'
-  }
-  return Math.round(num * 100) / 100
-}
-
 function resolveEffortPopoverAnchor (event?: Event): HTMLElement | null {
   const clicked = event?.currentTarget
   const detailAnchor = effortDetailAnchorRef.value
@@ -1070,6 +1268,15 @@ function openEffortPicker (event?: Event) {
   })
 }
 
+function updateEffortDraft (raw: string | number) {
+  const sanitized = sanitizeEffortDraftInput(String(raw ?? ''))
+  effortDraft.value = sanitized
+  const inputEl = effortInputRef.value
+  if (inputEl && inputEl.value !== sanitized) {
+    inputEl.value = sanitized
+  }
+}
+
 /** 入力ありなら保存してから閉じる。未入力なら保存せず閉じる。不正値なら開いたまま。 */
 async function finalizeEffortPopover () {
   if (activePopover.value !== 'effort') return
@@ -1084,6 +1291,22 @@ async function finalizeEffortPopover () {
   if (parsed !== null) {
     await saveEffort()
   }
+  dismissPopover()
+}
+
+async function clearEffort () {
+  if (activePopover.value !== 'effort' || effortSaving.value || saving.value) {
+    return
+  }
+
+  effortDraft.value = ''
+  const currentValue = task.value ? resolveStoredEffortValue(task.value) : null
+  if (currentValue === null) {
+    dismissPopover()
+    return
+  }
+
+  await saveEffort()
   dismissPopover()
 }
 
@@ -1120,7 +1343,7 @@ function handlePopoverOutsidePointerDown (event: MouseEvent) {
   if (resolvePopoverElement()?.contains(target)) return
   if (shouldIgnorePopoverOutsideClose(target)) return
 
-  void closePopover()
+  dismissPopoverFromOutsidePointer(target, closePopover)
 }
 
 async function saveEffort () {
@@ -1199,16 +1422,31 @@ async function loadTask () {
   loading.value = true
   loadError.value = null
   try {
-    const detail = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${props.taskId}`,
-    )
-    if (props.initialParentTasks == null) {
-      await fetchParentTasks()
-    }
-    applyLoadedTask(detail, props.initialParentTasks)
+    await fetchAndApplyTaskDetail()
   } catch (e: unknown) {
     loadError.value = e instanceof Error ? e.message : '読み込みに失敗しました'
     loading.value = false
+  }
+}
+
+async function fetchAndApplyTaskDetail () {
+  if (props.taskId === null) return
+  const detail = await api<TaskDetail>(
+    `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${props.taskId}`,
+  )
+  if (props.taskId !== detail.id) return
+  if (props.initialParentTasks == null) {
+    await fetchParentTasks()
+  }
+  applyLoadedTask(detail, props.initialParentTasks)
+}
+
+async function refreshTaskDetailSilently () {
+  if (props.taskId === null) return
+  try {
+    await fetchAndApplyTaskDetail()
+  } catch {
+    // ボードの初期表示を維持する
   }
 }
 
@@ -1220,19 +1458,44 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
   if (!task.value || patch.id !== task.value.id) {
     return
   }
-  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || effortSaving.value || parentTaskSaving.value || activePopover.value === 'effort') {
+  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || effortSaving.value || parentTaskSaving.value || checklistSaving.value || activePopover.value === 'effort') {
     return
   }
 
-  const titleDirty = titleDraft.value.trim() !== (task.value.title ?? '').trim()
-  const descDirty = descriptionDraft.value !== (task.value.description ?? '')
-
-  task.value = normalizeTaskDetail({
-    ...task.value,
+  const current = task.value
+  const merged = normalizeTaskDetail({
+    ...current,
     ...patch,
-    labels: patch.labels ?? task.value.labels,
-    assignees: patch.assignees ?? task.value.assignees,
+    labels: patch.labels ?? current.labels,
+    assignees: patch.assignees ?? current.assignees,
   })
+  const unchanged = (
+    merged.title === current.title
+    && (merged.description ?? null) === (current.description ?? null)
+    && merged.status === current.status
+    && merged.list_id === current.list_id
+    && (merged.start_date ?? null) === (current.start_date ?? null)
+    && (merged.due_date ?? null) === (current.due_date ?? null)
+    && (merged.effort_hours ?? null) === (current.effort_hours ?? null)
+    && (merged.effort_value ?? null) === (current.effort_value ?? null)
+    && (merged.effort_unit ?? null) === (current.effort_unit ?? null)
+    && (merged.parent_task_id ?? null) === (current.parent_task_id ?? null)
+    && Boolean(merged.is_parent_task) === Boolean(current.is_parent_task)
+    && JSON.stringify(merged.labels) === JSON.stringify(current.labels)
+    && JSON.stringify(merged.assignees) === JSON.stringify(current.assignees)
+    && patch.checklist === undefined
+  )
+  if (unchanged) {
+    return
+  }
+
+  const titleDirty = titleDraft.value.trim() !== (current.title ?? '').trim()
+  const descDirty = descriptionDraft.value !== (current.description ?? '')
+
+  task.value = merged
+  if (patch.checklist !== undefined) {
+    checklist.value = patch.checklist
+  }
 
   if (!titleDirty) {
     titleDraft.value = task.value.title
@@ -1276,6 +1539,7 @@ watch(
     if (initial && initial.id === id) {
       resetInteractionState()
       applyLoadedTask(initial, props.initialParentTasks)
+      void refreshTaskDetailSilently()
       return
     }
 
@@ -1301,6 +1565,19 @@ function close () {
   }
   emit('update:modelValue', false)
 }
+
+const {
+  onOverlayMouseDown,
+  resetOverlayBackdropClose,
+} = createOverlayBackdropClose({
+  onClose: close,
+  canClose: () => !isOverlayCloseBlocked()
+    && !saving.value
+    && !titleSaving.value
+    && !descriptionSaving.value
+    && !effortSaving.value
+    && !parentTaskSaving.value,
+})
 
 function dismissPopover () {
   activePopover.value = null
@@ -1441,6 +1718,40 @@ async function pickCalendarDay (iso: string) {
   }
 }
 
+async function clearCalendarDate () {
+  if (!task.value || !activePopover.value || dateSaving.value || saving.value) return
+  if (activePopover.value !== 'start-date' && activePopover.value !== 'due-date') {
+    return
+  }
+
+  const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
+  const current = field === 'start_date' ? task.value.start_date : task.value.due_date
+  pendingDate.value = null
+  if (!current) {
+    return
+  }
+
+  const previousDate = current
+  patchTaskDateField(field, null)
+  saveError.value = null
+  popoverError.value = null
+  dateSaving.value = true
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${task.value.id}`,
+      { method: 'PATCH', body: { [field]: null } },
+    )
+    task.value = normalizeTaskDetail(updated)
+    emit('updated', task.value)
+  } catch (e: unknown) {
+    patchTaskDateField(field, previousDate)
+    pendingDate.value = toDateInputValue(previousDate) || null
+    popoverError.value = e instanceof Error ? e.message : '日付の更新に失敗しました'
+  } finally {
+    dateSaving.value = false
+  }
+}
+
 function patchTaskDateField (field: 'start_date' | 'due_date', value: string | null) {
   if (!task.value) return
   task.value = { ...task.value, [field]: value }
@@ -1525,6 +1836,9 @@ function onPopoverEscape (event: KeyboardEvent) {
 }
 
 watch(activePopover, (open) => {
+  if (open === 'checklist-create') {
+    nextTick(() => checklistTitleInputRef.value?.focus())
+  }
   if (open) {
     document.addEventListener('keydown', onPopoverEscape)
     document.addEventListener('mousedown', handlePopoverOutsidePointerDown, true)
@@ -1540,6 +1854,13 @@ watch(activePopover, (open) => {
   }
 })
 
+watch(
+  () => task.value?.id,
+  () => {
+    checklistAddFormOpen.value = false
+  },
+)
+
 watch(labelSearchQuery, () => {
   if (activePopover.value === 'labels') {
     updatePopoverPosition()
@@ -1553,6 +1874,7 @@ watch(memberSearchQuery, () => {
 })
 
 onBeforeUnmount(() => {
+  resetOverlayBackdropClose()
   document.removeEventListener('keydown', onPopoverEscape)
   document.removeEventListener('mousedown', handlePopoverOutsidePointerDown, true)
   removePopoverResizeListener?.()
@@ -1686,6 +2008,85 @@ function openLabelPicker (event?: Event) {
   updatePopoverPosition()
 }
 
+function openChecklistPicker (event?: Event) {
+  if (!task.value) return
+  if (checklist.value) {
+    checklistAddFormOpen.value = true
+    nextTick(() => {
+      checklistBlockRef.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+    return
+  }
+  if (activePopover.value === 'checklist-create') {
+    closePopover()
+    return
+  }
+  checklistTitleDraft.value = ''
+  popoverAnchorEl.value = capturePopoverAnchor(event)
+  activePopover.value = 'checklist-create'
+  popoverError.value = null
+  updatePopoverPosition()
+}
+
+function submitChecklistCreate () {
+  if (!task.value || checklistSaving.value) return
+  const title = checklistTitleDraft.value.trim() || 'チェックリスト'
+  void saveChecklist({ title, items: [] })
+  checklistAddFormOpen.value = true
+  dismissPopover()
+  nextTick(() => {
+    checklistBlockRef.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  })
+}
+
+function updateCurrentChecklist (next: TaskChecklist) {
+  if (!task.value || checklistSaving.value) return
+  void saveChecklist(next)
+}
+
+function deleteCurrentChecklist () {
+  if (!task.value || checklistSaving.value) return
+  void saveChecklist(null)
+  checklistAddFormOpen.value = false
+}
+
+async function saveChecklist (next: TaskChecklist | null) {
+  if (!task.value) return
+  checklist.value = next
+  clearChecklistSaveTimer()
+
+  checklistSaveTimer = setTimeout(() => {
+    checklistSaveTimer = null
+    void persistChecklist(checklist.value)
+  }, 300)
+}
+
+async function persistChecklist (next: TaskChecklist | null) {
+  if (!task.value) return
+  const rollback = lastPersistedChecklist
+  const seq = ++checklistSaveSeq
+  checklistSaving.value = true
+  saveError.value = null
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${task.value.id}`,
+      { method: 'PATCH', body: { checklist: next } },
+    )
+    if (seq !== checklistSaveSeq || !task.value) return
+    checklist.value = updated.checklist ?? null
+    lastPersistedChecklist = checklist.value
+    emit('updated', { ...task.value, checklist: checklist.value })
+  } catch (e: unknown) {
+    if (seq !== checklistSaveSeq) return
+    checklist.value = rollback
+    saveError.value = e instanceof Error ? e.message : 'チェックリストの保存に失敗しました'
+  } finally {
+    if (seq === checklistSaveSeq) {
+      checklistSaving.value = false
+    }
+  }
+}
+
 async function toggleLabel (label: TaskDetailLabel) {
   if (!task.value || pickerMutationPending.value) return
   armOverlayCloseGuard()
@@ -1740,7 +2141,7 @@ async function saveDescription () {
     nextTick(() => adjustDescriptionTextareaHeight())
     emit('updated', task.value)
   } catch (e: unknown) {
-    saveError.value = e instanceof Error ? e.message : '備考の更新に失敗しました'
+    saveError.value = e instanceof Error ? e.message : '説明の更新に失敗しました'
   } finally {
     descriptionSaving.value = false
   }
@@ -1987,7 +2388,8 @@ async function saveDescription () {
   border-color: #94a3b8;
 }
 
-.action-btn--active {
+.action-btn--active,
+.action-btn--active:hover:not(:disabled) {
   background: color-mix(in srgb, mixin.$main 12%, mixin.$white);
   border-color: mixin.$main;
   color: mixin.$main-hover;
@@ -2076,77 +2478,8 @@ async function saveDescription () {
 
 .popover--parent-task {
   width: min(19.5rem, calc(100vw - 1.5rem));
-}
-
-.parent-task-loading,
-.parent-task-empty {
-  margin: 0.55rem 0.65rem 0.65rem;
-}
-
-.parent-task-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0.5rem 0.65rem 0.65rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.parent-task-picker-row {
-  @include mixin.picker-checkbox-row;
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  border: none;
-  border-radius: 8px;
-  padding: 0.45rem 0.35rem;
-  background: transparent;
-  text-align: left;
-}
-
-.parent-task-picker-row:hover {
-  background: #f8fafc;
-}
-
-.parent-task-picker-row--selected {
-  background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
-}
-
-.parent-task-picker-radio {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid #8590a2;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-}
-
-.parent-task-picker-radio--checked {
-  border-color: mixin.$main;
-  background: mixin.$main;
-}
-
-.parent-task-picker-radio--checked::after {
-  content: '✓';
-  font-size: 0.62rem;
-  font-weight: 800;
-  line-height: 1;
-  color: mixin.$white;
-}
-
-.parent-task-picker-label {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.88rem;
-  font-weight: 600;
-  line-height: 1.35;
-  color: mixin.$text;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  padding: 0;
+  gap: 0;
 }
 
 .label-search-input {
@@ -2485,6 +2818,7 @@ async function saveDescription () {
   font-size: 0.94rem;
   color: #0f172a;
   background: #fff;
+  @include mixin.hide-number-spin-buttons;
 }
 
 .popover--effort .effort-input:focus {
@@ -2499,6 +2833,36 @@ async function saveDescription () {
   font-weight: 700;
   color: #64748b;
   white-space: nowrap;
+}
+
+.popover-field-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.55rem;
+}
+
+.popover-field-clear-btn {
+  min-width: 3.5rem;
+  height: 1.75rem;
+  padding: 0 0.65rem;
+  border: 1px solid mixin.$border-light;
+  border-radius: 6px;
+  background: #fff;
+  color: mixin.$text-sub;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.popover-field-clear-btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.04);
+  color: mixin.$text;
+}
+
+.popover-field-clear-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .detail-item {
@@ -2706,6 +3070,59 @@ async function saveDescription () {
   flex-shrink: 0;
 }
 
+.task-hierarchy-wrap {
+  flex-shrink: 0;
+}
+
+.task-checklist-wrap {
+  flex-shrink: 0;
+}
+
+.popover--checklist-create {
+  width: min(18rem, calc(100vw - 1.5rem));
+}
+
+.checklist-create-input {
+  display: block;
+  width: 90%;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.checklist-create-input:focus,
+.checklist-create-input:focus-visible {
+  @include mixin.input-focus-ring;
+}
+
+.checklist-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.55rem;
+}
+
+.checklist-create-submit {
+  border: none;
+  border-radius: 8px;
+  padding: 0.42rem 0.95rem;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #fff;
+  background: mixin.$main;
+  cursor: pointer;
+}
+
+.checklist-create-submit:hover {
+  background: mixin.$main-hover;
+}
+
 .description-input {
   @include mixin.description-textarea;
   resize: none;
@@ -2791,10 +3208,6 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
   font-size: 1.2rem;
   font-weight: 400;
   line-height: 1;
-}
-
-.member-avatar-btn--active {
-  box-shadow: 0 0 0 2px #2563eb;
 }
 
 .member-avatar-btn-image {
