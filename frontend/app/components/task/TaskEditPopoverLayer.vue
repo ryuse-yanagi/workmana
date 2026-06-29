@@ -4,7 +4,7 @@
       <div
         v-if="activePopover"
         :key="activePopover === 'member-detail' ? `member-detail-${selectedMember?.id}` : activePopover"
-        class="popover-layer popover-layer--portal popover-layer--wbs"
+        class="popover-layer popover-layer--portal popover-layer--table"
       >
         <PopoverShell
           v-if="activePopover === 'start-date' || activePopover === 'due-date'"

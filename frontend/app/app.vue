@@ -20,6 +20,8 @@ body {
 }
 body {
   margin: 0;
+  font-family: mixin.$font-family;
+  -webkit-text-size-adjust: 100%;
   background: linear-gradient(160deg, #eef2ff 0%, #dbeafe 35%, #f8fafc 100%);
   background-attachment: fixed;
 }

@@ -14,8 +14,8 @@ return new class extends Migration
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->string('name');
             $table->text('description')->nullable();
-            $table->string('wbs_orphan_parent_label', 255)->nullable();
-            $table->integer('wbs_orphan_parent_sort_order')->nullable();
+            $table->string('orphan_parent_label', 255)->nullable();
+            $table->integer('orphan_parent_sort_order')->nullable();
             $table->timestamp('archived_at')->nullable();
             $table->timestamp('deleted_at')->nullable();
             $table->timestamps();

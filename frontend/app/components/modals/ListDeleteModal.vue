@@ -102,7 +102,7 @@ defineExpose({ setSubmitError })
   @include mixin.btn-ghost;
 }
 .danger-btn {
-  background: #dc2626;
+  background: mixin.$danger;
   color: #fff;
 }
 </style>

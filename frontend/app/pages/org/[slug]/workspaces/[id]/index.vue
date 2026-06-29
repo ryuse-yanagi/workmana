@@ -4,7 +4,7 @@
       ref="boardRef"
       v-show="displayedView === 'board'"
     />
-    <WorkspaceWbsView
+    <WorkspaceTableGanttView
       v-if="tableMounted"
       ref="tableViewRef"
       v-show="displayedView === 'table'"
@@ -12,7 +12,7 @@
       :org-slug="slug"
       :workspace-id="workspaceId"
     />
-    <WorkspaceWbsView
+    <WorkspaceTableGanttView
       v-if="ganttMounted"
       ref="ganttViewRef"
       v-show="displayedView === 'gantt'"
@@ -24,7 +24,7 @@
 </template>
 <script setup lang="ts">
 import WorkspaceBoard from '../../../../../components/workspace/WorkspaceBoard.vue'
-import WorkspaceWbsView from '../../../../../components/workspace/WorkspaceWbsView.vue'
+import WorkspaceTableGanttView from '../../../../../components/workspace/WorkspaceTableGanttView.vue'
 import { withAppLoadingCursor } from '../../../../../composables/useAppLoadingCursor'
 import { useWorkspaceViewRoutes, type WorkspaceViewKey } from '../../../../../composables/useWorkspaceViewRoutes'
 import { useWorkspaceViewPageRoot } from '../../../../../composables/useWorkspaceViewPageRoot'
@@ -39,8 +39,8 @@ const slug = computed(() => route.params.slug as string)
 const workspaceId = computed(() => route.params.id as string)
 const { activeView } = useWorkspaceViewRoutes(() => slug.value, () => workspaceId.value)
 const boardRef = ref<InstanceType<typeof WorkspaceBoard> | null>(null)
-const tableViewRef = ref<InstanceType<typeof WorkspaceWbsView> | null>(null)
-const ganttViewRef = ref<InstanceType<typeof WorkspaceWbsView> | null>(null)
+const tableViewRef = ref<InstanceType<typeof WorkspaceTableGanttView> | null>(null)
+const ganttViewRef = ref<InstanceType<typeof WorkspaceTableGanttView> | null>(null)
 const tableMounted = ref(false)
 const ganttMounted = ref(false)
 function initialProjectView (): WorkspaceViewKey {

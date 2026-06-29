@@ -2,7 +2,6 @@ import type { SettingsPageSnapshot } from '../components/settings/types'
 import { normalizeEffortUnit } from './useTaskFormHelpers'
 import { useApi } from './useApi'
 import { useOrgEffortSettings } from './useOrgEffortSettings'
-import { resolveLabelColors } from '../utils/colorPresetResolution'
 
 const cacheBySlug = new Map<string, SettingsPageSnapshot>()
 const inflightBySlug = new Map<string, Promise<SettingsPageSnapshot>>()
@@ -19,18 +18,12 @@ export function useOrgSettingsPageData () {
     }
 
     const job = (async () => {
-      const [orgSettings, workspaceLabelsRes, taskLabelsRes] = await Promise.all([
-        api<SettingsPageSnapshot['orgSettings']>(`/orgs/${slug}/settings`),
-        api<{ data: SettingsPageSnapshot['workspaceLabels'] }>(`/orgs/${slug}/workspace-labels`),
-        api<{ data: SettingsPageSnapshot['taskLabels'] }>(`/orgs/${slug}/task-labels`),
-      ])
+      const orgSettings = await api<SettingsPageSnapshot['orgSettings']>(`/orgs/${slug}/settings`)
       syncEffortSettings(slug, {
         effort_unit: normalizeEffortUnit(orgSettings.effort_unit),
       })
       const snapshot: SettingsPageSnapshot = {
         orgSettings,
-        workspaceLabels: resolveLabelColors(workspaceLabelsRes.data),
-        taskLabels: resolveLabelColors(taskLabelsRes.data),
       }
       cacheBySlug.set(slug, snapshot)
       return snapshot

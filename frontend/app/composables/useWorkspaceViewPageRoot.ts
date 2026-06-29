@@ -1,4 +1,4 @@
-/** WBS・共通資料など、ビューポート内に収めるプレースホルダー画面向け */
+/** Table・共通資料など、ビューポート内に収めるプレースホルダー画面向け */
 export function useWorkspaceViewPageRoot () {
   useHead({
     htmlAttrs: {

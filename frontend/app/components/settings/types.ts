@@ -7,9 +7,17 @@ export type SettingsLabelTabKey = 'workspace' | 'task'
 
 export type SettingsLabelItem = {
   id: number
+  category_id?: number
   name: string
   color: string
   color_index?: number
+}
+
+export type SettingsLabelCategory = {
+  id: number
+  name: string
+  sort_order: number
+  labels: SettingsLabelItem[]
 }
 
 export type OrgSettingsResponse = {
@@ -19,8 +27,6 @@ export type OrgSettingsResponse = {
 
 export type SettingsPageSnapshot = {
   orgSettings: OrgSettingsResponse
-  workspaceLabels: SettingsLabelItem[]
-  taskLabels: SettingsLabelItem[]
 }
 
 export const DEFAULT_BOARD_LIST_NAMES = ['未着手', '進行中', '完了'] as const

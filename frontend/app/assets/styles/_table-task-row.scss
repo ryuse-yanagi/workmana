@@ -1,42 +1,42 @@
 @use 'mixin' as mixin;
 
-.project-wbs-table-wrap--dragging {
+.workspace-table-wrap--dragging {
   cursor: default;
 }
 
-.project-wbs-table-wrap--dragging .project-wbs-table__drag-handle {
+.workspace-table-wrap--dragging .workspace-table__drag-handle {
   cursor: default;
 }
 
-.project-wbs-table-wrap--dragging .project-wbs-table__task-row--drag-preview {
+.workspace-table-wrap--dragging .workspace-table__task-row--drag-preview {
   pointer-events: none;
 }
 
-.project-wbs-table-wrap--dragging .project-wbs-table__task-row--drag-preview .project-wbs-table__drag-handle {
+.workspace-table-wrap--dragging .workspace-table__task-row--drag-preview .workspace-table__drag-handle {
   visibility: hidden;
 }
 
-.project-wbs-table__drag-col {
-  width: var(--wbs-drag-col-width);
+.workspace-table__drag-col {
+  width: var(--table-drag-col-width);
 }
 
-.project-wbs-table__drag-header {
-  width: var(--wbs-drag-col-width);
-  min-width: var(--wbs-drag-col-width);
-  max-width: var(--wbs-drag-col-width);
+.workspace-table__drag-header {
+  width: var(--table-drag-col-width);
+  min-width: var(--table-drag-col-width);
+  max-width: var(--table-drag-col-width);
   padding: 0 !important;
 }
 
-.project-wbs-table__drag-cell {
-  width: var(--wbs-drag-col-width);
-  min-width: var(--wbs-drag-col-width);
-  max-width: var(--wbs-drag-col-width);
+.workspace-table__drag-cell {
+  width: var(--table-drag-col-width);
+  min-width: var(--table-drag-col-width);
+  max-width: var(--table-drag-col-width);
   padding: 0 !important;
   text-align: center;
   vertical-align: middle;
 }
 
-.project-wbs-table__drag-handle {
+.workspace-table__drag-handle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -52,41 +52,41 @@
   touch-action: none;
 }
 
-.project-wbs-table__drag-handle:hover {
+.workspace-table__drag-handle:hover {
   background: rgba(15, 23, 42, 0.06);
   border-color: mixin.$border;
   color: mixin.$text;
 }
 
-.project-wbs-table__drag-handle:active {
+.workspace-table__drag-handle:active {
   cursor: default;
 }
 
-.project-wbs-table__task-title {
+.workspace-table__task-title {
   font-weight: 700;
   padding-left: 0 !important;
 }
 
-.project-wbs-table__title-cell {
+.workspace-table__title-cell {
   display: flex;
   align-items: stretch;
   gap: 0;
   box-sizing: border-box;
   min-width: 0;
   width: 100%;
-  height: var(--wbs-row-height);
+  height: var(--table-row-height);
   padding-right: 0.65rem;
 }
 
-.project-wbs-table__task-row--parent .project-wbs-table__title-cell {
-  height: var(--wbs-parent-row-height);
+.workspace-table__task-row--parent .workspace-table__title-cell {
+  height: var(--table-parent-row-height);
 }
 
-.project-wbs-table__title-cell--child {
+.workspace-table__title-cell--child {
   padding-left: 1.35rem;
 }
 
-.project-wbs-table__title-field {
+.workspace-table__title-field {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -96,11 +96,11 @@
   min-height: 100%;
 }
 
-.project-wbs-table__title-field--after-toggle {
+.workspace-table__title-field--after-toggle {
   padding-left: 0.35rem;
 }
 
-.project-wbs-table__title-text {
+.workspace-table__title-text {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -121,7 +121,7 @@
   border: 1px solid transparent;
 }
 
-.project-wbs-table__toggle {
+.workspace-table__toggle {
   flex-shrink: 0;
   align-self: stretch;
   display: inline-flex;
@@ -137,7 +137,7 @@
   cursor: pointer;
 }
 
-.project-wbs-drag-ghost {
+.workspace-table-drag-ghost {
   position: fixed;
   top: 0;
   left: 0;

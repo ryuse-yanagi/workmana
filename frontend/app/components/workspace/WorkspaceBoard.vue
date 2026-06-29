@@ -13,7 +13,7 @@
             :to="`/org/${slug}/workspaces`"
             class="subheader-title subheader-back-link"
           >
-            ワークスペース一覧
+            Workspaces
           </NuxtLink>
           <WorkspaceViewSwitcher :org-slug="slug" :workspace-id="workspaceId" />
           <div class="subheader-filters">
@@ -2550,7 +2550,6 @@ onBeforeUnmount(() => {
   padding: 0 1rem 0;
   margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
   padding-top: 0;
-  font-family: system-ui, sans-serif;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -2733,7 +2732,7 @@ onBeforeUnmount(() => {
   color: mixin.$danger;
 }
 .subheader-menu-item--danger:hover {
-  background: #fef2f2;
+  background: mixin.$danger-surface;
 }
 .page-shell-fade > .board {
   flex: 1;
@@ -3011,9 +3010,9 @@ onBeforeUnmount(() => {
   }
 }
 .list-header-menu-item--danger {
-  color: #b91c1c;
+  color: mixin.$danger;
   &:hover:not(:disabled) {
-    background: #fee2e2;
+    background: mixin.$danger-surface;
   }
 }
 .list-drop-zone {
@@ -3511,7 +3510,7 @@ button:disabled {
 .list-column.sortable-fallback {
   --task-card-width: 246px;
   --list-column-width: calc(var(--task-card-width) + 1.5rem);
-  font-family: system-ui, sans-serif;
+  font-family: mixin.$font-family;
   width: var(--list-column-width) !important;
   max-width: var(--list-column-width) !important;
   min-width: var(--list-column-width) !important;
@@ -3524,7 +3523,7 @@ button:disabled {
 }
 .task-card.sortable-fallback {
   --task-card-width: 246px;
-  font-family: system-ui, sans-serif;
+  font-family: mixin.$font-family;
   width: var(--task-card-width);
   max-width: var(--task-card-width);
   min-width: var(--task-card-width);

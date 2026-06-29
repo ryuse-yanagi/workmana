@@ -269,8 +269,13 @@ defineExpose({
     opacity: 0.55;
     cursor: default;
   }
-  &--danger:hover:not(:disabled) {
+  &--danger {
     color: mixin.$danger;
+    &:hover:not(:disabled) {
+      color: mixin.$danger;
+      text-decoration: underline;
+      text-underline-offset: 0.12em;
+    }
   }
 }
 .archived-tasks-modal__action-sep {

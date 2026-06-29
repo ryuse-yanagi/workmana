@@ -1,37 +1,37 @@
 <template>
-  <div class="project-wbs-board">
-    <div v-if="loading" class="project-wbs-board__state">
+  <div class="workspace-table-board">
+    <div v-if="loading" class="workspace-table-board__state">
       読み込み中...
     </div>
-    <p v-else-if="error" class="project-wbs-board__error">{{ error }}</p>
-    <p v-else-if="!displayRows.length" class="project-wbs-board__state">
+    <p v-else-if="error" class="workspace-table-board__error">{{ error }}</p>
+    <p v-else-if="!displayRows.length" class="workspace-table-board__state">
       表示できるタスクがありません。
     </p>
     <div
       v-else
       ref="tableScrollEl"
-      class="project-wbs-board__viewport"
-      :class="{ 'project-wbs-board__viewport--dragging': dragging }"
+      class="workspace-table-board__viewport"
+      :class="{ 'workspace-table-board__viewport--dragging': dragging }"
     >
-      <div class="project-wbs-board__frame">
+      <div class="workspace-table-board__frame">
         <div
-          class="project-wbs-table-wrap"
+          class="workspace-table-wrap"
           :class="{
-            'project-wbs-table-wrap--resizing': isResizing,
-            'project-wbs-table-wrap--dragging': dragging,
+            'workspace-table-wrap--resizing': isResizing,
+            'workspace-table-wrap--dragging': dragging,
           }"
         >
         <table
-          class="project-wbs-table"
+          class="workspace-table"
           :style="{
-            '--wbs-table-width': `${tableWidth}px`,
-            '--wbs-drag-col-width': `${WBS_DRAG_COL_WIDTH}px`,
+            '--table-width': `${tableWidth}px`,
+            '--table-drag-col-width': `${TABLE_DRAG_COL_WIDTH}px`,
           }"
         >
         <colgroup>
-          <col class="project-wbs-table__drag-col">
+          <col class="workspace-table__drag-col">
           <col
-            v-for="column in WBS_TABLE_COLUMNS"
+            v-for="column in TABLE_COLUMNS"
             :key="column.key"
             :style="{ width: `${columnWidths[column.key]}px` }"
           >
@@ -39,19 +39,19 @@
         <thead>
           <tr>
             <th
-              class="project-wbs-table__drag-header"
+              class="workspace-table__drag-header"
               scope="col"
               aria-hidden="true"
             />
             <th
-              v-for="column in WBS_TABLE_COLUMNS"
+              v-for="column in TABLE_COLUMNS"
               :key="column.key"
               scope="col"
-              class="project-wbs-table__header-cell"
+              class="workspace-table__header-cell"
             >
-              <span class="project-wbs-table__header-label">{{ column.label }}</span>
+              <span class="workspace-table__header-label">{{ column.label }}</span>
               <span
-                class="project-wbs-table__resize-handle"
+                class="workspace-table__resize-handle"
                 aria-hidden="true"
                 @pointerdown="onResizePointerDown($event, column.key, 'right')"
                 @pointermove="onResizePointerMove"
@@ -65,19 +65,19 @@
           <tr
             v-for="(row, rowIndex) in displayRows"
             :key="`${row.kind}-${row.task.id}`"
-            class="project-wbs-table__task-row"
+            class="workspace-table__task-row"
             :class="{
-              'project-wbs-table__task-row--parent': row.kind === 'parent',
-              'project-wbs-table__task-row--child': row.kind === 'child',
-              'project-wbs-table__task-row--drag-preview': draggingTaskIds.has(row.task.id),
+              'workspace-table__task-row--parent': row.kind === 'parent',
+              'workspace-table__task-row--child': row.kind === 'child',
+              'workspace-table__task-row--drag-preview': draggingTaskIds.has(row.task.id),
             }"
-            :data-wbs-row-index="rowIndex"
-            :data-wbs-task-id="row.task.id"
+            :data-table-row-index="rowIndex"
+            :data-table-task-id="row.task.id"
           >
-            <td class="project-wbs-table__drag-cell">
+            <td class="workspace-table__drag-cell">
               <button
                 type="button"
-                class="project-wbs-table__drag-handle"
+                class="workspace-table__drag-handle"
                 aria-label="ドラッグしてタスクの並び順を変更"
                 @pointerdown="onDragHandlePointerDown(row.task.id, $event)"
                 @click.prevent="onDragHandleClick"
@@ -89,12 +89,12 @@
                 />
               </button>
             </td>
-            <td class="project-wbs-table__task-title">
+            <td class="workspace-table__task-title">
               <div
-                class="project-wbs-table__title-cell"
+                class="workspace-table__title-cell"
                 :class="{
-                  'project-wbs-table__title-cell--child': row.kind === 'child',
-                  'project-wbs-table__title-cell--editable': editingTitleTaskId !== row.task.id,
+                  'workspace-table__title-cell--child': row.kind === 'child',
+                  'workspace-table__title-cell--editable': editingTitleTaskId !== row.task.id,
                 }"
                 :tabindex="editingTitleTaskId !== row.task.id ? 0 : undefined"
                 @click="onTitleFieldActivate(row.task, $event)"
@@ -104,7 +104,7 @@
                 <button
                   v-if="row.kind === 'parent'"
                   type="button"
-                  class="project-wbs-table__toggle"
+                  class="workspace-table__toggle"
                   :aria-expanded="!collapsedParentIds.has(row.task.id)"
                   :aria-label="collapsedParentIds.has(row.task.id) ? '子タスクを展開' : '子タスクを折りたたむ'"
                   @click.stop="toggleParentCollapse(row.task.id)"
@@ -123,12 +123,12 @@
                   />
                 </button>
                 <div
-                  class="project-wbs-table__title-field"
-                  :class="{ 'project-wbs-table__title-field--after-toggle': row.kind === 'parent' }"
+                  class="workspace-table__title-field"
+                  :class="{ 'workspace-table__title-field--after-toggle': row.kind === 'parent' }"
                 >
                   <span
                     v-if="editingTitleTaskId !== row.task.id"
-                    class="project-wbs-table__title-text"
+                    class="workspace-table__title-text"
                     :title="row.task.title"
                   >{{ row.task.title }}</span>
                   <input
@@ -136,7 +136,7 @@
                     ref="titleInputEl"
                     v-model="titleDraft"
                     type="text"
-                    class="project-wbs-table__title-input"
+                    class="workspace-table__title-input"
                     :maxlength="TASK_TITLE_MAX_LENGTH"
                     :disabled="titleSaving"
                     @click.stop
@@ -148,19 +148,19 @@
             </td>
             <td>
               <button
-                v-if="!isWbsOrphanParentTask(row.task)"
+                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
-                class="project-wbs-table__cell-btn"
-                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'assignees') }"
+                class="workspace-table__cell-btn"
+                :class="{ 'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'assignees') }"
                 aria-label="担当者を編集"
                 @click="openMembers(row.task, $event)"
               >
-                <div class="project-wbs-table__members-cell">
+                <div class="workspace-table__members-cell">
                   <template v-if="row.task.assignees?.length">
                     <span
                       v-for="member in row.task.assignees"
                       :key="member.id"
-                      class="project-wbs-table__avatar-pill"
+                      class="workspace-table__avatar-pill"
                       :title="memberDisplayName(member)"
                     >
                       <MemberAvatar
@@ -172,24 +172,24 @@
                   </template>
                   <span
                     v-else
-                    class="project-wbs-table__avatar-btn project-wbs-table__avatar-btn--add"
+                    class="workspace-table__avatar-btn workspace-table__avatar-btn--add"
                     aria-hidden="true"
                   >
-                    <span class="project-wbs-table__avatar-btn-plus" aria-hidden="true">+</span>
+                    <span class="workspace-table__avatar-btn-plus" aria-hidden="true">+</span>
                   </span>
                 </div>
               </button>
-              <span v-else class="project-wbs-table__placeholder" />
+              <span v-else class="workspace-table__placeholder" />
             </td>
             <td>
               <button
-                v-if="row.task.labels?.length && !isWbsOrphanParentTask(row.task)"
+                v-if="row.task.labels?.length && !isTableOrphanParentTask(row.task)"
                 type="button"
-                class="project-wbs-table__cell-btn"
-                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'labels') }"
+                class="workspace-table__cell-btn"
+                :class="{ 'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'labels') }"
                 @click="openLabels(row.task, $event)"
               >
-                <div class="project-wbs-table__labels">
+                <div class="workspace-table__labels">
                   <LabelStrip
                     v-for="label in row.task.labels"
                     :key="label.id"
@@ -199,106 +199,106 @@
                 </div>
               </button>
               <button
-                v-else-if="!isWbsOrphanParentTask(row.task)"
+                v-else-if="!isTableOrphanParentTask(row.task)"
                 type="button"
-                class="project-wbs-table__cell-btn"
-                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'labels') }"
+                class="workspace-table__cell-btn"
+                :class="{ 'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'labels') }"
                 aria-label="ラベルを追加"
                 @click="openLabels(row.task, $event)"
               >
-                <div class="project-wbs-table__labels">
-                  <span class="project-wbs-table__label-add-chip" aria-hidden="true">
-                    <span class="project-wbs-table__label-add-plus" aria-hidden="true">+</span>
+                <div class="workspace-table__labels">
+                  <span class="workspace-table__label-add-chip" aria-hidden="true">
+                    <span class="workspace-table__label-add-plus" aria-hidden="true">+</span>
                   </span>
                 </div>
               </button>
-              <span v-else class="project-wbs-table__placeholder" />
+              <span v-else class="workspace-table__placeholder" />
             </td>
             <td>
               <button
-                v-if="!isWbsOrphanParentTask(row.task)"
+                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
-                class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
-                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'list') }"
+                class="workspace-table__cell-btn workspace-table__cell-btn--text"
+                :class="{ 'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'list') }"
                 @click="openList(row.task, $event)"
               >
                 <span
                   v-if="row.task.list_name"
-                  class="project-wbs-table__ellipsis"
+                  class="workspace-table__ellipsis"
                   :title="row.task.list_name"
                 >{{ row.task.list_name }}</span>
-                <span v-else class="project-wbs-table__placeholder" />
+                <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder" />
+              <span v-else class="workspace-table__placeholder" />
             </td>
             <td>
               <button
-                v-if="!isWbsOrphanParentTask(row.task)"
+                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
-                class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
-                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'startDate') }"
+                class="workspace-table__cell-btn workspace-table__cell-btn--text"
+                :class="{ 'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'startDate') }"
                 @click="openStartDate(row.task, $event)"
               >
-                <span v-if="formatWbsDate(row.task.start_date)">{{ formatWbsDate(row.task.start_date) }}</span>
-                <span v-else class="project-wbs-table__placeholder" />
+                <span v-if="formatTableDate(row.task.start_date)">{{ formatTableDate(row.task.start_date) }}</span>
+                <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder" />
+              <span v-else class="workspace-table__placeholder" />
             </td>
             <td>
               <button
-                v-if="!isWbsOrphanParentTask(row.task)"
+                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
-                class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
-                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'dueDate') }"
+                class="workspace-table__cell-btn workspace-table__cell-btn--text"
+                :class="{ 'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'dueDate') }"
                 @click="openDueDate(row.task, $event)"
               >
-                <span v-if="formatWbsDate(row.task.due_date)">{{ formatWbsDate(row.task.due_date) }}</span>
-                <span v-else class="project-wbs-table__placeholder" />
+                <span v-if="formatTableDate(row.task.due_date)">{{ formatTableDate(row.task.due_date) }}</span>
+                <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder" />
+              <span v-else class="workspace-table__placeholder" />
             </td>
             <td>
               <button
-                v-if="!isWbsOrphanParentTask(row.task)"
+                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
-                class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
-                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'effort') }"
+                class="workspace-table__cell-btn workspace-table__cell-btn--text"
+                :class="{ 'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'effort') }"
                 @click="openEffort(row.task, $event)"
               >
-                <span v-if="formatWbsEffort(row.task, orgEffortUnit)">{{ formatWbsEffort(row.task, orgEffortUnit) }}</span>
-                <span v-else class="project-wbs-table__placeholder" />
+                <span v-if="formatTableEffort(row.task, orgEffortUnit)">{{ formatTableEffort(row.task, orgEffortUnit) }}</span>
+                <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder" />
+              <span v-else class="workspace-table__placeholder" />
             </td>
             <td>
               <button
-                v-if="!isWbsOrphanParentTask(row.task)"
+                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
-                class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text project-wbs-table__cell-btn--notes"
-                :class="{ 'project-wbs-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'notes') }"
+                class="workspace-table__cell-btn workspace-table__cell-btn--text workspace-table__cell-btn--notes"
+                :class="{ 'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'notes') }"
                 @click="openDescription(row.task, $event)"
               >
                 <span
-                  v-if="formatWbsDescription(row.task.description)"
-                  class="project-wbs-table__notes project-wbs-table__ellipsis"
-                  :title="formatWbsDescription(row.task.description)"
-                >{{ formatWbsDescription(row.task.description) }}</span>
-                <span v-else class="project-wbs-table__placeholder" />
+                  v-if="formatTableDescription(row.task.description)"
+                  class="workspace-table__notes workspace-table__ellipsis"
+                  :title="formatTableDescription(row.task.description)"
+                >{{ formatTableDescription(row.task.description) }}</span>
+                <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="project-wbs-table__placeholder" />
+              <span v-else class="workspace-table__placeholder" />
             </td>
           </tr>
         </tbody>
         </table>
         <div
-          class="project-wbs-table__resize-overlay"
+          class="workspace-table__resize-overlay"
           aria-hidden="true"
         >
           <span
             v-for="(boundary, boundaryIndex) in columnResizeBoundaries"
             :key="`guide-${boundary.columnKey}`"
-            class="project-wbs-table__resize-guide"
-            :class="{ 'project-wbs-table__resize-guide--no-line': boundaryIndex === columnResizeBoundaries.length - 1 }"
+            class="workspace-table__resize-guide"
+            :class="{ 'workspace-table__resize-guide--no-line': boundaryIndex === columnResizeBoundaries.length - 1 }"
             :style="{ left: `${boundary.offset}px` }"
           />
         </div>
@@ -320,22 +320,22 @@
 <script setup lang="ts">
 import { ChevronDown, ChevronRight, Equal } from 'lucide-vue-next'
 import {
-  buildWbsDisplayRows,
-  buildWbsReorderPayload,
-  formatWbsDate,
-  formatWbsDescription,
-  formatWbsEffort,
-  hasWbsOrphanChildTasks,
-  isWbsOrphanParentTask,
-  WBS_ORPHAN_PARENT_DEFAULT_LABEL,
-  type WbsTask,
-} from '../../composables/useWbsTaskGroups'
-import { useWbsTaskDragReorder } from '../../composables/useWbsTaskDragReorder'
+  buildTableDisplayRows,
+  buildTableReorderPayload,
+  formatTableDate,
+  formatTableDescription,
+  formatTableEffort,
+  hasTableOrphanChildTasks,
+  isTableOrphanParentTask,
+  ORPHAN_PARENT_DEFAULT_LABEL,
+  type TableTask,
+} from '../../composables/useTableTaskGroups'
+import { useTableTaskDragReorder } from '../../composables/useTableTaskDragReorder'
 import {
-  WBS_TABLE_COLUMNS,
-  WBS_DRAG_COL_WIDTH,
-  useWbsTableColumnResize,
-} from '../../composables/useWbsTableColumnResize'
+  TABLE_COLUMNS,
+  TABLE_DRAG_COL_WIDTH,
+  useTableColumnResize,
+} from '../../composables/useTableColumnResize'
 import {
   type WorkspaceListOption,
   type PopoverType,
@@ -347,7 +347,7 @@ import { useApi } from '../../composables/useApi'
 import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { useWorkspaceBoardPageData } from '../../composables/useWorkspaceBoardPageData'
-import { useWorkspaceWbsPageData, type WorkspaceWbsPageSnapshot } from '../../composables/useWorkspaceWbsPageData'
+import { useWorkspaceTablePageData, type WorkspaceTablePageSnapshot } from '../../composables/useWorkspaceTablePageData'
 import { resolveLabelColors, resolveListColors } from '../../utils/colorPresetResolution'
 import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import TaskEditPopoverLayer from '../task/TaskEditPopoverLayer.vue'
@@ -357,26 +357,26 @@ const props = defineProps<{
 }>()
 const { api } = useApi()
 const { patchCachedTasks } = useWorkspaceBoardPageData()
-const { getCached: getWbsCached, setCached: setWbsCached } = useWorkspaceWbsPageData()
+const { getCached: getTableCached, setCached: setTableCached } = useWorkspaceTablePageData()
 const { orgEffortUnit, ensureOrgEffortUnit } = useOrgEffortUnit(() => props.orgSlug)
 const loading = ref(false)
 const error = ref<string | null>(null)
-const tasks = ref<WbsTask[]>([])
-const orphanParentLabel = ref(WBS_ORPHAN_PARENT_DEFAULT_LABEL)
+const tasks = ref<TableTask[]>([])
+const orphanParentLabel = ref(ORPHAN_PARENT_DEFAULT_LABEL)
 const orphanParentSortOrder = ref<number | null>(null)
 const orgLabels = ref<TaskFormLabel[]>([])
 const workspaceMembers = ref<TaskFormMember[]>([])
 const workspaceLists = ref<WorkspaceListOption[]>([])
 const collapsedParentIds = ref<Set<number>>(new Set())
 const editLayerRef = ref<InstanceType<typeof TaskEditPopoverLayer> | null>(null)
-type WbsPopoverCellField = 'assignees' | 'labels' | 'list' | 'startDate' | 'dueDate' | 'effort' | 'notes'
+type TablePopoverCellField = 'assignees' | 'labels' | 'list' | 'startDate' | 'dueDate' | 'effort' | 'notes'
 const popoverActiveTaskId = ref<number | null>(null)
 const popoverActiveType = ref<PopoverType | null>(null)
 function onPopoverActiveChange (payload: { taskId: number | null; popover: PopoverType | null }) {
   popoverActiveTaskId.value = payload.taskId
   popoverActiveType.value = payload.popover
 }
-function popoverTypeToCellField (popover: PopoverType): WbsPopoverCellField | null {
+function popoverTypeToCellField (popover: PopoverType): TablePopoverCellField | null {
   switch (popover) {
     case 'start-date': return 'startDate'
     case 'due-date': return 'dueDate'
@@ -389,7 +389,7 @@ function popoverTypeToCellField (popover: PopoverType): WbsPopoverCellField | nu
     default: return null
   }
 }
-function isPopoverCellActive (taskId: number, field: WbsPopoverCellField): boolean {
+function isPopoverCellActive (taskId: number, field: TablePopoverCellField): boolean {
   if (popoverActiveTaskId.value !== taskId || !popoverActiveType.value) {
     return false
   }
@@ -398,12 +398,12 @@ function isPopoverCellActive (taskId: number, field: WbsPopoverCellField): boole
 const editingTitleTaskId = ref<number | null>(null)
 const titleDraft = ref('')
 const titleSaving = ref(false)
-const wbsBusy = computed(() => loading.value || titleSaving.value)
-syncAppLoadingCursor(wbsBusy)
+const tableBusy = computed(() => loading.value || titleSaving.value)
+syncAppLoadingCursor(tableBusy)
 const titleInputEl = ref<HTMLInputElement | HTMLInputElement[] | null>(null)
 const tableScrollEl = ref<HTMLElement | null>(null)
 const tableBodyEl = ref<HTMLTableSectionElement | null>(null)
-const columnStorageKey = computed(() => `wbs-column-widths:${props.orgSlug}:${props.workspaceId}`)
+const columnStorageKey = computed(() => `table-column-widths:${props.orgSlug}:${props.workspaceId}`)
 const {
   columnWidths,
   tableWidth,
@@ -414,26 +414,26 @@ const {
   onResizePointerMove,
   onResizePointerUp,
   onResizePointerCancel,
-} = useWbsTableColumnResize(columnStorageKey)
+} = useTableColumnResize(columnStorageKey)
 const {
   dragging,
   activeRows,
   draggingTaskIds,
   onDragHandlePointerDown,
   shouldSuppressClick,
-} = useWbsTaskDragReorder({
+} = useTableTaskDragReorder({
   tasks,
   tableBodyEl,
   collapsedParentIds,
   orphanParentLabel,
   orphanParentSortOrder,
-  onCommit: saveWbsOrder,
+  onCommit: saveTableOrder,
 })
 const displayRows = computed(() => {
   if (dragging.value) {
     return activeRows.value
   }
-  return buildWbsDisplayRows(
+  return buildTableDisplayRows(
     tasks.value,
     collapsedParentIds.value,
     orphanParentLabel.value,
@@ -445,36 +445,36 @@ function onDragHandleClick () {
     return
   }
 }
-async function saveWbsOrder (
-  updatedTasks: WbsTask[],
+async function saveTableOrder (
+  updatedTasks: TableTask[],
   nextOrphanParentSortOrder: number | null,
 ) {
   try {
     const body: {
-      tasks: ReturnType<typeof buildWbsReorderPayload>
+      tasks: ReturnType<typeof buildTableReorderPayload>
       orphan_parent_sort_order?: number | null
     } = {
-      tasks: buildWbsReorderPayload(updatedTasks),
+      tasks: buildTableReorderPayload(updatedTasks),
     }
-    if (!hasWbsOrphanChildTasks(updatedTasks)) {
+    if (!hasTableOrphanChildTasks(updatedTasks)) {
       body.orphan_parent_sort_order = nextOrphanParentSortOrder
     }
     await api<{ data: { ok: boolean } }>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/wbs/reorder`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/table/reorder`,
       {
         method: 'PATCH',
         body,
       },
     )
-    if (!hasWbsOrphanChildTasks(updatedTasks)) {
+    if (!hasTableOrphanChildTasks(updatedTasks)) {
       orphanParentSortOrder.value = nextOrphanParentSortOrder
     }
-    persistWbsCache()
+    persistTableCache()
     patchCachedTasks(
       props.orgSlug,
       props.workspaceId,
       updatedTasks
-        .filter(task => !isWbsOrphanParentTask(task))
+        .filter(task => !isTableOrphanParentTask(task))
         .map(task => ({
           id: task.id,
           sort_order: task.sort_order,
@@ -484,7 +484,7 @@ async function saveWbsOrder (
     )
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'タスクの並び順の保存に失敗しました'
-    await loadWbsTasks()
+    await loadTableTasks()
   }
 }
 function toggleParentCollapse (parentId: number) {
@@ -530,9 +530,9 @@ function syncTaskUpdate (updated: TaskPopoverEditable) {
     assignees: updated.assignees,
     labels: updated.labels,
   }])
-  persistWbsCache()
+  persistTableCache()
 }
-function applyWbsSnapshot (snapshot: WorkspaceWbsPageSnapshot) {
+function applyTableSnapshot (snapshot: WorkspaceTablePageSnapshot) {
   tasks.value = snapshot.tasks
   orphanParentLabel.value = snapshot.orphanParentLabel
   orphanParentSortOrder.value = snapshot.orphanParentSortOrder
@@ -540,7 +540,7 @@ function applyWbsSnapshot (snapshot: WorkspaceWbsPageSnapshot) {
   workspaceMembers.value = snapshot.workspaceMembers
   workspaceLists.value = snapshot.workspaceLists
 }
-function buildWbsSnapshot (): WorkspaceWbsPageSnapshot {
+function buildTableSnapshot (): WorkspaceTablePageSnapshot {
   return {
     tasks: tasks.value,
     orphanParentLabel: orphanParentLabel.value,
@@ -550,46 +550,46 @@ function buildWbsSnapshot (): WorkspaceWbsPageSnapshot {
     workspaceLists: workspaceLists.value,
   }
 }
-function persistWbsCache () {
+function persistTableCache () {
   if (tasks.value.length === 0 && loading.value) {
     return
   }
-  setWbsCached(props.orgSlug, props.workspaceId, buildWbsSnapshot())
+  setTableCached(props.orgSlug, props.workspaceId, buildTableSnapshot())
 }
 function bindAndOpen (
-  task: WbsTask,
+  task: TableTask,
   opener: (event?: Event) => void,
   event: Event,
 ) {
   editLayerRef.value?.bindTask(task)
   opener(event)
 }
-function openStartDate (task: WbsTask, event: Event) {
+function openStartDate (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openDatePicker('start', e), event)
 }
-function openDueDate (task: WbsTask, event: Event) {
+function openDueDate (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openDatePicker('due', e), event)
 }
-function openEffort (task: WbsTask, event: Event) {
+function openEffort (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openEffortPicker(e), event)
 }
-function openMembers (task: WbsTask, event: Event) {
+function openMembers (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openMemberPicker(e), event)
 }
-function openMemberDetail (task: WbsTask, member: TaskFormMember, event: Event) {
+function openMemberDetail (task: TableTask, member: TaskFormMember, event: Event) {
   editLayerRef.value?.bindTask(task)
   editLayerRef.value?.openMemberDetail(member, event)
 }
-function openLabels (task: WbsTask, event: Event) {
+function openLabels (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openLabelPicker(e), event)
 }
-function openDescription (task: WbsTask, event: Event) {
+function openDescription (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openDescriptionPicker(e), event)
 }
-function openList (task: WbsTask, event: Event) {
+function openList (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openListPicker(e), event)
 }
-async function startTitleEdit (task: WbsTask) {
+async function startTitleEdit (task: TableTask) {
   editingTitleTaskId.value = task.id
   titleDraft.value = task.title
   await nextTick()
@@ -599,28 +599,28 @@ async function startTitleEdit (task: WbsTask) {
   el?.focus()
   el?.select()
 }
-function onTitleFieldActivate (task: WbsTask, event?: Event) {
+function onTitleFieldActivate (task: TableTask, event?: Event) {
   if (editingTitleTaskId.value === task.id) {
     return
   }
-  if (event?.target instanceof Element && event.target.closest('.project-wbs-table__toggle')) {
+  if (event?.target instanceof Element && event.target.closest('.workspace-table__toggle')) {
     return
   }
   void startTitleEdit(task)
 }
-function onTitleCellMouseDown (task: WbsTask, event: MouseEvent) {
+function onTitleCellMouseDown (task: TableTask, event: MouseEvent) {
   if (editingTitleTaskId.value !== task.id) return
   const target = event.target
   if (!(target instanceof Element)) return
-  if (target.closest('.project-wbs-table__title-input')) return
-  if (target.closest('.project-wbs-table__toggle')) return
+  if (target.closest('.workspace-table__title-input')) return
+  if (target.closest('.workspace-table__toggle')) return
   event.preventDefault()
 }
 function cancelTitleEdit () {
   editingTitleTaskId.value = null
   titleDraft.value = ''
 }
-async function confirmTitleEdit (task: WbsTask) {
+async function confirmTitleEdit (task: TableTask) {
   if (titleSaving.value || editingTitleTaskId.value !== task.id) return
   const title = titleDraft.value.trim()
   if (!title || title === task.title) {
@@ -629,13 +629,13 @@ async function confirmTitleEdit (task: WbsTask) {
   }
   titleSaving.value = true
   try {
-    if (isWbsOrphanParentTask(task)) {
+    if (isTableOrphanParentTask(task)) {
       const res = await api<{ data: { orphan_parent_label: string } }>(
-        `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/wbs/orphan-parent-label`,
+        `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/table/orphan-parent-label`,
         { method: 'PATCH', body: { label: title } },
       )
       orphanParentLabel.value = res.data.orphan_parent_label
-      persistWbsCache()
+      persistTableCache()
     } else {
       await api<{ title: string }>(
         `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.id}`,
@@ -650,7 +650,7 @@ async function confirmTitleEdit (task: WbsTask) {
     titleSaving.value = false
   }
 }
-async function loadWbsTasks (opts?: { silent?: boolean }) {
+async function loadTableTasks (opts?: { silent?: boolean }) {
   if (!opts?.silent) {
     loading.value = true
   }
@@ -658,8 +658,8 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
   try {
     const [, tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
       ensureOrgEffortUnit(),
-      api<{ data: WbsTask[]; meta?: { orphan_parent_label?: string; orphan_parent_sort_order?: number | null } }>(
-        `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/wbs`,
+      api<{ data: TableTask[]; meta?: { orphan_parent_label?: string; orphan_parent_sort_order?: number | null } }>(
+        `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/table`,
       ),
       api<{ data: TaskFormLabel[] }>(
         `/orgs/${props.orgSlug}/task-labels`,
@@ -676,19 +676,19 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
       labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
     }))
     orphanParentLabel.value = tasksRes.meta?.orphan_parent_label?.trim()
-      || WBS_ORPHAN_PARENT_DEFAULT_LABEL
+      || ORPHAN_PARENT_DEFAULT_LABEL
     orphanParentSortOrder.value = tasksRes.meta?.orphan_parent_sort_order ?? null
     orgLabels.value = resolveLabelColors(labelsRes.data ?? [])
     workspaceMembers.value = membersRes.data ?? []
     workspaceLists.value = resolveListColors([...(listsRes.data ?? [])]).sort(
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
     )
-    persistWbsCache()
+    persistTableCache()
   } catch (e: unknown) {
     if (!opts?.silent) {
-      error.value = e instanceof Error ? e.message : 'WBSの読み込みに失敗しました'
+      error.value = e instanceof Error ? e.message : 'Tableの読み込みに失敗しました'
       tasks.value = []
-      orphanParentLabel.value = WBS_ORPHAN_PARENT_DEFAULT_LABEL
+      orphanParentLabel.value = ORPHAN_PARENT_DEFAULT_LABEL
       orphanParentSortOrder.value = null
       orgLabels.value = []
       workspaceMembers.value = []
@@ -703,22 +703,22 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
 watch(
   () => [props.orgSlug, props.workspaceId] as const,
   () => {
-    const cached = getWbsCached(props.orgSlug, props.workspaceId)
+    const cached = getTableCached(props.orgSlug, props.workspaceId)
     if (cached) {
-      applyWbsSnapshot(cached)
-      void loadWbsTasks({ silent: true })
+      applyTableSnapshot(cached)
+      void loadTableTasks({ silent: true })
       return
     }
-    void loadWbsTasks()
+    void loadTableTasks()
   },
   { immediate: true },
 )
 function refreshOnViewSwitch (): Promise<void> {
-  const cached = getWbsCached(props.orgSlug, props.workspaceId)
+  const cached = getTableCached(props.orgSlug, props.workspaceId)
   if (cached) {
-    applyWbsSnapshot(cached)
+    applyTableSnapshot(cached)
   }
-  return loadWbsTasks({ silent: tasks.value.length > 0 })
+  return loadTableTasks({ silent: tasks.value.length > 0 })
 }
 defineExpose({
   refreshOnViewSwitch,
@@ -734,7 +734,7 @@ watch(loading, async (isLoading) => {
 })
 </script>
 <style lang="scss" scoped>
-.project-wbs-board {
+.workspace-table-board {
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -742,18 +742,18 @@ watch(loading, async (isLoading) => {
   flex-direction: column;
   align-items: flex-start;
 }
-.project-wbs-board__viewport {
+.workspace-table-board__viewport {
   flex: 1;
   min-height: 0;
   min-width: 0;
   width: 100%;
   overflow: auto;
 }
-.project-wbs-board__viewport--dragging {
+.workspace-table-board__viewport--dragging {
   cursor: default;
   user-select: none;
 }
-.project-wbs-board__frame {
+.workspace-table-board__frame {
   display: block;
   width: fit-content;
   border: 1px solid mixin.$border-light;
@@ -761,72 +761,72 @@ watch(loading, async (isLoading) => {
   background: #fff;
   overflow: hidden;
 }
-.project-wbs-table-wrap {
+.workspace-table-wrap {
   position: relative;
   width: fit-content;
 }
-.project-wbs-table-wrap--dragging {
+.workspace-table-wrap--dragging {
   cursor: default;
 }
-.project-wbs-table-wrap--dragging .project-wbs-table__drag-handle {
+.workspace-table-wrap--dragging .workspace-table__drag-handle {
   cursor: default;
 }
-.project-wbs-table-wrap--dragging .project-wbs-table__task-row--drag-preview {
+.workspace-table-wrap--dragging .workspace-table__task-row--drag-preview {
   pointer-events: none;
 }
-.project-wbs-table-wrap--dragging .project-wbs-table__task-row--drag-preview .project-wbs-table__drag-handle {
+.workspace-table-wrap--dragging .workspace-table__task-row--drag-preview .workspace-table__drag-handle {
   visibility: hidden;
 }
-.project-wbs-table-wrap--resizing {
+.workspace-table-wrap--resizing {
   cursor: default;
   user-select: none;
 }
-.project-wbs-table__resize-overlay {
+.workspace-table__resize-overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 3;
 }
-.project-wbs-board__state,
-.project-wbs-board__error {
+.workspace-table-board__state,
+.workspace-table-board__error {
   margin: 0;
   padding: 1rem 0.25rem;
   font-size: 0.875rem;
 }
-.project-wbs-board__error {
+.workspace-table-board__error {
   color: mixin.$danger;
   font-weight: 600;
 }
-.project-wbs-table {
-  --wbs-row-height: 36px;
-  --wbs-parent-row-height: 40px;
-  --wbs-chip-height: 24px;
-  --wbs-label-chip-width: 32px;
-  --wbs-drag-col-width: 36px;
-  --wbs-table-width: auto;
-  width: var(--wbs-table-width);
+.workspace-table {
+  --table-row-height: 36px;
+  --table-parent-row-height: 40px;
+  --table-chip-height: 24px;
+  --table-label-chip-width: 32px;
+  --table-drag-col-width: 36px;
+  --table-width: auto;
+  width: var(--table-width);
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.8125rem;
 }
-.project-wbs-table__drag-col {
-  width: var(--wbs-drag-col-width);
+.workspace-table__drag-col {
+  width: var(--table-drag-col-width);
 }
-.project-wbs-table__drag-header {
-  width: var(--wbs-drag-col-width);
-  min-width: var(--wbs-drag-col-width);
-  max-width: var(--wbs-drag-col-width);
+.workspace-table__drag-header {
+  width: var(--table-drag-col-width);
+  min-width: var(--table-drag-col-width);
+  max-width: var(--table-drag-col-width);
   padding: 0 !important;
 }
-.project-wbs-table__drag-cell {
-  width: var(--wbs-drag-col-width);
-  min-width: var(--wbs-drag-col-width);
-  max-width: var(--wbs-drag-col-width);
+.workspace-table__drag-cell {
+  width: var(--table-drag-col-width);
+  min-width: var(--table-drag-col-width);
+  max-width: var(--table-drag-col-width);
   padding: 0 !important;
   text-align: center;
   vertical-align: middle;
 }
-.project-wbs-table__drag-handle {
+.workspace-table__drag-handle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -841,18 +841,18 @@ watch(loading, async (isLoading) => {
   cursor: pointer;
   touch-action: none;
 }
-.project-wbs-table__drag-handle:hover {
+.workspace-table__drag-handle:hover {
   background: rgba(15, 23, 42, 0.06);
   border-color: mixin.$border;
   color: mixin.$text;
 }
-.project-wbs-table__drag-handle:active {
+.workspace-table__drag-handle:active {
   cursor: default;
 }
-.project-wbs-table-wrap--resizing .project-wbs-table__resize-handle {
+.workspace-table-wrap--resizing .workspace-table__resize-handle {
   cursor: default;
 }
-.project-wbs-table thead th {
+.workspace-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -868,21 +868,21 @@ watch(loading, async (isLoading) => {
   overflow: hidden;
   isolation: isolate;
 }
-.project-wbs-table__header-label {
+.workspace-table__header-label {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   padding-right: 0.35rem;
 }
-.project-wbs-table__resize-guide {
+.workspace-table__resize-guide {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 0;
   pointer-events: none;
 }
-.project-wbs-table__resize-guide::after {
+.workspace-table__resize-guide::after {
   content: '';
   position: absolute;
   top: 0;
@@ -892,10 +892,10 @@ watch(loading, async (isLoading) => {
   margin-left: -0.5px;
   background: rgba(148, 163, 184, 0.45);
 }
-.project-wbs-table__resize-guide--no-line::after {
+.workspace-table__resize-guide--no-line::after {
   display: none;
 }
-.project-wbs-table__resize-handle {
+.workspace-table__resize-handle {
   position: absolute;
   top: 0;
   right: 0;
@@ -906,21 +906,21 @@ watch(loading, async (isLoading) => {
   cursor: col-resize;
   z-index: 1;
 }
-.project-wbs-table thead th:first-child {
+.workspace-table thead th:first-child {
   border-top-left-radius: 12px;
 }
-.project-wbs-table thead th:last-child {
+.workspace-table thead th:last-child {
   border-top-right-radius: 12px;
 }
-.project-wbs-table__task-row:last-child td:first-child {
+.workspace-table__task-row:last-child td:first-child {
   border-bottom-left-radius: 12px;
 }
-.project-wbs-table__task-row:last-child td:last-child {
+.workspace-table__task-row:last-child td:last-child {
   border-bottom-right-radius: 12px;
 }
-.project-wbs-table__task-row td {
-  height: var(--wbs-row-height);
-  max-height: var(--wbs-row-height);
+.workspace-table__task-row td {
+  height: var(--table-row-height);
+  max-height: var(--table-row-height);
   min-width: 0;
   padding: 0;
   border-bottom: 1px solid mixin.$border-light;
@@ -929,64 +929,64 @@ watch(loading, async (isLoading) => {
   line-height: 1.2;
   overflow: hidden;
 }
-.project-wbs-table__task-row td:has(.project-wbs-table__cell-btn),
-.project-wbs-table__task-row td:has(.project-wbs-table__title-cell--editable) {
+.workspace-table__task-row td:has(.workspace-table__cell-btn),
+.workspace-table__task-row td:has(.workspace-table__title-cell--editable) {
   cursor: pointer;
 }
-.project-wbs-table__task-row td > .project-wbs-table__placeholder {
+.workspace-table__task-row td > .workspace-table__placeholder {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  min-height: var(--wbs-row-height);
+  min-height: var(--table-row-height);
   padding: 0 0.65rem;
 }
-.project-wbs-table__task-row:last-child td {
+.workspace-table__task-row:last-child td {
   border-bottom: none;
 }
-.project-wbs-table__task-row--parent td {
-  height: var(--wbs-parent-row-height);
-  max-height: var(--wbs-parent-row-height);
-  background: mixin.$wbs-parent-bg;
+.workspace-table__task-row--parent td {
+  height: var(--table-parent-row-height);
+  max-height: var(--table-parent-row-height);
+  background: mixin.$table-parent-bg;
 }
-.project-wbs-table__task-row--parent td > .project-wbs-table__placeholder {
-  min-height: var(--wbs-parent-row-height);
+.workspace-table__task-row--parent td > .workspace-table__placeholder {
+  min-height: var(--table-parent-row-height);
 }
-.project-wbs-table__task-row--parent .project-wbs-table__cell-btn {
-  min-height: var(--wbs-parent-row-height);
+.workspace-table__task-row--parent .workspace-table__cell-btn {
+  min-height: var(--table-parent-row-height);
 }
-.project-wbs-table__task-title {
+.workspace-table__task-title {
   font-weight: 700;
   padding-left: 0 !important;
 }
-.project-wbs-table__title-cell {
+.workspace-table__title-cell {
   display: flex;
   align-items: stretch;
   gap: 0;
   box-sizing: border-box;
   min-width: 0;
   width: 100%;
-  height: var(--wbs-row-height);
+  height: var(--table-row-height);
   padding-right: 0.65rem;
 }
-.project-wbs-table__title-cell--editable {
+.workspace-table__title-cell--editable {
   cursor: pointer;
   border-radius: 4px;
   transition: background-color 0.12s ease;
 }
-.project-wbs-table__title-cell--editable:hover {
+.workspace-table__title-cell--editable:hover {
   background: mixin.$main-aqua-surface-light;
 }
-.project-wbs-table__title-cell--editable:focus-visible {
+.workspace-table__title-cell--editable:focus-visible {
   @include mixin.input-focus-ring;
   border-radius: 4px;
 }
-.project-wbs-table__task-row--parent .project-wbs-table__title-cell {
-  height: var(--wbs-parent-row-height);
+.workspace-table__task-row--parent .workspace-table__title-cell {
+  height: var(--table-parent-row-height);
 }
-.project-wbs-table__title-cell--child {
+.workspace-table__title-cell--child {
   padding-left: 1.35rem;
 }
-.project-wbs-table__title-field {
+.workspace-table__title-field {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -995,11 +995,11 @@ watch(loading, async (isLoading) => {
   box-sizing: border-box;
   min-height: 100%;
 }
-.project-wbs-table__title-field--after-toggle {
+.workspace-table__title-field--after-toggle {
   padding-left: 0.35rem;
 }
-.project-wbs-table__title-text,
-.project-wbs-table__title-input {
+.workspace-table__title-text,
+.workspace-table__title-input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -1011,7 +1011,7 @@ watch(loading, async (isLoading) => {
   line-height: 1;
   color: inherit;
 }
-.project-wbs-table__title-text {
+.workspace-table__title-text {
   display: flex;
   align-items: center;
   align-self: stretch;
@@ -1021,7 +1021,7 @@ watch(loading, async (isLoading) => {
   text-overflow: ellipsis;
   border: 1px solid transparent;
 }
-.project-wbs-table__title-input {
+.workspace-table__title-input {
   height: 1.5rem;
   min-height: 1.5rem;
   margin: auto 0;
@@ -1029,10 +1029,10 @@ watch(loading, async (isLoading) => {
   background: #fff;
   line-height: calc(1.5rem - 2px);
 }
-.project-wbs-table__title-input:focus {
+.workspace-table__title-input:focus {
   @include mixin.input-focus-ring;
 }
-.project-wbs-table__toggle {
+.workspace-table__toggle {
   flex-shrink: 0;
   align-self: stretch;
   display: inline-flex;
@@ -1047,20 +1047,20 @@ watch(loading, async (isLoading) => {
   color: mixin.$text-sub;
   cursor: pointer;
 }
-.project-wbs-table__ellipsis {
+.workspace-table__ellipsis {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.project-wbs-table__cell-btn {
+.workspace-table__cell-btn {
   display: flex;
   align-items: center;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  min-height: var(--wbs-row-height);
+  min-height: var(--table-row-height);
   margin: 0;
   padding: 0 0.9rem;
   border: none;
@@ -1073,41 +1073,41 @@ watch(loading, async (isLoading) => {
   overflow: hidden;
   transition: background-color 0.12s ease;
 }
-.project-wbs-table__cell-btn:hover {
+.workspace-table__cell-btn:hover {
   background: mixin.$main-aqua-surface-light;
 }
-.project-wbs-table__cell-btn--popover-open {
+.workspace-table__cell-btn--popover-open {
   box-shadow: inset 0 0 0 1.4px mixin.$main;
 }
-.project-wbs-table__cell-btn:focus-visible {
+.workspace-table__cell-btn:focus-visible {
   @include mixin.input-focus-ring;
 }
-.project-wbs-table__cell-btn--text {
+.workspace-table__cell-btn--text {
   height: 100%;
-  min-height: var(--wbs-row-height);
+  min-height: var(--table-row-height);
 }
-.project-wbs-table__task-row--parent .project-wbs-table__cell-btn--text {
-  min-height: var(--wbs-parent-row-height);
+.workspace-table__task-row--parent .workspace-table__cell-btn--text {
+  min-height: var(--table-parent-row-height);
 }
-.project-wbs-table__cell-btn--text > span:not(.project-wbs-table__placeholder) {
+.workspace-table__cell-btn--text > span:not(.workspace-table__placeholder) {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.project-wbs-table__cell-btn--notes {
+.workspace-table__cell-btn--notes {
   max-width: 100%;
 }
-.project-wbs-table__cell-btn--text .project-wbs-table__labels {
+.workspace-table__cell-btn--text .workspace-table__labels {
   flex: 1;
   min-width: 0;
 }
-.project-wbs-table__placeholder {
+.workspace-table__placeholder {
   color: mixin.$text-sub;
   font-weight: 500;
 }
-.project-wbs-table__members-cell {
+.workspace-table__members-cell {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -1117,7 +1117,7 @@ watch(loading, async (isLoading) => {
   overflow: hidden;
   padding-left: 2px;
 }
-.project-wbs-table__avatar-btn {
+.workspace-table__avatar-btn {
   display: inline-flex;
   padding: 0;
   border: none;
@@ -1125,15 +1125,15 @@ watch(loading, async (isLoading) => {
   background: transparent;
   cursor: pointer;
 }
-.project-wbs-table__avatar-btn--add {
+.workspace-table__avatar-btn--add {
   box-sizing: border-box;
-  width: var(--wbs-chip-height);
-  height: var(--wbs-chip-height);
+  width: var(--table-chip-height);
+  height: var(--table-chip-height);
   align-items: center;
   justify-content: center;
   border: 1px solid mixin.$border;
 }
-.project-wbs-table__avatar-btn-plus {
+.workspace-table__avatar-btn-plus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1143,18 +1143,18 @@ watch(loading, async (isLoading) => {
   transform: translateY(-0.08em);
   color: #64748b;
 }
-.project-wbs-table__avatar-pill {
+.workspace-table__avatar-pill {
   display: inline-flex;
   border-radius: 999px;
 }
-.project-wbs-table__cell-btn:focus-visible .project-wbs-table__avatar-pill :deep(.member-avatar) {
+.workspace-table__cell-btn:focus-visible .workspace-table__avatar-pill :deep(.member-avatar) {
   border-color: rgba(37, 99, 235, 0.35);
 }
-.project-wbs-table__avatar-pill :deep(.member-avatar) {
+.workspace-table__avatar-pill :deep(.member-avatar) {
   box-sizing: border-box;
   border: 2px solid transparent;
 }
-.project-wbs-table__labels {
+.workspace-table__labels {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -1162,33 +1162,33 @@ watch(loading, async (isLoading) => {
   min-width: 0;
   overflow: hidden;
 }
-.project-wbs-table__labels :deep(.label-strip--sm) {
+.workspace-table__labels :deep(.label-strip--sm) {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  height: var(--wbs-chip-height);
-  width: var(--wbs-label-chip-width);
-  min-width: var(--wbs-label-chip-width);
+  height: var(--table-chip-height);
+  width: var(--table-label-chip-width);
+  min-width: var(--table-label-chip-width);
   justify-content: center;
   padding: 0;
   font-size: 0.68rem;
   line-height: 1;
 }
-.project-wbs-table__label-add-chip {
+.workspace-table__label-add-chip {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: var(--wbs-chip-height);
-  width: var(--wbs-label-chip-width);
-  min-width: var(--wbs-label-chip-width);
+  height: var(--table-chip-height);
+  width: var(--table-label-chip-width);
+  min-width: var(--table-label-chip-width);
   padding: 0;
   border-radius: 4px;
   border: 1px solid mixin.$border;
   background: #fff;
   color: #64748b;
 }
-.project-wbs-table__label-add-plus {
+.workspace-table__label-add-plus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1197,12 +1197,12 @@ watch(loading, async (isLoading) => {
   line-height: 1;
   transform: translateY(-0.08em);
 }
-.project-wbs-table__notes {
+.workspace-table__notes {
   color: mixin.$text-sub;
 }
 </style>
 <style lang="scss">
-.project-wbs-drag-ghost {
+.workspace-table-drag-ghost {
   position: fixed;
   top: 0;
   left: 0;

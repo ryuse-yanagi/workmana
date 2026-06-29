@@ -5,7 +5,9 @@ use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\Api\ListController;
 use App\Http\Controllers\Api\WorkspaceLabelController;
+use App\Http\Controllers\Api\WorkspaceLabelCategoryController;
 use App\Http\Controllers\Api\TaskLabelController;
+use App\Http\Controllers\Api\TaskLabelCategoryController;
 use App\Http\Controllers\Api\SharedDocumentController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\TaskCommentController;
@@ -22,10 +24,22 @@ Route::middleware(['cognito'])->group(function () {
     Route::prefix('orgs/{organization}')->middleware('org.member')->group(function () {
         Route::get('/settings', [OrganizationController::class, 'settings']);
         Route::patch('/settings', [OrganizationController::class, 'updateSettings']);
+        Route::get('/workspace-label-categories', [WorkspaceLabelCategoryController::class, 'index']);
+        Route::post('/workspace-label-categories', [WorkspaceLabelCategoryController::class, 'store']);
+        Route::patch('/workspace-label-categories/{category}', [WorkspaceLabelCategoryController::class, 'update']);
+        Route::delete('/workspace-label-categories/{category}', [WorkspaceLabelCategoryController::class, 'destroy']);
         Route::get('/workspace-labels', [WorkspaceLabelController::class, 'index']);
         Route::post('/workspace-labels', [WorkspaceLabelController::class, 'store']);
+        Route::patch('/workspace-labels/{workspaceLabel}', [WorkspaceLabelController::class, 'update']);
+        Route::delete('/workspace-labels/{workspaceLabel}', [WorkspaceLabelController::class, 'destroy']);
+        Route::get('/task-label-categories', [TaskLabelCategoryController::class, 'index']);
+        Route::post('/task-label-categories', [TaskLabelCategoryController::class, 'store']);
+        Route::patch('/task-label-categories/{category}', [TaskLabelCategoryController::class, 'update']);
+        Route::delete('/task-label-categories/{category}', [TaskLabelCategoryController::class, 'destroy']);
         Route::get('/task-labels', [TaskLabelController::class, 'index']);
         Route::post('/task-labels', [TaskLabelController::class, 'store']);
+        Route::patch('/task-labels/{taskLabel}', [TaskLabelController::class, 'update']);
+        Route::delete('/task-labels/{taskLabel}', [TaskLabelController::class, 'destroy']);
 
         Route::get('/workspaces', [WorkspaceController::class, 'index']);
         Route::post('/workspaces', [WorkspaceController::class, 'store']);
@@ -46,9 +60,9 @@ Route::middleware(['cognito'])->group(function () {
         Route::get('/workspaces/{workspace}/tasks', [TaskController::class, 'index']);
         Route::get('/workspaces/{workspace}/tasks/parents', [TaskController::class, 'parentTasksIndex']);
         Route::get('/workspaces/{workspace}/tasks/comments', [TaskCommentController::class, 'workspaceIndex']);
-        Route::get('/workspaces/{workspace}/tasks/wbs', [TaskController::class, 'wbsIndex']);
-        Route::patch('/workspaces/{workspace}/tasks/wbs/orphan-parent-label', [TaskController::class, 'wbsUpdateOrphanParentLabel']);
-        Route::patch('/workspaces/{workspace}/tasks/wbs/reorder', [TaskController::class, 'wbsReorder']);
+        Route::get('/workspaces/{workspace}/tasks/table', [TaskController::class, 'tableIndex']);
+        Route::patch('/workspaces/{workspace}/tasks/table/orphan-parent-label', [TaskController::class, 'tableUpdateOrphanParentLabel']);
+        Route::patch('/workspaces/{workspace}/tasks/table/reorder', [TaskController::class, 'tableReorder']);
         Route::get('/workspaces/{workspace}/tasks/archived', [TaskController::class, 'archivedIndex']);
         Route::post('/workspaces/{workspace}/tasks', [TaskController::class, 'store']);
         Route::get('/workspaces/{workspace}/tasks/{task}', [TaskController::class, 'show']);

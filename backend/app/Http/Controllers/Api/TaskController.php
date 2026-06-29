@@ -30,7 +30,7 @@ use Illuminate\Validation\Rule;
 
 class TaskController extends ApiController
 {
-    private const WBS_ORPHAN_PARENT_DEFAULT_LABEL = '親タスクなし';
+    private const ORPHAN_PARENT_DEFAULT_LABEL = '親タスクなし';
 
     public function index(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
@@ -82,7 +82,7 @@ class TaskController extends ApiController
         ]);
     }
 
-    public function wbsIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    public function tableIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
@@ -119,15 +119,15 @@ class TaskController extends ApiController
             ]);
 
         return response()->json([
-            'data' => $tasks->map(fn (Task $task) => $this->taskWbsPayload($task)),
+            'data' => $tasks->map(fn (Task $task) => $this->taskTablePayload($task)),
             'meta' => [
-                'orphan_parent_label' => $this->wbsOrphanParentLabel($workspace),
-                'orphan_parent_sort_order' => $workspace->wbs_orphan_parent_sort_order,
+                'orphan_parent_label' => $this->orphanParentLabelForWorkspace($workspace),
+                'orphan_parent_sort_order' => $workspace->orphan_parent_sort_order,
             ],
         ]);
     }
 
-    public function wbsUpdateOrphanParentLabel(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    public function tableUpdateOrphanParentLabel(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
@@ -143,7 +143,7 @@ class TaskController extends ApiController
             return response()->json(['message' => 'Label cannot be empty.'], 422);
         }
 
-        $workspace->update(['wbs_orphan_parent_label' => $label]);
+        $workspace->update(['orphan_parent_label' => $label]);
 
         return response()->json([
             'data' => [
@@ -152,7 +152,7 @@ class TaskController extends ApiController
         ]);
     }
 
-    public function wbsReorder(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    public function tableReorder(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
@@ -236,7 +236,7 @@ class TaskController extends ApiController
 
             if (array_key_exists('orphan_parent_sort_order', $validated)) {
                 $workspace->update([
-                    'wbs_orphan_parent_sort_order' => $validated['orphan_parent_sort_order'],
+                    'orphan_parent_sort_order' => $validated['orphan_parent_sort_order'],
                 ]);
             }
         });
@@ -682,17 +682,17 @@ class TaskController extends ApiController
         ];
     }
 
-    private function wbsOrphanParentLabel(Workspace $workspace): string
+    private function orphanParentLabelForWorkspace(Workspace $workspace): string
     {
-        $label = trim((string) ($workspace->wbs_orphan_parent_label ?? ''));
+        $label = trim((string) ($workspace->orphan_parent_label ?? ''));
 
-        return $label !== '' ? $label : self::WBS_ORPHAN_PARENT_DEFAULT_LABEL;
+        return $label !== '' ? $label : self::ORPHAN_PARENT_DEFAULT_LABEL;
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function taskWbsPayload(Task $task): array
+    private function taskTablePayload(Task $task): array
     {
         $payload = $this->taskListPayload($task);
         $payload['description'] = $task->description;

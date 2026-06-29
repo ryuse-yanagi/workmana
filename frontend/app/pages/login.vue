@@ -28,7 +28,7 @@ function startLogin () {
 }
 </script>
 <style lang="scss" scoped>
-.page { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
+.page { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
 .muted { color: #64748b; }
 .card { margin-top: 1rem; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; }
 .err { color: #b91c1c; margin-bottom: 0.75rem; }

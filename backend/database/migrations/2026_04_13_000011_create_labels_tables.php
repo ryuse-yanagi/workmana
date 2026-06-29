@@ -9,15 +9,29 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('workspace_labels', function (Blueprint $table) {
+        Schema::create('workspace_label_categories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->string('name', 40);
-            $table->unsignedTinyInteger('color_index')->default(LabelColorPresets::DEFAULT_INDEX);
+            $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
             $table->unique(['organization_id', 'name']);
+            $table->index(['organization_id', 'sort_order']);
+        });
+
+        Schema::create('workspace_labels', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('category_id')->constrained('workspace_label_categories')->cascadeOnDelete();
+            $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
+            $table->string('name', 40);
+            $table->unsignedTinyInteger('color_index')->default(LabelColorPresets::DEFAULT_INDEX);
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->timestamps();
+            $table->unique(['category_id', 'name']);
             $table->index(['organization_id', 'created_at']);
+            $table->index(['category_id', 'sort_order']);
         });
 
         Schema::create('workspace_workspace_label', function (Blueprint $table) {
@@ -28,15 +42,29 @@ return new class extends Migration
             $table->unique(['workspace_id', 'workspace_label_id']);
         });
 
-        Schema::create('task_labels', function (Blueprint $table) {
+        Schema::create('task_label_categories', function (Blueprint $table) {
             $table->id();
             $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->string('name', 40);
-            $table->unsignedTinyInteger('color_index')->default(LabelColorPresets::DEFAULT_INDEX);
+            $table->unsignedInteger('sort_order')->default(0);
             $table->timestamps();
             $table->unique(['organization_id', 'name']);
+            $table->index(['organization_id', 'sort_order']);
+        });
+
+        Schema::create('task_labels', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('category_id')->constrained('task_label_categories')->cascadeOnDelete();
+            $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
+            $table->string('name', 40);
+            $table->unsignedTinyInteger('color_index')->default(LabelColorPresets::DEFAULT_INDEX);
+            $table->unsignedInteger('sort_order')->default(0);
+            $table->timestamps();
+            $table->unique(['category_id', 'name']);
             $table->index(['organization_id', 'created_at']);
+            $table->index(['category_id', 'sort_order']);
         });
 
         Schema::create('task_task_label', function (Blueprint $table) {
@@ -52,7 +80,9 @@ return new class extends Migration
     {
         Schema::dropIfExists('task_task_label');
         Schema::dropIfExists('task_labels');
+        Schema::dropIfExists('task_label_categories');
         Schema::dropIfExists('workspace_workspace_label');
         Schema::dropIfExists('workspace_labels');
+        Schema::dropIfExists('workspace_label_categories');
     }
 };

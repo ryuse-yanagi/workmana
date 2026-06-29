@@ -1,26 +1,26 @@
 import {
-  applyWbsRowOrder,
-  buildFullWbsDisplayRows,
-  buildWbsDisplayRows,
-  getWbsDragBlock,
-  getWbsDragGhostBlock,
-  isWbsOrphanParentTask,
+  applyTableRowOrder,
+  buildFullTableDisplayRows,
+  buildTableDisplayRows,
+  getTableDragBlock,
+  getTableDragGhostBlock,
+  isTableOrphanParentTask,
   mapCollapsedTargetToFullIndex,
-  moveWbsDisplayRows,
-  previewWbsDragInsert,
+  moveTableDisplayRows,
+  previewTableDragInsert,
   resolveOrphanParentSortOrderFromRows,
-  resolveWbsDropIndexFromDom,
-  type WbsDisplayRow,
-  type WbsTask,
-} from './useWbsTaskGroups'
+  resolveTableDropIndexFromDom,
+  type TableDisplayRow,
+  type TableTask,
+} from './useTableTaskGroups'
 type DragSession = {
   sourceIndex: number
   pointerId: number
   blockTaskIds: Set<number>
-  ghostBlock: WbsDisplayRow[]
+  ghostBlock: TableDisplayRow[]
   reparentedChildIds: Set<number>
   captureEl: HTMLElement
-  baseRows: WbsDisplayRow[]
+  baseRows: TableDisplayRow[]
   collapsedParentDrag: boolean
   activated: boolean
   startX: number
@@ -60,7 +60,7 @@ function lockElementWidth (source: HTMLElement, target: HTMLElement) {
   target.style.maxWidth = widthPx
   target.style.boxSizing = 'border-box'
 }
-export type WbsDragReorderSurface = {
+export type TableDragReorderSurface = {
   tableWrapSelector: string
   frameSelector: string
   tableWidthCssVar: string
@@ -68,25 +68,25 @@ export type WbsDragReorderSurface = {
   resizeHandleSelector?: string
   pageRootSelector?: string
 }
-export const WBS_LIST_DRAG_SURFACE: WbsDragReorderSurface = {
-  tableWrapSelector: '.project-wbs-table-wrap',
-  frameSelector: '.project-wbs-board__frame',
-  tableWidthCssVar: '--wbs-table-width',
-  resizeHandleSelector: '.project-wbs-table__resize-handle',
-  pageRootSelector: '.project-wbs-board',
+export const TABLE_LIST_DRAG_SURFACE: TableDragReorderSurface = {
+  tableWrapSelector: '.workspace-table-wrap',
+  frameSelector: '.workspace-table-board__frame',
+  tableWidthCssVar: '--table-width',
+  resizeHandleSelector: '.workspace-table__resize-handle',
+  pageRootSelector: '.workspace-table-board',
 }
-export const WBS_GANTT_DRAG_SURFACE: WbsDragReorderSurface = {
-  tableWrapSelector: '.project-wbs-gantt-table-wrap',
-  frameSelector: '.project-wbs-gantt-board__frame',
+export const GANTT_DRAG_SURFACE: TableDragReorderSurface = {
+  tableWrapSelector: '.workspace-gantt-table-wrap',
+  frameSelector: '.workspace-gantt-board__frame',
   tableWidthCssVar: '--gantt-table-width',
-  stripCellSelector: '.project-wbs-gantt-table__day-cell',
-  pageRootSelector: '.project-wbs-gantt-board',
+  stripCellSelector: '.workspace-gantt-table__day-cell',
+  pageRootSelector: '.workspace-gantt-board',
 }
 function syncGhostLayoutFromSource (
   sourceWrap: Element,
   wrapClone: HTMLElement,
   host: HTMLElement,
-  surface: WbsDragReorderSurface,
+  surface: TableDragReorderSurface,
 ) {
   const sourceFrame = sourceWrap.closest(surface.frameSelector) as HTMLElement | null
   const sourceTable = sourceWrap.querySelector('table') as HTMLTableElement | null
@@ -119,11 +119,11 @@ function syncGhostLayoutFromSource (
 }
 function mountDragGhostFromLiveDom (
   tbody: HTMLTableSectionElement,
-  ghostBlock: WbsDisplayRow[],
+  ghostBlock: TableDisplayRow[],
   anchorRow: HTMLTableRowElement | null,
   clientX: number,
   clientY: number,
-  surface: WbsDragReorderSurface,
+  surface: TableDragReorderSurface,
 ): {
   host: HTMLDivElement
   offsetX: number
@@ -136,10 +136,10 @@ function mountDragGhostFromLiveDom (
   const sourceFrame = tbody.closest(surface.frameSelector)
   const ghostTaskIds = new Set(ghostBlock.map(row => row.task.id))
   const wrapClone = sourceWrap.cloneNode(true) as HTMLElement
-  wrapClone.classList.add('project-wbs-table-wrap--dragging')
+  wrapClone.classList.add('workspace-table-wrap--dragging')
   wrapClone.querySelector('thead')?.remove()
   wrapClone.querySelectorAll('tbody tr').forEach((rowEl) => {
-    const taskId = Number((rowEl as HTMLElement).dataset.wbsTaskId)
+    const taskId = Number((rowEl as HTMLElement).dataset.tableTaskId)
     if (!ghostTaskIds.has(taskId)) {
       rowEl.remove()
     }
@@ -155,7 +155,7 @@ function mountDragGhostFromLiveDom (
     })
   }
   const host = document.createElement('div')
-  host.className = 'project-wbs-drag-ghost'
+  host.className = 'workspace-table-drag-ghost'
   host.setAttribute('aria-hidden', 'true')
   if (sourceFrame) {
     const frameClone = sourceFrame.cloneNode(false) as HTMLElement
@@ -173,22 +173,22 @@ function mountDragGhostFromLiveDom (
     offsetY: anchorRect ? clientY - anchorRect.top : 12,
   }
 }
-export function useWbsTaskDragReorder (options: {
-  tasks: Ref<WbsTask[]>
+export function useTableTaskDragReorder (options: {
+  tasks: Ref<TableTask[]>
   tableBodyEl: Ref<HTMLTableSectionElement | null>
   collapsedParentIds: Ref<ReadonlySet<number>>
   orphanParentLabel: MaybeRefOrGetter<string>
   orphanParentSortOrder: MaybeRefOrGetter<number | null>
-  surface?: WbsDragReorderSurface
+  surface?: TableDragReorderSurface
   onCommit: (
-    tasks: WbsTask[],
+    tasks: TableTask[],
     orphanParentSortOrder: number | null,
   ) => Promise<void>
 }) {
-  const surface = options.surface ?? WBS_LIST_DRAG_SURFACE
+  const surface = options.surface ?? TABLE_LIST_DRAG_SURFACE
   const dragging = ref(false)
   const dropTargetIndex = ref<number | null>(null)
-  const dragRows = ref<WbsDisplayRow[] | null>(null)
+  const dragRows = ref<TableDisplayRow[] | null>(null)
   const draggingTaskIds = ref<ReadonlySet<number>>(new Set())
   let dragSession: DragSession | null = null
   let suppressClick = false
@@ -198,7 +198,7 @@ export function useWbsTaskDragReorder (options: {
   const resolveOrphanParentLabel = () => toValue(options.orphanParentLabel)
   const resolveOrphanParentSortOrder = () => toValue(options.orphanParentSortOrder)
   const activeRows = computed(() => (
-    dragRows.value ?? buildWbsDisplayRows(
+    dragRows.value ?? buildTableDisplayRows(
       options.tasks.value,
       options.collapsedParentIds.value,
       resolveOrphanParentLabel(),
@@ -217,7 +217,7 @@ export function useWbsTaskDragReorder (options: {
   }
   function mountDragGhost (
     tbody: HTMLTableSectionElement,
-    ghostBlock: WbsDisplayRow[],
+    ghostBlock: TableDisplayRow[],
     anchorRow: HTMLTableRowElement | null,
     clientX: number,
     clientY: number,
@@ -311,7 +311,7 @@ export function useWbsTaskDragReorder (options: {
     }
     const { baseRows } = dragSession
     dropTargetIndex.value = targetIndex
-    const preview = previewWbsDragInsert(
+    const preview = previewTableDragInsert(
       baseRows,
       dragSession.ghostBlock,
       targetIndex,
@@ -334,7 +334,7 @@ export function useWbsTaskDragReorder (options: {
     }
     event.preventDefault()
     updateDragGhostPosition(event.clientX, event.clientY)
-    const targetIndex = resolveWbsDropIndexFromDom(
+    const targetIndex = resolveTableDropIndexFromDom(
       event.clientX,
       event.clientY,
       tbody,
@@ -355,7 +355,7 @@ export function useWbsTaskDragReorder (options: {
     finishPointerSession(event)
     const { sourceIndex, baseRows, reparentedChildIds, collapsedParentDrag } = dragSession
     const targetIndex = dropTargetIndex.value ?? sourceIndex
-    let nextRows = moveWbsDisplayRows(
+    let nextRows = moveTableDisplayRows(
       baseRows,
       sourceIndex,
       targetIndex,
@@ -363,7 +363,7 @@ export function useWbsTaskDragReorder (options: {
       options.collapsedParentIds.value,
     )
     if (nextRows && collapsedParentDrag) {
-      const fullRows = buildFullWbsDisplayRows(
+      const fullRows = buildFullTableDisplayRows(
         options.tasks.value,
         resolveOrphanParentLabel(),
         resolveOrphanParentSortOrder(),
@@ -374,7 +374,7 @@ export function useWbsTaskDragReorder (options: {
         : fullRows.findIndex(row => row.task.id === parentId)
       if (fullSourceIndex >= 0) {
         const fullTargetIndex = mapCollapsedTargetToFullIndex(baseRows, fullRows, targetIndex)
-        nextRows = moveWbsDisplayRows(
+        nextRows = moveTableDisplayRows(
           fullRows,
           fullSourceIndex,
           fullTargetIndex,
@@ -390,7 +390,7 @@ export function useWbsTaskDragReorder (options: {
     if (!nextRows) {
       return
     }
-    const updatedTasks = applyWbsRowOrder(
+    const updatedTasks = applyTableRowOrder(
       options.tasks.value,
       nextRows,
       reparentedChildIds,
@@ -420,7 +420,7 @@ export function useWbsTaskDragReorder (options: {
     if (!tbody) {
       return
     }
-    const baseRows = buildWbsDisplayRows(
+    const baseRows = buildTableDisplayRows(
       options.tasks.value,
       options.collapsedParentIds.value,
       resolveOrphanParentLabel(),
@@ -431,7 +431,7 @@ export function useWbsTaskDragReorder (options: {
       return
     }
     handle.setPointerCapture(event.pointerId)
-    const { block, indices } = getWbsDragBlock(
+    const { block, indices } = getTableDragBlock(
       baseRows,
       rowIndex,
       options.tasks.value,
@@ -441,7 +441,7 @@ export function useWbsTaskDragReorder (options: {
       handle.releasePointerCapture(event.pointerId)
       return
     }
-    const ghostBlock = getWbsDragGhostBlock(block)
+    const ghostBlock = getTableDragGhostBlock(block)
     const ghostTaskIds = new Set(ghostBlock.map(row => row.task.id))
     const blockTaskIds = ghostTaskIds
     const reparentedChildIds = new Set<number>()

@@ -3,10 +3,10 @@
     <div class="global-header__inner">
       <div class="global-header__left">
         <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goWorkspaceList">
-          ワークスペース一覧
+          Workspaces
         </button>
         <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goDocumentsList">
-          共有資料一覧
+          Documents
         </button>
         <button
           type="button"
@@ -376,7 +376,7 @@ onBeforeUnmount(() => {
 }
 
 .dropdown-item.danger {
-  color: #b91c1c;
+  color: mixin.$danger;
 }
 
 .dropdown-item:disabled {

@@ -1,10 +1,10 @@
 <template>
-  <div class="project-wbs-gantt-board">
-    <div class="project-wbs-gantt-board__toolbar">
-      <div class="project-wbs-gantt-board__month-nav">
+  <div class="workspace-gantt-board">
+    <div class="workspace-gantt-board__toolbar">
+      <div class="workspace-gantt-board__month-nav">
         <button
           type="button"
-          class="project-wbs-gantt-board__nav-btn"
+          class="workspace-gantt-board__nav-btn"
           aria-label="前の月"
           @click="goPrevMonth"
         >
@@ -12,7 +12,7 @@
         </button>
         <button
           type="button"
-          class="project-wbs-gantt-board__nav-btn"
+          class="workspace-gantt-board__nav-btn"
           aria-label="次の月"
           @click="goNextMonth"
         >
@@ -21,91 +21,91 @@
       </div>
       <button
         type="button"
-        class="project-wbs-gantt-board__today-btn"
+        class="workspace-gantt-board__today-btn"
         :disabled="isCurrentMonth"
         @click="goCurrentMonth"
       >
         今月
       </button>
     </div>
-    <div v-if="loading" class="project-wbs-gantt-board__state">
+    <div v-if="loading" class="workspace-gantt-board__state">
       読み込み中...
     </div>
-    <p v-else-if="error" class="project-wbs-gantt-board__error">{{ error }}</p>
-    <p v-else-if="!displayRows.length" class="project-wbs-gantt-board__state">
+    <p v-else-if="error" class="workspace-gantt-board__error">{{ error }}</p>
+    <p v-else-if="!displayRows.length" class="workspace-gantt-board__state">
       表示できるタスクがありません。
     </p>
     <div
       v-else
       ref="viewportEl"
-      class="project-wbs-gantt-board__viewport"
-      :class="{ 'project-wbs-gantt-board__viewport--dragging': dragging }"
+      class="workspace-gantt-board__viewport"
+      :class="{ 'workspace-gantt-board__viewport--dragging': dragging }"
     >
       <div
-        class="project-wbs-gantt-board__month-strip"
+        class="workspace-gantt-board__month-strip"
         :style="{ width: `${ganttTableWidth}px` }"
       >
         <div
-          class="project-wbs-gantt-board__month-strip-spacer"
+          class="workspace-gantt-board__month-strip-spacer"
           :style="{ width: `${ganttLeftColsWidth}px` }"
         />
-        <span class="project-wbs-gantt-board__month-strip-label">{{ monthLabel }}</span>
+        <span class="workspace-gantt-board__month-strip-label">{{ monthLabel }}</span>
       </div>
-      <div class="project-wbs-gantt-board__frame">
+      <div class="workspace-gantt-board__frame">
         <div
-          class="project-wbs-gantt-table-wrap"
-          :class="{ 'project-wbs-table-wrap--dragging': dragging }"
+          class="workspace-gantt-table-wrap"
+          :class="{ 'workspace-table-wrap--dragging': dragging }"
         >
           <table
-            class="project-wbs-gantt-table"
+            class="workspace-gantt-table"
             :style="{
               '--gantt-table-width': `${ganttTableWidth}px`,
               '--gantt-task-col-width': `${GANTT_TASK_COL_WIDTH}px`,
               '--gantt-assignees-col-width': `${GANTT_ASSIGNEES_COL_WIDTH}px`,
               '--gantt-date-col-width': `${GANTT_DATE_COL_WIDTH}px`,
               '--gantt-day-col-width': `${GANTT_DAY_COL_WIDTH}px`,
-              '--wbs-drag-col-width': `${WBS_DRAG_COL_WIDTH}px`,
+              '--table-drag-col-width': `${TABLE_DRAG_COL_WIDTH}px`,
             }"
           >
             <colgroup>
-              <col class="project-wbs-table__drag-col">
-              <col class="project-wbs-gantt-table__task-col">
-              <col class="project-wbs-gantt-table__assignees-col">
-              <col class="project-wbs-gantt-table__date-col">
-              <col class="project-wbs-gantt-table__date-col">
+              <col class="workspace-table__drag-col">
+              <col class="workspace-gantt-table__task-col">
+              <col class="workspace-gantt-table__assignees-col">
+              <col class="workspace-gantt-table__date-col">
+              <col class="workspace-gantt-table__date-col">
               <col
                 v-for="day in monthDays"
                 :key="`col-${day.iso}`"
-                class="project-wbs-gantt-table__day-col"
+                class="workspace-gantt-table__day-col"
               >
             </colgroup>
             <thead>
               <tr>
                 <th
-                  class="project-wbs-table__drag-header project-wbs-gantt-table__drag-header"
+                  class="workspace-table__drag-header workspace-gantt-table__drag-header"
                   scope="col"
                   aria-hidden="true"
                 />
                 <th
-                  class="project-wbs-gantt-table__task-header"
+                  class="workspace-gantt-table__task-header"
                   scope="col"
                 >
                   タスク
                 </th>
                 <th
-                  class="project-wbs-gantt-table__assignees-header"
+                  class="workspace-gantt-table__assignees-header"
                   scope="col"
                 >
                   担当者
                 </th>
                 <th
-                  class="project-wbs-gantt-table__date-header project-wbs-gantt-table__date-header--start"
+                  class="workspace-gantt-table__date-header workspace-gantt-table__date-header--start"
                   scope="col"
                 >
                   開始日
                 </th>
                 <th
-                  class="project-wbs-gantt-table__date-header project-wbs-gantt-table__date-header--due"
+                  class="workspace-gantt-table__date-header workspace-gantt-table__date-header--due"
                   scope="col"
                 >
                   終了日
@@ -114,14 +114,14 @@
                   v-for="day in monthDays"
                   :key="`head-${day.iso}`"
                   scope="col"
-                  class="project-wbs-gantt-table__day-header"
+                  class="workspace-gantt-table__day-header"
                   :class="{
-                    'project-wbs-gantt-table__day-header--today': day.isToday,
-                    'project-wbs-gantt-table__day-header--weekend': day.isWeekend,
+                    'workspace-gantt-table__day-header--today': day.isToday,
+                    'workspace-gantt-table__day-header--weekend': day.isWeekend,
                   }"
                 >
-                  <span class="project-wbs-gantt-table__day-date">{{ day.day }}</span>
-                  <span class="project-wbs-gantt-table__day-weekday">{{ day.weekday }}</span>
+                  <span class="workspace-gantt-table__day-date">{{ day.day }}</span>
+                  <span class="workspace-gantt-table__day-weekday">{{ day.weekday }}</span>
                 </th>
               </tr>
             </thead>
@@ -129,21 +129,21 @@
               <tr
                 v-for="(row, rowIndex) in displayRows"
                 :key="`${row.kind}-${row.task.id}`"
-                class="project-wbs-table__task-row project-wbs-gantt-table__task-row"
+                class="workspace-table__task-row workspace-gantt-table__task-row"
                 :class="{
-                  'project-wbs-table__task-row--parent': row.kind === 'parent',
-                  'project-wbs-table__task-row--child': row.kind === 'child',
-                  'project-wbs-table__task-row--drag-preview': draggingTaskIds.has(row.task.id),
-                  'project-wbs-gantt-table__task-row--parent': row.kind === 'parent',
-                  'project-wbs-gantt-table__task-row--child': row.kind === 'child',
+                  'workspace-table__task-row--parent': row.kind === 'parent',
+                  'workspace-table__task-row--child': row.kind === 'child',
+                  'workspace-table__task-row--drag-preview': draggingTaskIds.has(row.task.id),
+                  'workspace-gantt-table__task-row--parent': row.kind === 'parent',
+                  'workspace-gantt-table__task-row--child': row.kind === 'child',
                 }"
-                :data-wbs-row-index="rowIndex"
-                :data-wbs-task-id="row.task.id"
+                :data-table-row-index="rowIndex"
+                :data-table-task-id="row.task.id"
               >
-                <td class="project-wbs-table__drag-cell project-wbs-gantt-table__drag-cell">
+                <td class="workspace-table__drag-cell workspace-gantt-table__drag-cell">
                   <button
                     type="button"
-                    class="project-wbs-table__drag-handle"
+                    class="workspace-table__drag-handle"
                     aria-label="ドラッグしてタスクの並び順を変更"
                     @pointerdown="onDragHandlePointerDown(row.task.id, $event)"
                     @click.prevent="onDragHandleClick"
@@ -155,17 +155,17 @@
                     />
                   </button>
                 </td>
-                <td class="project-wbs-table__task-title project-wbs-gantt-table__task-title">
+                <td class="workspace-table__task-title workspace-gantt-table__task-title">
                   <div
-                    class="project-wbs-table__title-cell"
+                    class="workspace-table__title-cell"
                     :class="{
-                      'project-wbs-table__title-cell--child': row.kind === 'child',
+                      'workspace-table__title-cell--child': row.kind === 'child',
                     }"
                   >
                     <button
                       v-if="row.kind === 'parent'"
                       type="button"
-                      class="project-wbs-table__toggle"
+                      class="workspace-table__toggle"
                       :aria-expanded="!collapsedParentIds.has(row.task.id)"
                       :aria-label="collapsedParentIds.has(row.task.id) ? '子タスクを展開' : '子タスクを折りたたむ'"
                       @click.stop="toggleParentCollapse(row.task.id)"
@@ -184,42 +184,42 @@
                       />
                     </button>
                     <div
-                      class="project-wbs-table__title-field"
-                      :class="{ 'project-wbs-table__title-field--after-toggle': row.kind === 'parent' }"
+                      class="workspace-table__title-field"
+                      :class="{ 'workspace-table__title-field--after-toggle': row.kind === 'parent' }"
                     >
                       <button
-                        v-if="!isWbsOrphanParentTask(row.task)"
+                        v-if="!isTableOrphanParentTask(row.task)"
                         type="button"
-                        class="project-wbs-gantt-table__title-btn"
+                        class="workspace-gantt-table__title-btn"
                         @click="openTaskDetail(row.task)"
                       >
                         <span
-                          class="project-wbs-table__title-text"
+                          class="workspace-table__title-text"
                           :title="row.task.title"
                         >{{ row.task.title }}</span>
                       </button>
                       <span
                         v-else
-                        class="project-wbs-table__title-text"
+                        class="workspace-table__title-text"
                         :title="row.task.title"
                       >{{ row.task.title }}</span>
                     </div>
                   </div>
                 </td>
-                <td class="project-wbs-gantt-table__assignees-cell">
+                <td class="workspace-gantt-table__assignees-cell">
                   <button
-                    v-if="!isWbsOrphanParentTask(row.task)"
+                    v-if="!isTableOrphanParentTask(row.task)"
                     type="button"
-                    class="project-wbs-table__cell-btn"
+                    class="workspace-table__cell-btn"
                     aria-label="担当者を編集"
                     @click="openMembers(row.task, $event)"
                   >
-                    <div class="project-wbs-table__members-cell">
+                    <div class="workspace-table__members-cell">
                       <template v-if="row.task.assignees?.length">
                         <span
                           v-for="member in row.task.assignees"
                           :key="member.id"
-                          class="project-wbs-table__avatar-pill"
+                          class="workspace-table__avatar-pill"
                           :title="memberDisplayName(member)"
                         >
                           <MemberAvatar
@@ -231,52 +231,52 @@
                       </template>
                       <span
                         v-else
-                        class="project-wbs-table__avatar-btn project-wbs-table__avatar-btn--add"
+                        class="workspace-table__avatar-btn workspace-table__avatar-btn--add"
                         aria-hidden="true"
                       >
-                        <span class="project-wbs-table__avatar-btn-plus" aria-hidden="true">+</span>
+                        <span class="workspace-table__avatar-btn-plus" aria-hidden="true">+</span>
                       </span>
                     </div>
                   </button>
-                  <span v-else class="project-wbs-table__placeholder">—</span>
+                  <span v-else class="workspace-table__placeholder">—</span>
                 </td>
                 <td
-                  class="project-wbs-gantt-table__date-cell project-wbs-gantt-table__date-cell--start"
+                  class="workspace-gantt-table__date-cell workspace-gantt-table__date-cell--start"
                 >
                   <button
-                    v-if="!isWbsOrphanParentTask(row.task)"
+                    v-if="!isTableOrphanParentTask(row.task)"
                     type="button"
-                    class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
+                    class="workspace-table__cell-btn workspace-table__cell-btn--text"
                     @click="openStartDate(row.task, $event)"
                   >
-                    <span v-if="formatWbsDate(row.task.start_date)">{{ formatWbsDate(row.task.start_date) }}</span>
-                    <span v-else class="project-wbs-table__placeholder">—</span>
+                    <span v-if="formatTableDate(row.task.start_date)">{{ formatTableDate(row.task.start_date) }}</span>
+                    <span v-else class="workspace-table__placeholder">—</span>
                   </button>
-                  <span v-else class="project-wbs-table__placeholder">—</span>
+                  <span v-else class="workspace-table__placeholder">—</span>
                 </td>
                 <td
-                  class="project-wbs-gantt-table__date-cell project-wbs-gantt-table__date-cell--due"
+                  class="workspace-gantt-table__date-cell workspace-gantt-table__date-cell--due"
                 >
                   <button
-                    v-if="!isWbsOrphanParentTask(row.task)"
+                    v-if="!isTableOrphanParentTask(row.task)"
                     type="button"
-                    class="project-wbs-table__cell-btn project-wbs-table__cell-btn--text"
+                    class="workspace-table__cell-btn workspace-table__cell-btn--text"
                     @click="openDueDate(row.task, $event)"
                   >
-                    <span v-if="formatWbsDate(row.task.due_date)">{{ formatWbsDate(row.task.due_date) }}</span>
-                    <span v-else class="project-wbs-table__placeholder">—</span>
+                    <span v-if="formatTableDate(row.task.due_date)">{{ formatTableDate(row.task.due_date) }}</span>
+                    <span v-else class="workspace-table__placeholder">—</span>
                   </button>
-                  <span v-else class="project-wbs-table__placeholder">—</span>
+                  <span v-else class="workspace-table__placeholder">—</span>
                 </td>
                 <td
                   v-for="day in monthDays"
                   :key="`${row.task.id}-${day.iso}`"
-                  class="project-wbs-gantt-table__day-cell"
+                  class="workspace-gantt-table__day-cell"
                   :class="{
-                    'project-wbs-gantt-table__day-cell--weekend': day.isWeekend,
-                    'project-wbs-gantt-table__day-cell--today': day.isToday,
-                    'project-wbs-gantt-table__day-cell--filled': isTaskActiveOnDay(row.task, day.iso),
-                    'project-wbs-gantt-table__day-cell--clickable': isTaskBarClickable(row.task, day.iso),
+                    'workspace-gantt-table__day-cell--weekend': day.isWeekend,
+                    'workspace-gantt-table__day-cell--today': day.isToday,
+                    'workspace-gantt-table__day-cell--filled': isTaskActiveOnDay(row.task, day.iso),
+                    'workspace-gantt-table__day-cell--clickable': isTaskBarClickable(row.task, day.iso),
                   }"
                   :style="dayCellStyle(row.task, day.iso)"
                   @click="onDayCellClick(row.task, day.iso, $event)"
@@ -287,7 +287,7 @@
         </div>
       </div>
     </div>
-    <WorkspaceWbsGanttColorPopover
+    <WorkspaceGanttColorPopover
       :open="colorPopoverOpen"
       :model-value="colorPopoverValue"
       :anchor="colorPopoverAnchor"
@@ -329,22 +329,22 @@ import TaskDetailModal, { type TaskDetail } from '../modals/TaskDetailModal.vue'
 import type { TaskDetailComment } from '../task/taskCommentTypes'
 import type { TaskCommentsByTaskId } from '../task/taskCommentTypes'
 import {
-  buildWbsDisplayRows,
-  buildWbsReorderPayload,
-  formatWbsDate,
-  hasWbsOrphanChildTasks,
-  isWbsOrphanParentTask,
-  WBS_ORPHAN_PARENT_DEFAULT_LABEL,
-  type WbsTask,
-} from '../../composables/useWbsTaskGroups'
+  buildTableDisplayRows,
+  buildTableReorderPayload,
+  formatTableDate,
+  hasTableOrphanChildTasks,
+  isTableOrphanParentTask,
+  ORPHAN_PARENT_DEFAULT_LABEL,
+  type TableTask,
+} from '../../composables/useTableTaskGroups'
 import {
-  useWbsTaskDragReorder,
-  WBS_GANTT_DRAG_SURFACE,
-} from '../../composables/useWbsTaskDragReorder'
+  useTableTaskDragReorder,
+  GANTT_DRAG_SURFACE,
+} from '../../composables/useTableTaskDragReorder'
 import {
-  WBS_COLUMN_MIN_WIDTH,
-  WBS_DRAG_COL_WIDTH,
-} from '../../composables/useWbsTableColumnResize'
+  TABLE_COLUMN_MIN_WIDTH,
+  TABLE_DRAG_COL_WIDTH,
+} from '../../composables/useTableColumnResize'
 import {
   buildMonthDays,
   currentYearMonth,
@@ -352,7 +352,7 @@ import {
   isTaskActiveOnDay,
   resolveGanttBarColor,
   shiftVisibleMonth,
-} from '../../composables/useWbsGanttCalendar'
+} from '../../composables/useGanttCalendar'
 import type { WorkspaceListOption, TaskPopoverEditable } from '../../composables/useTaskPopoverEditor'
 import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFormHelpers'
 import { memberDisplayName } from '../../composables/useMemberDisplay'
@@ -360,14 +360,14 @@ import { useApi } from '../../composables/useApi'
 import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { useWorkspaceBoardPageData, boardTaskToTaskDetail } from '../../composables/useWorkspaceBoardPageData'
 import { enrichTaskDetailHierarchy } from '../../composables/useTaskHierarchy'
-import { useWorkspaceWbsPageData, type WorkspaceWbsPageSnapshot } from '../../composables/useWorkspaceWbsPageData'
+import { useWorkspaceTablePageData, type WorkspaceTablePageSnapshot } from '../../composables/useWorkspaceTablePageData'
 import { resolveLabelColors, resolveListColors } from '../../utils/colorPresetResolution'
 import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
-import WorkspaceWbsGanttColorPopover from './WorkspaceWbsGanttColorPopover.vue'
+import WorkspaceGanttColorPopover from './WorkspaceGanttColorPopover.vue'
 import TaskEditPopoverLayer from '../task/TaskEditPopoverLayer.vue'
 const GANTT_TASK_COL_WIDTH = 240
-const GANTT_ASSIGNEES_COL_WIDTH = Math.max(WBS_COLUMN_MIN_WIDTH, Math.round(1200 * 0.10))
-const GANTT_DATE_COL_WIDTH = Math.max(WBS_COLUMN_MIN_WIDTH, Math.round(1200 * 0.09))
+const GANTT_ASSIGNEES_COL_WIDTH = Math.max(TABLE_COLUMN_MIN_WIDTH, Math.round(1200 * 0.10))
+const GANTT_DATE_COL_WIDTH = Math.max(TABLE_COLUMN_MIN_WIDTH, Math.round(1200 * 0.09))
 const GANTT_DAY_COL_WIDTH = 34
 const props = defineProps<{
   orgSlug: string
@@ -375,12 +375,12 @@ const props = defineProps<{
 }>()
 const { api } = useApi()
 const { patchCachedTasks } = useWorkspaceBoardPageData()
-const { getCached: getWbsCached, setCached: setWbsCached } = useWorkspaceWbsPageData()
+const { getCached: getTableCached, setCached: setTableCached } = useWorkspaceTablePageData()
 const { ensureOrgEffortUnit } = useOrgEffortUnit(() => props.orgSlug)
 const loading = ref(false)
 const error = ref<string | null>(null)
-const tasks = ref<WbsTask[]>([])
-const orphanParentLabel = ref(WBS_ORPHAN_PARENT_DEFAULT_LABEL)
+const tasks = ref<TableTask[]>([])
+const orphanParentLabel = ref(ORPHAN_PARENT_DEFAULT_LABEL)
 const orphanParentSortOrder = ref<number | null>(null)
 const orgLabels = ref<TaskFormLabel[]>([])
 const workspaceMembers = ref<TaskFormMember[]>([])
@@ -402,7 +402,7 @@ const taskCommentsByTaskId = ref<TaskCommentsByTaskId>({})
 const detailModalRemotePatch = ref<Partial<TaskDetail> & { id: number } | null>(null)
 const detailModalRemoteRev = ref(0)
 const parentTasks = computed(() => tasks.value
-  .filter(task => task.is_parent_task && !isWbsOrphanParentTask(task))
+  .filter(task => task.is_parent_task && !isTableOrphanParentTask(task))
   .map(task => ({ id: task.id, title: task.title })))
 const detailInitialTask = computed((): TaskDetail | null => {
   const id = detailTaskId.value
@@ -414,7 +414,7 @@ const detailInitialTask = computed((): TaskDetail | null => {
     return null
   }
   return enrichTaskDetailHierarchy(
-    wbsTaskToTaskDetail(task),
+    tableTaskToTaskDetail(task),
     tasks.value,
     listId => workspaceLists.value.find(list => list.id === listId)?.name ?? null,
   )
@@ -452,7 +452,7 @@ syncAppLoadingCursor(ganttBusy)
 const monthDays = computed(() => buildMonthDays(visibleYear.value, visibleMonth.value))
 const monthLabel = computed(() => formatGanttMonthLabel(visibleYear.value, visibleMonth.value))
 const ganttLeftColsWidth = computed(() => (
-  WBS_DRAG_COL_WIDTH
+  TABLE_DRAG_COL_WIDTH
   + GANTT_TASK_COL_WIDTH
   + GANTT_ASSIGNEES_COL_WIDTH
   + GANTT_DATE_COL_WIDTH * 2
@@ -471,20 +471,20 @@ const {
   draggingTaskIds,
   onDragHandlePointerDown,
   shouldSuppressClick,
-} = useWbsTaskDragReorder({
+} = useTableTaskDragReorder({
   tasks,
   tableBodyEl,
   collapsedParentIds,
   orphanParentLabel,
   orphanParentSortOrder,
-  surface: WBS_GANTT_DRAG_SURFACE,
-  onCommit: saveWbsOrder,
+  surface: GANTT_DRAG_SURFACE,
+  onCommit: saveTableOrder,
 })
 const displayRows = computed(() => {
   if (dragging.value) {
     return activeRows.value
   }
-  return buildWbsDisplayRows(
+  return buildTableDisplayRows(
     tasks.value,
     collapsedParentIds.value,
     orphanParentLabel.value,
@@ -496,36 +496,36 @@ function onDragHandleClick () {
     return
   }
 }
-async function saveWbsOrder (
-  updatedTasks: WbsTask[],
+async function saveTableOrder (
+  updatedTasks: TableTask[],
   nextOrphanParentSortOrder: number | null,
 ) {
   try {
     const body: {
-      tasks: ReturnType<typeof buildWbsReorderPayload>
+      tasks: ReturnType<typeof buildTableReorderPayload>
       orphan_parent_sort_order?: number | null
     } = {
-      tasks: buildWbsReorderPayload(updatedTasks),
+      tasks: buildTableReorderPayload(updatedTasks),
     }
-    if (!hasWbsOrphanChildTasks(updatedTasks)) {
+    if (!hasTableOrphanChildTasks(updatedTasks)) {
       body.orphan_parent_sort_order = nextOrphanParentSortOrder
     }
     await api<{ data: { ok: boolean } }>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/wbs/reorder`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/table/reorder`,
       {
         method: 'PATCH',
         body,
       },
     )
-    if (!hasWbsOrphanChildTasks(updatedTasks)) {
+    if (!hasTableOrphanChildTasks(updatedTasks)) {
       orphanParentSortOrder.value = nextOrphanParentSortOrder
     }
-    persistWbsCache()
+    persistTableCache()
     patchCachedTasks(
       props.orgSlug,
       props.workspaceId,
       updatedTasks
-        .filter(task => !isWbsOrphanParentTask(task))
+        .filter(task => !isTableOrphanParentTask(task))
         .map(task => ({
           id: task.id,
           sort_order: task.sort_order,
@@ -535,13 +535,13 @@ async function saveWbsOrder (
     )
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'タスクの並び順の保存に失敗しました'
-    await loadWbsTasks()
+    await loadTableTasks()
   }
 }
-function openMembers (task: WbsTask, event: Event) {
+function openMembers (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openMemberPicker(e), event)
 }
-function wbsTaskToTaskDetail (task: WbsTask): TaskDetail {
+function tableTaskToTaskDetail (task: TableTask): TaskDetail {
   return boardTaskToTaskDetail({
     id: task.id,
     title: task.title,
@@ -560,8 +560,8 @@ function wbsTaskToTaskDetail (task: WbsTask): TaskDetail {
     parent_task_id: task.parent_task_id ?? null,
   })
 }
-function openTaskDetail (task: WbsTask) {
-  if (isWbsOrphanParentTask(task)) {
+function openTaskDetail (task: TableTask) {
+  if (isTableOrphanParentTask(task)) {
     return
   }
   detailTaskId.value = task.id
@@ -611,7 +611,7 @@ function onTaskDetailUpdated (detail: TaskDetail) {
     is_parent_task: detail.is_parent_task ?? current.is_parent_task,
     parent_task_id: detail.parent_task_id ?? current.parent_task_id,
   }])
-  persistWbsCache()
+  persistTableCache()
 }
 function toggleParentCollapse (parentId: number) {
   const next = new Set(collapsedParentIds.value)
@@ -623,17 +623,17 @@ function toggleParentCollapse (parentId: number) {
   collapsedParentIds.value = next
 }
 function bindAndOpen (
-  task: WbsTask,
+  task: TableTask,
   opener: (event?: Event) => void,
   event: Event,
 ) {
   editLayerRef.value?.bindTask(task)
   opener(event)
 }
-function openStartDate (task: WbsTask, event: Event) {
+function openStartDate (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openDatePicker('start', e), event)
 }
-function openDueDate (task: WbsTask, event: Event) {
+function openDueDate (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openDatePicker('due', e), event)
 }
 function syncTaskUpdate (updated: TaskPopoverEditable) {
@@ -672,12 +672,12 @@ function syncTaskUpdate (updated: TaskPopoverEditable) {
     assignees: updated.assignees,
     labels: updated.labels,
   }])
-  persistWbsCache()
+  persistTableCache()
 }
-function isTaskBarClickable (task: WbsTask, dayIso: string) {
-  return !isWbsOrphanParentTask(task) && isTaskActiveOnDay(task, dayIso)
+function isTaskBarClickable (task: TableTask, dayIso: string) {
+  return !isTableOrphanParentTask(task) && isTaskActiveOnDay(task, dayIso)
 }
-function dayCellStyle (task: WbsTask, dayIso: string) {
+function dayCellStyle (task: TableTask, dayIso: string) {
   if (!isTaskActiveOnDay(task, dayIso)) {
     return undefined
   }
@@ -700,7 +700,7 @@ function goCurrentMonth () {
   visibleYear.value = now.year
   visibleMonth.value = now.month
 }
-function onDayCellClick (task: WbsTask, dayIso: string, event: MouseEvent) {
+function onDayCellClick (task: TableTask, dayIso: string, event: MouseEvent) {
   if (!isTaskBarClickable(task, dayIso)) {
     return
   }
@@ -720,7 +720,7 @@ function closeColorPopover () {
   colorPopoverAnchor.value = null
   colorPopoverTaskId.value = null
 }
-function applyWbsSnapshot (snapshot: WorkspaceWbsPageSnapshot) {
+function applyTableSnapshot (snapshot: WorkspaceTablePageSnapshot) {
   tasks.value = snapshot.tasks
   orphanParentLabel.value = snapshot.orphanParentLabel
   orphanParentSortOrder.value = snapshot.orphanParentSortOrder
@@ -728,11 +728,11 @@ function applyWbsSnapshot (snapshot: WorkspaceWbsPageSnapshot) {
   workspaceMembers.value = snapshot.workspaceMembers
   workspaceLists.value = snapshot.workspaceLists
 }
-function persistWbsCache () {
+function persistTableCache () {
   if (tasks.value.length === 0 && loading.value) {
     return
   }
-  setWbsCached(props.orgSlug, props.workspaceId, {
+  setTableCached(props.orgSlug, props.workspaceId, {
     tasks: tasks.value,
     orphanParentLabel: orphanParentLabel.value,
     orphanParentSortOrder: orphanParentSortOrder.value,
@@ -754,7 +754,7 @@ function syncTaskGanttColor (taskId: number, color: string) {
     id: taskId,
     gantt_bar_color: color,
   }])
-  persistWbsCache()
+  persistTableCache()
 }
 async function saveGanttBarColor (color: string) {
   const taskId = colorPopoverTaskId.value
@@ -777,7 +777,7 @@ async function saveGanttBarColor (color: string) {
     colorSaving.value = false
   }
 }
-async function loadWbsTasks (opts?: { silent?: boolean }) {
+async function loadTableTasks (opts?: { silent?: boolean }) {
   if (!opts?.silent) {
     loading.value = true
   }
@@ -785,8 +785,8 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
   try {
     const [, tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
       ensureOrgEffortUnit(),
-      api<{ data: WbsTask[]; meta?: { orphan_parent_label?: string; orphan_parent_sort_order?: number | null } }>(
-        `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/wbs`,
+      api<{ data: TableTask[]; meta?: { orphan_parent_label?: string; orphan_parent_sort_order?: number | null } }>(
+        `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/table`,
       ),
       api<{ data: TaskFormLabel[] }>(
         `/orgs/${props.orgSlug}/task-labels`,
@@ -803,19 +803,19 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
       labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
     }))
     orphanParentLabel.value = tasksRes.meta?.orphan_parent_label?.trim()
-      || WBS_ORPHAN_PARENT_DEFAULT_LABEL
+      || ORPHAN_PARENT_DEFAULT_LABEL
     orphanParentSortOrder.value = tasksRes.meta?.orphan_parent_sort_order ?? null
     orgLabels.value = resolveLabelColors(labelsRes.data ?? [])
     workspaceMembers.value = membersRes.data ?? []
     workspaceLists.value = resolveListColors([...(listsRes.data ?? [])]).sort(
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
     )
-    persistWbsCache()
+    persistTableCache()
   } catch (e: unknown) {
     if (!opts?.silent) {
-      error.value = e instanceof Error ? e.message : 'WBSの読み込みに失敗しました'
+      error.value = e instanceof Error ? e.message : 'Ganttの読み込みに失敗しました'
       tasks.value = []
-      orphanParentLabel.value = WBS_ORPHAN_PARENT_DEFAULT_LABEL
+      orphanParentLabel.value = ORPHAN_PARENT_DEFAULT_LABEL
       orphanParentSortOrder.value = null
       orgLabels.value = []
       workspaceMembers.value = []
@@ -830,38 +830,38 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
 watch(
   () => [props.orgSlug, props.workspaceId] as const,
   () => {
-    const cached = getWbsCached(props.orgSlug, props.workspaceId)
+    const cached = getTableCached(props.orgSlug, props.workspaceId)
     if (cached) {
-      applyWbsSnapshot(cached)
-      void loadWbsTasks({ silent: true })
+      applyTableSnapshot(cached)
+      void loadTableTasks({ silent: true })
       return
     }
-    void loadWbsTasks()
+    void loadTableTasks()
   },
   { immediate: true },
 )
 function refreshOnViewSwitch (): Promise<void> {
-  const cached = getWbsCached(props.orgSlug, props.workspaceId)
+  const cached = getTableCached(props.orgSlug, props.workspaceId)
   if (cached) {
-    applyWbsSnapshot(cached)
+    applyTableSnapshot(cached)
   }
-  return loadWbsTasks({ silent: tasks.value.length > 0 })
+  return loadTableTasks({ silent: tasks.value.length > 0 })
 }
 defineExpose({
   refreshOnViewSwitch,
 })
 </script>
 <style lang="scss" scoped>
-@use '../../assets/styles/wbs-task-row';
-@use '../../assets/styles/wbs-table-cell';
-.project-wbs-gantt-board {
+@use '../../assets/styles/table-task-row';
+@use '../../assets/styles/table-cell';
+.workspace-gantt-board {
   flex: 1;
   min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
-.project-wbs-gantt-board__toolbar {
+.workspace-gantt-board__toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -869,12 +869,12 @@ defineExpose({
   margin-bottom: 0.45rem;
   flex-shrink: 0;
 }
-.project-wbs-gantt-board__month-nav {
+.workspace-gantt-board__month-nav {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
 }
-.project-wbs-gantt-board__month-strip {
+.workspace-gantt-board__month-strip {
   display: flex;
   align-items: flex-end;
   width: fit-content;
@@ -882,10 +882,10 @@ defineExpose({
   margin-bottom: 0.2rem;
   flex-shrink: 0;
 }
-.project-wbs-gantt-board__month-strip-spacer {
+.workspace-gantt-board__month-strip-spacer {
   flex-shrink: 0;
 }
-.project-wbs-gantt-board__month-strip-label {
+.workspace-gantt-board__month-strip-label {
   flex: 1;
   min-width: 0;
   padding-left: 0.35rem;
@@ -894,8 +894,8 @@ defineExpose({
   color: mixin.$text;
   line-height: 1.2;
 }
-.project-wbs-gantt-board__nav-btn,
-.project-wbs-gantt-board__today-btn {
+.workspace-gantt-board__nav-btn,
+.workspace-gantt-board__today-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -906,38 +906,38 @@ defineExpose({
   cursor: pointer;
   font: inherit;
 }
-.project-wbs-gantt-board__nav-btn {
+.workspace-gantt-board__nav-btn {
   width: 1.75rem;
   height: 1.75rem;
   padding: 0;
   font-size: 1.1rem;
   line-height: 1;
 }
-.project-wbs-gantt-board__today-btn {
+.workspace-gantt-board__today-btn {
   height: 1.75rem;
   padding: 0 0.65rem;
   font-size: 0.75rem;
   font-weight: 600;
 }
-.project-wbs-gantt-board__nav-btn:hover,
-.project-wbs-gantt-board__today-btn:hover:not(:disabled) {
+.workspace-gantt-board__nav-btn:hover,
+.workspace-gantt-board__today-btn:hover:not(:disabled) {
   background: rgba(15, 23, 42, 0.04);
 }
-.project-wbs-gantt-board__today-btn:disabled {
+.workspace-gantt-board__today-btn:disabled {
   opacity: 0.45;
   cursor: default;
 }
-.project-wbs-gantt-board__viewport {
+.workspace-gantt-board__viewport {
   flex: 1;
   min-height: 0;
   min-width: 0;
   overflow: auto;
 }
-.project-wbs-gantt-board__viewport--dragging {
+.workspace-gantt-board__viewport--dragging {
   cursor: default;
   user-select: none;
 }
-.project-wbs-gantt-board__frame {
+.workspace-gantt-board__frame {
   display: block;
   width: fit-content;
   border: 1px solid mixin.$border-light;
@@ -945,24 +945,24 @@ defineExpose({
   overflow: hidden;
   background: #fff;
 }
-.project-wbs-gantt-board__state,
-.project-wbs-gantt-board__error {
+.workspace-gantt-board__state,
+.workspace-gantt-board__error {
   margin: 0;
   padding: 1rem 0.25rem;
   font-size: 0.875rem;
 }
-.project-wbs-gantt-board__error {
+.workspace-gantt-board__error {
   color: mixin.$danger;
   font-weight: 600;
 }
-.project-wbs-gantt-table-wrap {
+.workspace-gantt-table-wrap {
   position: relative;
   width: fit-content;
 }
-.project-wbs-gantt-table {
-  --wbs-row-height: 36px;
-  --wbs-parent-row-height: 40px;
-  --wbs-chip-height: 24px;
+.workspace-gantt-table {
+  --table-row-height: 36px;
+  --table-parent-row-height: 40px;
+  --table-chip-height: 24px;
   --gantt-task-col-width: 240px;
   --gantt-assignees-col-width: 120px;
   --gantt-date-col-width: 108px;
@@ -973,19 +973,19 @@ defineExpose({
   table-layout: fixed;
   font-size: 0.8125rem;
 }
-.project-wbs-gantt-table__task-col {
+.workspace-gantt-table__task-col {
   width: var(--gantt-task-col-width);
 }
-.project-wbs-gantt-table__assignees-col {
+.workspace-gantt-table__assignees-col {
   width: var(--gantt-assignees-col-width);
 }
-.project-wbs-gantt-table__date-col {
+.workspace-gantt-table__date-col {
   width: var(--gantt-date-col-width);
 }
-.project-wbs-gantt-table__day-col {
+.workspace-gantt-table__day-col {
   width: var(--gantt-day-col-width);
 }
-.project-wbs-gantt-table thead th {
+.workspace-gantt-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -996,13 +996,13 @@ defineExpose({
   vertical-align: middle;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
-.project-wbs-gantt-table__drag-header {
+.workspace-gantt-table__drag-header {
   left: 0;
   z-index: 8;
   border-top-left-radius: 12px;
 }
-.project-wbs-gantt-table__task-header {
-  left: var(--wbs-drag-col-width);
+.workspace-gantt-table__task-header {
+  left: var(--table-drag-col-width);
   z-index: 7;
   width: var(--gantt-task-col-width);
   min-width: var(--gantt-task-col-width);
@@ -1012,8 +1012,8 @@ defineExpose({
   font-size: 0.75rem;
   white-space: nowrap;
 }
-.project-wbs-gantt-table__assignees-header {
-  left: calc(var(--wbs-drag-col-width) + var(--gantt-task-col-width));
+.workspace-gantt-table__assignees-header {
+  left: calc(var(--table-drag-col-width) + var(--gantt-task-col-width));
   z-index: 6;
   width: var(--gantt-assignees-col-width);
   min-width: var(--gantt-assignees-col-width);
@@ -1023,7 +1023,7 @@ defineExpose({
   font-size: 0.75rem;
   white-space: nowrap;
 }
-.project-wbs-gantt-table__date-header {
+.workspace-gantt-table__date-header {
   width: var(--gantt-date-col-width);
   min-width: var(--gantt-date-col-width);
   max-width: var(--gantt-date-col-width);
@@ -1032,37 +1032,37 @@ defineExpose({
   font-size: 0.75rem;
   white-space: nowrap;
 }
-.project-wbs-gantt-table__date-header--start {
-  left: calc(var(--wbs-drag-col-width) + var(--gantt-task-col-width) + var(--gantt-assignees-col-width));
+.workspace-gantt-table__date-header--start {
+  left: calc(var(--table-drag-col-width) + var(--gantt-task-col-width) + var(--gantt-assignees-col-width));
   z-index: 5;
 }
-.project-wbs-gantt-table__date-header--due {
-  left: calc(var(--wbs-drag-col-width) + var(--gantt-task-col-width) + var(--gantt-assignees-col-width) + var(--gantt-date-col-width));
+.workspace-gantt-table__date-header--due {
+  left: calc(var(--table-drag-col-width) + var(--gantt-task-col-width) + var(--gantt-assignees-col-width) + var(--gantt-date-col-width));
   z-index: 4;
 }
-.project-wbs-gantt-table__day-header {
+.workspace-gantt-table__day-header {
   width: var(--gantt-day-col-width);
   min-width: var(--gantt-day-col-width);
   max-width: var(--gantt-day-col-width);
   padding: 0.3rem 0;
   line-height: 1.05;
 }
-.project-wbs-gantt-table__day-header:last-child {
+.workspace-gantt-table__day-header:last-child {
   border-top-right-radius: 12px;
 }
-.project-wbs-gantt-table__day-header--weekend {
+.workspace-gantt-table__day-header--weekend {
   background: rgba(255, 255, 255, 0.08);
 }
-.project-wbs-gantt-table__day-header--today {
+.workspace-gantt-table__day-header--today {
   box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.95);
 }
-.project-wbs-gantt-table__day-date {
+.workspace-gantt-table__day-date {
   display: block;
   font-size: 0.68rem;
   font-weight: 700;
   line-height: 1.05;
 }
-.project-wbs-gantt-table__day-weekday {
+.workspace-gantt-table__day-weekday {
   display: block;
   margin-top: 0.02rem;
   font-size: 0.6rem;
@@ -1070,35 +1070,35 @@ defineExpose({
   line-height: 1.05;
   opacity: 0.92;
 }
-.project-wbs-gantt-table__task-row td {
-  height: var(--wbs-row-height);
-  max-height: var(--wbs-row-height);
+.workspace-gantt-table__task-row td {
+  height: var(--table-row-height);
+  max-height: var(--table-row-height);
   border-bottom: 1px solid mixin.$border-light;
   vertical-align: middle;
 }
-.project-wbs-gantt-table__task-row--parent td {
-  height: var(--wbs-parent-row-height);
-  max-height: var(--wbs-parent-row-height);
+.workspace-gantt-table__task-row--parent td {
+  height: var(--table-parent-row-height);
+  max-height: var(--table-parent-row-height);
 }
-.project-wbs-gantt-table__task-row:last-child td {
+.workspace-gantt-table__task-row:last-child td {
   border-bottom: none;
 }
-.project-wbs-gantt-table__task-row:last-child .project-wbs-gantt-table__drag-cell {
+.workspace-gantt-table__task-row:last-child .workspace-gantt-table__drag-cell {
   border-bottom-left-radius: 12px;
 }
-.project-wbs-gantt-table__task-row:last-child .project-wbs-gantt-table__day-cell:last-child {
+.workspace-gantt-table__task-row:last-child .workspace-gantt-table__day-cell:last-child {
   border-bottom-right-radius: 12px;
 }
-.project-wbs-gantt-table__drag-cell {
+.workspace-gantt-table__drag-cell {
   position: sticky;
   left: 0;
   z-index: 5;
   background: #fff;
   box-shadow: 1px 0 0 mixin.$border-light;
 }
-.project-wbs-gantt-table__task-title {
+.workspace-gantt-table__task-title {
   position: sticky;
-  left: var(--wbs-drag-col-width);
+  left: var(--table-drag-col-width);
   z-index: 4;
   width: var(--gantt-task-col-width);
   min-width: var(--gantt-task-col-width);
@@ -1108,9 +1108,9 @@ defineExpose({
   box-shadow: 1px 0 0 mixin.$border-light;
   overflow: hidden;
 }
-.project-wbs-gantt-table__assignees-cell {
+.workspace-gantt-table__assignees-cell {
   position: sticky;
-  left: calc(var(--wbs-drag-col-width) + var(--gantt-task-col-width));
+  left: calc(var(--table-drag-col-width) + var(--gantt-task-col-width));
   z-index: 3;
   width: var(--gantt-assignees-col-width);
   min-width: var(--gantt-assignees-col-width);
@@ -1120,7 +1120,7 @@ defineExpose({
   box-shadow: 1px 0 0 mixin.$border-light;
   vertical-align: middle;
 }
-.project-wbs-gantt-table__date-cell {
+.workspace-gantt-table__date-cell {
   position: sticky;
   z-index: 2;
   width: var(--gantt-date-col-width);
@@ -1131,21 +1131,21 @@ defineExpose({
   box-shadow: 1px 0 0 mixin.$border-light;
   vertical-align: middle;
 }
-.project-wbs-gantt-table__date-cell--start {
-  left: calc(var(--wbs-drag-col-width) + var(--gantt-task-col-width) + var(--gantt-assignees-col-width));
+.workspace-gantt-table__date-cell--start {
+  left: calc(var(--table-drag-col-width) + var(--gantt-task-col-width) + var(--gantt-assignees-col-width));
   z-index: 2;
 }
-.project-wbs-gantt-table__date-cell--due {
-  left: calc(var(--wbs-drag-col-width) + var(--gantt-task-col-width) + var(--gantt-assignees-col-width) + var(--gantt-date-col-width));
+.workspace-gantt-table__date-cell--due {
+  left: calc(var(--table-drag-col-width) + var(--gantt-task-col-width) + var(--gantt-assignees-col-width) + var(--gantt-date-col-width));
   z-index: 1;
 }
-.project-wbs-gantt-table__task-row--parent .project-wbs-gantt-table__drag-cell,
-.project-wbs-gantt-table__task-row--parent .project-wbs-gantt-table__task-title,
-.project-wbs-gantt-table__task-row--parent .project-wbs-gantt-table__assignees-cell,
-.project-wbs-gantt-table__task-row--parent .project-wbs-gantt-table__date-cell {
-  background: mixin.$wbs-parent-bg;
+.workspace-gantt-table__task-row--parent .workspace-gantt-table__drag-cell,
+.workspace-gantt-table__task-row--parent .workspace-gantt-table__task-title,
+.workspace-gantt-table__task-row--parent .workspace-gantt-table__assignees-cell,
+.workspace-gantt-table__task-row--parent .workspace-gantt-table__date-cell {
+  background: mixin.$table-parent-bg;
 }
-.project-wbs-gantt-table__title-btn {
+.workspace-gantt-table__title-btn {
   flex: 1;
   min-width: 0;
   margin: 0;
@@ -1160,14 +1160,14 @@ defineExpose({
   align-items: stretch;
   align-self: stretch;
 }
-.project-wbs-gantt-table__title-btn:focus-visible {
+.workspace-gantt-table__title-btn:focus-visible {
   @include mixin.input-focus-ring;
   border-radius: 4px;
 }
-.project-wbs-gantt-table__task-title .project-wbs-table__title-field {
+.workspace-gantt-table__task-title .workspace-table__title-field {
   gap: 0;
 }
-.project-wbs-gantt-table__day-cell {
+.workspace-gantt-table__day-cell {
   width: var(--gantt-day-col-width);
   min-width: var(--gantt-day-col-width);
   max-width: var(--gantt-day-col-width);
@@ -1175,10 +1175,10 @@ defineExpose({
   border-left: 1px solid mixin.$border-light;
   background: #fff;
 }
-.project-wbs-gantt-table__day-cell--filled {
+.workspace-gantt-table__day-cell--filled {
   cursor: pointer;
 }
-.project-wbs-gantt-table__day-cell--clickable:hover {
+.workspace-gantt-table__day-cell--clickable:hover {
   filter: brightness(0.96);
 }
 </style>

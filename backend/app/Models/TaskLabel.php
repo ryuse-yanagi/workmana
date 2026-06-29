@@ -10,18 +10,26 @@ class TaskLabel extends Model
 {
     protected $fillable = [
         'organization_id',
+        'category_id',
         'created_by',
         'name',
         'color_index',
+        'sort_order',
     ];
 
     protected $casts = [
         'color_index' => 'integer',
+        'sort_order' => 'integer',
     ];
 
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(TaskLabelCategory::class, 'category_id');
     }
 
     public function creator(): BelongsTo

@@ -75,14 +75,14 @@ class OrganizationTaskApiTest extends TestCase
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
-                'description' => 'WBS note',
+                'description' => 'Table note',
             ])
             ->assertOk();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
             ->assertOk()
-            ->assertJsonPath('data.0.description', 'WBS note')
+            ->assertJsonPath('data.0.description', 'Table note')
             ->assertJsonPath('data.0.list_name', '未着手');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
@@ -94,7 +94,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('effort_unit', null);
     }
 
-    public function test_user_can_reorder_wbs_tasks(): void
+    public function test_user_can_reorder_table_tasks(): void
     {
         $user = User::factory()->create();
 
@@ -143,7 +143,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/reorder", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table/reorder", [
                 'tasks' => [
                     ['id' => 3, 'sort_order' => 0, 'parent_task_id' => null],
                     ['id' => 1, 'sort_order' => 1, 'parent_task_id' => null],
@@ -154,7 +154,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('data.ok', true);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
             ->assertOk()
             ->assertJsonPath('data.0.id', 3)
             ->assertJsonPath('data.1.id', 1)
@@ -162,7 +162,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('data.2.parent_task_id', 1);
     }
 
-    public function test_changing_task_list_preserves_wbs_sort_order(): void
+    public function test_changing_task_list_preserves_table_sort_order(): void
     {
         $user = User::factory()->create();
 
@@ -212,7 +212,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/reorder", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table/reorder", [
                 'tasks' => [
                     ['id' => 1, 'sort_order' => 0, 'parent_task_id' => null],
                     ['id' => 2, 'sort_order' => 1, 'parent_task_id' => null],
@@ -230,7 +230,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('sort_order', 1);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
             ->assertOk()
             ->assertJsonPath('data.0.id', 1)
             ->assertJsonPath('data.1.id', 2)
@@ -289,7 +289,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('parent_task_id', 1);
     }
 
-    public function test_user_can_update_wbs_orphan_parent_label(): void
+    public function test_user_can_update_orphan_parent_label(): void
     {
         $user = User::factory()->create();
 
@@ -310,21 +310,21 @@ class OrganizationTaskApiTest extends TestCase
         $this->assertNotNull($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
             ->assertOk()
             ->assertJsonPath('meta.orphan_parent_label', '親タスクなし');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/orphan-parent-label", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table/orphan-parent-label", [
                 'label' => '未分類タスク',
             ])
             ->assertOk()
             ->assertJsonPath('data.orphan_parent_label', '未分類タスク');
 
-        $this->assertSame('未分類タスク', $workspace->fresh()?->wbs_orphan_parent_label);
+        $this->assertSame('未分類タスク', $workspace->fresh()?->orphan_parent_label);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
             ->assertOk()
             ->assertJsonPath('meta.orphan_parent_label', '未分類タスク');
     }

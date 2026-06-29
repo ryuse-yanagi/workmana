@@ -18,7 +18,7 @@ const DRAG_SCROLL_SKIP_SELECTOR = [
   '.list-header',
   '.sortable-fallback',
   '.sortable-chosen',
-  '.project-wbs-table__drag-handle',
+  '.workspace-table__drag-handle',
   '.settings-sidebar',
   '[data-no-drag-scroll]',
 ].join(', ')

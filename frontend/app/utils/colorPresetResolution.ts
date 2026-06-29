@@ -17,9 +17,12 @@ function resolveColorIndexedRecord (record: Record<string, unknown>): Record<str
   if (!hasColorIndex) {
     return record
   }
+  if (record.category_id !== undefined) {
+    return withResolvedLabelColor(record as ColorIndexedEntity) as Record<string, unknown>
+  }
   const isListColor = typeof record.sort_order === 'number'
     || (typeof record.sort_order === 'string' && /^\d+$/.test(record.sort_order))
-  if (isListColor) {
+  if (isListColor && record.workspace_id !== undefined) {
     return withResolvedListColor(record as ColorIndexedEntity) as Record<string, unknown>
   }
   return withResolvedLabelColor(record as ColorIndexedEntity) as Record<string, unknown>

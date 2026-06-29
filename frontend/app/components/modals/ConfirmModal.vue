@@ -86,7 +86,7 @@ syncAppLoadingCursor(() => props.loading)
   @include mixin.btn-primary;
 }
 .danger-btn {
-  background: #ff0000;
+  background: mixin.$danger;
   color: #fff;
 }
 </style>

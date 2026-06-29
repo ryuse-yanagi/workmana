@@ -1,22 +1,22 @@
 <template>
-  <div class="project-wbs-view workspace-view-page workspace-view-page--wbs" :style="pageCssVars">
+  <div class="workspace-table-gantt-view workspace-view-page workspace-view-page--table" :style="pageCssVars">
     <header class="page-header">
       <div class="subheader">
         <NuxtLink :to="`/org/${orgSlug}/workspaces`" class="subheader-title subheader-back-link">
-          ワークスペース一覧
+          Workspaces
         </NuxtLink>
         <WorkspaceViewSwitcher :org-slug="orgSlug" :workspace-id="workspaceId" />
         <div class="subheader-spacer" />
       </div>
     </header>
-    <section class="workspace-view-page__body workspace-view-page__body--wbs">
-      <WorkspaceWbsBoard
+    <section class="workspace-view-page__body workspace-view-page__body--table">
+      <WorkspaceTableBoard
         v-if="mode === 'table'"
         ref="tableBoardRef"
         :org-slug="orgSlug"
         :workspace-id="workspaceId"
       />
-      <WorkspaceWbsGanttBoard
+      <WorkspaceGanttBoard
         v-else
         ref="ganttBoardRef"
         :org-slug="orgSlug"
@@ -27,16 +27,16 @@
 </template>
 <script setup lang="ts">
 import WorkspaceViewSwitcher from './WorkspaceViewSwitcher.vue'
-import WorkspaceWbsBoard from './WorkspaceWbsBoard.vue'
-import WorkspaceWbsGanttBoard from './WorkspaceWbsGanttBoard.vue'
+import WorkspaceTableBoard from './WorkspaceTableBoard.vue'
+import WorkspaceGanttBoard from './WorkspaceGanttBoard.vue'
 import { useWorkspaceViewPageCssVars } from '../../composables/useWorkspaceViewPageRoot'
 const props = defineProps<{
   orgSlug: string
   workspaceId: string
   mode: 'table' | 'gantt'
 }>()
-const tableBoardRef = ref<InstanceType<typeof WorkspaceWbsBoard> | null>(null)
-const ganttBoardRef = ref<InstanceType<typeof WorkspaceWbsGanttBoard> | null>(null)
+const tableBoardRef = ref<InstanceType<typeof WorkspaceTableBoard> | null>(null)
+const ganttBoardRef = ref<InstanceType<typeof WorkspaceGanttBoard> | null>(null)
 const pageCssVars = useWorkspaceViewPageCssVars()
 function refreshOnViewSwitch (): Promise<void> {
   if (props.mode === 'table') {
@@ -49,14 +49,13 @@ defineExpose({
 })
 </script>
 <style lang="scss" scoped>
-.project-wbs-view {
+.workspace-table-gantt-view {
   box-sizing: border-box;
   height: calc(100dvh - var(--global-header-offset, 46px) - var(--app-shell-page-pad, 0.25rem));
   max-height: calc(100dvh - var(--global-header-offset, 46px) - var(--app-shell-page-pad, 0.25rem));
   padding: 0 1rem;
   margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
   padding-top: 0;
-  font-family: system-ui, sans-serif;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -128,14 +127,14 @@ defineExpose({
   flex: 1;
   min-width: 0;
 }
-.workspace-view-page__body--wbs {
+.workspace-view-page__body--table {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 0 0 0.75rem;
 }
-.workspace-view-page__body--wbs > :deep(*) {
+.workspace-view-page__body--table > :deep(*) {
   flex: 1;
   min-height: 0;
 }

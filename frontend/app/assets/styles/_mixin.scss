@@ -1,6 +1,7 @@
 // 共通カラー — 各 Vue の <style lang="scss"> で mixin.$main のように使う
 // nuxt.config の additionalData で @use "~/assets/styles/mixin" as mixin; を注入済み
 
+$font-family: "Noto Sans JP", "Source Sans Pro", Avenir, Helvetica, Roboto, Arial, 游ゴシック体, YuGothic, メイリオ, Meiryo, sans-serif;
 $main: #0c66e4;
 $main-hover: #053580;
 $main-aqua: #25c0f3;
@@ -16,13 +17,13 @@ $text-sub: #475569;
 $text-muted: #64748b;
 $surface-muted: #f1f5f9;
 $list-column-bg: #f8fafc;
-$wbs-parent-bg: #f1f5f9;
+$table-parent-bg: #f1f5f9;
 $table-header-bg: $text-sub;
 $gray: #e2e8f0;
 $border: #cbd5e1;
 $border-light: #e2e8f0;
-$danger: #b91c1c;
-$danger-surface: #fee2e2;
+$danger: #f24545;
+$danger-surface: color-mix(in srgb, $danger 12%, white);
 $white: #fff;
 
 /** モーダル上部バー — padding 込みで 48px 固定 */

@@ -904,13 +904,13 @@ defineExpose({ resetComments })
   border: none;
   border-radius: 6px;
   padding: 0.42rem 0.75rem;
-  background: #dc2626;
+  background: mixin.$danger;
   color: mixin.$white;
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
   &:hover:not(:disabled) {
-    background: #b91c1c;
+    background: color-mix(in srgb, mixin.$danger 88%, black);
   }
   &:disabled {
     opacity: 0.6;

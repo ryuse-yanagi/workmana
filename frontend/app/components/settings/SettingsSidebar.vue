@@ -27,13 +27,19 @@ const emit = defineEmits<{
 .settings-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
+  width: 320px;
+  max-width: 100%;
 }
 .menu-item {
+  box-sizing: border-box;
+  width: 320px;
+  max-width: 100%;
+  height: 48px;
   border: 1px solid #dbe3ee;
   background: #fff;
   border-radius: 9px;
-  padding: 0.8rem 0.9rem;
+  padding: 0 0.9rem;
   text-align: left;
   font-size: 0.95rem;
   font-weight: 700;
@@ -51,10 +57,13 @@ const emit = defineEmits<{
   color: #94a3b8;
   font-size: 1.1rem;
 }
-@media (max-width: 900px) {
+@media (max-width: 1240px) {
   .settings-sidebar {
-    display: grid;
-    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .menu-item {
+    width: 100%;
   }
 }
 </style>

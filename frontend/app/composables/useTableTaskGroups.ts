@@ -1,13 +1,13 @@
 import { formatTaskCardEffort, formatTaskCardSingleDate } from './useTaskCardMeta'
 import type { TaskChecklist } from '../components/task/TaskDetailChecklistBlock.vue'
-export type WbsTaskLabel = { id: number; name: string; color: string }
-export type WbsTaskMember = {
+export type TableTaskLabel = { id: number; name: string; color: string }
+export type TableTaskMember = {
   id: number
   name: string | null
   email: string | null
   avatar_url: string | null
 }
-export type WbsTask = {
+export type TableTask = {
   id: number
   title: string
   description?: string | null
@@ -21,63 +21,63 @@ export type WbsTask = {
   effort_hours?: number | string | null
   effort_value?: number | string | null
   effort_unit?: string | null
-  labels?: WbsTaskLabel[]
-  assignees?: WbsTaskMember[]
+  labels?: TableTaskLabel[]
+  assignees?: TableTaskMember[]
   checklist?: TaskChecklist | null
   sort_order?: number
   is_parent_task?: boolean
   parent_task_id?: number | null
 }
-export const WBS_ORPHAN_PARENT_TASK_ID = -1
-export const WBS_ORPHAN_PARENT_DEFAULT_LABEL = '親タスクなし'
-export type WbsDisplayRow =
-  | { kind: 'parent'; task: WbsTask; childCount: number }
-  | { kind: 'child'; task: WbsTask }
-  | { kind: 'task'; task: WbsTask }
-export function isWbsOrphanParentTask (task: Pick<WbsTask, 'id'>): boolean {
-  return task.id === WBS_ORPHAN_PARENT_TASK_ID
+export const ORPHAN_PARENT_TASK_ID = -1
+export const ORPHAN_PARENT_DEFAULT_LABEL = '親タスクなし'
+export type TableDisplayRow =
+  | { kind: 'parent'; task: TableTask; childCount: number }
+  | { kind: 'child'; task: TableTask }
+  | { kind: 'task'; task: TableTask }
+export function isTableOrphanParentTask (task: Pick<TableTask, 'id'>): boolean {
+  return task.id === ORPHAN_PARENT_TASK_ID
 }
-export function createWbsOrphanParentTask (
-  label: string = WBS_ORPHAN_PARENT_DEFAULT_LABEL,
-): WbsTask {
-  const title = label.trim() || WBS_ORPHAN_PARENT_DEFAULT_LABEL
+export function createTableOrphanParentTask (
+  label: string = ORPHAN_PARENT_DEFAULT_LABEL,
+): TableTask {
+  const title = label.trim() || ORPHAN_PARENT_DEFAULT_LABEL
   return {
-    id: WBS_ORPHAN_PARENT_TASK_ID,
+    id: ORPHAN_PARENT_TASK_ID,
     title,
     list_id: null,
     is_parent_task: true,
   }
 }
-export function sortWbsTasks (tasks: WbsTask[]): WbsTask[] {
+export function sortTableTasks (tasks: TableTask[]): TableTask[] {
   return [...tasks].sort((a, b) => (
     (a.sort_order ?? 0) - (b.sort_order ?? 0)
     || a.id - b.id
   ))
 }
-export type WbsReorderItem = {
+export type TableReorderItem = {
   id: number
   sort_order: number
   parent_task_id: number | null
 }
-export function buildFullWbsDisplayRows (
-  tasks: WbsTask[],
-  orphanParentLabel: string = WBS_ORPHAN_PARENT_DEFAULT_LABEL,
+export function buildFullTableDisplayRows (
+  tasks: TableTask[],
+  orphanParentLabel: string = ORPHAN_PARENT_DEFAULT_LABEL,
   orphanParentSortOrder: number | null = null,
-): WbsDisplayRow[] {
-  return buildWbsDisplayRows(tasks, new Set(), orphanParentLabel, orphanParentSortOrder)
+): TableDisplayRow[] {
+  return buildTableDisplayRows(tasks, new Set(), orphanParentLabel, orphanParentSortOrder)
 }
-export function isTopLevelDropIndex (rows: WbsDisplayRow[], index: number): boolean {
+export function isTopLevelDropIndex (rows: TableDisplayRow[], index: number): boolean {
   if (index <= 0 || index >= rows.length) {
     return true
   }
   return rows[index]!.kind !== 'child'
 }
-function getFirstRealParentRowIndex (rows: WbsDisplayRow[]): number {
-  return rows.findIndex(row => row.kind === 'parent' && !isWbsOrphanParentTask(row.task))
+function getFirstRealParentRowIndex (rows: TableDisplayRow[]): number {
+  return rows.findIndex(row => row.kind === 'parent' && !isTableOrphanParentTask(row.task))
 }
 function clampChildInsertIndex (
-  rows: WbsDisplayRow[],
-  block: WbsDisplayRow[],
+  rows: TableDisplayRow[],
+  block: TableDisplayRow[],
   insertAt: number,
 ): number {
   const draggedKind = block[0]?.kind
@@ -91,8 +91,8 @@ function clampChildInsertIndex (
   return Math.max(insertAt, firstParentIndex + 1)
 }
 export function mapCollapsedTargetToFullIndex (
-  collapsedRows: WbsDisplayRow[],
-  fullRows: WbsDisplayRow[],
+  collapsedRows: TableDisplayRow[],
+  fullRows: TableDisplayRow[],
   targetIndex: number,
 ): number {
   if (targetIndex >= collapsedRows.length) {
@@ -102,12 +102,12 @@ export function mapCollapsedTargetToFullIndex (
   const fullIndex = fullRows.findIndex(row => row.task.id === anchorRow.task.id)
   return fullIndex >= 0 ? fullIndex : fullRows.length
 }
-export function getWbsDragBlock (
-  rows: WbsDisplayRow[],
+export function getTableDragBlock (
+  rows: TableDisplayRow[],
   rowIndex: number,
-  tasks: WbsTask[] = [],
+  tasks: TableTask[] = [],
   collapsedParentIds: ReadonlySet<number> = new Set(),
-): { block: WbsDisplayRow[]; indices: number[] } {
+): { block: TableDisplayRow[]; indices: number[] } {
   const row = rows[rowIndex]
   if (!row) {
     return { block: [], indices: [] }
@@ -116,12 +116,12 @@ export function getWbsDragBlock (
     const index = rows.findIndex(item => item.task.id === row.task.id)
     return { block: [row], indices: index >= 0 ? [index] : [] }
   }
-  if (isWbsOrphanParentTask(row.task)) {
-    const sorted = sortWbsTasks(tasks)
+  if (isTableOrphanParentTask(row.task)) {
+    const sorted = sortTableTasks(tasks)
     const taskById = new Map(sorted.map(task => [task.id, task]))
     const orphanTasks = collectOrphanTasks(sorted, taskById)
     const isCollapsed = collapsedParentIds.has(row.task.id)
-    const block: WbsDisplayRow[] = isCollapsed
+    const block: TableDisplayRow[] = isCollapsed
       ? [row]
       : [
           row,
@@ -132,9 +132,9 @@ export function getWbsDragBlock (
       .filter(index => index >= 0)
     return { block, indices }
   }
-  const childTasks = sortWbsTasks(tasks.filter(task => task.parent_task_id === row.task.id))
+  const childTasks = sortTableTasks(tasks.filter(task => task.parent_task_id === row.task.id))
   const isCollapsed = collapsedParentIds.has(row.task.id)
-  const block: WbsDisplayRow[] = isCollapsed
+  const block: TableDisplayRow[] = isCollapsed
     ? [row]
     : [
         row,
@@ -146,7 +146,7 @@ export function getWbsDragBlock (
   return { block, indices }
 }
 function countRowsBeforeIndex (
-  rows: WbsDisplayRow[],
+  rows: TableDisplayRow[],
   index: number,
   excludeTaskIds: Set<number>,
 ): number {
@@ -160,7 +160,7 @@ function countRowsBeforeIndex (
   return count
 }
 export function snapToTopLevelDropIndex (
-  rows: WbsDisplayRow[],
+  rows: TableDisplayRow[],
   insertAt: number,
 ): number {
   if (isTopLevelDropIndex(rows, insertAt)) {
@@ -178,14 +178,14 @@ export function snapToTopLevelDropIndex (
   }
   return rows.length
 }
-export function moveWbsDisplayRows (
-  rows: WbsDisplayRow[],
+export function moveTableDisplayRows (
+  rows: TableDisplayRow[],
   sourceIndex: number,
   targetIndex: number,
-  tasks: WbsTask[] = [],
+  tasks: TableTask[] = [],
   collapsedParentIds: ReadonlySet<number> = new Set(),
-): WbsDisplayRow[] | null {
-  const { block } = getWbsDragBlock(rows, sourceIndex, tasks, collapsedParentIds)
+): TableDisplayRow[] | null {
+  const { block } = getTableDragBlock(rows, sourceIndex, tasks, collapsedParentIds)
   if (!block.length) {
     return null
   }
@@ -210,14 +210,14 @@ export function moveWbsDisplayRows (
   ]
 }
 /** ドラッグ中のゴースト・配置プレビューに表示する行（折りたたみ状態を維持） */
-export function getWbsDragGhostBlock (block: WbsDisplayRow[]): WbsDisplayRow[] {
+export function getTableDragGhostBlock (block: TableDisplayRow[]): TableDisplayRow[] {
   return block
 }
-export function previewWbsDragInsert (
-  rows: WbsDisplayRow[],
-  ghostBlock: WbsDisplayRow[],
+export function previewTableDragInsert (
+  rows: TableDisplayRow[],
+  ghostBlock: TableDisplayRow[],
   targetIndex: number,
-): WbsDisplayRow[] {
+): TableDisplayRow[] {
   if (!ghostBlock.length) {
     return rows
   }
@@ -237,18 +237,18 @@ export function previewWbsDragInsert (
     ...without.slice(insertAt),
   ]
 }
-export function resolveWbsDropIndexFromDom (
+export function resolveTableDropIndexFromDom (
   clientX: number,
   clientY: number,
   tbody: HTMLElement,
-  baseRows: WbsDisplayRow[],
+  baseRows: TableDisplayRow[],
   excludeTaskIds: ReadonlySet<number>,
 ): number {
-  const rowEls = tbody.querySelectorAll<HTMLElement>('[data-wbs-task-id]')
+  const rowEls = tbody.querySelectorAll<HTMLElement>('[data-table-task-id]')
   const hitEl = document.elementFromPoint(clientX, clientY)
-  const hitRowEl = hitEl?.closest<HTMLElement>('[data-wbs-task-id]')
+  const hitRowEl = hitEl?.closest<HTMLElement>('[data-table-task-id]')
   if (hitRowEl && tbody.contains(hitRowEl)) {
-    const taskId = Number(hitRowEl.dataset.wbsTaskId)
+    const taskId = Number(hitRowEl.dataset.tableTaskId)
     if (!excludeTaskIds.has(taskId)) {
       const baseIndex = baseRows.findIndex(row => row.task.id === taskId)
       if (baseIndex >= 0) {
@@ -257,7 +257,7 @@ export function resolveWbsDropIndexFromDom (
     }
   }
   for (const rowEl of rowEls) {
-    const taskId = Number(rowEl.dataset.wbsTaskId)
+    const taskId = Number(rowEl.dataset.tableTaskId)
     if (excludeTaskIds.has(taskId)) {
       continue
     }
@@ -278,7 +278,7 @@ export function resolveWbsDropIndexFromDom (
     const firstEl = rowEls[0]!
     const firstRect = firstEl.getBoundingClientRect()
     if (clientY < firstRect.top) {
-      const firstTaskId = Number(firstEl.dataset.wbsTaskId)
+      const firstTaskId = Number(firstEl.dataset.tableTaskId)
       if (!excludeTaskIds.has(firstTaskId)) {
         return 0
       }
@@ -292,7 +292,7 @@ export function resolveWbsDropIndexFromDom (
   let nearestIndex = baseRows.length
   let nearestDistance = Number.POSITIVE_INFINITY
   for (const rowEl of rowEls) {
-    const taskId = Number(rowEl.dataset.wbsTaskId)
+    const taskId = Number(rowEl.dataset.tableTaskId)
     if (excludeTaskIds.has(taskId)) {
       continue
     }
@@ -309,13 +309,13 @@ export function resolveWbsDropIndexFromDom (
   return nearestIndex
 }
 export function resolveParentIdForChildAt (
-  rows: WbsDisplayRow[],
+  rows: TableDisplayRow[],
   childIndex: number,
 ): number | null {
   for (let index = childIndex - 1; index >= 0; index--) {
     const row = rows[index]!
     if (row.kind === 'parent') {
-      return isWbsOrphanParentTask(row.task) ? null : row.task.id
+      return isTableOrphanParentTask(row.task) ? null : row.task.id
     }
     if (row.kind === 'child') {
       return row.task.parent_task_id ?? null
@@ -326,15 +326,15 @@ export function resolveParentIdForChildAt (
   }
   return null
 }
-export function applyWbsRowOrder (
-  tasks: WbsTask[],
-  rows: WbsDisplayRow[],
+export function applyTableRowOrder (
+  tasks: TableTask[],
+  rows: TableDisplayRow[],
   reparentedChildIds?: ReadonlySet<number>,
-): WbsTask[] {
+): TableTask[] {
   const taskById = new Map(tasks.map(task => [task.id, { ...task }]))
   let sortOrder = 0
   rows.forEach((row, index) => {
-    if (isWbsOrphanParentTask(row.task)) {
+    if (isTableOrphanParentTask(row.task)) {
       return
     }
     const task = taskById.get(row.task.id)
@@ -350,23 +350,23 @@ export function applyWbsRowOrder (
   })
   return Array.from(taskById.values())
 }
-export function buildWbsReorderPayload (tasks: WbsTask[]): WbsReorderItem[] {
-  return sortWbsTasks(tasks.filter(task => !isWbsOrphanParentTask(task))).map((task, index) => ({
+export function buildTableReorderPayload (tasks: TableTask[]): TableReorderItem[] {
+  return sortTableTasks(tasks.filter(task => !isTableOrphanParentTask(task))).map((task, index) => ({
     id: task.id,
     sort_order: task.sort_order ?? index,
     parent_task_id: task.parent_task_id ?? null,
   }))
 }
-function isOrphanChild (task: WbsTask, taskById: Map<number, WbsTask>): boolean {
+function isOrphanChild (task: TableTask, taskById: Map<number, TableTask>): boolean {
   if (task.parent_task_id == null) {
     return false
   }
   const parent = taskById.get(task.parent_task_id)
   return !parent || !parent.is_parent_task
 }
-function collectOrphanTasks (tasks: WbsTask[], taskById: Map<number, WbsTask>): WbsTask[] {
-  const orphanTasks: WbsTask[] = []
-  for (const task of sortWbsTasks(tasks)) {
+function collectOrphanTasks (tasks: TableTask[], taskById: Map<number, TableTask>): TableTask[] {
+  const orphanTasks: TableTask[] = []
+  for (const task of sortTableTasks(tasks)) {
     if (task.parent_task_id != null && !isOrphanChild(task, taskById)) {
       continue
     }
@@ -378,11 +378,11 @@ function collectOrphanTasks (tasks: WbsTask[], taskById: Map<number, WbsTask>): 
   return orphanTasks
 }
 function buildParentSegmentRows (
-  parentTask: WbsTask,
-  children: WbsTask[],
+  parentTask: TableTask,
+  children: TableTask[],
   collapsedParentIds: ReadonlySet<number>,
-): WbsDisplayRow[] {
-  const rows: WbsDisplayRow[] = [{
+): TableDisplayRow[] {
+  const rows: TableDisplayRow[] = [{
     kind: 'parent',
     task: parentTask,
     childCount: children.length,
@@ -395,7 +395,7 @@ function buildParentSegmentRows (
   return rows
 }
 function resolveOrphanSegmentAnchor (
-  orphanTasks: WbsTask[],
+  orphanTasks: TableTask[],
   orphanParentSortOrder: number | null | undefined,
 ): number {
   if (orphanTasks.length > 0) {
@@ -407,11 +407,11 @@ function resolveOrphanSegmentAnchor (
   return orphanParentSortOrder
 }
 export function resolveOrphanParentSortOrderFromRows (
-  rows: WbsDisplayRow[],
-  tasks: WbsTask[],
+  rows: TableDisplayRow[],
+  tasks: TableTask[],
 ): number | null {
   const orphanIndex = rows.findIndex(
-    row => row.kind === 'parent' && isWbsOrphanParentTask(row.task),
+    row => row.kind === 'parent' && isTableOrphanParentTask(row.task),
   )
   if (orphanIndex < 0) {
     return null
@@ -419,7 +419,7 @@ export function resolveOrphanParentSortOrderFromRows (
   let precedingMaxSort = -1
   for (let index = 0; index < orphanIndex; index++) {
     const row = rows[index]!
-    if (isWbsOrphanParentTask(row.task)) {
+    if (isTableOrphanParentTask(row.task)) {
       continue
     }
     const task = tasks.find(item => item.id === row.task.id)
@@ -430,7 +430,7 @@ export function resolveOrphanParentSortOrderFromRows (
   let hasFollowingSegment = false
   for (let index = orphanIndex + 1; index < rows.length; index++) {
     const row = rows[index]!
-    if (row.kind === 'parent' && !isWbsOrphanParentTask(row.task)) {
+    if (row.kind === 'parent' && !isTableOrphanParentTask(row.task)) {
       hasFollowingSegment = true
       break
     }
@@ -444,20 +444,20 @@ export function resolveOrphanParentSortOrderFromRows (
   }
   return precedingMaxSort + 1
 }
-export function hasWbsOrphanChildTasks (tasks: WbsTask[]): boolean {
-  const sorted = sortWbsTasks(tasks)
+export function hasTableOrphanChildTasks (tasks: TableTask[]): boolean {
+  const sorted = sortTableTasks(tasks)
   const taskById = new Map(sorted.map(task => [task.id, task]))
   return collectOrphanTasks(sorted, taskById).length > 0
 }
-export function buildWbsDisplayRows (
-  tasks: WbsTask[],
+export function buildTableDisplayRows (
+  tasks: TableTask[],
   collapsedParentIds: ReadonlySet<number>,
-  orphanParentLabel: string = WBS_ORPHAN_PARENT_DEFAULT_LABEL,
+  orphanParentLabel: string = ORPHAN_PARENT_DEFAULT_LABEL,
   orphanParentSortOrder: number | null = null,
-): WbsDisplayRow[] {
-  const sorted = sortWbsTasks(tasks)
+): TableDisplayRow[] {
+  const sorted = sortTableTasks(tasks)
   const taskById = new Map(sorted.map((task) => [task.id, task]))
-  const childrenByParent = new Map<number, WbsTask[]>()
+  const childrenByParent = new Map<number, TableTask[]>()
   for (const task of sorted) {
     if (task.parent_task_id == null || isOrphanChild(task, taskById)) {
       continue
@@ -466,7 +466,7 @@ export function buildWbsDisplayRows (
     siblings.push(task)
     childrenByParent.set(task.parent_task_id, siblings)
   }
-  const segments: Array<{ anchorSortOrder: number; rows: WbsDisplayRow[] }> = []
+  const segments: Array<{ anchorSortOrder: number; rows: TableDisplayRow[] }> = []
   for (const task of sorted) {
     if (task.parent_task_id != null && !isOrphanChild(task, taskById)) {
       continue
@@ -480,8 +480,8 @@ export function buildWbsDisplayRows (
     }
   }
   const orphanTasks = collectOrphanTasks(sorted, taskById)
-  const orphanParent = createWbsOrphanParentTask(orphanParentLabel)
-  const orphanRows: WbsDisplayRow[] = [{
+  const orphanParent = createTableOrphanParentTask(orphanParentLabel)
+  const orphanRows: TableDisplayRow[] = [{
     kind: 'parent',
     task: orphanParent,
     childCount: orphanTasks.length,
@@ -499,8 +499,8 @@ export function buildWbsDisplayRows (
     if (a.anchorSortOrder !== b.anchorSortOrder) {
       return a.anchorSortOrder - b.anchorSortOrder
     }
-    const aIsOrphan = a.rows[0]?.kind === 'parent' && isWbsOrphanParentTask(a.rows[0].task)
-    const bIsOrphan = b.rows[0]?.kind === 'parent' && isWbsOrphanParentTask(b.rows[0].task)
+    const aIsOrphan = a.rows[0]?.kind === 'parent' && isTableOrphanParentTask(a.rows[0].task)
+    const bIsOrphan = b.rows[0]?.kind === 'parent' && isTableOrphanParentTask(b.rows[0].task)
     if (aIsOrphan && !bIsOrphan) {
       return -1
     }
@@ -511,16 +511,16 @@ export function buildWbsDisplayRows (
   })
   return segments.flatMap(segment => segment.rows)
 }
-export function formatWbsDate (value: string | null | undefined): string {
+export function formatTableDate (value: string | null | undefined): string {
   return formatTaskCardSingleDate(value) ?? ''
 }
-export function formatWbsEffort (
-  task: WbsTask,
+export function formatTableEffort (
+  task: TableTask,
   orgUnit?: 'minute' | 'hour' | 'day' | string | null,
 ): string {
   return formatTaskCardEffort(task, orgUnit) ?? ''
 }
-export function formatWbsDescription (value: string | null | undefined): string {
+export function formatTableDescription (value: string | null | undefined): string {
   if (!value?.trim()) {
     return ''
   }

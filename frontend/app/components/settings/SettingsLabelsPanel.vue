@@ -1,5 +1,5 @@
 <template>
-  <SettingsPanel title="ラベル設定" note="ワークスペースやタスクで使うラベルを作成します。">
+  <SettingsPanel title="ラベル設定" note="ワークスペースやタスクで使うラベルをカテゴリごとに管理します。">
     <div class="settings-label-tabs" role="tablist" aria-label="ラベル種別">
       <button
         v-for="item in labelTabs"
@@ -14,27 +14,24 @@
         {{ item.label }}
       </button>
     </div>
-    <SettingsWorkspaceLabelsPanel
+    <SettingsLabelCategoryPanel
       v-show="activeLabelTab === 'workspace'"
       :org-slug="orgSlug"
-      :initial-labels="initialWorkspaceLabels"
+      label-kind="workspace"
     />
-    <SettingsTaskLabelsPanel
+    <SettingsLabelCategoryPanel
       v-show="activeLabelTab === 'task'"
       :org-slug="orgSlug"
-      :initial-labels="initialTaskLabels"
+      label-kind="task"
     />
   </SettingsPanel>
 </template>
 <script setup lang="ts">
 import SettingsPanel from './SettingsPanel.vue'
-import SettingsWorkspaceLabelsPanel from './SettingsWorkspaceLabelsPanel.vue'
-import SettingsTaskLabelsPanel from './SettingsTaskLabelsPanel.vue'
-import type { SettingsLabelItem, SettingsLabelTabKey } from './types'
+import SettingsLabelCategoryPanel from './SettingsLabelCategoryPanel.vue'
+import type { SettingsLabelTabKey } from './types'
 const props = defineProps<{
   orgSlug: string
-  initialWorkspaceLabels: SettingsLabelItem[]
-  initialTaskLabels: SettingsLabelItem[]
   initialLabelTab?: SettingsLabelTabKey
 }>()
 const labelTabs: Array<{ key: SettingsLabelTabKey; label: string }> = [

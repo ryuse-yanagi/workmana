@@ -9,7 +9,7 @@
     <template v-else-if="pageReady">
       <header class="page-header">
             <div class="subheader">
-              <p class="subheader-title">ワークスペース一覧</p>
+              <p class="subheader-title">Workspaces</p>
               <div class="subheader-filters">
                 <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
                   <option value="">全ラベル</option>
@@ -358,7 +358,6 @@ onBeforeUnmount(() => {
   padding: 0 1rem 1rem;
   margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
   padding-top: 0;
-  font-family: system-ui, sans-serif;
   box-sizing: border-box;
 }
 .table-card,

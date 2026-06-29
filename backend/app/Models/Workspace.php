@@ -17,8 +17,8 @@ class Workspace extends Model
         'created_by',
         'name',
         'description',
-        'wbs_orphan_parent_label',
-        'wbs_orphan_parent_sort_order',
+        'orphan_parent_label',
+        'orphan_parent_sort_order',
         'archived_at',
     ];
 

@@ -88,7 +88,7 @@ const activeViewIcon = computed(() => {
 })
 const activeViewLabel = computed(() => {
   if (activeView.value === 'documents') {
-    return '資料'
+    return 'Documents'
   }
   return views.value.find(view => view.key === activeView.value)?.label ?? 'ボード'
 })

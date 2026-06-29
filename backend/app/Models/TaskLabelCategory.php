@@ -4,21 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class WorkspaceLabel extends Model
+class TaskLabelCategory extends Model
 {
     protected $fillable = [
         'organization_id',
-        'category_id',
         'created_by',
         'name',
-        'color_index',
         'sort_order',
     ];
 
     protected $casts = [
-        'color_index' => 'integer',
         'sort_order' => 'integer',
     ];
 
@@ -27,18 +24,13 @@ class WorkspaceLabel extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function category(): BelongsTo
-    {
-        return $this->belongsTo(WorkspaceLabelCategory::class, 'category_id');
-    }
-
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function workspaces(): BelongsToMany
+    public function labels(): HasMany
     {
-        return $this->belongsToMany(Workspace::class, 'workspace_workspace_label')->withTimestamps();
+        return $this->hasMany(TaskLabel::class, 'category_id')->orderBy('sort_order')->orderBy('name');
     }
 }

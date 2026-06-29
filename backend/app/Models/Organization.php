@@ -46,13 +46,23 @@ class Organization extends Model
         return $this->hasMany(Workspace::class);
     }
 
+    public function workspaceLabelCategories(): HasMany
+    {
+        return $this->hasMany(WorkspaceLabelCategory::class)->orderBy('sort_order')->orderBy('name');
+    }
+
     public function workspaceLabels(): HasMany
     {
-        return $this->hasMany(WorkspaceLabel::class)->orderBy('name');
+        return $this->hasMany(WorkspaceLabel::class)->orderBy('sort_order')->orderBy('name');
+    }
+
+    public function taskLabelCategories(): HasMany
+    {
+        return $this->hasMany(TaskLabelCategory::class)->orderBy('sort_order')->orderBy('name');
     }
 
     public function taskLabels(): HasMany
     {
-        return $this->hasMany(TaskLabel::class)->orderBy('name');
+        return $this->hasMany(TaskLabel::class)->orderBy('sort_order')->orderBy('name');
     }
 }

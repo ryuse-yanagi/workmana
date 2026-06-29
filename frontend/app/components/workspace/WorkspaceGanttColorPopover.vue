@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="open"
-      class="wbs-gantt-color-popover-layer"
+      class="gantt-color-popover-layer"
     >
       <PopoverShell
         ref="shellRef"
@@ -65,7 +65,7 @@ function shouldIgnoreOutsideClose (target: Node): boolean {
   if (!(target instanceof Element)) {
     return false
   }
-  return Boolean(target.closest('.project-wbs-gantt-table__day-cell--clickable'))
+  return Boolean(target.closest('.workspace-gantt-table__day-cell--clickable'))
 }
 function handleOutsidePointerDown (event: MouseEvent) {
   if (!props.open || props.saving || event.button !== 0) {
@@ -115,13 +115,13 @@ defineExpose({
 })
 </script>
 <style lang="scss" scoped>
-.wbs-gantt-color-popover-layer {
+.gantt-color-popover-layer {
   position: fixed;
   inset: 0;
   z-index: 119;
   pointer-events: none;
 }
-.wbs-gantt-color-popover-layer :deep(.popover-shell) {
+.gantt-color-popover-layer :deep(.popover-shell) {
   pointer-events: auto;
 }
 </style>

@@ -7,6 +7,7 @@ export type WorkspaceViewOption = {
   to: string
 }
 /** 旧 URL の互換用 */
+/** 旧 URL クエリ `?view=wbs` などを table に正規化 */
 const LEGACY_TABLE_VIEW_QUERY_VALUES = new Set(['list', 'wbs'])
 const LEGACY_BOARD_VIEW_QUERY_VALUES = new Set(['board'])
 export function normalizeProjectViewQuery (view: unknown): WorkspaceViewKey | null {
@@ -34,18 +35,12 @@ export function workspaceViewFromRoute (
       return normalized
     }
   }
-  if (name.includes('wbs')) {
-    return 'table'
-  }
   return 'board'
 }
 /** @deprecated workspaceViewFromRoute を使用 */
 export function workspaceViewFromRouteName (routeName: string | symbol | null | undefined): WorkspaceRouteViewKey {
   if (String(routeName || '').includes('documents')) {
     return 'documents'
-  }
-  if (String(routeName || '').includes('wbs')) {
-    return 'table'
   }
   return 'board'
 }

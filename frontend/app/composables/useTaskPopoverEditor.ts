@@ -280,7 +280,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     options.task.value = merged
     options.onUpdated(merged)
   }
-  function previewDescriptionInWbs () {
+  function previewDescriptionInTable () {
     if (activePopover.value !== 'description') return
     const task = options.task.value
     if (!task) return
@@ -290,7 +290,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       description: description.trim() === '' ? null : description,
     })
   }
-  function previewEffortInWbs () {
+  function previewEffortInTable () {
     if (activePopover.value !== 'effort') return
     const task = options.task.value
     if (!task) return
@@ -466,10 +466,10 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (activePopover.value === 'labels') updatePopoverPosition()
   })
   watch(descriptionDraft, () => {
-    previewDescriptionInWbs()
+    previewDescriptionInTable()
   })
   watch(effortDraft, () => {
-    previewEffortInWbs()
+    previewEffortInTable()
   })
   function isDisabled (): boolean {
     return options.disabled?.value ?? false

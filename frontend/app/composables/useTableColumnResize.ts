@@ -1,4 +1,4 @@
-export type WbsColumnKey =
+export type TableColumnKey =
   | 'title'
   | 'assignees'
   | 'labels'
@@ -7,18 +7,18 @@ export type WbsColumnKey =
   | 'dueDate'
   | 'effort'
   | 'notes'
-export type WbsTableColumnDef = {
-  key: WbsColumnKey
+export type TableColumnDef = {
+  key: TableColumnKey
   label: string
   defaultRatio: number
 }
 /** ドラッグハンドル列の幅（テーブル先頭の固定列） */
-export const WBS_DRAG_COL_WIDTH = 36
+export const TABLE_DRAG_COL_WIDTH = 36
 /** 各列の最小幅（タスク名列以外） */
-export const WBS_COLUMN_MIN_WIDTH = 72
+export const TABLE_COLUMN_MIN_WIDTH = 72
 /** タスク名列の最小幅 */
-export const WBS_TITLE_COLUMN_MIN_WIDTH = 168
-export const WBS_TABLE_COLUMNS: readonly WbsTableColumnDef[] = [
+export const TABLE_TITLE_COLUMN_MIN_WIDTH = 168
+export const TABLE_COLUMNS: readonly TableColumnDef[] = [
   { key: 'title', label: 'タスク', defaultRatio: 0.16 },
   { key: 'assignees', label: '担当者', defaultRatio: 0.10 },
   { key: 'labels', label: 'ラベル', defaultRatio: 0.14 },
@@ -28,34 +28,34 @@ export const WBS_TABLE_COLUMNS: readonly WbsTableColumnDef[] = [
   { key: 'effort', label: '工数', defaultRatio: 0.07 },
   { key: 'notes', label: '説明', defaultRatio: 0.24 },
 ] as const
-type WbsColumnWidths = Record<WbsColumnKey, number>
+type TableColumnWidths = Record<TableColumnKey, number>
 type ResizeSession = {
-  columnKey: WbsColumnKey
+  columnKey: TableColumnKey
   edge: 'left' | 'right'
   pointerId: number
   startX: number
   startWidth: number
 }
 const DEFAULT_CONTAINER_WIDTH = 1200
-function minWidthForColumn (key: WbsColumnKey): number {
-  return key === 'title' ? WBS_TITLE_COLUMN_MIN_WIDTH : WBS_COLUMN_MIN_WIDTH
+function minWidthForColumn (key: TableColumnKey): number {
+  return key === 'title' ? TABLE_TITLE_COLUMN_MIN_WIDTH : TABLE_COLUMN_MIN_WIDTH
 }
-function clampColumnWidth (key: WbsColumnKey, width: number): number {
+function clampColumnWidth (key: TableColumnKey, width: number): number {
   return Math.max(minWidthForColumn(key), Math.round(width))
 }
-function createDefaultWidths (containerWidth = DEFAULT_CONTAINER_WIDTH): WbsColumnWidths {
-  const widths = {} as WbsColumnWidths
-  for (const column of WBS_TABLE_COLUMNS) {
+function createDefaultWidths (containerWidth = DEFAULT_CONTAINER_WIDTH): TableColumnWidths {
+  const widths = {} as TableColumnWidths
+  for (const column of TABLE_COLUMNS) {
     widths[column.key] = clampColumnWidth(column.key, containerWidth * column.defaultRatio)
   }
   return widths
 }
-function parseStoredWidths (raw: string | null): WbsColumnWidths | null {
+function parseStoredWidths (raw: string | null): TableColumnWidths | null {
   if (!raw) return null
   try {
-    const parsed = JSON.parse(raw) as Partial<WbsColumnWidths>
-    const widths = {} as WbsColumnWidths
-    for (const column of WBS_TABLE_COLUMNS) {
+    const parsed = JSON.parse(raw) as Partial<TableColumnWidths>
+    const widths = {} as TableColumnWidths
+    for (const column of TABLE_COLUMNS) {
       const value = parsed[column.key]
       if (typeof value !== 'number' || !Number.isFinite(value)) {
         return null
@@ -67,20 +67,20 @@ function parseStoredWidths (raw: string | null): WbsColumnWidths | null {
     return null
   }
 }
-function columnIndex (key: WbsColumnKey): number {
-  return WBS_TABLE_COLUMNS.findIndex(column => column.key === key)
+function columnIndex (key: TableColumnKey): number {
+  return TABLE_COLUMNS.findIndex(column => column.key === key)
 }
-export function useWbsTableColumnResize (storageKey: MaybeRefOrGetter<string>) {
-  const columnWidths = ref<WbsColumnWidths>(createDefaultWidths())
+export function useTableColumnResize (storageKey: MaybeRefOrGetter<string>) {
+  const columnWidths = ref<TableColumnWidths>(createDefaultWidths())
   const isResizing = ref(false)
   const activeResize = ref<ResizeSession | null>(null)
   const tableWidth = computed(() => (
-    WBS_DRAG_COL_WIDTH
-    + WBS_TABLE_COLUMNS.reduce((sum, column) => sum + columnWidths.value[column.key], 0)
+    TABLE_DRAG_COL_WIDTH
+    + TABLE_COLUMNS.reduce((sum, column) => sum + columnWidths.value[column.key], 0)
   ))
   const columnResizeBoundaries = computed(() => {
-    let offset = WBS_DRAG_COL_WIDTH
-    return WBS_TABLE_COLUMNS.map((column) => {
+    let offset = TABLE_DRAG_COL_WIDTH
+    return TABLE_COLUMNS.map((column) => {
       offset += columnWidths.value[column.key]
       return {
         columnKey: column.key,
@@ -100,21 +100,21 @@ export function useWbsTableColumnResize (storageKey: MaybeRefOrGetter<string>) {
     const stored = parseStoredWidths(localStorage.getItem(toValue(storageKey)))
     columnWidths.value = stored ?? createDefaultWidths(containerWidth)
   }
-  function setColumnWidth (key: WbsColumnKey, width: number) {
+  function setColumnWidth (key: TableColumnKey, width: number) {
     columnWidths.value = {
       ...columnWidths.value,
       [key]: clampColumnWidth(key, width),
     }
   }
-  function resizeTargetForEdge (key: WbsColumnKey, edge: 'left' | 'right'): WbsColumnKey {
+  function resizeTargetForEdge (key: TableColumnKey, edge: 'left' | 'right'): TableColumnKey {
     if (edge === 'right') return key
     const index = columnIndex(key)
     if (index <= 0) return key
-    return WBS_TABLE_COLUMNS[index - 1]!.key
+    return TABLE_COLUMNS[index - 1]!.key
   }
   function onResizePointerDown (
     event: PointerEvent,
-    columnKey: WbsColumnKey,
+    columnKey: TableColumnKey,
     edge: 'left' | 'right',
   ) {
     if (edge === 'left' && columnIndex(columnKey) <= 0) return

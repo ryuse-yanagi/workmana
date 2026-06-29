@@ -1,32 +1,32 @@
 @use 'mixin' as mixin;
 
-.project-wbs-table__task-row td:has(.project-wbs-table__cell-btn) {
+.workspace-table__task-row td:has(.workspace-table__cell-btn) {
   cursor: pointer;
 }
 
-.project-wbs-table__task-row td > .project-wbs-table__placeholder {
+.workspace-table__task-row td > .workspace-table__placeholder {
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  min-height: var(--wbs-row-height);
+  min-height: var(--table-row-height);
   padding: 0 0.65rem;
 }
 
-.project-wbs-table__task-row--parent td > .project-wbs-table__placeholder {
-  min-height: var(--wbs-parent-row-height);
+.workspace-table__task-row--parent td > .workspace-table__placeholder {
+  min-height: var(--table-parent-row-height);
 }
 
-.project-wbs-table__task-row--parent .project-wbs-table__cell-btn {
-  min-height: var(--wbs-parent-row-height);
+.workspace-table__task-row--parent .workspace-table__cell-btn {
+  min-height: var(--table-parent-row-height);
 }
 
-.project-wbs-table__cell-btn {
+.workspace-table__cell-btn {
   display: flex;
   align-items: center;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  min-height: var(--wbs-row-height);
+  min-height: var(--table-row-height);
   margin: 0;
   padding: 0 0.9rem;
   border: none;
@@ -39,20 +39,20 @@
   overflow: hidden;
 }
 
-.project-wbs-table__cell-btn:focus-visible {
+.workspace-table__cell-btn:focus-visible {
   @include mixin.input-focus-ring;
 }
 
-.project-wbs-table__cell-btn--text {
+.workspace-table__cell-btn--text {
   height: 100%;
-  min-height: var(--wbs-row-height);
+  min-height: var(--table-row-height);
 }
 
-.project-wbs-table__task-row--parent .project-wbs-table__cell-btn--text {
-  min-height: var(--wbs-parent-row-height);
+.workspace-table__task-row--parent .workspace-table__cell-btn--text {
+  min-height: var(--table-parent-row-height);
 }
 
-.project-wbs-table__cell-btn--text > span:not(.project-wbs-table__placeholder) {
+.workspace-table__cell-btn--text > span:not(.workspace-table__placeholder) {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -60,12 +60,12 @@
   white-space: nowrap;
 }
 
-.project-wbs-table__placeholder {
+.workspace-table__placeholder {
   color: mixin.$text-sub;
   font-weight: 500;
 }
 
-.project-wbs-table__members-cell {
+.workspace-table__members-cell {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -76,7 +76,7 @@
   padding-left: 2px;
 }
 
-.project-wbs-table__avatar-btn {
+.workspace-table__avatar-btn {
   display: inline-flex;
   padding: 0;
   border: none;
@@ -85,16 +85,16 @@
   cursor: pointer;
 }
 
-.project-wbs-table__avatar-btn--add {
+.workspace-table__avatar-btn--add {
   box-sizing: border-box;
-  width: var(--wbs-chip-height);
-  height: var(--wbs-chip-height);
+  width: var(--table-chip-height);
+  height: var(--table-chip-height);
   align-items: center;
   justify-content: center;
   border: 1px solid mixin.$border;
 }
 
-.project-wbs-table__avatar-btn-plus {
+.workspace-table__avatar-btn-plus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -105,16 +105,16 @@
   color: #64748b;
 }
 
-.project-wbs-table__avatar-pill {
+.workspace-table__avatar-pill {
   display: inline-flex;
   border-radius: 999px;
 }
 
-.project-wbs-table__cell-btn:focus-visible .project-wbs-table__avatar-pill :deep(.member-avatar) {
+.workspace-table__cell-btn:focus-visible .workspace-table__avatar-pill :deep(.member-avatar) {
   border-color: rgba(37, 99, 235, 0.35);
 }
 
-.project-wbs-table__avatar-pill :deep(.member-avatar) {
+.workspace-table__avatar-pill :deep(.member-avatar) {
   box-sizing: border-box;
   border: 2px solid transparent;
 }

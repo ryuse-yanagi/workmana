@@ -32,8 +32,6 @@
             <SettingsLabelsPanel
               v-show="activeTab === 'labels'"
               :org-slug="slug"
-              :initial-workspace-labels="settingsSnapshot.workspaceLabels"
-              :initial-task-labels="settingsSnapshot.taskLabels"
               :initial-label-tab="initialLabelTab"
             />
           </section>
@@ -190,12 +188,12 @@ watch(
 .settings-page {
   min-height: 100vh;
   padding: 1.25rem 1rem 2rem;
-  font-family: system-ui, sans-serif;
 }
 
 .settings-header,
 .settings-layout {
-  max-width: 76rem;
+  width: calc(320px + 880px + 1rem);
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -212,18 +210,25 @@ h1 {
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 16rem 1fr;
+  grid-template-columns: 320px 880px;
   gap: 1rem;
   align-items: start;
 }
 
 .settings-content {
+  width: 880px;
+  max-width: 100%;
   min-height: 22rem;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1240px) {
   .settings-layout {
     grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .settings-content {
+    width: 100%;
   }
 }
 </style>

@@ -24,7 +24,7 @@ onMounted(async () => {
 })
 </script>
 <style lang="scss" scoped>
-.page { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
+.page { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
 .muted { color: mixin.$text-sub; }
 .link { display: inline-block; margin-top: 0.75rem; color: #1d4ed8; }
 </style>

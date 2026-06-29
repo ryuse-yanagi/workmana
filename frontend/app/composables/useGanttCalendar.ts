@@ -1,5 +1,5 @@
 import { DEFAULT_COLOR_PRESET } from '../constants/colorPresets'
-export type WbsGanttDay = {
+export type GanttDay = {
   iso: string
   year: number
   month: number
@@ -24,10 +24,10 @@ export function buildMonthDays (
   year: number,
   month: number,
   referenceDate: Date = new Date(),
-): WbsGanttDay[] {
+): GanttDay[] {
   const todayIso = formatIsoDate(referenceDate)
   const daysInMonth = new Date(year, month, 0).getDate()
-  const result: WbsGanttDay[] = []
+  const result: GanttDay[] = []
   for (let day = 1; day <= daysInMonth; day += 1) {
     const date = new Date(year, month - 1, day)
     const weekdayIndex = date.getDay()
@@ -48,7 +48,7 @@ export function buildMonthDays (
 export function formatGanttMonthLabel (year: number, month: number): string {
   return `${year}年${month}月`
 }
-export function formatGanttDayHeader (day: WbsGanttDay): string {
+export function formatGanttDayHeader (day: GanttDay): string {
   return `${String(day.month).padStart(2, '0')}/${String(day.day).padStart(2, '0')}`
 }
 export function resolveTaskDateRange (task: {
