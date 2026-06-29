@@ -1,7 +1,7 @@
 <template>
   <SettingsPanel
     title="リスト設定"
-    note="プロジェクト新規追加時に自動で作成するリストの名前を設定します。上から順に左側の列として並びます。"
+    note="ワークスペース新規追加時に自動で作成するリストの名前を設定します。上から順に左側の列として並びます。"
   >
     <form class="default-lists-form" @submit.prevent="save">
       <ul class="default-lists-editor">
@@ -31,7 +31,6 @@
           </button>
         </li>
       </ul>
-
       <div class="settings-button-row settings-button-row--start">
         <button
           type="button"
@@ -42,7 +41,6 @@
           リストを追加
         </button>
       </div>
-
       <div class="settings-button-row">
         <button type="submit" class="settings-primary-btn" :disabled="loading">
           {{ loading ? '保存中...' : '更新' }}
@@ -57,7 +55,6 @@
     </form>
   </SettingsPanel>
 </template>
-
 <script setup lang="ts">
 import { useApi } from '../../composables/useApi'
 import SettingsPanel from './SettingsPanel.vue'
@@ -66,46 +63,37 @@ import {
   serializeDefaultBoardListNames,
   type OrgSettingsResponse,
 } from './types'
-
 const props = defineProps<{
   orgSlug: string
   initialNames: string[]
 }>()
-
 const { api } = useApi()
-
 const namesCurrent = ref<string[]>([...props.initialNames])
 const namesDraft = ref<string[]>([...props.initialNames])
 const loading = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
-
 function setMessage (msg: string, kind: 'ok' | 'err') {
   message.value = msg
   messageKind.value = kind
 }
-
 async function load () {
   const res = await api<OrgSettingsResponse>(`/orgs/${props.orgSlug}/settings`)
   const names = normalizeDefaultBoardListNames(res.default_board_list_names)
   namesCurrent.value = [...names]
   namesDraft.value = [...names]
 }
-
 function resetDraft () {
   namesDraft.value = [...namesCurrent.value]
   setMessage('', 'ok')
 }
-
 function addRow () {
   if (namesDraft.value.length >= 20) return
   namesDraft.value = [...namesDraft.value, '']
 }
-
 function removeRow (index: number) {
   namesDraft.value = namesDraft.value.filter((_, i) => i !== index)
 }
-
 async function save () {
   const names = serializeDefaultBoardListNames(namesDraft.value)
   loading.value = true
@@ -126,21 +114,17 @@ async function save () {
     loading.value = false
   }
 }
-
 defineExpose({ load })
 </script>
-
 <style lang="scss">
 @use './shared';
 </style>
-
 <style lang="scss" scoped>
 .default-lists-form {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
-
 .default-lists-editor {
   list-style: none;
   margin: 0;
@@ -149,18 +133,15 @@ defineExpose({ load })
   flex-direction: column;
   gap: 0.55rem;
 }
-
 .default-lists-row {
   display: flex;
   align-items: flex-end;
   gap: 0.5rem;
 }
-
 .default-lists-field {
   flex: 1;
   min-width: 0;
 }
-
 .default-lists-remove-btn {
   flex-shrink: 0;
   margin-bottom: 0.1rem;

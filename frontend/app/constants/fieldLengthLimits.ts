@@ -1,11 +1,7 @@
 export const USER_NAME_MAX_LENGTH = 20
-
 export const TASK_TITLE_MAX_LENGTH = 100
-
 export const LABEL_NAME_MAX_LENGTH = 30
-
-export const PROJECT_NAME_MAX_LENGTH = 30
-
+export const WORKSPACE_NAME_MAX_LENGTH = 30
 export const CHECKLIST_TITLE_MAX_LENGTH = 30
-
+export const COMMENT_BODY_MAX_LENGTH = 100
 export const TASK_DESCRIPTION_MAX_LENGTH = 5000

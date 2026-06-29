@@ -4,14 +4,12 @@ export type TaskCommentAuthor = {
   email: string | null
   avatar_url: string | null
 }
-
 export type TaskCommentReaction = {
   emoji: string
   count: number
   reacted_by_me: boolean
   users: TaskCommentAuthor[]
 }
-
 export type TaskDetailComment = {
   id: number
   author_id: number
@@ -22,5 +20,4 @@ export type TaskDetailComment = {
   edited: boolean
   reactions: TaskCommentReaction[]
 }
-
 export type TaskCommentsByTaskId = Record<string, TaskDetailComment[]>

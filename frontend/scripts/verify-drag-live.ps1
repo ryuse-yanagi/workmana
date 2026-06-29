@@ -1,11 +1,10 @@
 $ErrorActionPreference = 'Stop'
 $WslIp = (wsl hostname -I).Trim().Split(' ')[0]
-$BoardUrl = "http://${WslIp}:3000/org/test-co/projects/1"
+$BoardUrl = "http://${WslIp}:3000/org/dmy_org/workspaces/1"
 $BaseUrl = "http://${WslIp}:3000/"
 $LongTitle = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
 $Chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
 $Port = 9388
-
 $chromeProc = Start-Process -FilePath $Chrome -ArgumentList @(
   "--remote-debugging-port=$Port",
   '--headless=new',
@@ -13,7 +12,6 @@ $chromeProc = Start-Process -FilePath $Chrome -ArgumentList @(
   '--no-sandbox',
   'about:blank'
 ) -PassThru -WindowStyle Hidden
-
 function Wait-Cdp {
   for ($i = 0; $i -lt 40; $i++) {
     try {
@@ -24,7 +22,6 @@ function Wait-Cdp {
   }
   throw 'CDP unavailable'
 }
-
 function Invoke-CdpEval($ws, [string]$Expression) {
   $id = Get-Random -Maximum 1000000000
   $payload = @{ id = $id; method = 'Runtime.evaluate'; params = @{ expression = $Expression; awaitPromise = $true; returnByValue = $true } } | ConvertTo-Json -Depth 6 -Compress
@@ -44,15 +41,12 @@ function Invoke-CdpEval($ws, [string]$Expression) {
     }
   }
 }
-
 try {
   $null = Wait-Cdp
   $newPage = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/json/new?$BaseUrl" -Method Put
   $wsUrl = $newPage.webSocketDebuggerUrl
-
   $ws = [System.Net.WebSockets.ClientWebSocket]::new()
   $ws.ConnectAsync([Uri]$wsUrl, [Threading.CancellationToken]::None).Wait()
-
   function Invoke-CdpMethod($ws, [string]$Method, $Params) {
     $id = Get-Random -Maximum 1000000000
     $payload = @{ id = $id; method = $Method; params = $Params } | ConvertTo-Json -Depth 6 -Compress
@@ -70,13 +64,11 @@ try {
       }
     }
   }
-
   $null = Invoke-CdpMethod $ws 'Page.navigate' @{ url = $BaseUrl }
   Start-Sleep -Seconds 2
   $null = Invoke-CdpEval $ws "localStorage.setItem('id_token', '1')"
   $null = Invoke-CdpMethod $ws 'Page.navigate' @{ url = $BoardUrl }
   Start-Sleep -Seconds 2
-
   $ready = Invoke-CdpEval $ws @"
 (async () => {
   for (let i = 0; i < 80; i++) {
@@ -94,7 +86,6 @@ try {
 })()
 "@
   if ($ready -ne 'ready') { throw "board not ready: $ready" }
-
   $created = Invoke-CdpEval $ws @"
 (async () => {
   const list = document.querySelector('.list-column')
@@ -111,7 +102,6 @@ try {
 })()
 "@
   if ($created -ne 'created') { throw "card create failed: $created" }
-
   $before = Invoke-CdpEval $ws @"
 (() => {
   const card = [...document.querySelectorAll('.task-card')].find(c => c.querySelector('.task-title')?.textContent?.includes('$($LongTitle.Substring(0,20))'))
@@ -133,7 +123,6 @@ try {
 })()
 "@
   if (-not $before) { throw 'card not found before drag' }
-
   $drag = Invoke-CdpEval $ws @"
 (async () => {
   const card = [...document.querySelectorAll('.task-card')].find(c => c.querySelector('.task-title')?.textContent?.includes('$($LongTitle.Substring(0,20))'))
@@ -179,10 +168,8 @@ try {
   }
 })()
 "@
-
   Write-Output ($drag | ConvertTo-Json -Depth 6)
   Write-Output ("before=" + ($before | ConvertTo-Json -Compress))
-
   if (-not $drag.fallback) { throw 'sortable-fallback not found during live drag' }
   if ($drag.fallback.className -notlike '*sortable-fallback*') { throw "missing sortable-fallback class: $($drag.fallback.className)" }
   if ($drag.heightDelta -gt 2) { throw "height delta $($drag.heightDelta)px" }
@@ -192,7 +179,6 @@ try {
   if ($drag.fallback.titleVisibility -eq 'hidden') { throw 'fallback title visibility hidden' }
   if ($drag.fallback.hasDragGhost) { throw 'fallback still has drag-ghost class' }
   if ($drag.spills -and -not $before.spills) { throw 'text spills below card during live drag' }
-
   Write-Output 'PASS: live board drag keeps card size'
 } finally {
   if ($ws) { $ws.Dispose() }

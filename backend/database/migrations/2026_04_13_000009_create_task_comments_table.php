@@ -12,13 +12,14 @@ return new class extends Migration
             $table->id();
             $table->foreignId('task_id')->constrained()->cascadeOnDelete();
             $table->foreignId('organization_id')->constrained()->restrictOnDelete();
-            $table->foreignId('project_id')->constrained()->restrictOnDelete();
+            $table->foreignId('workspace_id')->constrained()->restrictOnDelete();
             $table->foreignId('author_id')->constrained('users')->restrictOnDelete();
             $table->text('body');
+            $table->timestamp('edited_at')->nullable();
             $table->timestamp('deleted_at')->nullable();
             $table->timestamps();
             $table->index(['task_id', 'deleted_at', 'created_at']);
-            $table->index(['project_id', 'deleted_at']);
+            $table->index(['workspace_id', 'deleted_at']);
         });
     }
 

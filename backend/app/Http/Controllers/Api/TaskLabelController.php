@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Models\Organization;
 use App\Models\TaskLabel;
 use App\Support\FieldLengthLimits;
+use App\Support\LabelColorPresets;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -21,7 +22,7 @@ class TaskLabelController extends ApiController
         $labels = TaskLabel::query()
             ->where('organization_id', $organization->id)
             ->orderBy('name')
-            ->get(['id', 'name', 'color', 'created_at']);
+            ->get(['id', 'name', 'color_index', 'created_at']);
 
         return response()->json(['data' => $labels]);
     }
@@ -40,7 +41,7 @@ class TaskLabelController extends ApiController
                 'max:'.FieldLengthLimits::LABEL_NAME,
                 Rule::unique('task_labels', 'name')->where(fn ($q) => $q->where('organization_id', $organization->id)),
             ],
-            'color' => ['nullable', 'string', 'max:20', 'regex:/^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/'],
+            'color_index' => ['nullable', 'integer', 'min:0', 'max:'.(LabelColorPresets::COUNT - 1)],
         ]);
 
         $name = trim($validated['name']);
@@ -48,17 +49,22 @@ class TaskLabelController extends ApiController
             return response()->json(['message' => 'Task label name cannot be empty.'], 422);
         }
 
+        $colorIndex = (int) ($validated['color_index'] ?? LabelColorPresets::DEFAULT_INDEX);
+        if (! LabelColorPresets::isValidIndex($colorIndex)) {
+            return response()->json(['message' => 'Invalid label color index.'], 422);
+        }
+
         $label = TaskLabel::query()->create([
             'organization_id' => $organization->id,
             'created_by' => $request->user()->id,
             'name' => $name,
-            'color' => $validated['color'] ?? '#64748b',
+            'color_index' => $colorIndex,
         ]);
 
         return response()->json([
             'id' => $label->id,
             'name' => $label->name,
-            'color' => $label->color,
+            'color_index' => $label->color_index,
             'created_at' => $label->created_at,
         ], 201);
     }

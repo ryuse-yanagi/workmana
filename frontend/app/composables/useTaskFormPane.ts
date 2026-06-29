@@ -20,7 +20,6 @@ import {
   toDateInputValue,
   unitValueToHours,
 } from './useTaskFormHelpers'
-
 export type TaskFormPopoverType =
   | 'start-date'
   | 'due-date'
@@ -28,7 +27,6 @@ export type TaskFormPopoverType =
   | 'members'
   | 'member-detail'
   | 'labels'
-
 type CalendarCell = {
   key: string
   iso: string
@@ -36,20 +34,17 @@ type CalendarCell = {
   inMonth: boolean
   isToday: boolean
 }
-
 type UseTaskFormPaneOptions = {
   draft: Ref<TaskFormDraft>
   orgLabels: Ref<TaskFormLabel[]>
-  projectMembers: Ref<TaskFormMember[]>
+  workspaceMembers: Ref<TaskFormMember[]>
   orgEffortUnit: Ref<TaskFormEffortUnit>
   disabled: Ref<boolean>
 }
-
 const POPOVER_VIEWPORT_PAD = 12
 const POPOVER_ANCHOR_GAP = 6
 const POPOVER_MIN_HEIGHT = 120
 const POPOVER_DEFAULT_WIDTH_PX = 312
-
 export function useTaskFormPane (options: UseTaskFormPaneOptions) {
   const activePopover = ref<TaskFormPopoverType | null>(null)
   const selectedMember = ref<TaskFormMember | null>(null)
@@ -65,17 +60,13 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
   const labelSearchQuery = ref('')
   const effortDraft = ref<string | number>('')
   const effortInputRef = ref<HTMLInputElement | null>(null)
-
   let removePopoverResizeListener: (() => void) | null = null
-
   const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土']
-
   const filteredOrgLabels = computed(() => {
     const query = labelSearchQuery.value.trim().toLowerCase()
     if (!query) return options.orgLabels.value
     return options.orgLabels.value.filter(label => label.name.toLowerCase().includes(query))
   })
-
   const showEffortDetailSection = computed(() => {
     if (activePopover.value === 'effort') {
       const parsed = parseEffortDraft(effortDraft.value)
@@ -83,7 +74,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     return resolveStoredEffortValue(options.draft.value) !== null
   })
-
   const effortDetailDisplayText = computed(() => {
     if (activePopover.value === 'effort') {
       const parsed = parseEffortDraft(effortDraft.value)
@@ -92,13 +82,11 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     return formatEffortDisplay(options.draft.value, options.orgEffortUnit.value)
   })
-
   const calendarMonthLabel = computed(() => {
     const y = calendarCursor.value.getFullYear()
     const m = calendarCursor.value.getMonth() + 1
     return `${y}年${m}月`
   })
-
   const calendarCells = computed((): CalendarCell[] => {
     const year = calendarCursor.value.getFullYear()
     const month = calendarCursor.value.getMonth()
@@ -107,7 +95,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     const todayIso = toDateInputValue(new Date())
     const cells: CalendarCell[] = []
     const gridStart = new Date(year, month, 1 - startOffset)
-
     for (let i = 0; i < 42; i++) {
       const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i)
       const iso = toDateInputValue(date)
@@ -119,28 +106,23 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
         isToday: iso === todayIso,
       })
     }
-
     return cells
   })
-
   function resolvePopoverElement (): HTMLElement | null {
     const target = popoverElRef.value
     if (!target) return null
     if (target instanceof HTMLElement) return target
     return target.rootRef
   }
-
   function capturePopoverAnchor (event?: Event): HTMLElement | null {
     const fromEvent = event?.currentTarget
     if (fromEvent instanceof HTMLElement) return fromEvent
     return actionButtonsRef.value
   }
-
   function getEffortDisplayButton (): HTMLButtonElement | null {
     const section = effortDetailAnchorRef.value
     return section?.querySelector('.detail-value-btn') ?? null
   }
-
   function resolveEffortPopoverAnchor (event?: Event): HTMLElement | null {
     const clicked = event?.currentTarget
     const detailAnchor = effortDetailAnchorRef.value
@@ -149,29 +131,23 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     return capturePopoverAnchor(event)
   }
-
   function positionPopover () {
     const anchor = popoverAnchorEl.value
     const popover = resolvePopoverElement()
     if (!anchor || !popover) return
-
     const pad = POPOVER_VIEWPORT_PAD
     const gap = POPOVER_ANCHOR_GAP
     const anchorRect = anchor.getBoundingClientRect()
     const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
     const popoverWidth = measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX
-
     let left = anchorRect.left
     if (left + popoverWidth > window.innerWidth - pad) {
       left = anchorRect.right - popoverWidth
     }
-
     const spaceBelow = window.innerHeight - anchorRect.bottom - pad
     const spaceAbove = anchorRect.top - pad
-
     let top: number
     let maxHeight: number
-
     if (spaceBelow >= POPOVER_MIN_HEIGHT) {
       top = anchorRect.bottom + gap
       maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceBelow - gap))
@@ -179,7 +155,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
       maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceAbove - gap))
       top = Math.max(pad, anchorRect.top - gap - maxHeight)
     }
-
     popoverStyle.value = {
       position: 'fixed',
       top: `${Math.round(top)}px`,
@@ -188,7 +163,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
       zIndex: '75',
     }
   }
-
   function updatePopoverPosition () {
     nextTick(() => {
       requestAnimationFrame(() => {
@@ -199,7 +173,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
       })
     })
   }
-
   function dismissPopover () {
     activePopover.value = null
     selectedMember.value = null
@@ -207,16 +180,13 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     pendingDate.value = null
     popoverStyle.value = {}
   }
-
   async function finalizeEffortPopover () {
     if (activePopover.value !== 'effort') return
-
     const parsed = parseEffortDraft(effortDraft.value)
     if (parsed === 'invalid') {
       popoverError.value = '工数は0以上の数値で入力してください'
       return
     }
-
     popoverError.value = null
     if (parsed !== null) {
       const unit = options.orgEffortUnit.value
@@ -237,7 +207,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     dismissPopover()
   }
-
   function clearEffort () {
     if (activePopover.value !== 'effort') return
     effortDraft.value = ''
@@ -249,16 +218,13 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     dismissPopover()
   }
-
   const canClearCalendarDate = computed(() => !!pendingDate.value)
-
   const canClearEffort = computed(() => {
     if (String(effortDraft.value ?? '').trim() !== '') {
       return true
     }
     return resolveStoredEffortValue(options.draft.value) !== null
   })
-
   async function closePopover () {
     if (activePopover.value === 'effort') {
       await finalizeEffortPopover()
@@ -266,11 +232,9 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     dismissPopover()
   }
-
   function shouldIgnorePopoverOutsideClose (target: Node): boolean {
     const anchor = popoverAnchorEl.value
     if (!anchor?.contains(target)) return false
-
     if (activePopover.value === 'effort') {
       const detailAnchor = effortDetailAnchorRef.value
       if (detailAnchor?.contains(target)) {
@@ -279,10 +243,8 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
       }
       return true
     }
-
     return true
   }
-
   function handlePopoverOutsidePointerDown (event: MouseEvent) {
     if (!activePopover.value || event.button !== 0) return
     const target = event.target
@@ -291,14 +253,12 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     if (shouldIgnorePopoverOutsideClose(target)) return
     dismissPopoverFromOutsidePointer(target, closePopover)
   }
-
   function onPopoverEscape (event: KeyboardEvent) {
     if (event.key !== 'Escape' || !activePopover.value) return
     event.preventDefault()
     event.stopPropagation()
     void closePopover()
   }
-
   function bindPopoverListeners () {
     document.addEventListener('keydown', onPopoverEscape)
     document.addEventListener('mousedown', handlePopoverOutsidePointerDown, true)
@@ -306,27 +266,22 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     window.addEventListener('resize', onResize)
     removePopoverResizeListener = () => window.removeEventListener('resize', onResize)
   }
-
   function unbindPopoverListeners () {
     document.removeEventListener('keydown', onPopoverEscape)
     document.removeEventListener('mousedown', handlePopoverOutsidePointerDown, true)
     removePopoverResizeListener?.()
     removePopoverResizeListener = null
   }
-
   watch(activePopover, (next, prev) => {
     if (next && !prev) bindPopoverListeners()
     if (!next && prev) unbindPopoverListeners()
   })
-
   onBeforeUnmount(() => {
     unbindPopoverListeners()
   })
-
   watch(labelSearchQuery, () => {
     if (activePopover.value === 'labels') updatePopoverPosition()
   })
-
   function openDatePicker (target: 'start' | 'due', event?: Event) {
     const next: TaskFormPopoverType = target === 'start' ? 'start-date' : 'due-date'
     if (activePopover.value === next) {
@@ -346,20 +301,17 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     calendarCursor.value = new Date(base.getFullYear(), base.getMonth(), 1)
     updatePopoverPosition()
   }
-
   function shiftCalendarMonth (delta: number) {
     const next = new Date(calendarCursor.value)
     next.setMonth(next.getMonth() + delta, 1)
     calendarCursor.value = next
   }
-
   function pickCalendarDay (iso: string) {
     if (!activePopover.value) return
     const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
     pendingDate.value = iso
     options.draft.value = { ...options.draft.value, [field]: iso }
   }
-
   function clearCalendarDate () {
     if (!activePopover.value) return
     if (activePopover.value !== 'start-date' && activePopover.value !== 'due-date') {
@@ -369,7 +321,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     pendingDate.value = null
     options.draft.value = { ...options.draft.value, [field]: null }
   }
-
   function openEffortPicker (event?: Event) {
     if (options.disabled.value) return
     if (activePopover.value === 'effort') {
@@ -386,7 +337,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
       effortInputRef.value?.select()
     })
   }
-
   function updateEffortDraft (raw: string | number) {
     const sanitized = sanitizeEffortDraftInput(String(raw ?? ''))
     effortDraft.value = sanitized
@@ -395,7 +345,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
       inputEl.value = sanitized
     }
   }
-
   function openMemberPicker (event?: Event) {
     if (activePopover.value === 'members') {
       void closePopover()
@@ -407,7 +356,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     popoverError.value = null
     updatePopoverPosition()
   }
-
   function openMemberDetail (member: TaskFormMember, event: Event) {
     if (activePopover.value === 'member-detail' && selectedMember.value?.id === member.id) {
       void closePopover()
@@ -419,7 +367,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     popoverError.value = null
     updatePopoverPosition()
   }
-
   function openLabelPicker (event?: Event) {
     if (activePopover.value === 'labels') {
       void closePopover()
@@ -431,15 +378,12 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     popoverError.value = null
     updatePopoverPosition()
   }
-
   function isMemberAssigned (memberId: number): boolean {
     return options.draft.value.assignees.some(member => member.id === memberId)
   }
-
   function isLabelSelected (labelId: number): boolean {
     return options.draft.value.labels.some(label => label.id === labelId)
   }
-
   function toggleMember (member: TaskFormMember) {
     if (options.disabled?.value) return
     const current = options.draft.value.assignees
@@ -452,7 +396,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     popoverError.value = null
   }
-
   function removeMember (member: TaskFormMember) {
     options.draft.value = {
       ...options.draft.value,
@@ -460,7 +403,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     dismissPopover()
   }
-
   function toggleLabel (label: TaskFormLabel) {
     if (options.disabled?.value) return
     const current = options.draft.value.labels
@@ -473,15 +415,21 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     popoverError.value = null
   }
-
   function resetPaneState () {
     dismissPopover()
     labelSearchQuery.value = ''
     effortDraft.value = ''
-    titleInputRef.value = null
-    effortDetailAnchorRef.value = null
   }
-
+  function focusTitleInput () {
+    if (!import.meta.client) {
+      return
+    }
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        titleInputRef.value?.focus()
+      })
+    })
+  }
   return {
     activePopover,
     selectedMember,
@@ -523,6 +471,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     removeMember,
     toggleLabel,
     resetPaneState,
+    focusTitleInput,
     updatePopoverPosition,
   }
 }

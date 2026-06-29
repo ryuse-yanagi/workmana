@@ -19,7 +19,7 @@ class TaskRestored implements ShouldBroadcastNow
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("projects.{$this->task->project_id}")];
+        return [new PrivateChannel("workspaces.{$this->task->workspace_id}")];
     }
 
     public function broadcastAs(): string

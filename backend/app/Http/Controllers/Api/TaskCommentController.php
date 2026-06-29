@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\TaskHistoryEventType;
 use App\Models\Organization;
-use App\Models\Project;
+use App\Models\Workspace;
 use App\Models\Task;
 use App\Models\TaskComment;
 use App\Models\TaskCommentReaction;
@@ -16,13 +16,13 @@ use Illuminate\Support\Collection;
 
 class TaskCommentController extends ApiController
 {
-    public function projectIndex(Request $request, Organization $organization, Project $project): JsonResponse
+    public function workspaceIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
 
         $comments = TaskComment::query()
-            ->where('project_id', $project->id)
+            ->where('workspace_id', $workspace->id)
             ->whereHas('task', fn ($query) => $query->notArchived())
             ->with(['author:id,name,email,avatar_path', 'reactions.user:id,name,email,avatar_path'])
             ->orderBy('created_at')
@@ -39,11 +39,11 @@ class TaskCommentController extends ApiController
         return response()->json(['data' => $grouped]);
     }
 
-    public function index(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
+    public function index(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->assertTaskInProject($task, $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertTaskInWorkspace($task, $workspace);
 
         $comments = $task->comments()
             ->with(['author:id,name,email,avatar_path', 'reactions.user:id,name,email,avatar_path'])
@@ -55,20 +55,20 @@ class TaskCommentController extends ApiController
         ]);
     }
 
-    public function store(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
+    public function store(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
-        $this->assertTaskInProject($task, $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
+        $this->assertTaskInWorkspace($task, $workspace);
 
         if ($task->trashed()) {
             abort(403, 'Cannot comment on a deleted task.');
         }
 
         $validated = $request->validate([
-            'body' => ['required', 'string'],
+            'body' => ['required', 'string', 'max:100'],
         ]);
 
         $body = trim($validated['body']);
@@ -81,7 +81,7 @@ class TaskCommentController extends ApiController
         $comment = TaskComment::query()->create([
             'task_id' => $task->id,
             'organization_id' => $organization->id,
-            'project_id' => $project->id,
+            'workspace_id' => $workspace->id,
             'author_id' => $user->id,
             'body' => $body,
         ]);
@@ -89,7 +89,7 @@ class TaskCommentController extends ApiController
         TaskHistory::query()->create([
             'task_id' => $task->id,
             'organization_id' => $organization->id,
-            'project_id' => $project->id,
+            'workspace_id' => $workspace->id,
             'actor_id' => $user->id,
             'event_type' => TaskHistoryEventType::CommentAdded->value,
             'field_name' => null,
@@ -103,13 +103,13 @@ class TaskCommentController extends ApiController
         return response()->json($this->serializeComment($comment, $user), 201);
     }
 
-    public function update(Request $request, Organization $organization, Project $project, Task $task, TaskComment $comment): JsonResponse
+    public function update(Request $request, Organization $organization, Workspace $workspace, Task $task, TaskComment $comment): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
-        $this->assertTaskInProject($task, $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
+        $this->assertTaskInWorkspace($task, $workspace);
         $this->assertCommentInTask($comment, $task);
 
         $user = $request->user();
@@ -118,7 +118,7 @@ class TaskCommentController extends ApiController
         }
 
         $validated = $request->validate([
-            'body' => ['required', 'string'],
+            'body' => ['required', 'string', 'max:100'],
         ]);
 
         $body = trim($validated['body']);
@@ -133,7 +133,7 @@ class TaskCommentController extends ApiController
         TaskHistory::query()->create([
             'task_id' => $task->id,
             'organization_id' => $organization->id,
-            'project_id' => $project->id,
+            'workspace_id' => $workspace->id,
             'actor_id' => $user->id,
             'event_type' => TaskHistoryEventType::CommentEdited->value,
             'field_name' => null,
@@ -147,13 +147,13 @@ class TaskCommentController extends ApiController
         return response()->json($this->serializeComment($comment, $user));
     }
 
-    public function destroy(Request $request, Organization $organization, Project $project, Task $task, TaskComment $comment): JsonResponse
+    public function destroy(Request $request, Organization $organization, Workspace $workspace, Task $task, TaskComment $comment): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
-        $this->assertTaskInProject($task, $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
+        $this->assertTaskInWorkspace($task, $workspace);
         $this->assertCommentInTask($comment, $task);
 
         $user = $request->user();
@@ -166,7 +166,7 @@ class TaskCommentController extends ApiController
         TaskHistory::query()->create([
             'task_id' => $task->id,
             'organization_id' => $organization->id,
-            'project_id' => $project->id,
+            'workspace_id' => $workspace->id,
             'actor_id' => $user->id,
             'event_type' => TaskHistoryEventType::CommentDeleted->value,
             'field_name' => null,
@@ -178,13 +178,13 @@ class TaskCommentController extends ApiController
         return response()->json(['message' => 'Comment deleted.']);
     }
 
-    public function toggleReaction(Request $request, Organization $organization, Project $project, Task $task, TaskComment $comment): JsonResponse
+    public function toggleReaction(Request $request, Organization $organization, Workspace $workspace, Task $task, TaskComment $comment): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
-        $this->assertTaskInProject($task, $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
+        $this->assertTaskInWorkspace($task, $workspace);
         $this->assertCommentInTask($comment, $task);
 
         if ($task->trashed()) {
@@ -223,9 +223,9 @@ class TaskCommentController extends ApiController
         return response()->json($this->serializeComment($comment, $user));
     }
 
-    protected function assertTaskInProject(Task $task, Project $project): void
+    protected function assertTaskInWorkspace(Task $task, Workspace $workspace): void
     {
-        if ((int) $task->project_id !== (int) $project->id) {
+        if ((int) $task->workspace_id !== (int) $workspace->id) {
             abort(404);
         }
     }

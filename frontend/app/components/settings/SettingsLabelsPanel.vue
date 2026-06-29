@@ -1,5 +1,5 @@
 <template>
-  <SettingsPanel title="ラベル設定" note="プロジェクトやタスクで使うラベルを作成します。">
+  <SettingsPanel title="ラベル設定" note="ワークスペースやタスクで使うラベルを作成します。">
     <div class="settings-label-tabs" role="tablist" aria-label="ラベル種別">
       <button
         v-for="item in labelTabs"
@@ -14,11 +14,10 @@
         {{ item.label }}
       </button>
     </div>
-
-    <SettingsProjectLabelsPanel
-      v-show="activeLabelTab === 'project'"
+    <SettingsWorkspaceLabelsPanel
+      v-show="activeLabelTab === 'workspace'"
       :org-slug="orgSlug"
-      :initial-labels="initialProjectLabels"
+      :initial-labels="initialWorkspaceLabels"
     />
     <SettingsTaskLabelsPanel
       v-show="activeLabelTab === 'task'"
@@ -27,27 +26,22 @@
     />
   </SettingsPanel>
 </template>
-
 <script setup lang="ts">
 import SettingsPanel from './SettingsPanel.vue'
-import SettingsProjectLabelsPanel from './SettingsProjectLabelsPanel.vue'
+import SettingsWorkspaceLabelsPanel from './SettingsWorkspaceLabelsPanel.vue'
 import SettingsTaskLabelsPanel from './SettingsTaskLabelsPanel.vue'
 import type { SettingsLabelItem, SettingsLabelTabKey } from './types'
-
 const props = defineProps<{
   orgSlug: string
-  initialProjectLabels: SettingsLabelItem[]
+  initialWorkspaceLabels: SettingsLabelItem[]
   initialTaskLabels: SettingsLabelItem[]
   initialLabelTab?: SettingsLabelTabKey
 }>()
-
 const labelTabs: Array<{ key: SettingsLabelTabKey; label: string }> = [
-  { key: 'project', label: 'プロジェクト' },
+  { key: 'workspace', label: 'ワークスペース' },
   { key: 'task', label: 'タスク' },
 ]
-
-const activeLabelTab = ref<SettingsLabelTabKey>(props.initialLabelTab ?? 'project')
-
+const activeLabelTab = ref<SettingsLabelTabKey>(props.initialLabelTab ?? 'workspace')
 watch(
   () => props.initialLabelTab,
   (tab) => {
@@ -57,11 +51,9 @@ watch(
   },
 )
 </script>
-
 <style lang="scss">
 @use './shared';
 </style>
-
 <style lang="scss" scoped>
 .settings-label-tabs {
   display: inline-flex;
@@ -72,7 +64,6 @@ watch(
   border-radius: 9px;
   background: #f8fafc;
 }
-
 .settings-label-tabs__btn {
   border: 1px solid transparent;
   border-radius: 7px;
@@ -83,7 +74,6 @@ watch(
   background: transparent;
   cursor: pointer;
 }
-
 .settings-label-tabs__btn--active {
   border-color: mixin.$main;
   background: #fff;

@@ -13,7 +13,7 @@ class TaskComment extends Model
     protected $fillable = [
         'task_id',
         'organization_id',
-        'project_id',
+        'workspace_id',
         'author_id',
         'body',
         'edited_at',

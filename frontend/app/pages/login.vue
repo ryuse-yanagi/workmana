@@ -4,7 +4,6 @@
     <p class="muted">
       組織ページへ進むには、Cognito でログインしてください。
     </p>
-
     <section class="card">
       <p v-if="!isConfigured" class="err">
         Cognito 設定が不足しています。`NUXT_PUBLIC_COGNITO_*` を設定してください。
@@ -15,22 +14,19 @@
     </section>
   </main>
 </template>
-
 <script setup lang="ts">
 const route = useRoute()
 const { isConfigured, buildLoginUrl } = useAuth()
-
 function startLogin () {
   if (!isConfigured.value || !import.meta.client) {
     return
   }
   const next = typeof route.query.next === 'string' && route.query.next.startsWith('/')
     ? route.query.next
-    : '/org/acme'
+    : '/org/acme/workspaces'
   window.location.href = buildLoginUrl(next)
 }
 </script>
-
 <style lang="scss" scoped>
 .page { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
 .muted { color: #64748b; }

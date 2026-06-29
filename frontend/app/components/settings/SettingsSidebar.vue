@@ -13,27 +13,22 @@
     </button>
   </aside>
 </template>
-
 <script setup lang="ts">
 import type { SettingsTabKey } from './types'
-
 defineProps<{
   items: Array<{ key: SettingsTabKey; label: string }>
   activeTab: SettingsTabKey
 }>()
-
 const emit = defineEmits<{
   select: [SettingsTabKey]
 }>()
 </script>
-
 <style lang="scss" scoped>
 .settings-sidebar {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
 }
-
 .menu-item {
   border: 1px solid #dbe3ee;
   background: #fff;
@@ -48,17 +43,14 @@ const emit = defineEmits<{
   align-items: center;
   cursor: pointer;
 }
-
 .menu-item--active {
   border-color: mixin.$main;
   box-shadow: 0 0 0 2px color-mix(in srgb, mixin.$main 15%, transparent);
 }
-
 .menu-arrow {
   color: #94a3b8;
   font-size: 1.1rem;
 }
-
 @media (max-width: 900px) {
   .settings-sidebar {
     display: grid;

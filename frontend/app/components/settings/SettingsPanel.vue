@@ -5,14 +5,12 @@
     <slot />
   </article>
 </template>
-
 <script setup lang="ts">
 defineProps<{
   title: string
   note?: string
 }>()
 </script>
-
 <style lang="scss">
 @use './shared';
 </style>

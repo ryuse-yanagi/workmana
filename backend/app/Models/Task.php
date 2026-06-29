@@ -15,7 +15,7 @@ class Task extends Model
     use SoftDeletes;
     protected $fillable = [
         'organization_id',
-        'project_id',
+        'workspace_id',
         'list_id',
         'sort_order',
         'is_parent_task',
@@ -52,9 +52,9 @@ class Task extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function project(): BelongsTo
+    public function workspace(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(Workspace::class);
     }
 
     public function list(): BelongsTo

@@ -4,10 +4,11 @@
     :title="title"
     :aria-label="title"
     :close-disabled="loading"
+    focus-primary-input-on-open
     width="min(32rem, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <form class="label-create-modal-body" @submit.prevent="submit">
+    <form class="label-create-modal-body" @keydown="onFormKeydown">
       <label class="field">
         <span>ラベル名</span>
         <input
@@ -17,22 +18,21 @@
           required
           placeholder="ラベル名を入力してください"
           :disabled="loading"
+          @keydown.enter.exact.prevent
         />
       </label>
-
       <ColorPresetPicker v-model="color" :disabled="loading" />
-
       <div class="actions">
         <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">キャンセル</button>
-        <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading || !name">作成</button>
+        <button type="button" class="primary-btn primary-btn--pill" :disabled="loading || !name" @click="submit">作成</button>
       </div>
     </form>
   </BaseModal>
 </template>
-
 <script setup lang="ts">
-import { DEFAULT_LABEL_COLOR } from '../../constants/labelColorPresets'
+import { DEFAULT_COLOR_PRESET, colorPresetIndexFromHex } from '../../constants/colorPresets'
 import { LABEL_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
+import { isCtrlEnterKeydown } from '../../utils/uiInteraction'
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title: string
@@ -40,17 +40,13 @@ const props = withDefaults(defineProps<{
 }>(), {
   loading: false,
 })
-
 const emit = defineEmits<{
   'update:modelValue': [boolean]
-  submit: [{ name: string; color: string }]
+  submit: [{ name: string; color_index: number }]
 }>()
-
-const defaultColor = DEFAULT_LABEL_COLOR
-
+const defaultColor = DEFAULT_COLOR_PRESET
 const name = ref('')
 const color = ref<string>(defaultColor)
-
 watch(
   () => props.modelValue,
   (open) => {
@@ -60,19 +56,21 @@ watch(
     }
   },
 )
-
 function close () {
   if (props.loading) return
   emit('update:modelValue', false)
 }
-
 function submit () {
   const trimmed = name.value.trim()
   if (!trimmed || props.loading) return
-  emit('submit', { name: trimmed, color: color.value })
+  emit('submit', { name: trimmed, color_index: colorPresetIndexFromHex(color.value) })
+}
+function onFormKeydown (event: KeyboardEvent) {
+  if (!isCtrlEnterKeydown(event)) return
+  event.preventDefault()
+  submit()
 }
 </script>
-
 <style lang="scss" scoped>
 .label-create-modal-body {
   padding: 1rem;
@@ -80,7 +78,6 @@ function submit () {
   flex-direction: column;
   gap: 0.8rem;
 }
-
 .field {
   display: flex;
   flex-direction: column;
@@ -88,39 +85,32 @@ function submit () {
   color: #1e293b;
   font-weight: 700;
 }
-
 .field input {
   border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   font-size: 0.94rem;
-
   &:focus {
     @include mixin.input-focus-ring;
   }
 }
-
 .actions {
   margin-top: 0.2rem;
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
 }
-
 .ghost-btn,
 .primary-btn {
   @include mixin.btn-base;
 }
-
 .ghost-btn--pill,
 .primary-btn--pill {
   @include mixin.btn-pill;
 }
-
 .ghost-btn {
   @include mixin.btn-ghost;
 }
-
 .primary-btn {
   @include mixin.btn-primary;
 }

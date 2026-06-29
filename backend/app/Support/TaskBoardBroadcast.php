@@ -13,7 +13,7 @@ final class TaskBoardBroadcast
     public static function taskPayload(Task $task): array
     {
         $task->loadMissing([
-            'labels:id,name,color',
+            'labels:id,name,color_index',
             'assignees:id,name,email,avatar_path',
         ]);
 
@@ -34,7 +34,7 @@ final class TaskBoardBroadcast
             'labels' => $task->labels->map(fn ($l) => [
                 'id' => $l->id,
                 'name' => $l->name,
-                'color' => $l->color,
+                'color_index' => $l->color_index,
             ])->all(),
             'assignees' => $task->assignees->map(fn ($u) => [
                 'id' => $u->id,

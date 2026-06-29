@@ -12,7 +12,7 @@ use App\Events\TaskRestored;
 use App\Events\TaskUpdated;
 use App\Models\BoardList;
 use App\Models\Organization;
-use App\Models\Project;
+use App\Models\Workspace;
 use App\Models\Task;
 use App\Models\TaskChecklist;
 use App\Models\TaskChecklistItem;
@@ -32,13 +32,13 @@ class TaskController extends ApiController
 {
     private const WBS_ORPHAN_PARENT_DEFAULT_LABEL = '親タスクなし';
 
-    public function index(Request $request, Organization $organization, Project $project): JsonResponse
+    public function index(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
         $labelIds = $this->normalizeLabelIds($request->query('label_ids'));
 
-        $query = $project->tasks()
+        $query = $workspace->tasks()
             ->notArchived();
 
         if ($labelIds !== []) {
@@ -50,7 +50,7 @@ class TaskController extends ApiController
 
         $tasks = $query
             ->with([
-                'labels:id,name,color',
+                'labels:id,name,color_index',
                 'assignees:id,name,email,avatar_path',
                 'checklist.items',
             ])
@@ -82,17 +82,17 @@ class TaskController extends ApiController
         ]);
     }
 
-    public function wbsIndex(Request $request, Organization $organization, Project $project): JsonResponse
+    public function wbsIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
 
-        $tasks = $project->tasks()
+        $tasks = $workspace->tasks()
             ->notArchived()
             ->with([
-                'labels:id,name,color',
+                'labels:id,name,color_index',
                 'assignees:id,name,email,avatar_path',
-                'list:id,name,project_id',
+                'list:id,name,workspace_id',
                 'checklist.items',
             ])
             ->orderBy('sort_order')
@@ -121,18 +121,18 @@ class TaskController extends ApiController
         return response()->json([
             'data' => $tasks->map(fn (Task $task) => $this->taskWbsPayload($task)),
             'meta' => [
-                'orphan_parent_label' => $this->wbsOrphanParentLabel($project),
-                'orphan_parent_sort_order' => $project->wbs_orphan_parent_sort_order,
+                'orphan_parent_label' => $this->wbsOrphanParentLabel($workspace),
+                'orphan_parent_sort_order' => $workspace->wbs_orphan_parent_sort_order,
             ],
         ]);
     }
 
-    public function wbsUpdateOrphanParentLabel(Request $request, Organization $organization, Project $project): JsonResponse
+    public function wbsUpdateOrphanParentLabel(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:255'],
@@ -143,7 +143,7 @@ class TaskController extends ApiController
             return response()->json(['message' => 'Label cannot be empty.'], 422);
         }
 
-        $project->update(['wbs_orphan_parent_label' => $label]);
+        $workspace->update(['wbs_orphan_parent_label' => $label]);
 
         return response()->json([
             'data' => [
@@ -152,12 +152,12 @@ class TaskController extends ApiController
         ]);
     }
 
-    public function wbsReorder(Request $request, Organization $organization, Project $project): JsonResponse
+    public function wbsReorder(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
             'tasks' => ['required', 'array', 'min:1'],
@@ -180,7 +180,7 @@ class TaskController extends ApiController
             ->all();
 
         $taskIds = array_column($items, 'id');
-        $activeTaskIds = $project->tasks()
+        $activeTaskIds = $workspace->tasks()
             ->notArchived()
             ->pluck('id')
             ->sort()
@@ -192,12 +192,12 @@ class TaskController extends ApiController
 
         if ($activeTaskIds !== $sortedIncoming) {
             return response()->json([
-                'message' => 'tasks must include every active task in the project exactly once.',
+                'message' => 'tasks must include every active task in the workspace exactly once.',
             ], 422);
         }
 
         $parentIds = Task::query()
-            ->where('project_id', $project->id)
+            ->where('workspace_id', $workspace->id)
             ->whereIn('id', $taskIds)
             ->where('is_parent_task', true)
             ->pluck('id')
@@ -212,7 +212,7 @@ class TaskController extends ApiController
 
             if (! isset($parentIdSet[$parentTaskId])) {
                 return response()->json([
-                    'message' => 'Invalid parent task for this project.',
+                    'message' => 'Invalid parent task for this workspace.',
                 ], 422);
             }
 
@@ -223,11 +223,11 @@ class TaskController extends ApiController
             }
         }
 
-        DB::transaction(function () use ($items, $project, $validated) {
+        DB::transaction(function () use ($items, $workspace, $validated) {
             foreach ($items as $item) {
                 Task::query()
                     ->where('id', $item['id'])
-                    ->where('project_id', $project->id)
+                    ->where('workspace_id', $workspace->id)
                     ->update([
                         'sort_order' => $item['sort_order'],
                         'parent_task_id' => $item['parent_task_id'],
@@ -235,7 +235,7 @@ class TaskController extends ApiController
             }
 
             if (array_key_exists('orphan_parent_sort_order', $validated)) {
-                $project->update([
+                $workspace->update([
                     'wbs_orphan_parent_sort_order' => $validated['orphan_parent_sort_order'],
                 ]);
             }
@@ -244,12 +244,12 @@ class TaskController extends ApiController
         return response()->json(['data' => ['ok' => true]]);
     }
 
-    public function parentTasksIndex(Request $request, Organization $organization, Project $project): JsonResponse
+    public function parentTasksIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
 
-        $tasks = $project->tasks()
+        $tasks = $workspace->tasks()
             ->notArchived()
             ->where('is_parent_task', true)
             ->orderBy('title')
@@ -264,13 +264,13 @@ class TaskController extends ApiController
         ]);
     }
 
-    public function archivedIndex(Request $request, Organization $organization, Project $project): JsonResponse
+    public function archivedIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
         $labelIds = $this->normalizeLabelIds($request->query('label_ids'));
 
-        $query = $project->tasks()
+        $query = $workspace->tasks()
             ->archived()
             ->orderByDesc('archived_at');
         if ($labelIds !== []) {
@@ -282,7 +282,7 @@ class TaskController extends ApiController
 
         $tasks = $query
             ->with([
-                'labels:id,name,color',
+                'labels:id,name,color_index',
                 'assignees:id,name,email,avatar_path',
             ])
             ->get([
@@ -308,17 +308,17 @@ class TaskController extends ApiController
         ]);
     }
 
-    public function store(Request $request, Organization $organization, Project $project): JsonResponse
+    public function store(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:'.FieldLengthLimits::TASK_TITLE],
             'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
-            'list_id' => ['nullable', 'integer', 'exists:lists,id'],
+            'list_id' => ['required', 'integer', 'exists:lists,id'],
             'status' => ['nullable', 'string', Rule::in(TaskStatus::values())],
             'priority' => ['nullable', 'string', Rule::in(TaskPriority::values())],
             'start_date' => ['nullable', 'date'],
@@ -341,31 +341,26 @@ class TaskController extends ApiController
             return response()->json(['message' => 'Title cannot be empty.'], 422);
         }
 
-        if (! empty($validated['list_id'])) {
-            $list = BoardList::query()->find($validated['list_id']);
-            if ($list === null || (int) $list->project_id !== (int) $project->id) {
-                return response()->json(['message' => 'Invalid list for this project.'], 422);
-            }
+        $list = BoardList::query()->find($validated['list_id']);
+        if ($list === null || (int) $list->workspace_id !== (int) $workspace->id) {
+            return response()->json(['message' => 'Invalid list for this workspace.'], 422);
         }
 
         $user = $request->user();
-        $assigneeIds = $this->resolveAssigneeIds($project, $validated);
-        [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($project, $validated);
+        $assigneeIds = $this->resolveAssigneeIds($workspace, $validated);
+        [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($workspace, $validated);
 
-        $sortOrder = 0;
-        if (! empty($validated['list_id'])) {
-            $maxOrder = Task::query()
-                ->where('project_id', $project->id)
-                ->where('list_id', $validated['list_id'])
-                ->notArchived()
-                ->max('sort_order');
-            $sortOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
-        }
+        $maxOrder = Task::query()
+            ->where('workspace_id', $workspace->id)
+            ->where('list_id', $validated['list_id'])
+            ->notArchived()
+            ->max('sort_order');
+        $sortOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
 
         $task = Task::query()->create([
             'organization_id' => $organization->id,
-            'project_id' => $project->id,
-            'list_id' => $validated['list_id'] ?? null,
+            'workspace_id' => $workspace->id,
+            'list_id' => $validated['list_id'],
             'sort_order' => $sortOrder,
             'is_parent_task' => $isParentTask,
             'parent_task_id' => $parentTaskId,
@@ -400,26 +395,26 @@ class TaskController extends ApiController
         return response()->json($this->taskPayload($task), 201);
     }
 
-    public function show(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
+    public function show(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
 
-        if ((int) $task->project_id !== (int) $project->id) {
+        if ((int) $task->workspace_id !== (int) $workspace->id) {
             abort(404);
         }
 
         return response()->json($this->taskPayload($task));
     }
 
-    public function update(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
+    public function update(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
 
-        if ((int) $task->project_id !== (int) $project->id) {
+        if ((int) $task->workspace_id !== (int) $workspace->id) {
             abort(404);
         }
 
@@ -434,7 +429,7 @@ class TaskController extends ApiController
         $validated = $request->validate([
             'title' => ['sometimes', 'string', 'max:'.FieldLengthLimits::TASK_TITLE],
             'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
-            'list_id' => ['nullable', 'integer', 'exists:lists,id'],
+            'list_id' => ['sometimes', 'integer', 'exists:lists,id'],
             'status' => ['sometimes', 'string', Rule::in(TaskStatus::values())],
             'priority' => ['sometimes', 'string', Rule::in(TaskPriority::values())],
             'start_date' => ['nullable', 'date'],
@@ -469,15 +464,11 @@ class TaskController extends ApiController
             $task->description = $validated['description'];
         }
         if (array_key_exists('list_id', $validated)) {
-            if ($validated['list_id'] === null) {
-                $task->list_id = null;
-            } else {
-                $list = BoardList::query()->find($validated['list_id']);
-                if ($list === null || (int) $list->project_id !== (int) $project->id) {
-                    return response()->json(['message' => 'Invalid list for this project.'], 422);
-                }
-                $task->list_id = $list->id;
+            $list = BoardList::query()->find($validated['list_id']);
+            if ($list === null || (int) $list->workspace_id !== (int) $workspace->id) {
+                return response()->json(['message' => 'Invalid list for this workspace.'], 422);
             }
+            $task->list_id = $list->id;
         }
         if (array_key_exists('status', $validated)) {
             $task->status = $validated['status'];
@@ -498,12 +489,12 @@ class TaskController extends ApiController
 
         $assigneeIdsToSync = null;
         if (array_key_exists('assignee_ids', $validated) || array_key_exists('assignee_id', $validated)) {
-            $assigneeIdsToSync = $this->resolveAssigneeIds($project, $validated);
+            $assigneeIdsToSync = $this->resolveAssigneeIds($workspace, $validated);
             $task->assignee_id = $assigneeIdsToSync[0] ?? null;
         }
 
         if (array_key_exists('is_parent_task', $validated) || array_key_exists('parent_task_id', $validated)) {
-            [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($project, $validated, $task);
+            [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($workspace, $validated, $task);
             $task->is_parent_task = $isParentTask;
             $task->parent_task_id = $parentTaskId;
         }
@@ -529,14 +520,14 @@ class TaskController extends ApiController
         return response()->json($this->taskPayload($fresh));
     }
 
-    public function archive(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
+    public function archive(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
 
-        if ((int) $task->project_id !== (int) $project->id) {
+        if ((int) $task->workspace_id !== (int) $workspace->id) {
             abort(404);
         }
 
@@ -553,11 +544,11 @@ class TaskController extends ApiController
 
         $fresh = $task->fresh();
         $fresh->loadMissing([
-            'labels:id,name,color',
+            'labels:id,name,color_index',
             'assignees:id,name,email,avatar_path',
         ]);
         SafeBroadcast::toOthers(TaskArchived::fromSnapshot(
-            (int) $fresh->project_id,
+            (int) $fresh->workspace_id,
             (int) $fresh->id,
             $this->taskListPayload($fresh),
         ));
@@ -565,14 +556,14 @@ class TaskController extends ApiController
         return response()->json($this->taskPayload($fresh));
     }
 
-    public function unarchive(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
+    public function unarchive(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
 
-        if ((int) $task->project_id !== (int) $project->id) {
+        if ((int) $task->workspace_id !== (int) $workspace->id) {
             abort(404);
         }
 
@@ -593,14 +584,14 @@ class TaskController extends ApiController
         return response()->json($this->taskPayload($fresh));
     }
 
-    public function destroy(Request $request, Organization $organization, Project $project, Task $task): JsonResponse
+    public function destroy(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
-        $this->ensureProjectBelongsToOrganization($project, $organization);
-        $this->ensureProjectMember($request->user(), $project);
-        $this->denyIfProjectViewer($request->user(), $project);
-        $this->assertProjectNotArchived($project);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->denyIfWorkspaceViewer($request->user(), $workspace);
+        $this->assertWorkspaceNotArchived($workspace);
 
-        if ((int) $task->project_id !== (int) $project->id) {
+        if ((int) $task->workspace_id !== (int) $workspace->id) {
             abort(404);
         }
 
@@ -609,10 +600,10 @@ class TaskController extends ApiController
         }
 
         $taskId = (int) $task->id;
-        $projectId = (int) $task->project_id;
+        $workspaceId = (int) $task->workspace_id;
         $task->forceDelete();
 
-        SafeBroadcast::toOthers(new TaskDeleted($projectId, $taskId));
+        SafeBroadcast::toOthers(new TaskDeleted($workspaceId, $taskId));
 
         return response()->json(null, 204);
     }
@@ -623,10 +614,10 @@ class TaskController extends ApiController
     private function taskPayload(Task $task): array
     {
         $task->loadMissing([
-            'labels:id,name,color',
+            'labels:id,name,color_index',
             'assignees:id,name,email,avatar_path',
             'checklist.items',
-            'parentTask:id,title,project_id',
+            'parentTask:id,title,workspace_id',
         ]);
 
         [$parentTask, $childTasks] = $this->formatTaskHierarchy($task);
@@ -691,9 +682,9 @@ class TaskController extends ApiController
         ];
     }
 
-    private function wbsOrphanParentLabel(Project $project): string
+    private function wbsOrphanParentLabel(Workspace $workspace): string
     {
-        $label = trim((string) ($project->wbs_orphan_parent_label ?? ''));
+        $label = trim((string) ($workspace->wbs_orphan_parent_label ?? ''));
 
         return $label !== '' ? $label : self::WBS_ORPHAN_PARENT_DEFAULT_LABEL;
     }
@@ -716,7 +707,7 @@ class TaskController extends ApiController
      * @param array<string, mixed> $validated
      * @return array{0: bool, 1: int|null}
      */
-    private function resolveParentTaskFields(Project $project, array $validated, ?Task $task = null): array
+    private function resolveParentTaskFields(Workspace $workspace, array $validated, ?Task $task = null): array
     {
         $isParent = (bool) ($validated['is_parent_task'] ?? false);
         $parentId = null;
@@ -741,13 +732,13 @@ class TaskController extends ApiController
         }
 
         $parent = Task::query()
-            ->where('project_id', $project->id)
+            ->where('workspace_id', $workspace->id)
             ->where('id', $parentId)
             ->notArchived()
             ->first();
 
         if ($parent === null || ! $parent->is_parent_task) {
-            abort(422, 'Invalid parent task for this project.');
+            abort(422, 'Invalid parent task for this workspace.');
         }
 
         if ($task !== null && (int) $parent->parent_task_id === (int) $task->id) {
@@ -775,14 +766,14 @@ class TaskController extends ApiController
      * @param array<string, mixed> $validated
      * @return array<int, int>
      */
-    private function resolveAssigneeIds(Project $project, array $validated): array
+    private function resolveAssigneeIds(Workspace $workspace, array $validated): array
     {
         if (array_key_exists('assignee_ids', $validated)) {
-            return $this->validateAssigneeIds($project, $validated['assignee_ids'] ?? []);
+            return $this->validateAssigneeIds($workspace, $validated['assignee_ids'] ?? []);
         }
 
         if (array_key_exists('assignee_id', $validated) && $validated['assignee_id'] !== null) {
-            return $this->validateAssigneeIds($project, [(int) $validated['assignee_id']]);
+            return $this->validateAssigneeIds($workspace, [(int) $validated['assignee_id']]);
         }
 
         if (array_key_exists('assignee_id', $validated) && $validated['assignee_id'] === null) {
@@ -796,7 +787,7 @@ class TaskController extends ApiController
      * @param array<int, mixed> $assigneeIds
      * @return array<int, int>
      */
-    private function validateAssigneeIds(Project $project, array $assigneeIds): array
+    private function validateAssigneeIds(Workspace $workspace, array $assigneeIds): array
     {
         $ids = array_values(array_unique(array_map('intval', $assigneeIds)));
         if ($ids === []) {
@@ -805,8 +796,8 @@ class TaskController extends ApiController
 
         foreach ($ids as $id) {
             $assignee = User::query()->find($id);
-            if ($assignee === null || ! $assignee->isMemberOfProject($project)) {
-                abort(422, 'Assignees must be project members.');
+            if ($assignee === null || ! $assignee->isMemberOfWorkspace($workspace)) {
+                abort(422, 'Assignees must be workspace members.');
             }
         }
 
@@ -830,7 +821,7 @@ class TaskController extends ApiController
         TaskHistory::query()->create([
             'task_id' => $task->id,
             'organization_id' => $task->organization_id,
-            'project_id' => $task->project_id,
+            'workspace_id' => $task->workspace_id,
             'actor_id' => auth()->id(),
             'event_type' => TaskHistoryEventType::AssigneeChanged->value,
             'field_name' => 'assignee_ids',
@@ -963,7 +954,7 @@ class TaskController extends ApiController
                     'id' => $task->id,
                     'title' => $task->title,
                 ],
-                $this->fetchChildTaskSummaries($task->project_id, $task->id),
+                $this->fetchChildTaskSummaries($task->workspace_id, $task->id),
             ];
         }
 
@@ -971,7 +962,7 @@ class TaskController extends ApiController
             return [null, []];
         }
 
-        $task->loadMissing('parentTask:id,title,project_id');
+        $task->loadMissing('parentTask:id,title,workspace_id');
         if ($task->parentTask === null) {
             return [null, []];
         }
@@ -981,17 +972,17 @@ class TaskController extends ApiController
                 'id' => $task->parentTask->id,
                 'title' => $task->parentTask->title,
             ],
-            $this->fetchChildTaskSummaries($task->project_id, $task->parentTask->id),
+            $this->fetchChildTaskSummaries($task->workspace_id, $task->parentTask->id),
         ];
     }
 
     /**
      * @return list<array{id: int, title: string, due_date: mixed, list_name: string|null}>
      */
-    private function fetchChildTaskSummaries(int $projectId, int $parentTaskId): array
+    private function fetchChildTaskSummaries(int $workspaceId, int $parentTaskId): array
     {
         return Task::query()
-            ->where('project_id', $projectId)
+            ->where('workspace_id', $workspaceId)
             ->where('parent_task_id', $parentTaskId)
             ->notArchived()
             ->with('list:id,name')
@@ -1045,7 +1036,7 @@ class TaskController extends ApiController
 
         $checklist = TaskChecklist::query()->firstOrNew(['task_id' => $task->id]);
         $checklist->organization_id = $task->organization_id;
-        $checklist->project_id = $task->project_id;
+        $checklist->workspace_id = $task->workspace_id;
         $checklist->title = $title;
         $checklist->save();
 

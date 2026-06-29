@@ -2,6 +2,7 @@
   <Teleport to="body">
     <div
       v-if="modelValue"
+      ref="overlayRef"
       class="base-modal-overlay"
       :class="[overlayAlignClass, overlayClass]"
       :style="overlayStyle"
@@ -36,10 +37,8 @@
     </div>
   </Teleport>
 </template>
-
 <script setup lang="ts">
-import { createOverlayBackdropClose } from '../../utils/uiInteraction'
-
+import { createOverlayBackdropClose, getTopmostModalOverlay } from '../../utils/uiInteraction'
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title?: string
@@ -47,6 +46,8 @@ const props = withDefaults(defineProps<{
   closeDisabled?: boolean
   showClose?: boolean
   closeOnBackdrop?: boolean
+  /** 開いた直後に最初のテキスト入力欄へフォーカスする（作成モーダル向け） */
+  focusPrimaryInputOnOpen?: boolean
   width?: string
   borderRadius?: string
   align?: 'center' | 'top'
@@ -57,34 +58,30 @@ const props = withDefaults(defineProps<{
   closeDisabled: false,
   showClose: true,
   closeOnBackdrop: true,
+  focusPrimaryInputOnOpen: false,
   width: 'min(36rem, 100%)',
   borderRadius: '10px',
   align: 'center',
   zIndex: 70,
 })
-
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   close: []
   'overlay-mousedown': [MouseEvent]
   'overlay-click': [MouseEvent]
 }>()
-
 const cardRef = ref<HTMLElement | null>(null)
-
+const overlayRef = ref<HTMLElement | null>(null)
 const overlayAlignClass = computed(() =>
   props.align === 'top' ? 'base-modal-overlay--top' : 'base-modal-overlay--center',
 )
-
 const cardStyle = computed(() => ({
   width: props.width,
   borderRadius: props.borderRadius,
 }))
-
 const overlayStyle = computed(() => ({
   zIndex: props.zIndex,
 }))
-
 function requestClose () {
   if (props.closeDisabled) {
     return
@@ -92,7 +89,6 @@ function requestClose () {
   emit('update:modelValue', false)
   emit('close')
 }
-
 const {
   onOverlayMouseDown: onBackdropMouseDown,
   resetOverlayBackdropClose,
@@ -100,19 +96,54 @@ const {
   onClose: requestClose,
   canClose: () => props.closeOnBackdrop && !props.closeDisabled,
 })
-
 function onOverlayMouseDown (event: MouseEvent) {
   emit('overlay-mousedown', event)
   onBackdropMouseDown(event)
 }
-
+function onDocumentEscape (event: KeyboardEvent) {
+  if (event.key !== 'Escape' || !props.modelValue) {
+    return
+  }
+  if (getTopmostModalOverlay() !== overlayRef.value) {
+    return
+  }
+  if (props.closeDisabled) {
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  requestClose()
+}
+const PRIMARY_INPUT_SELECTOR = [
+  'input[type="text"]:not([disabled])',
+  'input:not([type]):not([disabled])',
+  'textarea:not([disabled])',
+].join(', ')
+function focusPrimaryInput () {
+  nextTick(() => {
+    const input = cardRef.value?.querySelector<HTMLElement>(PRIMARY_INPUT_SELECTOR)
+    input?.focus()
+  })
+}
+watch(() => props.modelValue, (open) => {
+  if (!import.meta.client) {
+    return
+  }
+  if (open) {
+    document.addEventListener('keydown', onDocumentEscape, true)
+    if (props.focusPrimaryInputOnOpen) {
+      focusPrimaryInput()
+    }
+  } else {
+    document.removeEventListener('keydown', onDocumentEscape, true)
+  }
+}, { immediate: true })
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onDocumentEscape, true)
   resetOverlayBackdropClose()
 })
-
 defineExpose({ cardRef })
 </script>
-
 <style lang="scss" scoped>
 .base-modal-overlay {
   position: fixed;
@@ -122,33 +153,27 @@ defineExpose({ cardRef })
   justify-content: center;
   padding: 1rem;
 }
-
 .base-modal-overlay--center {
   align-items: center;
 }
-
 .base-modal-overlay--top {
   align-items: flex-start;
   padding-top: 4rem;
   overflow-y: auto;
 }
-
 .base-modal-card {
   overflow: hidden;
   background: #fff;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
 }
-
 .base-modal-header {
   @include mixin.modal-header-bar;
 }
-
 .base-modal-title {
   margin: 0;
   font-size: 1.05rem;
   line-height: 1;
 }
-
 .base-modal-close {
   @include mixin.modal-close-hit-area;
   background: transparent;
@@ -158,7 +183,6 @@ defineExpose({ cardRef })
   line-height: 1;
   cursor: pointer;
 }
-
 .base-modal-close:disabled {
   opacity: 0.55;
   cursor: not-allowed;

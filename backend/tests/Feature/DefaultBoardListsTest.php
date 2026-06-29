@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
-use App\Models\Project;
+use App\Models\Workspace;
 use App\Models\User;
 use App\Support\DefaultBoardLists;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,7 +13,7 @@ class DefaultBoardListsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_project_creation_seeds_default_board_lists(): void
+    public function test_workspace_creation_seeds_default_board_lists(): void
     {
         $user = User::factory()->create();
 
@@ -25,23 +25,23 @@ class DefaultBoardListsTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/lists")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/lists")
             ->assertOk()
             ->assertJsonPath('data.0.name', '未着手')
             ->assertJsonPath('data.1.name', '進行中')
             ->assertJsonPath('data.2.name', '完了');
     }
 
-    public function test_project_creation_uses_organization_default_board_list_settings(): void
+    public function test_workspace_creation_uses_organization_default_board_list_settings(): void
     {
         $user = User::factory()->create();
         $org = Organization::query()->create([
@@ -53,16 +53,16 @@ class DefaultBoardListsTest extends TestCase
         $org->members()->attach($user->id, ['role' => 'admin']);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/lists")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/lists")
             ->assertOk()
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.name', 'Backlog')
@@ -81,16 +81,16 @@ class DefaultBoardListsTest extends TestCase
         $org->members()->attach($user->id, ['role' => 'admin']);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/lists")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/lists")
             ->assertOk()
             ->assertJsonCount(0, 'data');
     }

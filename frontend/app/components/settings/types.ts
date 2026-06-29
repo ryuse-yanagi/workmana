@@ -1,26 +1,25 @@
 export type SettingsTabKey =
-  | 'work_unit_label'
   | 'default_board_lists'
   | 'effort_settings'
   | 'labels'
 
-export type SettingsLabelTabKey = 'project' | 'task'
+export type SettingsLabelTabKey = 'workspace' | 'task'
 
 export type SettingsLabelItem = {
   id: number
   name: string
   color: string
+  color_index?: number
 }
 
 export type OrgSettingsResponse = {
-  work_unit_label?: string | null
   default_board_list_names?: string[] | null
   effort_unit?: string | null
 }
 
 export type SettingsPageSnapshot = {
   orgSettings: OrgSettingsResponse
-  projectLabels: SettingsLabelItem[]
+  workspaceLabels: SettingsLabelItem[]
   taskLabels: SettingsLabelItem[]
 }
 

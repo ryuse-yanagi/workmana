@@ -12,7 +12,7 @@ class TaskHistory extends Model
     protected $fillable = [
         'task_id',
         'organization_id',
-        'project_id',
+        'workspace_id',
         'actor_id',
         'event_type',
         'field_name',

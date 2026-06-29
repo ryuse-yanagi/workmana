@@ -12,7 +12,11 @@ class TaskLabel extends Model
         'organization_id',
         'created_by',
         'name',
-        'color',
+        'color_index',
+    ];
+
+    protected $casts = [
+        'color_index' => 'integer',
     ];
 
     public function organization(): BelongsTo

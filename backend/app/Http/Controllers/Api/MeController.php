@@ -23,7 +23,6 @@ class MeController extends ApiController
                 'id' => $o->id,
                 'name' => $o->name,
                 'slug' => $o->slug,
-                'work_unit_label' => $o->work_unit_label ?? 'プロジェクト',
                 'role' => $o->pivot->role,
             ]),
         ]);

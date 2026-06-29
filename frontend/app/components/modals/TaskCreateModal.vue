@@ -2,6 +2,7 @@
   <Teleport to="body">
     <div
       v-if="modelValue"
+      ref="overlayRef"
       class="modal-overlay"
       :class="{ 'modal-overlay--popover-open': anyPopoverOpen }"
       role="presentation"
@@ -23,7 +24,6 @@
               @click="close"
             >✕</button>
           </header>
-
           <div class="modal-body">
             <section class="parent-section">
               <div
@@ -56,7 +56,6 @@
                   OFFの場合、既存の親タスクに紐づく子タスクとして作成されます
                 </p>
               </div>
-
               <div
                 v-if="!createAsParent"
                 ref="parentPickerRootRef"
@@ -79,7 +78,6 @@
                     親タスク
                   </button>
                 </div>
-
                 <div
                   v-if="parentTaskId !== null"
                   class="detail-meta-row"
@@ -99,21 +97,19 @@
                 </div>
               </div>
             </section>
-
             <div class="task-form-section">
               <TaskFormPane
                 ref="taskFormPaneRef"
                 v-model="draft"
                 :org-slug="orgSlug"
                 :org-labels="orgLabels"
-                :project-members="projectMembers"
+                :workspace-members="workspaceMembers"
                 :disabled="submitting"
                 relaxed-title-padding
+                auto-focus-title
               />
             </div>
-
             <p v-if="submitError" class="err">{{ submitError }}</p>
-
             <footer class="modal-footer">
               <button
                 type="button"
@@ -136,7 +132,6 @@
         </section>
     </div>
   </Teleport>
-
   <Teleport to="body">
     <Transition name="popover-fade" @after-enter="updateParentPickerPosition">
       <div
@@ -166,7 +161,6 @@
     </Transition>
   </Teleport>
 </template>
-
 <script setup lang="ts">
 import { ListTree } from 'lucide-vue-next'
 import ParentTaskPickerPanel from '../task/ParentTaskPickerPanel.vue'
@@ -184,13 +178,11 @@ import {
 } from '../../composables/useTaskFormHelpers'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
 import { useOrgEffortSettings } from '../../composables/useOrgEffortSettings'
-import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer } from '../../utils/uiInteraction'
-
+import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
 type ParentTaskOption = {
   id: number
   title: string
 }
-
 type ParentTaskDetail = {
   start_date: string | null
   due_date: string | null
@@ -200,7 +192,6 @@ type ParentTaskDetail = {
   assignees: TaskFormMember[]
   labels: TaskFormLabel[]
 }
-
 export type CreatedTask = {
   id: number
   list_id: number | null
@@ -222,33 +213,29 @@ export type CreatedTask = {
   created_at?: string
   updated_at?: string
 }
-
 type TaskFormPaneExpose = {
   resetPaneState: () => void
+  focusTitleInput: () => void
   activePopover?: TaskFormPopoverType | null
   closePopover?: () => void | Promise<void>
 }
-
 const props = defineProps<{
   modelValue: boolean
   orgSlug: string
-  projectId: string
+  workspaceId: string
   listId: number | null
   orgLabels: TaskFormLabel[]
-  projectMembers: TaskFormMember[]
+  workspaceMembers: TaskFormMember[]
 }>()
-
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   created: [CreatedTask]
 }>()
-
 const { api } = useApi()
 const {
   ensureOrgEffortSettings,
   getOrgEffortUnit,
 } = useOrgEffortSettings()
-
 const draft = ref<TaskFormDraft>(createEmptyTaskFormDraft())
 const createAsParent = ref(false)
 const parentTaskId = ref<number | null>(null)
@@ -264,49 +251,41 @@ const parentPickerPopoverRef = ref<{ rootRef: HTMLElement | null } | null>(null)
 const parentPickerStyle = ref<Record<string, string>>({})
 const parentPickerError = ref<string | null>(null)
 const taskFormPaneRef = ref<TaskFormPaneExpose | null>(null)
+const overlayRef = ref<HTMLElement | null>(null)
 let parentDefaultsRequestId = 0
 let removeParentPickerResizeListener: (() => void) | null = null
-
 const POPOVER_VIEWPORT_PAD = 12
 const POPOVER_ANCHOR_GAP = 6
 const POPOVER_MIN_HEIGHT = 120
 const POPOVER_DEFAULT_WIDTH_PX = 312
-
 const selectedParentTaskTitle = computed(() => {
   if (parentTaskId.value === null) return ''
   const parent = parentTasks.value.find(item => item.id === parentTaskId.value)
   return parent?.title ?? ''
 })
-
 const panePopoverOpen = computed(() => taskFormPaneRef.value?.activePopover != null)
 const anyPopoverOpen = computed(() => panePopoverOpen.value || parentPickerOpen.value)
-
 const canSubmit = computed(() =>
   draft.value.title.trim() !== ''
   && !submitting.value
   && props.listId !== null,
 )
-
 function toggleCreateAsParent () {
   if (submitting.value) return
   createAsParent.value = !createAsParent.value
 }
-
 function close () {
   if (submitting.value) return
   emit('update:modelValue', false)
 }
-
 function resolveParentPickerPopoverElement (): HTMLElement | null {
   return parentPickerPopoverRef.value?.rootRef ?? null
 }
-
 function captureParentPickerAnchor (event?: Event): HTMLElement | null {
   const fromEvent = event?.currentTarget
   if (fromEvent instanceof HTMLElement) return fromEvent
   return parentPickerRootRef.value?.querySelector('.action-btn') ?? null
 }
-
 function updateParentPickerPosition () {
   nextTick(() => {
     requestAnimationFrame(() => {
@@ -317,29 +296,23 @@ function updateParentPickerPosition () {
     })
   })
 }
-
 function positionParentPicker () {
   const anchor = parentPickerAnchorEl.value
   const popover = resolveParentPickerPopoverElement()
   if (!anchor || !popover) return
-
   const pad = POPOVER_VIEWPORT_PAD
   const gap = POPOVER_ANCHOR_GAP
   const anchorRect = anchor.getBoundingClientRect()
   const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
   const popoverWidth = measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX
-
   let left = anchorRect.left
   if (left + popoverWidth > window.innerWidth - pad) {
     left = anchorRect.right - popoverWidth
   }
-
   const spaceBelow = window.innerHeight - anchorRect.bottom - pad
   const spaceAbove = anchorRect.top - pad
-
   let top: number
   let maxHeight: number
-
   if (spaceBelow >= POPOVER_MIN_HEIGHT) {
     top = anchorRect.bottom + gap
     maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceBelow - gap))
@@ -347,7 +320,6 @@ function positionParentPicker () {
     maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceAbove - gap))
     top = Math.max(pad, anchorRect.top - gap - maxHeight)
   }
-
   parentPickerStyle.value = {
     position: 'fixed',
     top: `${Math.round(top)}px`,
@@ -356,7 +328,6 @@ function positionParentPicker () {
     zIndex: '80',
   }
 }
-
 async function toggleParentPicker (event?: Event) {
   if (submitting.value || parentTasksLoading.value || parentTaskDefaultsLoading.value) return
   if (parentPickerOpen.value) {
@@ -371,41 +342,33 @@ async function toggleParentPicker (event?: Event) {
   }
   updateParentPickerPosition()
 }
-
 function closeParentPicker () {
   parentPickerOpen.value = false
   parentPickerError.value = null
   parentPickerStyle.value = {}
 }
-
 function selectParentTask (id: number) {
   if (parentTaskId.value === id) return
   parentTaskId.value = id
 }
-
 function clearParentTask () {
   if (parentTaskId.value === null) return
   parentTaskId.value = null
 }
-
 function shouldIgnoreParentPickerOutsideClose (target: Node): boolean {
   if (!(target instanceof Element)) return false
   const root = parentPickerRootRef.value
   if (!root) return false
-
   const actionBtn = root.querySelector('.action-btn')
   if (actionBtn instanceof HTMLElement && actionBtn.contains(target)) {
     return true
   }
-
   const detailBtn = root.querySelector('.detail-value-btn')
   if (detailBtn instanceof HTMLElement && detailBtn.contains(target)) {
     return true
   }
-
   return false
 }
-
 function onParentPickerOutsidePointerDown (event: MouseEvent) {
   if (!parentPickerOpen.value || event.button !== 0) return
   const target = event.target
@@ -414,23 +377,19 @@ function onParentPickerOutsidePointerDown (event: MouseEvent) {
   if (shouldIgnoreParentPickerOutsideClose(target)) return
   dismissPopoverFromOutsidePointer(target, closeParentPicker)
 }
-
 function onParentPickerEscape (event: KeyboardEvent) {
   if (!parentPickerOpen.value || event.key !== 'Escape') return
   event.stopPropagation()
   closeParentPicker()
 }
-
 function bindParentPickerListeners () {
   document.addEventListener('mousedown', onParentPickerOutsidePointerDown, true)
   document.addEventListener('keydown', onParentPickerEscape, true)
 }
-
 function unbindParentPickerListeners () {
   document.removeEventListener('mousedown', onParentPickerOutsidePointerDown, true)
   document.removeEventListener('keydown', onParentPickerEscape, true)
 }
-
 function onBackdropClose () {
   if (submitting.value) return
   if (parentPickerOpen.value) {
@@ -443,7 +402,28 @@ function onBackdropClose () {
   }
   close()
 }
-
+function onDocumentKeydown (event: KeyboardEvent) {
+  if (!props.modelValue) {
+    return
+  }
+  if (getTopmostModalOverlay() !== overlayRef.value) {
+    return
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    onBackdropClose()
+    return
+  }
+  if (isCtrlEnterKeydown(event)) {
+    if (!canSubmit.value) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    void submit()
+  }
+}
 const {
   onOverlayMouseDown,
   resetOverlayBackdropClose,
@@ -451,12 +431,11 @@ const {
   onClose: onBackdropClose,
   canClose: () => !submitting.value,
 })
-
 async function fetchParentTasks () {
   parentTasksLoading.value = true
   try {
     const res = await api<{ data: ParentTaskOption[] }>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/parents`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/parents`,
     )
     parentTasks.value = res.data
   } catch {
@@ -465,7 +444,6 @@ async function fetchParentTasks () {
     parentTasksLoading.value = false
   }
 }
-
 function resetForm () {
   draft.value = createEmptyTaskFormDraft()
   createAsParent.value = false
@@ -475,12 +453,9 @@ function resetForm () {
   parentPickerError.value = null
   closeParentPicker()
 }
-
 async function applyParentTaskDefaults (parentId: number | null) {
   if (createAsParent.value) return
-
   const requestId = ++parentDefaultsRequestId
-
   if (parentId === null) {
     draft.value = clearTaskDraftDefaults(draft.value)
     nextTick(() => {
@@ -488,12 +463,11 @@ async function applyParentTaskDefaults (parentId: number | null) {
     })
     return
   }
-
   parentTaskDefaultsLoading.value = true
   submitError.value = null
   try {
     const detail = await api<ParentTaskDetail>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks/${parentId}`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${parentId}`,
     )
     if (requestId !== parentDefaultsRequestId) return
     draft.value = applyTaskDefaultsToDraft(draft.value, detail)
@@ -509,13 +483,10 @@ async function applyParentTaskDefaults (parentId: number | null) {
     }
   }
 }
-
 async function submit () {
   if (!canSubmit.value || props.listId === null) return
-
   submitting.value = true
   submitError.value = null
-
   try {
     await ensureOrgEffortSettings(props.orgSlug)
     const body = buildTaskCreateBody(draft.value, {
@@ -524,12 +495,10 @@ async function submit () {
       parentTaskId: parentTaskId.value,
       orgEffortUnit: getOrgEffortUnit(props.orgSlug),
     })
-
     const created = await api<CreatedTask>(
-      `/orgs/${props.orgSlug}/projects/${props.projectId}/tasks`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks`,
       { method: 'POST', body },
     )
-
     emit('created', created)
     emit('update:modelValue', false)
   } catch (e: unknown) {
@@ -538,7 +507,6 @@ async function submit () {
     submitting.value = false
   }
 }
-
 watch(createAsParent, (enabled) => {
   closeParentPicker()
   if (enabled) {
@@ -549,11 +517,9 @@ watch(createAsParent, (enabled) => {
     })
   }
 })
-
 watch(parentTaskId, (parentId) => {
   void applyParentTaskDefaults(parentId)
 })
-
 watch(parentPickerOpen, (open) => {
   if (open) {
     bindParentPickerListeners()
@@ -566,30 +532,30 @@ watch(parentPickerOpen, (open) => {
   removeParentPickerResizeListener?.()
   removeParentPickerResizeListener = null
 })
-
 watch(
   () => props.modelValue,
   (open) => {
-    if (!open) {
-      resetOverlayBackdropClose()
-      closeParentPicker()
+    if (!import.meta.client) {
       return
     }
-    resetForm()
-    void fetchParentTasks()
-    nextTick(() => {
-      taskFormPaneRef.value?.resetPaneState()
-    })
+    if (open) {
+      document.addEventListener('keydown', onDocumentKeydown, true)
+      resetForm()
+      void fetchParentTasks()
+      return
+    }
+    document.removeEventListener('keydown', onDocumentKeydown, true)
+    resetOverlayBackdropClose()
+    closeParentPicker()
   },
 )
-
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onDocumentKeydown, true)
   resetOverlayBackdropClose()
   unbindParentPickerListeners()
   removeParentPickerResizeListener?.()
 })
 </script>
-
 <style lang="scss" scoped>
 .modal-overlay {
   position: fixed;
@@ -602,11 +568,9 @@ onBeforeUnmount(() => {
   z-index: 70;
   overflow-y: auto;
 }
-
 .modal-overlay--popover-open {
   overflow: hidden;
 }
-
 .modal-card {
   position: relative;
   width: min(40rem, 100%);
@@ -615,18 +579,15 @@ onBeforeUnmount(() => {
   background: #fff;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
 }
-
 .modal-header {
   @include mixin.modal-header-bar;
   border-radius: 12px 12px 0 0;
 }
-
 .modal-header h3 {
   margin: 0;
   font-size: 1.05rem;
   line-height: 1;
 }
-
 .icon-close {
   @include mixin.modal-close-hit-area;
   background: transparent;
@@ -636,7 +597,6 @@ onBeforeUnmount(() => {
   line-height: 1;
   cursor: pointer;
 }
-
 .modal-body {
   position: relative;
   padding: 1.2rem 1.35rem 1.35rem;
@@ -646,46 +606,39 @@ onBeforeUnmount(() => {
   overflow: visible;
   border-radius: 0 0 12px 12px;
 }
-
 .parent-section {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
-
 .parent-toggle-card {
   border: 1.6px solid mixin.$main;
   border-radius: 10px;
   background: mixin.$main-aqua-surface;
   padding: 0.85rem 0.95rem;
 }
-
 .parent-toggle-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
 }
-
 .parent-toggle-card__label-wrap {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
 }
-
 .parent-toggle-card__icon {
   flex-shrink: 0;
   color: mixin.$text;
 }
-
 .parent-toggle-card__label {
   font-size: 0.92rem;
   font-weight: 700;
   color: mixin.$text;
   line-height: 1.3;
 }
-
 .parent-toggle-card__hint {
   margin: 0.45rem 0 0;
   padding-left: 1.65rem;
@@ -693,12 +646,10 @@ onBeforeUnmount(() => {
   line-height: 1.45;
   color: mixin.$text;
 }
-
 .task-form-section {
   overflow: visible;
   min-width: 0;
 }
-
 .toggle-switch {
   border: none;
   padding: 0;
@@ -706,7 +657,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
   flex-shrink: 0;
 }
-
 .toggle-switch__track {
   display: inline-flex;
   align-items: center;
@@ -718,11 +668,9 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   transition: background 0.15s ease;
 }
-
 .toggle-switch[aria-checked='true'] .toggle-switch__track {
   background: mixin.$main;
 }
-
 .toggle-switch__thumb {
   width: 1.15rem;
   height: 1.15rem;
@@ -732,35 +680,29 @@ onBeforeUnmount(() => {
   transform: translateX(0);
   transition: transform 0.15s ease;
 }
-
 .toggle-switch[aria-checked='true'] .toggle-switch__thumb {
   transform: translateX(1.15rem);
 }
-
 .parent-picker-block {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
-
 .parent-select-wrap {
   position: relative;
   align-self: flex-start;
 }
-
 .popover-layer--portal {
   position: fixed;
   inset: 0;
   z-index: 80;
   pointer-events: none;
 }
-
 .popover-layer--portal .popover {
   position: fixed;
   margin: 0;
   pointer-events: auto;
 }
-
 .popover {
   position: absolute;
   z-index: 10;
@@ -774,23 +716,19 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 0.65rem;
 }
-
 .popover--parent-task {
   width: min(19.5rem, calc(100vw - 1.5rem));
   padding: 0;
   gap: 0;
 }
-
 .popover-fade-enter-active,
 .popover-fade-leave-active {
   transition: opacity 0.12s ease;
 }
-
 .popover-fade-enter-from,
 .popover-fade-leave-to {
   opacity: 0;
 }
-
 .action-btn {
   display: inline-flex;
   align-items: center;
@@ -804,19 +742,16 @@ onBeforeUnmount(() => {
   background: #f8fafc;
   cursor: pointer;
 }
-
 .action-btn:hover:not(:disabled) {
   background: #f1f5f9;
   border-color: #94a3b8;
 }
-
 .action-btn--active,
 .action-btn--active:hover:not(:disabled) {
   background: color-mix(in srgb, mixin.$main 12%, mixin.$white);
   border-color: mixin.$main;
   color: mixin.$main-hover;
 }
-
 .action-btn-icon {
   display: inline-flex;
   align-items: center;
@@ -824,31 +759,26 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   line-height: 0;
 }
-
 .detail-meta-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 1rem 1.25rem;
 }
-
 .detail-item {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
-
 .detail-item--parent {
   min-width: 0;
   flex: 1 1 0;
 }
-
 .detail-item-label {
   font-size: 0.78rem;
   font-weight: 700;
   color: #64748b;
 }
-
 .detail-value-btn {
   align-self: flex-start;
   border: none;
@@ -861,7 +791,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
   text-align: left;
 }
-
 .detail-item--parent .detail-value-btn {
   font-size: 1.2rem;
   padding: 0.45rem 0.7rem;
@@ -869,24 +798,20 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-
 .detail-item--parent .detail-value-btn:disabled {
   opacity: 1;
   color: #0f172a;
   cursor: default;
 }
-
 .detail-value-btn--editing {
   cursor: pointer;
 }
-
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
   padding-top: 0.25rem;
 }
-
 .primary-btn,
 .ghost-btn {
   border-radius: 999px;
@@ -896,25 +821,21 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-size: 0.86rem;
 }
-
 .primary-btn {
   background: mixin.$main;
   color: mixin.$white;
 }
-
 .ghost-btn {
   border-color: #cbd5e1;
   color: mixin.$text-sub;
   background: #f1f5f9;
 }
-
 .err {
   margin: 0;
   color: #b91c1c;
   font-weight: 700;
   font-size: 0.86rem;
 }
-
 button:disabled:not(.parent-task-picker-row):not(.detail-value-btn) {
   opacity: 0.55;
   cursor: not-allowed;

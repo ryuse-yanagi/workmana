@@ -1,5 +1,5 @@
 export default defineNuxtRouteMiddleware((to) => {
-  const match = to.path.match(/^(\/org\/[^/]+\/projects\/[^/]+)\/wbs\/?$/)
+  const match = to.path.match(/^(\/org\/[^/]+\/workspaces\/[^/]+)\/wbs\/?$/)
   if (!match) {
     return
   }

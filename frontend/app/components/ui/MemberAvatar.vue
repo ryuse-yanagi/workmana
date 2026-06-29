@@ -20,10 +20,8 @@
     <span v-else class="member-avatar__initial">{{ initial }}</span>
   </component>
 </template>
-
 <script setup lang="ts">
 import { memberInitial, type MemberLike } from '../../composables/useMemberDisplay'
-
 const props = withDefaults(defineProps<{
   member: MemberLike
   size?: 'xs' | 'sm' | 'md'
@@ -36,10 +34,8 @@ const props = withDefaults(defineProps<{
   interactive: false,
   decorative: true,
 })
-
 const initial = computed(() => memberInitial(props.member))
 </script>
-
 <style lang="scss" scoped>
 .member-avatar {
   display: inline-flex;
@@ -52,47 +48,38 @@ const initial = computed(() => memberInitial(props.member))
   border: none;
   padding: 0;
 }
-
 .member-avatar--interactive {
   cursor: pointer;
 }
-
 .member-avatar--xs {
   width: 1.5rem;
   height: 1.5rem;
 }
-
 .member-avatar--sm {
   width: 2rem;
   height: 2rem;
 }
-
 .member-avatar--md {
   width: 2.35rem;
   height: 2.35rem;
 }
-
 .member-avatar__image {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-
 .member-avatar__initial {
   font-weight: 700;
   color: mixin.$text-sub;
   line-height: 1;
 }
-
 .member-avatar--xs .member-avatar__initial {
   font-size: 0.58rem;
   font-weight: 600;
 }
-
 .member-avatar--sm .member-avatar__initial {
   font-size: 0.82rem;
 }
-
 .member-avatar--md .member-avatar__initial {
   font-size: 0.9rem;
 }

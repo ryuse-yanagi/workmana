@@ -3,7 +3,7 @@
 namespace App\Support;
 
 use App\Models\Organization;
-use App\Models\Project;
+use App\Models\Workspace;
 
 class DefaultBoardLists
 {
@@ -44,12 +44,12 @@ class DefaultBoardLists
         return $result;
     }
 
-    public static function seedForProject(Project $project, Organization $organization): void
+    public static function seedForWorkspace(Workspace $workspace, Organization $organization): void
     {
         foreach (self::namesForOrganization($organization) as $index => $name) {
-            $project->lists()->create([
+            $workspace->lists()->create([
                 'name' => $name,
-                'color' => BoardListColors::defaultForIndex($index),
+                'color_index' => BoardListColors::defaultForIndex($index),
                 'sort_order' => $index,
             ]);
         }

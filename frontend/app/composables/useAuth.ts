@@ -1,40 +1,33 @@
 export function useAuth () {
   const config = useRuntimeConfig()
-
   const tokenKey = 'id_token'
   const isClient = import.meta.client
-
   const cognitoDomain = computed(() => String(config.public.cognitoDomain || '').replace(/\/$/, ''))
   const cognitoClientId = computed(() => String(config.public.cognitoClientId || ''))
   const cognitoRedirectUri = computed(() => String(config.public.cognitoRedirectUri || ''))
   const cognitoLogoutRedirectUri = computed(() => String(config.public.cognitoLogoutRedirectUri || ''))
-
   const isConfigured = computed(() => {
     return !!(cognitoDomain.value && cognitoClientId.value && cognitoRedirectUri.value)
   })
-
   function getToken (): string {
     if (!isClient) {
       return ''
     }
     return localStorage.getItem(tokenKey)?.trim() ?? ''
   }
-
   function setToken (token: string) {
     if (!isClient) {
       return
     }
     localStorage.setItem(tokenKey, token.trim())
   }
-
   function clearToken () {
     if (!isClient) {
       return
     }
     localStorage.removeItem(tokenKey)
   }
-
-  function buildLoginUrl (nextPath: string = '/org/acme'): string {
+  function buildLoginUrl (nextPath: string = '/org/acme/workspaces'): string {
     if (!isConfigured.value) {
       throw new Error('Cognito 設定が不足しています（domain / clientId / redirectUri）')
     }
@@ -47,7 +40,6 @@ export function useAuth () {
     })
     return `${cognitoDomain.value}/login?${query.toString()}`
   }
-
   function buildLogoutUrl (): string | null {
     if (!cognitoDomain.value || !cognitoClientId.value || !cognitoLogoutRedirectUri.value) {
       return null
@@ -58,7 +50,6 @@ export function useAuth () {
     })
     return `${cognitoDomain.value}/logout?${query.toString()}`
   }
-
   function readIdTokenFromHash (): string {
     if (!isClient) {
       return ''
@@ -67,7 +58,6 @@ export function useAuth () {
     const params = new URLSearchParams(hash)
     return (params.get('id_token') || '').trim()
   }
-
   function readStateFromHash (): string {
     if (!isClient) {
       return ''
@@ -76,7 +66,6 @@ export function useAuth () {
     const params = new URLSearchParams(hash)
     return (params.get('state') || '').trim()
   }
-
   return {
     isConfigured,
     getToken,

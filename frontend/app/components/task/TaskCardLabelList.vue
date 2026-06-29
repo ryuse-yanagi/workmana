@@ -15,18 +15,14 @@
     />
   </div>
 </template>
-
 <script setup lang="ts">
 import LabelStrip, { type LabelStripLabel } from '../ui/LabelStrip.vue'
 import { useBoardCardLabelDisplay } from '../../composables/useBoardCardLabelDisplay'
-
 defineProps<{
   labels: LabelStripLabel[]
 }>()
-
 const { showLabelNames, toggleLabelNames } = useBoardCardLabelDisplay()
 </script>
-
 <style scoped lang="scss">
 .task-label-list {
   display: flex;
@@ -34,18 +30,15 @@ const { showLabelNames, toggleLabelNames } = useBoardCardLabelDisplay()
   gap: 0.2rem;
   margin-bottom: 0.25rem;
 }
-
 .task-label-list :deep(.label-strip--bar),
 .task-label-list :deep(.label-strip--named) {
   cursor: pointer;
   transition: box-shadow 120ms ease;
 }
-
 .task-label-list :deep(.label-strip--bar:hover),
 .task-label-list :deep(.label-strip--named:hover) {
   box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.28);
 }
-
 .task-label-list__strip {
   flex: 0 0 auto;
 }

@@ -41,23 +41,20 @@
     </section>
     <section class="card">
       <h2>組織の URL</h2>
-      <p class="muted">設計どおり <code>/org/&#123;slug&#125;</code> で識別します。</p>
+      <p class="muted">設計どおり <code>/org/&#123;slug&#125;/workspaces</code> で識別します。</p>
       <label>スラッグ</label>
       <div class="row">
         <input v-model="slug" type="text" placeholder="acme" />
-        <NuxtLink v-if="slug.trim()" class="btn" :to="`/org/${slug.trim()}`">開く</NuxtLink>
+        <NuxtLink v-if="slug.trim()" class="btn" :to="`/org/${slug.trim()}/workspaces`">開く</NuxtLink>
         <span v-else class="muted">スラッグを入力してください</span>
       </div>
     </section>
   </main>
 </template>
-
 <script setup lang="ts">
 import { useApi } from '../composables/useApi'
-
 const config = useRuntimeConfig()
 const { api } = useApi()
-
 const tokenInput = ref('')
 const slug = ref('')
 const statusMessage = ref('')
@@ -67,18 +64,14 @@ const selectedAvatarFile = ref<File | null>(null)
 const avatarUploading = ref(false)
 const avatarMessage = ref('')
 const avatarStatusKind = ref<'ok' | 'err'>('ok')
-
 const apiBaseDisplay = computed(() => (config.public.apiBaseUrl as string) || '/api')
-
 if (import.meta.client) {
   tokenInput.value = localStorage.getItem('id_token') ?? ''
 }
-
 function setStatus (msg: string, kind: 'ok' | 'err') {
   statusMessage.value = msg
   statusKind.value = kind
 }
-
 function saveToken () {
   if (!import.meta.client) {
     return
@@ -86,12 +79,10 @@ function saveToken () {
   localStorage.setItem('id_token', tokenInput.value.trim())
   setStatus('ローカルに保存しました。このあと「接続テスト」か組織ページで API を呼べます。', 'ok')
 }
-
 function setAvatarStatus (msg: string, kind: 'ok' | 'err') {
   avatarMessage.value = msg
   avatarStatusKind.value = kind
 }
-
 function onAvatarFileChange (event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] ?? null
@@ -101,7 +92,6 @@ function onAvatarFileChange (event: Event) {
     setAvatarStatus('選択した画像を確認して保存してください。', 'ok')
   }
 }
-
 async function testConnection () {
   if (!import.meta.client) {
     return
@@ -118,7 +108,6 @@ async function testConnection () {
     setStatus(`接続失敗: ${msg}(Laravel を php artisan serve しているか確認)`, 'err')
   }
 }
-
 async function uploadAvatar () {
   if (!selectedAvatarFile.value) {
     return
@@ -144,7 +133,6 @@ async function uploadAvatar () {
     avatarUploading.value = false
   }
 }
-
 async function deleteAvatar () {
   avatarUploading.value = true
   setAvatarStatus('', 'ok')
@@ -165,7 +153,6 @@ async function deleteAvatar () {
   }
 }
 </script>
-
 <style lang="scss" scoped>
 .page { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
 .muted { color: #64748b; font-size: 0.9rem; }

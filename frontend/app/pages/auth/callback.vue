@@ -5,12 +5,10 @@
     <NuxtLink v-if="error" class="link" to="/login">ログイン画面へ戻る</NuxtLink>
   </main>
 </template>
-
 <script setup lang="ts">
 const message = ref('トークンを確認しています…')
 const error = ref(false)
 const { readIdTokenFromHash, readStateFromHash, setToken } = useAuth()
-
 onMounted(async () => {
   const token = readIdTokenFromHash()
   if (!token) {
@@ -18,15 +16,13 @@ onMounted(async () => {
     message.value = 'ID トークンを受け取れませんでした。もう一度ログインしてください。'
     return
   }
-
   setToken(token)
   message.value = 'ログインに成功しました。組織ページへ移動します…'
   const next = readStateFromHash()
-  const target = next.startsWith('/') ? next : '/org/acme'
+  const target = next.startsWith('/') ? next : '/org/acme/workspaces'
   await navigateTo(target)
 })
 </script>
-
 <style lang="scss" scoped>
 .page { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
 .muted { color: mixin.$text-sub; }

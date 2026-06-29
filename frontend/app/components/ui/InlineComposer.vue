@@ -24,10 +24,8 @@
     </div>
   </form>
 </template>
-
 <script setup lang="ts">
 import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
-
 const props = withDefaults(defineProps<{
   modelValue: string
   placeholder?: string
@@ -48,15 +46,12 @@ const props = withDefaults(defineProps<{
   pendingLabel: '追加中...',
   cancelLabel: 'キャンセル',
 })
-
 const emit = defineEmits<{
   'update:modelValue': [string]
   submit: []
   cancel: []
 }>()
-
 const inputRef = ref<HTMLInputElement | HTMLTextAreaElement | null>(null)
-
 function onInput (event: Event) {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement
   emit('update:modelValue', target.value)
@@ -65,24 +60,20 @@ function onInput (event: Event) {
     target.style.height = `${Math.min(target.scrollHeight, 120)}px`
   }
 }
-
 function submit () {
   if (props.pending || !props.modelValue.trim()) {
     return
   }
   emit('submit')
 }
-
 defineExpose({ inputRef })
 </script>
-
 <style lang="scss" scoped>
 .inline-composer {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
 }
-
 .inline-composer__input,
 .inline-composer__textarea {
   width: 100%;
@@ -94,42 +85,34 @@ defineExpose({ inputRef })
   font-size: 0.9rem;
   background: #fff;
 }
-
 .inline-composer__textarea {
   resize: vertical;
   min-height: 4.5rem;
 }
-
 .inline-composer__input:focus,
 .inline-composer__textarea:focus {
   @include mixin.input-focus-ring;
 }
-
 .inline-composer__actions {
   display: flex;
   gap: 0.4rem;
 }
-
 .ghost-btn,
 .primary-btn {
   @include mixin.btn-base;
 }
-
 .ghost-btn--pill,
 .primary-btn--pill {
   @include mixin.btn-pill;
 }
-
 .ghost-btn--compact,
 .primary-btn--compact {
   padding: 0.35rem 0.85rem;
   font-size: 0.82rem;
 }
-
 .ghost-btn {
   @include mixin.btn-ghost;
 }
-
 .primary-btn {
   @include mixin.btn-primary;
 }

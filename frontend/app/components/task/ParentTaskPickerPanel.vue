@@ -39,13 +39,11 @@
     <p v-if="error" class="err">{{ error }}</p>
   </div>
 </template>
-
 <script setup lang="ts">
 export type ParentTaskPickerOption = {
   id: number
   title: string
 }
-
 defineProps<{
   loading?: boolean
   parents: ParentTaskPickerOption[]
@@ -53,13 +51,11 @@ defineProps<{
   clearDisabled?: boolean
   error?: string | null
 }>()
-
 const emit = defineEmits<{
   select: [number]
   clear: []
 }>()
 </script>
-
 <style lang="scss" scoped>
 .popover-scroll {
   flex: 1 1 auto;
@@ -68,12 +64,10 @@ const emit = defineEmits<{
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-
 .parent-task-loading,
 .parent-task-empty {
   margin: 0.55rem 0.65rem 0.65rem;
 }
-
 .parent-task-picker-list {
   list-style: none;
   margin: 0;
@@ -82,14 +76,12 @@ const emit = defineEmits<{
   flex-direction: column;
   gap: 0.2rem;
 }
-
 .popover-field-actions {
   display: flex;
   justify-content: flex-end;
   margin-top: 0;
   padding: 0.35rem 0.65rem 0.65rem;
 }
-
 .popover-field-clear-btn {
   min-width: 3.5rem;
   height: 1.75rem;
@@ -103,17 +95,14 @@ const emit = defineEmits<{
   font-weight: 600;
   cursor: pointer;
 }
-
 .popover-field-clear-btn:hover:not(:disabled) {
   background: rgba(15, 23, 42, 0.04);
   color: mixin.$text;
 }
-
 .popover-field-clear-btn:disabled {
   opacity: 0.45;
   cursor: default;
 }
-
 .parent-task-picker-row {
   @include mixin.picker-checkbox-row;
   display: flex;
@@ -126,15 +115,12 @@ const emit = defineEmits<{
   background: transparent;
   text-align: left;
 }
-
 .parent-task-picker-row:hover {
   background: #f8fafc;
 }
-
 .parent-task-picker-row--selected {
   background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
 }
-
 .parent-task-picker-radio {
   width: 1rem;
   height: 1rem;
@@ -146,12 +132,10 @@ const emit = defineEmits<{
   justify-content: center;
   background: #fff;
 }
-
 .parent-task-picker-radio--checked {
   border-color: mixin.$main;
   background: mixin.$main;
 }
-
 .parent-task-picker-radio--checked::after {
   content: '✓';
   font-size: 0.62rem;
@@ -159,7 +143,6 @@ const emit = defineEmits<{
   line-height: 1;
   color: mixin.$white;
 }
-
 .parent-task-picker-label {
   flex: 1;
   min-width: 0;
@@ -170,13 +153,11 @@ const emit = defineEmits<{
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-
 .empty-text {
   margin: 0;
   font-size: 0.84rem;
   color: #94a3b8;
 }
-
 .err {
   margin: 0.45rem 0.65rem 0.65rem;
   color: #b91c1c;

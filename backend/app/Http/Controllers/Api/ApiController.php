@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Organization;
-use App\Models\Project;
+use App\Models\Workspace;
 use App\Models\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -11,41 +11,41 @@ use Illuminate\Support\Facades\Storage;
 
 abstract class ApiController extends Controller
 {
-    protected function ensureProjectBelongsToOrganization(Project $project, Organization $organization): void
+    protected function ensureWorkspaceBelongsToOrganization(Workspace $workspace, Organization $organization): void
     {
-        if ((int) $project->organization_id !== (int) $organization->id) {
+        if ((int) $workspace->organization_id !== (int) $organization->id) {
             abort(404);
         }
     }
 
-    protected function ensureProjectMember(User $user, Project $project): void
+    protected function ensureWorkspaceMember(User $user, Workspace $workspace): void
     {
-        if (! $user->isMemberOfProject($project)) {
-            abort(403, 'Not a member of this project.');
+        if (! $user->isMemberOfWorkspace($workspace)) {
+            abort(403, 'Not a member of this workspace.');
         }
     }
 
-    protected function denyIfProjectViewer(User $user, Project $project): void
+    protected function denyIfWorkspaceViewer(User $user, Workspace $workspace): void
     {
-        $role = $user->projectPivot($project)?->role ?? '';
+        $role = $user->workspacePivot($workspace)?->role ?? '';
         if ($role === 'viewer') {
             abort(403, 'Viewer role is read-only.');
         }
     }
 
-    protected function assertCanManageProjectsInOrganization(Request $request): void
+    protected function assertCanManageWorkspacesInOrganization(Request $request): void
     {
         $pivot = $request->attributes->get('organization_membership');
         $role = $pivot->role ?? '';
-        if (! in_array($role, ['admin', 'project_leader'], true)) {
-            abort(403, 'Insufficient organization role to manage projects.');
+        if (! in_array($role, ['admin', 'leader'], true)) {
+            abort(403, 'Insufficient organization role to manage workspaces.');
         }
     }
 
-    protected function assertProjectNotArchived(Project $project): void
+    protected function assertWorkspaceNotArchived(Workspace $workspace): void
     {
-        if ($project->isArchived()) {
-            abort(403, 'Project is archived.');
+        if ($workspace->isArchived()) {
+            abort(403, 'Workspace is archived.');
         }
     }
 

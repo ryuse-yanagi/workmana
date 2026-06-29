@@ -4,9 +4,7 @@ import {
   shouldEnableDragScroll,
   type ScrollAxes,
 } from '../utils/uiInteraction'
-
 const DRAG_SCROLL_THRESHOLD_PX = 4
-
 interface DragScrollSession {
   container: Element
   axes: ScrollAxes
@@ -17,14 +15,11 @@ interface DragScrollSession {
   scrollTop: number
   active: boolean
 }
-
 export default defineNuxtPlugin(() => {
   if (!import.meta.client) {
     return
   }
-
   let dragScroll: DragScrollSession | null = null
-
   const clearDragScroll = (pointerId?: number) => {
     if (!dragScroll) {
       return
@@ -34,7 +29,6 @@ export default defineNuxtPlugin(() => {
     }
     dragScroll = null
   }
-
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0 || isInsideSelectableText(event.target)) {
       return
@@ -42,12 +36,10 @@ export default defineNuxtPlugin(() => {
     if (!shouldEnableDragScroll(event.target)) {
       return
     }
-
     const resolved = resolveDragScrollContainer(event.target as Element)
     if (!resolved) {
       return
     }
-
     const { container, axes } = resolved
     dragScroll = {
       container,
@@ -60,15 +52,12 @@ export default defineNuxtPlugin(() => {
       active: false,
     }
   }
-
   const onPointerMove = (event: PointerEvent) => {
     if (!dragScroll || dragScroll.pointerId !== event.pointerId) {
       return
     }
-
     const deltaX = event.clientX - dragScroll.startX
     const deltaY = event.clientY - dragScroll.startY
-
     if (!dragScroll.active) {
       const movedX = Math.abs(deltaX) >= DRAG_SCROLL_THRESHOLD_PX
       const movedY = Math.abs(deltaY) >= DRAG_SCROLL_THRESHOLD_PX
@@ -79,7 +68,6 @@ export default defineNuxtPlugin(() => {
       }
       dragScroll.active = true
     }
-
     if (dragScroll.axes.x) {
       dragScroll.container.scrollLeft = dragScroll.scrollLeft - deltaX
     }
@@ -88,11 +76,9 @@ export default defineNuxtPlugin(() => {
     }
     event.preventDefault()
   }
-
   const onPointerEnd = (event: PointerEvent) => {
     clearDragScroll(event.pointerId)
   }
-
   document.addEventListener('pointerdown', onPointerDown, { capture: true })
   document.addEventListener('pointermove', onPointerMove, { capture: true, passive: false })
   document.addEventListener('pointerup', onPointerEnd, { capture: true })

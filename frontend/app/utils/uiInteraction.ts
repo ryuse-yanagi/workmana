@@ -6,7 +6,6 @@ const FORM_OR_EDITOR_SELECTOR = [
   '[contenteditable=""]',
   '.ProseMirror',
 ].join(', ')
-
 const DRAG_SCROLL_SKIP_SELECTOR = [
   'button',
   'a',
@@ -23,17 +22,43 @@ const DRAG_SCROLL_SKIP_SELECTOR = [
   '.settings-sidebar',
   '[data-no-drag-scroll]',
 ].join(', ')
-
+const MODAL_OVERLAY_SELECTOR = '.modal-overlay, .base-modal-overlay'
+/** 作成モーダル等の送信ショートカット（Ctrl+Enter / Mac は Cmd+Enter） */
+export function isCtrlEnterKeydown (event: KeyboardEvent): boolean {
+  return event.key === 'Enter' && (event.ctrlKey || event.metaKey)
+}
+/** 入力中・編集 UI 上ではキーボードショートカットを無効にする */
+export function isKeyboardShortcutBlockedTarget (target: EventTarget | null): boolean {
+  return isInsideSelectableText(target)
+}
+/** 最前面のモーダルオーバーレイ（ネスト時は z-index が最大のもの） */
+export function getTopmostModalOverlay (): HTMLElement | null {
+  if (!import.meta.client) {
+    return null
+  }
+  const overlays = Array.from(
+    document.querySelectorAll<HTMLElement>(MODAL_OVERLAY_SELECTOR),
+  ).filter((el) => {
+    const style = getComputedStyle(el)
+    return style.display !== 'none' && style.visibility !== 'hidden'
+  })
+  if (!overlays.length) {
+    return null
+  }
+  return overlays.reduce((top, el) => {
+    const zEl = Number.parseInt(getComputedStyle(el).zIndex, 10) || 0
+    const zTop = Number.parseInt(getComputedStyle(top).zIndex, 10) || 0
+    return zEl >= zTop ? el : top
+  })
+}
 /** CSS で user-select: text が指定された表示テキスト上か */
 export function isInsideSelectableText (target: EventTarget | null): boolean {
   if (!(target instanceof Element)) {
     return false
   }
-
   if (target.closest(FORM_OR_EDITOR_SELECTOR)) {
     return true
   }
-
   let el: Element | null = target
   while (el && el !== document.body) {
     const style = getComputedStyle(el)
@@ -43,15 +68,12 @@ export function isInsideSelectableText (target: EventTarget | null): boolean {
     }
     el = el.parentElement
   }
-
   return false
 }
-
 export type ScrollAxes = {
   x: boolean
   y: boolean
 }
-
 export function getScrollAxes (el: Element): ScrollAxes {
   const style = getComputedStyle(el)
   return {
@@ -61,12 +83,10 @@ export function getScrollAxes (el: Element): ScrollAxes {
       && el.scrollHeight > el.clientHeight + 1,
   }
 }
-
 export function isScrollableElement (el: Element): boolean {
   const axes = getScrollAxes(el)
   return axes.x || axes.y
 }
-
 export function findScrollableAncestor (target: Element): Element | null {
   let el: Element | null = target
   while (el && el !== document.body) {
@@ -77,11 +97,9 @@ export function findScrollableAncestor (target: Element): Element | null {
   }
   return null
 }
-
 function isBoardDragScrollBackground (target: Element): boolean {
   return !target.closest(DRAG_SCROLL_SKIP_SELECTOR)
 }
-
 /** ボード背景ドラッグは横スクロールのみ。それ以外は最寄りのスクロール容器を使う。 */
 export function resolveDragScrollContainer (target: Element): {
   container: Element
@@ -94,15 +112,12 @@ export function resolveDragScrollContainer (target: Element): {
       return { container: board, axes: { x: true, y: false } }
     }
   }
-
   const container = findScrollableAncestor(target)
   if (!container) {
     return null
   }
-
   return { container, axes: getScrollAxes(container) }
 }
-
 export function shouldEnableDragScroll (target: EventTarget | null): boolean {
   if (!(target instanceof Element)) {
     return false
@@ -115,12 +130,8 @@ export function shouldEnableDragScroll (target: EventTarget | null): boolean {
   }
   return resolveDragScrollContainer(target) !== null
 }
-
 /** オーバーレイ上で pointerdown/pointerup したときだけ閉じる（モーダル内開始→外終了は閉じない） */
-const MODAL_OVERLAY_SELECTOR = '.modal-overlay, .base-modal-overlay'
-
 let suppressNextOverlayBackdropClose = false
-
 /** モーダル背面（カード外の暗い領域）を直接クリックしたか */
 export function isModalOverlayBackdropTarget (target: Node): boolean {
   if (!(target instanceof Element)) {
@@ -129,7 +140,6 @@ export function isModalOverlayBackdropTarget (target: Node): boolean {
   const overlay = target.closest(MODAL_OVERLAY_SELECTOR)
   return overlay instanceof Element && target === overlay
 }
-
 /**
  * プルダウン外クリックでモーダル背面を押したとき、続く mouseup によるモーダル閉じを抑止する。
  * （capture 段階でプルダウンが先に閉じると、mouseup 時には開いていないためモーダルまで閉じてしまうのを防ぐ）
@@ -137,7 +147,6 @@ export function isModalOverlayBackdropTarget (target: Node): boolean {
 export function suppressOverlayBackdropCloseOnce () {
   suppressNextOverlayBackdropClose = true
 }
-
 function consumeOverlayBackdropCloseSuppression (): boolean {
   if (!suppressNextOverlayBackdropClose) {
     return false
@@ -145,7 +154,6 @@ function consumeOverlayBackdropCloseSuppression (): boolean {
   suppressNextOverlayBackdropClose = false
   return true
 }
-
 /** ポップオーバーの外側クリックで閉じる。モーダル背面ならモーダルは閉じない */
 export function dismissPopoverFromOutsidePointer (
   target: Node,
@@ -156,17 +164,14 @@ export function dismissPopoverFromOutsidePointer (
   }
   void dismiss()
 }
-
 export function createOverlayBackdropClose (options: {
   onClose: () => void
   canClose?: () => boolean
 }) {
   let pendingOverlay: HTMLElement | null = null
-
   function detachDocumentMouseUp () {
     document.removeEventListener('mouseup', onDocumentMouseUp, true)
   }
-
   function onDocumentMouseUp (event: MouseEvent) {
     detachDocumentMouseUp()
     const overlay = pendingOverlay
@@ -184,7 +189,6 @@ export function createOverlayBackdropClose (options: {
       options.onClose()
     }
   }
-
   function onOverlayMouseDown (event: MouseEvent) {
     if (event.button !== 0 || event.target !== event.currentTarget) {
       return
@@ -193,13 +197,11 @@ export function createOverlayBackdropClose (options: {
     detachDocumentMouseUp()
     document.addEventListener('mouseup', onDocumentMouseUp, true)
   }
-
   function resetOverlayBackdropClose () {
     pendingOverlay = null
     suppressNextOverlayBackdropClose = false
     detachDocumentMouseUp()
   }
-
   return {
     onOverlayMouseDown,
     resetOverlayBackdropClose,

@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Organization;
-use App\Models\Project;
+use App\Models\Workspace;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -12,7 +12,12 @@ class OrganizationTaskApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_create_organization_project_and_task(): void
+    private function defaultListId (Workspace $workspace): int
+    {
+        return (int) $workspace->lists()->orderBy('sort_order')->value('id');
+    }
+
+    public function test_user_can_create_organization_workspace_and_task(): void
     {
         $user = User::factory()->create();
 
@@ -25,25 +30,26 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('slug', 'acme');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated()
             ->assertJsonPath('name', 'Sprint 1');
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'First task',
                 'status' => 'todo',
+                'list_id' => $this->defaultListId($workspace),
             ])
             ->assertCreated()
             ->assertJsonPath('title', 'First task');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
                 'effort_hours' => 8.5,
             ])
             ->assertOk()
@@ -51,7 +57,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('effort_unit', 'hour');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
                 'effort_value' => 4,
                 'effort_unit' => 'minute',
             ])
@@ -61,26 +67,26 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('effort_hours', '0.066667');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks")
             ->assertOk()
             ->assertJsonPath('data.0.effort_value', '4.0000')
             ->assertJsonPath('data.0.effort_unit', 'minute')
             ->assertJsonPath('data.0.effort_hours', '0.066667');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
                 'description' => 'WBS note',
             ])
             ->assertOk();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
             ->assertJsonPath('data.0.description', 'WBS note')
-            ->assertJsonPath('data.0.list_name', null);
+            ->assertJsonPath('data.0.list_name', '未着手');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
                 'effort_hours' => null,
             ])
             ->assertOk()
@@ -100,39 +106,44 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
+
+        $listId = $this->defaultListId($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Parent task',
                 'status' => 'todo',
+                'list_id' => $listId,
                 'is_parent_task' => true,
             ])
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Child task',
                 'status' => 'todo',
+                'list_id' => $listId,
                 'parent_task_id' => 1,
             ])
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Standalone task',
                 'status' => 'todo',
+                'list_id' => $listId,
             ])
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs/reorder", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/reorder", [
                 'tasks' => [
                     ['id' => 3, 'sort_order' => 0, 'parent_task_id' => null],
                     ['id' => 1, 'sort_order' => 1, 'parent_task_id' => null],
@@ -143,7 +154,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('data.ok', true);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
             ->assertJsonPath('data.0.id', 3)
             ->assertJsonPath('data.1.id', 1)
@@ -163,21 +174,21 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
 
-        $lists = $project->lists()->orderBy('sort_order')->get();
+        $lists = $workspace->lists()->orderBy('sort_order')->get();
         $this->assertGreaterThanOrEqual(2, $lists->count());
         $firstList = $lists[0];
         $secondList = $lists[1];
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Task A',
                 'status' => 'todo',
                 'list_id' => $firstList->id,
@@ -185,7 +196,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Task B',
                 'status' => 'todo',
                 'list_id' => $secondList->id,
@@ -193,7 +204,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Task C',
                 'status' => 'todo',
                 'list_id' => $firstList->id,
@@ -201,7 +212,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs/reorder", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/reorder", [
                 'tasks' => [
                     ['id' => 1, 'sort_order' => 0, 'parent_task_id' => null],
                     ['id' => 2, 'sort_order' => 1, 'parent_task_id' => null],
@@ -211,7 +222,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertOk();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/2", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/2", [
                 'list_id' => $firstList->id,
             ])
             ->assertOk()
@@ -219,7 +230,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('sort_order', 1);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
             ->assertJsonPath('data.0.id', 1)
             ->assertJsonPath('data.1.id', 2)
@@ -238,18 +249,21 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
+
+        $listId = $this->defaultListId($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Parent task',
                 'status' => 'todo',
+                'list_id' => $listId,
                 'is_parent_task' => true,
             ])
             ->assertCreated()
@@ -258,14 +272,15 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('parent_task_id', null);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/parents")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/parents")
             ->assertOk()
             ->assertJsonPath('data.0.title', 'Parent task');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Child task',
                 'status' => 'todo',
+                'list_id' => $listId,
                 'parent_task_id' => 1,
             ])
             ->assertCreated()
@@ -286,30 +301,30 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
             ->assertJsonPath('meta.orphan_parent_label', '親タスクなし');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs/orphan-parent-label", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/orphan-parent-label", [
                 'label' => '未分類タスク',
             ])
             ->assertOk()
             ->assertJsonPath('data.orphan_parent_label', '未分類タスク');
 
-        $this->assertSame('未分類タスク', $project->fresh()?->wbs_orphan_parent_label);
+        $this->assertSame('未分類タスク', $workspace->fresh()?->wbs_orphan_parent_label);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/wbs")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
             ->assertJsonPath('meta.orphan_parent_label', '未分類タスク');
     }
@@ -326,25 +341,26 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/projects', [
+            ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
 
-        $project = Project::query()->first();
-        $this->assertNotNull($project);
+        $workspace = Workspace::query()->first();
+        $this->assertNotNull($workspace);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson("/api/orgs/acme/projects/{$project->id}/tasks", [
+            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Checklist task',
                 'status' => 'todo',
+                'list_id' => $this->defaultListId($workspace),
             ])
             ->assertCreated();
 
         $itemId = '11111111-1111-4111-8111-111111111111';
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
                 'checklist' => [
                     'title' => 'Release prep',
                     'items' => [
@@ -363,13 +379,13 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('checklist.items.0.checked', false);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/projects/{$project->id}/tasks/1")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1")
             ->assertOk()
             ->assertJsonPath('checklist.title', 'Release prep')
             ->assertJsonPath('checklist.items.0.checked', false);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
                 'checklist' => [
                     'title' => 'Release prep',
                     'items' => [
@@ -385,7 +401,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('checklist.items.0.checked', true);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/projects/{$project->id}/tasks/1", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
                 'checklist' => null,
             ])
             ->assertOk()
@@ -405,7 +421,7 @@ class OrganizationTaskApiTest extends TestCase
         $org->members()->attach($owner->id, ['role' => 'admin']);
 
         $this->withHeader('Authorization', 'Bearer '.$other->id)
-            ->getJson('/api/orgs/closed/projects')
+            ->getJson('/api/orgs/closed/workspaces')
             ->assertForbidden();
     }
 }

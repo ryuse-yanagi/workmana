@@ -18,7 +18,7 @@ class ListUpdated implements ShouldBroadcastNow
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("projects.{$this->list->project_id}")];
+        return [new PrivateChannel("workspaces.{$this->list->workspace_id}")];
     }
 
     public function broadcastAs(): string
@@ -33,7 +33,7 @@ class ListUpdated implements ShouldBroadcastNow
             'list' => [
                 'id' => $this->list->id,
                 'name' => $this->list->name,
-                'color' => $this->list->color,
+                'color_index' => $this->list->color_index,
                 'sort_order' => $this->list->sort_order,
             ],
         ];

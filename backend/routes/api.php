@@ -2,12 +2,13 @@
 
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\OrganizationController;
-use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\WorkspaceController;
 use App\Http\Controllers\Api\ListController;
-use App\Http\Controllers\Api\ProjectLabelController;
+use App\Http\Controllers\Api\WorkspaceLabelController;
 use App\Http\Controllers\Api\TaskLabelController;
-use App\Http\Controllers\Api\TaskCommentController;
+use App\Http\Controllers\Api\SharedDocumentController;
 use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\TaskCommentController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['cognito'])->group(function () {
@@ -21,44 +22,45 @@ Route::middleware(['cognito'])->group(function () {
     Route::prefix('orgs/{organization}')->middleware('org.member')->group(function () {
         Route::get('/settings', [OrganizationController::class, 'settings']);
         Route::patch('/settings', [OrganizationController::class, 'updateSettings']);
-        Route::get('/project-labels', [ProjectLabelController::class, 'index']);
-        Route::post('/project-labels', [ProjectLabelController::class, 'store']);
+        Route::get('/workspace-labels', [WorkspaceLabelController::class, 'index']);
+        Route::post('/workspace-labels', [WorkspaceLabelController::class, 'store']);
         Route::get('/task-labels', [TaskLabelController::class, 'index']);
         Route::post('/task-labels', [TaskLabelController::class, 'store']);
 
-        Route::get('/projects', [ProjectController::class, 'index']);
-        Route::post('/projects', [ProjectController::class, 'store']);
-        Route::get('/projects/{project}/members', [ProjectController::class, 'members']);
-        Route::get('/projects/{project}', [ProjectController::class, 'show']);
-        Route::patch('/projects/{project}', [ProjectController::class, 'update']);
-        Route::patch('/projects/{project}/archive', [ProjectController::class, 'archive']);
-        Route::delete('/projects/{project}', [ProjectController::class, 'destroy']);
+        Route::get('/workspaces', [WorkspaceController::class, 'index']);
+        Route::post('/workspaces', [WorkspaceController::class, 'store']);
+        Route::get('/documents', [SharedDocumentController::class, 'index']);
+        Route::get('/workspaces/{workspace}/members', [WorkspaceController::class, 'members']);
+        Route::get('/workspaces/{workspace}', [WorkspaceController::class, 'show']);
+        Route::patch('/workspaces/{workspace}', [WorkspaceController::class, 'update']);
+        Route::patch('/workspaces/{workspace}/archive', [WorkspaceController::class, 'archive']);
+        Route::delete('/workspaces/{workspace}', [WorkspaceController::class, 'destroy']);
 
-        Route::get('/projects/{project}/lists', [ListController::class, 'index']);
-        Route::post('/projects/{project}/lists', [ListController::class, 'store']);
-        Route::patch('/projects/{project}/lists/reorder', [ListController::class, 'reorder']);
-        Route::patch('/projects/{project}/lists/{boardList}', [ListController::class, 'update']);
-        Route::patch('/projects/{project}/lists/{boardList}/tasks/reorder', [ListController::class, 'reorderTasks']);
-        Route::delete('/projects/{project}/lists/{boardList}', [ListController::class, 'destroy']);
+        Route::get('/workspaces/{workspace}/lists', [ListController::class, 'index']);
+        Route::post('/workspaces/{workspace}/lists', [ListController::class, 'store']);
+        Route::patch('/workspaces/{workspace}/lists/reorder', [ListController::class, 'reorder']);
+        Route::patch('/workspaces/{workspace}/lists/{boardList}', [ListController::class, 'update']);
+        Route::patch('/workspaces/{workspace}/lists/{boardList}/tasks/reorder', [ListController::class, 'reorderTasks']);
+        Route::delete('/workspaces/{workspace}/lists/{boardList}', [ListController::class, 'destroy']);
 
-        Route::get('/projects/{project}/tasks', [TaskController::class, 'index']);
-        Route::get('/projects/{project}/tasks/parents', [TaskController::class, 'parentTasksIndex']);
-        Route::get('/projects/{project}/tasks/comments', [TaskCommentController::class, 'projectIndex']);
-        Route::get('/projects/{project}/tasks/wbs', [TaskController::class, 'wbsIndex']);
-        Route::patch('/projects/{project}/tasks/wbs/orphan-parent-label', [TaskController::class, 'wbsUpdateOrphanParentLabel']);
-        Route::patch('/projects/{project}/tasks/wbs/reorder', [TaskController::class, 'wbsReorder']);
-        Route::get('/projects/{project}/tasks/archived', [TaskController::class, 'archivedIndex']);
-        Route::post('/projects/{project}/tasks', [TaskController::class, 'store']);
-        Route::get('/projects/{project}/tasks/{task}', [TaskController::class, 'show']);
-        Route::patch('/projects/{project}/tasks/{task}', [TaskController::class, 'update']);
-        Route::post('/projects/{project}/tasks/{task}/archive', [TaskController::class, 'archive']);
-        Route::post('/projects/{project}/tasks/{task}/unarchive', [TaskController::class, 'unarchive']);
-        Route::delete('/projects/{project}/tasks/{task}', [TaskController::class, 'destroy']);
+        Route::get('/workspaces/{workspace}/tasks', [TaskController::class, 'index']);
+        Route::get('/workspaces/{workspace}/tasks/parents', [TaskController::class, 'parentTasksIndex']);
+        Route::get('/workspaces/{workspace}/tasks/comments', [TaskCommentController::class, 'workspaceIndex']);
+        Route::get('/workspaces/{workspace}/tasks/wbs', [TaskController::class, 'wbsIndex']);
+        Route::patch('/workspaces/{workspace}/tasks/wbs/orphan-parent-label', [TaskController::class, 'wbsUpdateOrphanParentLabel']);
+        Route::patch('/workspaces/{workspace}/tasks/wbs/reorder', [TaskController::class, 'wbsReorder']);
+        Route::get('/workspaces/{workspace}/tasks/archived', [TaskController::class, 'archivedIndex']);
+        Route::post('/workspaces/{workspace}/tasks', [TaskController::class, 'store']);
+        Route::get('/workspaces/{workspace}/tasks/{task}', [TaskController::class, 'show']);
+        Route::patch('/workspaces/{workspace}/tasks/{task}', [TaskController::class, 'update']);
+        Route::post('/workspaces/{workspace}/tasks/{task}/archive', [TaskController::class, 'archive']);
+        Route::post('/workspaces/{workspace}/tasks/{task}/unarchive', [TaskController::class, 'unarchive']);
+        Route::delete('/workspaces/{workspace}/tasks/{task}', [TaskController::class, 'destroy']);
 
-        Route::get('/projects/{project}/tasks/{task}/comments', [TaskCommentController::class, 'index']);
-        Route::post('/projects/{project}/tasks/{task}/comments', [TaskCommentController::class, 'store']);
-        Route::patch('/projects/{project}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'update']);
-        Route::delete('/projects/{project}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy']);
-        Route::post('/projects/{project}/tasks/{task}/comments/{comment}/reactions', [TaskCommentController::class, 'toggleReaction']);
+        Route::get('/workspaces/{workspace}/tasks/{task}/comments', [TaskCommentController::class, 'index']);
+        Route::post('/workspaces/{workspace}/tasks/{task}/comments', [TaskCommentController::class, 'store']);
+        Route::patch('/workspaces/{workspace}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'update']);
+        Route::delete('/workspaces/{workspace}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy']);
+        Route::post('/workspaces/{workspace}/tasks/{task}/comments/{comment}/reactions', [TaskCommentController::class, 'toggleReaction']);
     });
 });

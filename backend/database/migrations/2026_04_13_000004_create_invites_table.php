@@ -24,7 +24,7 @@ return new class extends Migration
 
         $driver = Schema::getConnection()->getDriverName();
         if ($driver === 'pgsql') {
-            DB::statement("ALTER TABLE invites ADD CONSTRAINT invites_role_check CHECK (role IN ('admin','project_leader','member','viewer'))");
+            DB::statement("ALTER TABLE invites ADD CONSTRAINT invites_role_check CHECK (role IN ('admin','leader','member','viewer'))");
         }
         if (in_array($driver, ['pgsql', 'sqlite'], true)) {
             DB::statement('CREATE UNIQUE INDEX invites_one_active_per_org_email ON invites (organization_id, email) WHERE revoked_at IS NULL AND used_at IS NULL');

@@ -6,7 +6,6 @@
       </span>
       <h3 class="task-hierarchy__title">タスクの親子関係</h3>
     </header>
-
     <div class="task-hierarchy__group">
       <p class="task-hierarchy__group-label">親タスク</p>
       <div v-if="parentTask" class="task-hierarchy__row task-hierarchy__row--parent">
@@ -18,7 +17,6 @@
       </div>
       <p v-else class="task-hierarchy__empty">親タスクはありません</p>
     </div>
-
     <div class="task-hierarchy__group">
       <p class="task-hierarchy__group-label">子タスク ({{ childTasks.length }})</p>
       <ul v-if="childTasks.length" class="task-hierarchy__child-list">
@@ -48,27 +46,22 @@
     </div>
   </section>
 </template>
-
 <script setup lang="ts">
 import { CalendarDays, ListTree, Network } from 'lucide-vue-next'
-
 export type TaskHierarchyParent = {
   id: number
   title: string
 }
-
 export type TaskHierarchyChild = {
   id: number
   title: string
   due_date?: string | null
   list_name?: string | null
 }
-
 defineProps<{
   parentTask: TaskHierarchyParent | null
   childTasks: TaskHierarchyChild[]
 }>()
-
 function formatHierarchyDueDate (value: string | null | undefined): string {
   const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (!match) {
@@ -76,7 +69,6 @@ function formatHierarchyDueDate (value: string | null | undefined): string {
   }
   return `${match[1]}/${match[2]}/${match[3]}`
 }
-
 function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   const normalized = name.trim()
   if (normalized.includes('完了')) {
@@ -88,7 +80,6 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   return 'default'
 }
 </script>
-
 <style scoped lang="scss">
 .task-hierarchy {
   display: flex;
@@ -96,19 +87,16 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   gap: 0.85rem;
   padding: 0.85rem 0;
 }
-
 .task-hierarchy__header {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
 }
-
 .task-hierarchy__icon {
   display: inline-flex;
   color: #334155;
 }
-
 .task-hierarchy__title {
   margin: 0;
   font-size: 0.95rem;
@@ -116,20 +104,17 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   color: #0f172a;
   line-height: 1.3;
 }
-
 .task-hierarchy__group {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
 }
-
 .task-hierarchy__group-label {
   margin: 0;
   font-size: 0.78rem;
   font-weight: 700;
   color: #64748b;
 }
-
 .task-hierarchy__empty {
   margin: 0;
   border: 1px dashed mixin.$border;
@@ -139,7 +124,6 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   color: #94a3b8;
   background: #f8fafc;
 }
-
 .task-hierarchy__child-list {
   list-style: none;
   margin: 0;
@@ -148,7 +132,6 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   flex-direction: column;
   gap: 0.45rem;
 }
-
 .task-hierarchy__row {
   display: flex;
   align-items: center;
@@ -159,21 +142,17 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   background: #fff;
   padding: 0.65rem 0.75rem;
 }
-
 .task-hierarchy__row--parent {
   gap: 0.5rem;
 }
-
 .task-hierarchy__row--child {
   justify-content: flex-start;
 }
-
 .task-hierarchy__row-icon {
   display: inline-flex;
   flex-shrink: 0;
   color: #334155;
 }
-
 .task-hierarchy__row-title {
   min-width: 0;
   flex: 1 1 auto;
@@ -185,7 +164,6 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .task-hierarchy__date {
   display: inline-flex;
   align-items: center;
@@ -195,7 +173,6 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   color: #64748b;
   white-space: nowrap;
 }
-
 .task-hierarchy__badge {
   flex-shrink: 0;
   margin-left: auto;
@@ -210,18 +187,15 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   line-height: 1;
   white-space: nowrap;
 }
-
 .task-hierarchy__badge--parent,
 .task-hierarchy__badge--progress {
   background: #dbeafe;
   color: #1d4ed8;
 }
-
 .task-hierarchy__badge--done {
   background: #dcfce7;
   color: #15803d;
 }
-
 .task-hierarchy__badge--default {
   background: #f1f5f9;
   color: #475569;

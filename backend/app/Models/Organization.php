@@ -12,7 +12,6 @@ class Organization extends Model
     protected $fillable = [
         'name',
         'slug',
-        'work_unit_label',
         'default_board_list_names',
         'effort_unit',
         'created_by',
@@ -42,14 +41,14 @@ class Organization extends Model
             ->withTimestamps();
     }
 
-    public function projects(): HasMany
+    public function workspaces(): HasMany
     {
-        return $this->hasMany(Project::class);
+        return $this->hasMany(Workspace::class);
     }
 
-    public function projectLabels(): HasMany
+    public function workspaceLabels(): HasMany
     {
-        return $this->hasMany(ProjectLabel::class)->orderBy('name');
+        return $this->hasMany(WorkspaceLabel::class)->orderBy('name');
     }
 
     public function taskLabels(): HasMany

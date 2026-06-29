@@ -10,7 +10,7 @@ final class FieldLengthLimits
 
     public const LABEL_NAME = 30;
 
-    public const PROJECT_NAME = 30;
+    public const WORKSPACE_NAME = 30;
 
     public const CHECKLIST_TITLE = 30;
 

@@ -1,13 +1,11 @@
 import { spawn } from 'node:child_process'
 import { setTimeout as sleep } from 'node:timers/promises'
 import WebSocket from 'ws'
-
 const WSL_IP = (await import('node:child_process')).execSync('hostname -I').toString().trim().split(/\s+/)[0]
-const BOARD_URL = `http://${WSL_IP}:3000/org/test-co/projects/1`
+const BOARD_URL = `http://${WSL_IP}:3000/org/dmy_org/workspaces/1`
 const LONG_TITLE = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
 const WIN_CHROME = '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'
 const DEBUG_PORT = 9355
-
 async function cdpEval (ws, expression) {
   const id = Math.floor(Math.random() * 1e9)
   ws.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }))
@@ -22,7 +20,6 @@ async function cdpEval (ws, expression) {
     }
   }
 }
-
 async function main () {
   const chrome = spawn(WIN_CHROME, [
     `--remote-debugging-port=${DEBUG_PORT}`,
@@ -32,7 +29,6 @@ async function main () {
     '--disable-dev-shm-usage',
     'about:blank',
   ], { stdio: 'ignore' })
-
   try {
     let wsUrl = null
     for (let i = 0; i < 40; i++) {
@@ -45,19 +41,16 @@ async function main () {
       await sleep(200)
     }
     if (!wsUrl) throw new Error('CDP websocket unavailable')
-
     const ws = new WebSocket(wsUrl)
     await new Promise((resolve, reject) => {
       ws.once('open', resolve)
       ws.once('error', reject)
     })
-
     await cdpEval(ws, `location.href = ${JSON.stringify(`http://${WSL_IP}:3000/`)}`)
     await sleep(500)
     await cdpEval(ws, `localStorage.setItem('id_token', '1')`)
     await cdpEval(ws, `location.href = ${JSON.stringify(BOARD_URL)}`)
     await sleep(3000)
-
     const created = await cdpEval(ws, `(async () => {
       const list = document.querySelector('.list-column')
       if (!list) return 'no-list'
@@ -72,14 +65,12 @@ async function main () {
       return 'created'
     })()`)
     if (created !== 'created') throw new Error(`card create failed: ${created}`)
-
     const before = await cdpEval(ws, `(() => {
       const card = [...document.querySelectorAll('.task-card')].find(c => c.querySelector('.task-title')?.textContent?.includes(${JSON.stringify(LONG_TITLE.slice(0, 20))}))
       if (!card) return null
       return { offsetHeight: card.offsetHeight, offsetWidth: card.offsetWidth }
     })()`)
     if (!before) throw new Error('card not found before drag')
-
     const dragResult = await cdpEval(ws, `(async () => {
       const card = [...document.querySelectorAll('.task-card')].find(c => c.querySelector('.task-title')?.textContent?.includes(${JSON.stringify(LONG_TITLE.slice(0, 20))}))
       if (!card) return { error: 'no-card' }
@@ -108,23 +99,19 @@ async function main () {
         spills: cardRect && titleRect ? titleRect.bottom > cardRect.bottom + 1 : null,
       }
     })()`)
-
     console.log(JSON.stringify({ before, dragResult }, null, 2))
-
     if (!dragResult?.fallback) throw new Error('sortable-fallback not found during live drag')
     if (!dragResult.fallback.className.includes('sortable-fallback')) {
       throw new Error(`missing sortable-fallback class: ${dragResult.fallback.className}`)
     }
     if (dragResult.heightDelta > 2) throw new Error(`height delta ${dragResult.heightDelta}px`)
     if (dragResult.spills) throw new Error('text spills below card during live drag')
-
     console.log('PASS: live board drag keeps card size')
     ws.close()
   } finally {
     chrome.kill()
   }
 }
-
 main().catch((err) => {
   console.error('FAIL:', err.message)
   process.exit(1)

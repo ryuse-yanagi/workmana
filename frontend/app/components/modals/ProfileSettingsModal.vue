@@ -9,7 +9,6 @@
   >
     <div class="profile-settings-modal-body">
       <p class="profile-settings-modal-note">ユーザー名とアイコン画像を設定できます。</p>
-
       <form class="profile-name-form" @submit.prevent="saveProfileName">
         <label class="profile-field">
           <span>ユーザー名</span>
@@ -32,11 +31,9 @@
           </button>
         </div>
       </form>
-
       <div class="profile-row">
         <img v-if="avatarPreviewUrl" :src="avatarPreviewUrl" alt="ユーザーアイコン" class="avatar-image" />
         <div v-else class="avatar-placeholder">No Icon</div>
-
         <div class="profile-actions">
           <input type="file" accept="image/*" :disabled="avatarLoading" @change="onAvatarFileChange" />
           <div class="profile-button-row">
@@ -59,34 +56,27 @@
           </div>
         </div>
       </div>
-
       <p v-if="message" class="profile-msg" :class="{ 'profile-msg--err': messageKind === 'err' }">
         {{ message }}
       </p>
     </div>
   </BaseModal>
 </template>
-
 <script setup lang="ts">
 import { useApi } from '../../composables/useApi'
 import { USER_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import BaseModal from './BaseModal.vue'
-
 type MeResponse = {
   name?: string | null
   avatar_url?: string | null
 }
-
 const props = defineProps<{
   modelValue: boolean
 }>()
-
 const emit = defineEmits<{
   'update:modelValue': [boolean]
 }>()
-
 const { api } = useApi()
-
 const avatarPreviewUrl = ref<string | null>(null)
 const selectedAvatarFile = ref<File | null>(null)
 const avatarLoading = ref(false)
@@ -95,17 +85,14 @@ const nameDraft = ref('')
 const nameLoading = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
-
 function setMessage (msg: string, kind: 'ok' | 'err') {
   message.value = msg
   messageKind.value = kind
 }
-
 function notifyProfileUpdated (detail: { name?: string; avatar_url?: string | null }) {
   if (!import.meta.client) return
   window.dispatchEvent(new CustomEvent('tm:user-profile-updated', { detail }))
 }
-
 async function load () {
   const me = await api<MeResponse>('/me')
   nameCurrent.value = (me.name || '').trim()
@@ -114,12 +101,10 @@ async function load () {
   selectedAvatarFile.value = null
   setMessage('', 'ok')
 }
-
 function resetNameDraft () {
   nameDraft.value = nameCurrent.value
   setMessage('', 'ok')
 }
-
 async function saveProfileName () {
   const name = nameDraft.value.trim()
   if (!name) return
@@ -142,7 +127,6 @@ async function saveProfileName () {
     nameLoading.value = false
   }
 }
-
 function onAvatarFileChange (event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] ?? null
@@ -152,7 +136,6 @@ function onAvatarFileChange (event: Event) {
     setMessage('画像を選択しました。保存を押してください。', 'ok')
   }
 }
-
 async function uploadAvatar () {
   if (!selectedAvatarFile.value) return
   avatarLoading.value = true
@@ -175,7 +158,6 @@ async function uploadAvatar () {
     avatarLoading.value = false
   }
 }
-
 async function deleteAvatar () {
   avatarLoading.value = true
   setMessage('', 'ok')
@@ -192,7 +174,6 @@ async function deleteAvatar () {
     avatarLoading.value = false
   }
 }
-
 watch(
   () => props.modelValue,
   (open) => {
@@ -202,18 +183,15 @@ watch(
   },
 )
 </script>
-
 <style lang="scss" scoped>
 .profile-settings-modal-body {
   padding: 1rem 1.15rem 1.2rem;
 }
-
 .profile-settings-modal-note {
   margin: 0 0 1rem;
   color: #64748b;
   font-size: 0.9rem;
 }
-
 .profile-field {
   display: flex;
   flex-direction: column;
@@ -222,25 +200,21 @@ watch(
   font-size: 0.9rem;
   font-weight: 700;
 }
-
 .profile-input {
   border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0.55rem 0.7rem;
   font-size: 0.95rem;
   background: #fff;
-
   &:focus {
     @include mixin.input-focus-ring;
   }
 }
-
 .profile-button-row {
   margin-top: 0.55rem;
   display: flex;
   gap: 0.5rem;
 }
-
 .profile-primary-btn,
 .profile-ghost-btn {
   border: 1px solid transparent;
@@ -250,35 +224,29 @@ watch(
   font-weight: 700;
   cursor: pointer;
 }
-
 .profile-primary-btn {
   background: mixin.$main;
   color: mixin.$white;
 }
-
 .profile-ghost-btn {
   background: #fff;
   color: #334155;
   border-color: #94a3b8;
 }
-
 .profile-primary-btn:disabled,
 .profile-ghost-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
-
 .profile-row {
   display: flex;
   gap: 1rem;
   align-items: center;
   margin-top: 1rem;
 }
-
 .profile-name-form {
   max-width: 34rem;
 }
-
 .avatar-image,
 .avatar-placeholder {
   width: 84px;
@@ -286,12 +254,10 @@ watch(
   border-radius: 9999px;
   border: 1px solid #cbd5e1;
 }
-
 .avatar-image {
   object-fit: cover;
   background: #fff;
 }
-
 .avatar-placeholder {
   display: flex;
   align-items: center;
@@ -300,17 +266,14 @@ watch(
   background: #f8fafc;
   font-size: 0.8rem;
 }
-
 .profile-actions {
   flex: 1;
 }
-
 .profile-msg {
   margin: 0.85rem 0 0;
   color: #0f766e;
   font-weight: 700;
 }
-
 .profile-msg--err {
   color: #b91c1c;
 }

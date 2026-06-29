@@ -16,14 +16,14 @@ class ListsReordered implements ShouldBroadcastNow
      * @param  array<int, int>  $listIds
      */
     public function __construct(
-        public int $projectId,
+        public int $workspaceId,
         public array $listIds,
     ) {}
 
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("projects.{$this->projectId}")];
+        return [new PrivateChannel("workspaces.{$this->workspaceId}")];
     }
 
     public function broadcastAs(): string

@@ -13,7 +13,7 @@
         :class="{ 'color-preset-picker__btn--active': colorItem === modelValue }"
         :style="{
           backgroundColor: colorItem,
-          borderColor: labelSwatchBorderColor(colorItem),
+          borderColor: colorSwatchBorderColor(colorItem),
         }"
         :aria-label="`色 ${colorItem}`"
         :aria-pressed="colorItem === modelValue"
@@ -24,23 +24,21 @@
           class="color-preset-picker__check"
           :size="20"
           :stroke-width="3.5"
-          :color="labelSwatchCheckColor(colorItem)"
+          :color="colorSwatchCheckColor(colorItem)"
           aria-hidden="true"
         />
       </button>
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
 import { Check } from 'lucide-vue-next'
 import {
-  LABEL_COLOR_GRID_COLUMNS,
-  LABEL_COLOR_PRESETS,
-  labelSwatchBorderColor,
-  labelSwatchCheckColor,
-} from '../../constants/labelColorPresets'
-
+  COLOR_PRESET_GRID_COLUMNS,
+  COLOR_PRESETS,
+  colorSwatchBorderColor,
+  colorSwatchCheckColor,
+} from '../../constants/colorPresets'
 const props = withDefaults(defineProps<{
   modelValue: string
   disabled?: boolean
@@ -49,20 +47,16 @@ const props = withDefaults(defineProps<{
 }>(), {
   disabled: false,
 })
-
-const colorPresets = computed(() => props.presets ?? LABEL_COLOR_PRESETS)
-const gridColumns = computed(() => props.gridColumns ?? LABEL_COLOR_GRID_COLUMNS)
-
+const colorPresets = computed(() => props.presets ?? COLOR_PRESETS)
+const gridColumns = computed(() => props.gridColumns ?? COLOR_PRESET_GRID_COLUMNS)
 const emit = defineEmits<{
   'update:modelValue': [string]
 }>()
-
 function selectColor (colorItem: string) {
   if (props.disabled) return
   emit('update:modelValue', colorItem)
 }
 </script>
-
 <style lang="scss" scoped>
 .color-preset-picker {
   display: flex;
@@ -71,12 +65,10 @@ function selectColor (colorItem: string) {
   color: #1e293b;
   font-weight: 700;
 }
-
 .color-preset-picker__list {
   display: grid;
   gap: 0.35rem;
 }
-
 .color-preset-picker__btn {
   @include mixin.picker-checkbox-row;
   display: inline-flex;
@@ -89,11 +81,9 @@ function selectColor (colorItem: string) {
   border: 1px solid transparent;
   padding: 0;
 }
-
 .color-preset-picker__btn--active {
   box-shadow: none;
 }
-
 .color-preset-picker__check {
   flex-shrink: 0;
 }

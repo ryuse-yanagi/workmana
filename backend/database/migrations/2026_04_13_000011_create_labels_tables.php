@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\LabelColorPresets;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -8,23 +9,23 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('project_labels', function (Blueprint $table) {
+        Schema::create('workspace_labels', function (Blueprint $table) {
             $table->id();
             $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->string('name', 40);
-            $table->string('color', 20)->default('#64748b');
+            $table->unsignedTinyInteger('color_index')->default(LabelColorPresets::DEFAULT_INDEX);
             $table->timestamps();
             $table->unique(['organization_id', 'name']);
             $table->index(['organization_id', 'created_at']);
         });
 
-        Schema::create('project_project_label', function (Blueprint $table) {
+        Schema::create('workspace_workspace_label', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('project_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('project_label_id')->constrained('project_labels')->cascadeOnDelete();
+            $table->foreignId('workspace_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('workspace_label_id')->constrained('workspace_labels')->cascadeOnDelete();
             $table->timestamps();
-            $table->unique(['project_id', 'project_label_id']);
+            $table->unique(['workspace_id', 'workspace_label_id']);
         });
 
         Schema::create('task_labels', function (Blueprint $table) {
@@ -32,7 +33,7 @@ return new class extends Migration
             $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->string('name', 40);
-            $table->string('color', 20)->default('#64748b');
+            $table->unsignedTinyInteger('color_index')->default(LabelColorPresets::DEFAULT_INDEX);
             $table->timestamps();
             $table->unique(['organization_id', 'name']);
             $table->index(['organization_id', 'created_at']);
@@ -51,7 +52,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('task_task_label');
         Schema::dropIfExists('task_labels');
-        Schema::dropIfExists('project_project_label');
-        Schema::dropIfExists('project_labels');
+        Schema::dropIfExists('workspace_workspace_label');
+        Schema::dropIfExists('workspace_labels');
     }
 };

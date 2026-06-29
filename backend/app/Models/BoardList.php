@@ -11,15 +11,19 @@ class BoardList extends Model
     protected $table = 'lists';
 
     protected $fillable = [
-        'project_id',
+        'workspace_id',
         'name',
-        'color',
+        'color_index',
         'sort_order',
     ];
 
-    public function project(): BelongsTo
+    protected $casts = [
+        'color_index' => 'integer',
+    ];
+
+    public function workspace(): BelongsTo
     {
-        return $this->belongsTo(Project::class);
+        return $this->belongsTo(Workspace::class);
     }
 
     public function tasks(): HasMany

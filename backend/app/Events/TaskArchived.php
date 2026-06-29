@@ -16,7 +16,7 @@ class TaskArchived implements ShouldBroadcastNow
      * @param  array<string, mixed>  $task
      */
     public function __construct(
-        public int $projectId,
+        public int $workspaceId,
         public int $taskId,
         public array $task,
     ) {}
@@ -24,7 +24,7 @@ class TaskArchived implements ShouldBroadcastNow
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
     {
-        return [new PrivateChannel("projects.{$this->projectId}")];
+        return [new PrivateChannel("workspaces.{$this->workspaceId}")];
     }
 
     public function broadcastAs(): string
@@ -44,8 +44,8 @@ class TaskArchived implements ShouldBroadcastNow
     /**
      * @param  array<string, mixed>  $taskSnapshot
      */
-    public static function fromSnapshot(int $projectId, int $taskId, array $taskSnapshot): self
+    public static function fromSnapshot(int $workspaceId, int $taskId, array $taskSnapshot): self
     {
-        return new self($projectId, $taskId, $taskSnapshot);
+        return new self($workspaceId, $taskId, $taskSnapshot);
     }
 }

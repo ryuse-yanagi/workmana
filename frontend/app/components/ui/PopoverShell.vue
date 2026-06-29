@@ -23,7 +23,6 @@
     <slot />
   </div>
 </template>
-
 <script setup lang="ts">
 withDefaults(defineProps<{
   title: string
@@ -35,16 +34,12 @@ withDefaults(defineProps<{
 }>(), {
   closeDisabled: false,
 })
-
 defineEmits<{
   close: []
 }>()
-
 const rootRef = ref<HTMLElement | null>(null)
-
 defineExpose({ rootRef })
 </script>
-
 <style lang="scss" scoped>
 .popover-shell {
   background: #fff;
@@ -52,7 +47,6 @@ defineExpose({ rootRef })
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
   overflow: hidden;
 }
-
 .popover-shell__header {
   display: flex;
   align-items: center;
@@ -61,14 +55,12 @@ defineExpose({ rootRef })
   padding: 0.65rem 0.75rem;
   border-bottom: 1px solid #e2e8f0;
 }
-
 .popover-shell__title {
   margin: 0;
   font-size: 0.92rem;
   font-weight: 800;
   color: #0f172a;
 }
-
 .popover-shell__close {
   background: transparent;
   border: none;
@@ -78,7 +70,6 @@ defineExpose({ rootRef })
   cursor: pointer;
   padding: 0;
 }
-
 .popover-shell__close:disabled {
   opacity: 0.55;
   cursor: not-allowed;

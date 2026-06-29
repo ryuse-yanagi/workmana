@@ -13,7 +13,6 @@
           </option>
         </select>
       </label>
-
       <div class="settings-button-row">
         <button type="submit" class="settings-primary-btn" :disabled="loading">
           {{ loading ? '保存中...' : '更新' }}
@@ -28,7 +27,6 @@
     </form>
   </SettingsPanel>
 </template>
-
 <script setup lang="ts">
 import { useApi } from '../../composables/useApi'
 import {
@@ -39,45 +37,36 @@ import {
 import { useOrgEffortSettings } from '../../composables/useOrgEffortSettings'
 import SettingsPanel from './SettingsPanel.vue'
 import type { OrgSettingsResponse } from './types'
-
 const props = defineProps<{
   orgSlug: string
   initialUnit: TaskFormEffortUnit
 }>()
-
 const { api } = useApi()
 const { syncEffortSettings } = useOrgEffortSettings()
-
 const unitCurrent = ref<TaskFormEffortUnit>(props.initialUnit)
 const unitDraft = ref<TaskFormEffortUnit>(props.initialUnit)
 const loading = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
-
 function setMessage (msg: string, kind: 'ok' | 'err') {
   message.value = msg
   messageKind.value = kind
 }
-
 function applyCurrent (unit: TaskFormEffortUnit) {
   unitCurrent.value = unit
   unitDraft.value = unit
   syncEffortSettings(props.orgSlug, { effort_unit: unit })
 }
-
 async function load () {
   const res = await api<OrgSettingsResponse>(`/orgs/${props.orgSlug}/settings`)
   applyCurrent(normalizeEffortUnit(res.effort_unit))
 }
-
 function resetDraft () {
   unitDraft.value = unitCurrent.value
   setMessage('', 'ok')
 }
-
 async function save () {
   const unit = normalizeEffortUnit(unitDraft.value)
-
   loading.value = true
   setMessage('', 'ok')
   try {
@@ -99,10 +88,8 @@ async function save () {
     loading.value = false
   }
 }
-
 defineExpose({ load })
 </script>
-
 <style lang="scss">
 @use './shared';
 </style>

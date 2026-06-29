@@ -22,7 +22,6 @@ class OrganizationController extends ApiController
                 'id' => $o->id,
                 'name' => $o->name,
                 'slug' => $o->slug,
-                'work_unit_label' => $o->work_unit_label ?? 'プロジェクト',
                 'role' => $o->pivot->role,
             ]),
         ]);
@@ -51,7 +50,6 @@ class OrganizationController extends ApiController
         $org = Organization::query()->create([
             'name' => $name,
             'slug' => Str::lower($validated['slug']),
-            'work_unit_label' => 'プロジェクト',
             'effort_unit' => TaskEffortUnit::Hour->value,
             'created_by' => $user->id,
         ]);
@@ -65,7 +63,6 @@ class OrganizationController extends ApiController
             'id' => $org->id,
             'name' => $org->name,
             'slug' => $org->slug,
-            'work_unit_label' => $org->work_unit_label,
         ], 201);
     }
 
@@ -75,7 +72,6 @@ class OrganizationController extends ApiController
             'id' => $organization->id,
             'name' => $organization->name,
             'slug' => $organization->slug,
-            'work_unit_label' => $organization->work_unit_label ?? 'プロジェクト',
             'default_board_list_names' => DefaultBoardLists::namesForOrganization($organization),
             'effort_unit' => $organization->effort_unit ?? TaskEffortUnit::Hour->value,
         ]);
@@ -89,19 +85,10 @@ class OrganizationController extends ApiController
         }
 
         $validated = $request->validate([
-            'work_unit_label' => ['sometimes', 'string', 'max:40'],
             'default_board_list_names' => ['sometimes', 'array', 'max:20'],
             'default_board_list_names.*' => ['string', 'max:255'],
             'effort_unit' => ['sometimes', 'string', Rule::in(TaskEffortUnit::values())],
         ]);
-
-        if (array_key_exists('work_unit_label', $validated)) {
-            $label = trim($validated['work_unit_label']);
-            if ($label === '') {
-                return response()->json(['message' => 'Work unit label cannot be empty.'], 422);
-            }
-            $organization->work_unit_label = $label;
-        }
 
         if (array_key_exists('default_board_list_names', $validated)) {
             $organization->default_board_list_names = DefaultBoardLists::normalizeNames($validated['default_board_list_names']);
@@ -116,7 +103,6 @@ class OrganizationController extends ApiController
         return response()->json([
             'id' => $organization->id,
             'slug' => $organization->slug,
-            'work_unit_label' => $organization->work_unit_label,
             'default_board_list_names' => DefaultBoardLists::namesForOrganization($organization),
             'effort_unit' => $organization->effort_unit ?? TaskEffortUnit::Hour->value,
         ]);

@@ -19,11 +19,6 @@
           />
 
           <section class="settings-content">
-            <SettingsWorkUnitLabelPanel
-              v-show="activeTab === 'work_unit_label'"
-              :org-slug="slug"
-              :initial-label="workUnitLabelFromSnapshot"
-            />
             <SettingsDefaultBoardListsPanel
               v-show="activeTab === 'default_board_lists'"
               :org-slug="slug"
@@ -37,7 +32,7 @@
             <SettingsLabelsPanel
               v-show="activeTab === 'labels'"
               :org-slug="slug"
-              :initial-project-labels="settingsSnapshot.projectLabels"
+              :initial-workspace-labels="settingsSnapshot.workspaceLabels"
               :initial-task-labels="settingsSnapshot.taskLabels"
               :initial-label-tab="initialLabelTab"
             />
@@ -56,7 +51,6 @@ import SettingsDefaultBoardListsPanel from '../../../components/settings/Setting
 import SettingsEffortPanel from '../../../components/settings/SettingsEffortPanel.vue'
 import SettingsLabelsPanel from '../../../components/settings/SettingsLabelsPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
-import SettingsWorkUnitLabelPanel from '../../../components/settings/SettingsWorkUnitLabelPanel.vue'
 import {
   normalizeDefaultBoardListNames,
   type SettingsLabelTabKey,
@@ -67,7 +61,6 @@ import { normalizeEffortUnit } from '../../../composables/useTaskFormHelpers'
 
 definePageMeta({
   name: 'org-slug-settings',
-  // タブ切替は query のみ変わるため path を key にする（fullPath だと KeepAlive がタブごとに別インスタンスになり activeTab がずれる）
   key: route => route.path,
   keepalive: true,
 })
@@ -79,26 +72,19 @@ const {
   fetchSnapshot,
   getCached,
   invalidateCached,
-  DEFAULT_WORK_UNIT_LABEL,
 } = useOrgSettingsPageData()
 
 const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
-  { key: 'work_unit_label', label: 'work_unit_label設定' },
   { key: 'default_board_lists', label: 'リスト設定' },
   { key: 'effort_settings', label: '工数設定' },
   { key: 'labels', label: 'ラベル設定' },
 ]
 
-const activeTab = ref<SettingsTabKey>('work_unit_label')
-const initialLabelTab = ref<SettingsLabelTabKey>('project')
+const activeTab = ref<SettingsTabKey>('default_board_lists')
+const initialLabelTab = ref<SettingsLabelTabKey>('workspace')
 const settingsPageReady = ref(false)
 const settingsFatalError = ref<string | null>(null)
 const settingsSnapshot = ref<SettingsPageSnapshot | null>(null)
-
-const workUnitLabelFromSnapshot = computed(() => {
-  const raw = settingsSnapshot.value?.orgSettings.work_unit_label
-  return (raw || '').trim() || DEFAULT_WORK_UNIT_LABEL
-})
 
 const defaultBoardListNamesFromSnapshot = computed(() => {
   return normalizeDefaultBoardListNames(settingsSnapshot.value?.orgSettings.default_board_list_names)
@@ -146,10 +132,6 @@ function retrySettingsLoad () {
 function applyTabFromRoute () {
   const raw = route.query.tab
   const tab = typeof raw === 'string' ? raw.trim() : ''
-  if (tab === 'work_unit_label') {
-    activeTab.value = 'work_unit_label'
-    return
-  }
   if (tab === 'default_board_lists') {
     activeTab.value = 'default_board_lists'
     return
@@ -163,13 +145,13 @@ function applyTabFromRoute () {
     initialLabelTab.value = 'task'
     return
   }
-  if (tab === 'project_labels' || tab === 'labels') {
+  if (tab === 'workspace_labels' || tab === 'project_labels' || tab === 'labels') {
     activeTab.value = 'labels'
     const labelTab = route.query.labelTab
-    initialLabelTab.value = labelTab === 'task' ? 'task' : 'project'
+    initialLabelTab.value = labelTab === 'task' ? 'task' : 'workspace'
     return
   }
-  activeTab.value = 'work_unit_label'
+  activeTab.value = 'default_board_lists'
 }
 
 function selectTab (tab: SettingsTabKey) {

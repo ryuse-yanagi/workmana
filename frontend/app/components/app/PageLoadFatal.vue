@@ -6,7 +6,6 @@
     </button>
   </section>
 </template>
-
 <script setup lang="ts">
 withDefaults(defineProps<{
   message: string
@@ -14,7 +13,6 @@ withDefaults(defineProps<{
 }>(), {
   retryLabel: '再試行',
 })
-
 defineEmits<{
   retry: []
 }>()

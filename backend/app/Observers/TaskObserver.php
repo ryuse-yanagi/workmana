@@ -13,7 +13,7 @@ class TaskObserver
         TaskHistory::query()->create([
             'task_id' => $task->id,
             'organization_id' => $task->organization_id,
-            'project_id' => $task->project_id,
+            'workspace_id' => $task->workspace_id,
             'actor_id' => auth()->id(),
             'event_type' => TaskHistoryEventType::TaskCreated->value,
             'field_name' => null,
@@ -32,7 +32,7 @@ class TaskObserver
                 TaskHistory::query()->create([
                     'task_id' => $task->id,
                     'organization_id' => $task->organization_id,
-                    'project_id' => $task->project_id,
+                    'workspace_id' => $task->workspace_id,
                     'actor_id' => $actorId,
                     'event_type' => $event->value,
                     'field_name' => $field,
@@ -47,7 +47,7 @@ class TaskObserver
             TaskHistory::query()->create([
                 'task_id' => $task->id,
                 'organization_id' => $task->organization_id,
-                'project_id' => $task->project_id,
+                'workspace_id' => $task->workspace_id,
                 'actor_id' => $actorId,
                 'event_type' => TaskHistoryEventType::AssigneeChanged->value,
                 'field_name' => 'assignee_id',
@@ -61,7 +61,7 @@ class TaskObserver
             TaskHistory::query()->create([
                 'task_id' => $task->id,
                 'organization_id' => $task->organization_id,
-                'project_id' => $task->project_id,
+                'workspace_id' => $task->workspace_id,
                 'actor_id' => $actorId,
                 'event_type' => TaskHistoryEventType::StartDateChanged->value,
                 'field_name' => 'start_date',
@@ -75,7 +75,7 @@ class TaskObserver
             TaskHistory::query()->create([
                 'task_id' => $task->id,
                 'organization_id' => $task->organization_id,
-                'project_id' => $task->project_id,
+                'workspace_id' => $task->workspace_id,
                 'actor_id' => $actorId,
                 'event_type' => TaskHistoryEventType::DueDateChanged->value,
                 'field_name' => 'due_date',
@@ -90,7 +90,7 @@ class TaskObserver
                 TaskHistory::query()->create([
                     'task_id' => $task->id,
                     'organization_id' => $task->organization_id,
-                    'project_id' => $task->project_id,
+                    'workspace_id' => $task->workspace_id,
                     'actor_id' => $actorId,
                     'event_type' => TaskHistoryEventType::TaskUpdated->value,
                     'field_name' => $field,
@@ -105,7 +105,7 @@ class TaskObserver
             TaskHistory::query()->create([
                 'task_id' => $task->id,
                 'organization_id' => $task->organization_id,
-                'project_id' => $task->project_id,
+                'workspace_id' => $task->workspace_id,
                 'actor_id' => $actorId,
                 'event_type' => TaskHistoryEventType::TaskDeleted->value,
                 'field_name' => null,

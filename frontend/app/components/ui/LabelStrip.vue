@@ -12,16 +12,13 @@
     <span v-if="displayMode !== 'bar'" class="label-strip__text">{{ label.name }}</span>
   </span>
 </template>
-
 <script setup lang="ts">
 export type LabelStripLabel = {
   id?: number
   name: string
   color: string
 }
-
 export type LabelStripDisplayMode = 'inline' | 'bar' | 'named'
-
 const props = withDefaults(defineProps<{
   label: LabelStripLabel
   size?: 'sm' | 'md'
@@ -32,7 +29,6 @@ const props = withDefaults(defineProps<{
   textColor: null,
   displayMode: 'inline',
 })
-
 function labelBarTextColor (hex: string): string {
   const normalized = hex.replace('#', '')
   if (normalized.length !== 6) {
@@ -44,13 +40,11 @@ function labelBarTextColor (hex: string): string {
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
   return luminance > 0.62 ? '#0f172a' : '#fff'
 }
-
 const stripStyle = computed(() => ({
   backgroundColor: props.label.color,
   color: props.textColor ?? labelBarTextColor(props.label.color),
 }))
 </script>
-
 <style lang="scss" scoped>
 .label-strip {
   display: inline-block;
@@ -62,17 +56,14 @@ const stripStyle = computed(() => ({
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .label-strip--sm {
   padding: 0.12rem 0.4rem;
   font-size: 0.68rem;
 }
-
 .label-strip--md {
   padding: 0.18rem 0.55rem;
   font-size: 0.78rem;
 }
-
 .label-strip__text {
   display: block;
   width: 100%;
@@ -82,7 +73,6 @@ const stripStyle = computed(() => ({
   white-space: nowrap;
   text-align: center;
 }
-
 .label-strip--bar {
   display: block;
   flex-shrink: 0;
@@ -95,7 +85,6 @@ const stripStyle = computed(() => ({
   color: transparent;
   font-size: 0;
 }
-
 .label-strip--named.label-strip--sm {
   display: flex;
   align-items: center;
@@ -114,7 +103,6 @@ const stripStyle = computed(() => ({
   line-height: 1;
   overflow: hidden;
 }
-
 .label-strip--named.label-strip--md {
   display: flex;
   align-items: center;

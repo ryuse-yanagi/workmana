@@ -2,8 +2,11 @@
   <header class="global-header">
     <div class="global-header__inner">
       <div class="global-header__left">
-        <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goProjectList">
-          {{ workUnitListLabel }}
+        <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goWorkspaceList">
+          ワークスペース一覧
+        </button>
+        <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goDocumentsList">
+          共有資料一覧
         </button>
         <button
           type="button"
@@ -49,20 +52,18 @@ import ProfileSettingsModal from '../modals/ProfileSettingsModal.vue'
 import { useApi } from '../../composables/useApi'
 import { useAuth } from '../../composables/useAuth'
 import { useOrgPageCacheWarmup } from '../../composables/useOrgPageCacheWarmup'
-import { useOrgTerminology, useWorkUnitLabel } from '../../composables/useOrgTerminology'
 
 type MeResponse = {
   name?: string | null
   email?: string | null
   avatar_url?: string | null
-  organizations?: Array<{ slug: string; work_unit_label?: string | null }>
+  organizations?: Array<{ slug: string; role?: string }>
 }
 
 const route = useRoute()
 const router = useRouter()
 const { api } = useApi()
 const { getToken, clearToken, buildLogoutUrl } = useAuth()
-const { fetchWorkUnitLabel, seedWorkUnitLabels } = useOrgTerminology()
 const { warmOrgPageCaches } = useOrgPageCacheWarmup()
 
 const orgSlug = ref<string | null>(slugFromRoute())
@@ -70,7 +71,6 @@ const avatarUrl = ref<string | null>(null)
 const displayName = ref('')
 const menuOpen = ref(false)
 const profileModalOpen = ref(false)
-const { workUnitListLabel } = useWorkUnitLabel(() => orgSlug.value ?? '')
 
 const initials = computed(() => {
   const source = (displayName.value || '').trim() || (route.path || '')
@@ -81,31 +81,15 @@ const initials = computed(() => {
 function slugFromRoute (): string | null {
   const name = String(route.name || '')
   if (
-    name === 'org-slug'
+    name === 'org-slug-workspaces'
+    || name === 'org-slug-documents'
     || name === 'org-slug-settings'
-    || name === 'org-slug-projects-id'
-    || name === 'org-slug-projects-id-documents'
+    || name === 'org-slug-workspaces-id'
   ) {
     const s = route.params.slug
     return typeof s === 'string' && s.trim() ? s : null
   }
   return null
-}
-
-async function refreshOrgWorkUnitLabel (slug: string | null): Promise<boolean> {
-  if (!import.meta.client) {
-    return false
-  }
-  if (!slug || !getToken()) {
-    return false
-  }
-
-  try {
-    await fetchWorkUnitLabel(slug)
-    return true
-  } catch {
-    return false
-  }
 }
 
 async function refreshMeContext () {
@@ -128,7 +112,6 @@ async function refreshMeContext () {
     const me = await api<MeResponse>('/me')
     displayName.value = (me.name || me.email || '').trim()
     avatarUrl.value = me.avatar_url || null
-    seedWorkUnitLabels(me.organizations)
     if (!routeSlug) {
       const first = me.organizations?.[0]?.slug
       orgSlug.value = first && first.trim() ? first : null
@@ -139,7 +122,6 @@ async function refreshMeContext () {
       void warmOrgPageCaches(activeSlug)
     }
   } catch {
-    // 認証失敗などは静かに無視（各画面でエラー表示）
     if (!routeSlug) {
       orgSlug.value = null
     }
@@ -156,16 +138,22 @@ function toggleMenu () {
   menuOpen.value = !menuOpen.value
 }
 
-async function goProjectList () {
+async function goWorkspaceList () {
   if (!orgSlug.value) return
   closeMenu()
-  await router.push(`/org/${orgSlug.value}`)
+  await router.push(`/org/${orgSlug.value}/workspaces`)
+}
+
+async function goDocumentsList () {
+  if (!orgSlug.value) return
+  closeMenu()
+  await router.push(`/org/${orgSlug.value}/documents`)
 }
 
 async function goOrgSettings () {
   if (!orgSlug.value) return
   closeMenu()
-  await router.push({ path: `/org/${orgSlug.value}/settings`, query: { tab: 'work_unit_label' } })
+  await router.push({ path: `/org/${orgSlug.value}/settings`, query: { tab: 'default_board_lists' } })
 }
 
 function goProfileFromMenu () {
@@ -182,18 +170,6 @@ function logout () {
     return
   }
   void router.push('/login')
-}
-
-function onWorkUnitLabelUpdated (e: Event) {
-  const detail = (e as CustomEvent<{ slug?: string }>).detail
-  const updatedSlug = (detail?.slug || '').trim()
-  if (!updatedSlug) {
-    return
-  }
-  if (orgSlug.value && orgSlug.value !== updatedSlug) {
-    return
-  }
-  void refreshOrgWorkUnitLabel(updatedSlug)
 }
 
 function onUserProfileUpdated (e: Event) {
@@ -232,7 +208,6 @@ onMounted(() => {
   void refreshMeContext()
   if (import.meta.client) {
     document.addEventListener('click', onDocClick)
-    window.addEventListener('tm:org-work-unit-label-updated', onWorkUnitLabelUpdated as EventListener)
     window.addEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
   }
 })
@@ -240,7 +215,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (import.meta.client) {
     document.removeEventListener('click', onDocClick)
-    window.removeEventListener('tm:org-work-unit-label-updated', onWorkUnitLabelUpdated as EventListener)
     window.removeEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
   }
 })

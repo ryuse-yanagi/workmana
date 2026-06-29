@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('task_id')->constrained()->cascadeOnDelete();
             $table->foreignId('organization_id')->constrained()->restrictOnDelete();
-            $table->foreignId('project_id')->constrained()->restrictOnDelete();
+            $table->foreignId('workspace_id')->constrained()->restrictOnDelete();
             $table->foreignId('actor_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('event_type', 64);
             $table->string('field_name', 64)->nullable();

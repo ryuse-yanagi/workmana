@@ -57,7 +57,6 @@
     </div>
   </article>
 </template>
-
 <script setup lang="ts">
 import { CalendarDays, Clock, ListTree } from 'lucide-vue-next'
 import TaskCardLabelList from './TaskCardLabelList.vue'
@@ -69,7 +68,6 @@ import {
   resolveParentTaskTitle,
   type TaskCardParentLookup,
 } from '../../composables/useTaskCardMeta'
-
 export type TaskBoardCardLabel = { id: number; name: string; color: string }
 export type TaskBoardCardMember = {
   id: number
@@ -91,27 +89,21 @@ export type TaskBoardCardTask = {
   parent_task_title?: string | null
   is_parent_task?: boolean
 }
-
 const props = defineProps<{
   task: TaskBoardCardTask
   parentTasks?: TaskCardParentLookup[]
 }>()
-
 const parentTaskTitle = computed(() => resolveParentTaskTitle(
   props.task,
   props.parentTasks ?? [],
 ))
-
 const taskCardDateRange = computed(() => formatTaskCardDateRange(
   props.task.start_date,
   props.task.due_date,
 ))
-
 const taskCardEffortText = computed(() => formatTaskCardEffort(props.task))
-
 const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3))
 </script>
-
 <style lang="scss" scoped>
 .task-card {
   position: relative;
@@ -126,7 +118,6 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   padding: 0.45rem 0.55rem;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
 }
-
 .task-parent-title {
   margin: 0 0 0.2rem;
   max-width: 100%;
@@ -138,7 +129,6 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-
 .task-title-row {
   display: flex;
   align-items: flex-start;
@@ -146,13 +136,11 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   margin: 0;
   min-width: 0;
 }
-
 .task-title-row__icon {
   flex-shrink: 0;
   margin-top: 0.12rem;
   color: mixin.$main;
 }
-
 .task-title {
   margin: 0;
   flex: 1;
@@ -165,19 +153,16 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-
 .task-card--parent .task-title {
   font-size: 0.9375rem;
   color: mixin.$main;
 }
-
 .task-card-meta {
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
   margin-top: 0.35rem;
 }
-
 .task-card-meta__row {
   display: inline-flex;
   align-items: center;
@@ -188,24 +173,20 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   line-height: 1.25;
   color: #64748b;
 }
-
 .task-card-meta__row span {
   min-width: 0;
 }
-
 .task-card-body {
   display: flex;
   flex-direction: column;
   width: 100%;
   min-width: 0;
 }
-
 .task-card-footer {
   display: flex;
   justify-content: flex-end;
   margin-top: 0.3rem;
 }
-
 .task-card-members {
   display: flex;
   align-items: center;

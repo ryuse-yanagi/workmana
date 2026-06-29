@@ -37,19 +37,19 @@ class User extends Authenticatable
         return $this->organizations()->where('organizations.id', $organization->id)->first()?->pivot;
     }
 
-    public function projectPivot(Project $project): ?object
+    public function workspacePivot(Workspace $workspace): ?object
     {
-        return $this->projects()->where('projects.id', $project->id)->first()?->pivot;
+        return $this->workspaces()->where('workspaces.id', $workspace->id)->first()?->pivot;
     }
 
-    public function isMemberOfProject(Project $project): bool
+    public function isMemberOfWorkspace(Workspace $workspace): bool
     {
-        return $this->projects()->where('projects.id', $project->id)->exists();
+        return $this->workspaces()->where('workspaces.id', $workspace->id)->exists();
     }
 
-    public function projects(): BelongsToMany
+    public function workspaces(): BelongsToMany
     {
-        return $this->belongsToMany(Project::class, 'project_memberships')
+        return $this->belongsToMany(Workspace::class, 'workspace_memberships')
             ->withPivot(['role', 'added_by'])
             ->withTimestamps();
     }

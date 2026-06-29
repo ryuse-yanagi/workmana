@@ -1,7 +1,7 @@
+import { deepNormalizeColorIndexedPayload } from '../utils/colorPresetResolution'
 export function useApi () {
   const config = useRuntimeConfig()
   const { getToken } = useAuth()
-
   function getSocketId (): string {
     if (!import.meta.client) {
       return ''
@@ -14,7 +14,6 @@ export function useApi () {
       return ''
     }
   }
-
   async function api<T> (path: string, opts: Record<string, unknown> = {}): Promise<T> {
     const base = config.public.apiBaseUrl as string
     const url = path.startsWith('http') ? path : `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`
@@ -30,11 +29,11 @@ export function useApi () {
     if (socketId) {
       headers['X-Socket-ID'] = socketId
     }
-    return await $fetch<T>(url, {
+    const result = await $fetch<T>(url, {
       ...opts,
       headers,
     })
+    return deepNormalizeColorIndexedPayload(result)
   }
-
   return { api, getToken }
 }
