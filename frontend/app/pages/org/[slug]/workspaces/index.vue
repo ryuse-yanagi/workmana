@@ -51,8 +51,8 @@
                 <thead>
                   <tr>
                     <th>名前</th>
-                    <th>担当者</th>
                     <th>説明</th>
+                    <th>担当者</th>
                     <th>ステータス</th>
                   </tr>
                 </thead>
@@ -101,16 +101,16 @@
                           <div class="workspace-card__name">
                             <p class="name-text">{{ workspace.name }}</p>
                           </div>
+                          <div class="workspace-card__description">
+                            <p v-if="workspace.description" class="description-text">
+                              {{ workspace.description }}
+                            </p>
+                          </div>
                           <div class="workspace-card__assignees">
                             <WorkspaceAssigneeCountButton
                               v-if="workspace.assignees?.length"
                               :assignees="workspace.assignees"
                             />
-                          </div>
-                          <div class="workspace-card__description">
-                            <p v-if="workspace.description" class="description-text">
-                              {{ workspace.description }}
-                            </p>
                           </div>
                           <div class="workspace-card__status">
                             <WorkspaceStatusSelect
@@ -633,13 +633,13 @@ onBeforeUnmount(() => {
   max-width: var(--col-name-width);
 }
 .workspace-table th:nth-child(2) {
+  width: var(--col-description-width);
+  max-width: var(--col-description-width);
+}
+.workspace-table th:nth-child(3) {
   width: var(--col-assignees-width);
   max-width: var(--col-assignees-width);
   text-align: center;
-}
-.workspace-table th:nth-child(3) {
-  width: var(--col-description-width);
-  max-width: var(--col-description-width);
 }
 .workspace-table th:nth-child(4) {
   width: var(--col-status-width);
