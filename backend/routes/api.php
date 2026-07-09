@@ -22,22 +22,27 @@ Route::middleware(['cognito'])->group(function () {
     Route::post('/organizations', [OrganizationController::class, 'store']);
 
     Route::prefix('orgs/{organization}')->middleware('org.member')->group(function () {
+        Route::get('/members', [OrganizationController::class, 'members']);
         Route::get('/settings', [OrganizationController::class, 'settings']);
         Route::patch('/settings', [OrganizationController::class, 'updateSettings']);
         Route::get('/workspace-label-categories', [WorkspaceLabelCategoryController::class, 'index']);
         Route::post('/workspace-label-categories', [WorkspaceLabelCategoryController::class, 'store']);
+        Route::patch('/workspace-label-categories/reorder', [WorkspaceLabelCategoryController::class, 'reorder']);
         Route::patch('/workspace-label-categories/{category}', [WorkspaceLabelCategoryController::class, 'update']);
         Route::delete('/workspace-label-categories/{category}', [WorkspaceLabelCategoryController::class, 'destroy']);
         Route::get('/workspace-labels', [WorkspaceLabelController::class, 'index']);
         Route::post('/workspace-labels', [WorkspaceLabelController::class, 'store']);
+        Route::patch('/workspace-labels/reorder', [WorkspaceLabelController::class, 'reorder']);
         Route::patch('/workspace-labels/{workspaceLabel}', [WorkspaceLabelController::class, 'update']);
         Route::delete('/workspace-labels/{workspaceLabel}', [WorkspaceLabelController::class, 'destroy']);
         Route::get('/task-label-categories', [TaskLabelCategoryController::class, 'index']);
         Route::post('/task-label-categories', [TaskLabelCategoryController::class, 'store']);
+        Route::patch('/task-label-categories/reorder', [TaskLabelCategoryController::class, 'reorder']);
         Route::patch('/task-label-categories/{category}', [TaskLabelCategoryController::class, 'update']);
         Route::delete('/task-label-categories/{category}', [TaskLabelCategoryController::class, 'destroy']);
         Route::get('/task-labels', [TaskLabelController::class, 'index']);
         Route::post('/task-labels', [TaskLabelController::class, 'store']);
+        Route::patch('/task-labels/reorder', [TaskLabelController::class, 'reorder']);
         Route::patch('/task-labels/{taskLabel}', [TaskLabelController::class, 'update']);
         Route::delete('/task-labels/{taskLabel}', [TaskLabelController::class, 'destroy']);
 

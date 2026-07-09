@@ -5,17 +5,17 @@
   >
     <section class="field-block title-block">
       <span
-        v-if="relaxedTitlePadding"
+        v-if="relaxedTitlePadding || workspaceMode"
         class="field-label"
-      >タスク名</span>
+      >{{ workspaceMode ? 'スペース名' : 'タスク名' }}</span>
       <div class="title-input-wrap">
         <input
           ref="titleInputRef"
           v-model="titleDraft"
           type="text"
-          :maxlength="TASK_TITLE_MAX_LENGTH"
+          :maxlength="workspaceMode ? WORKSPACE_NAME_MAX_LENGTH : TASK_TITLE_MAX_LENGTH"
           class="title-input"
-          aria-label="タスク名"
+          :aria-label="workspaceMode ? 'スペース名' : 'タスク名'"
           :disabled="disabled"
           @input="onTitleInput"
           @compositionstart="onTitleCompositionStart"
@@ -25,46 +25,48 @@
           v-if="showTitlePlaceholder"
           class="title-input-placeholder"
           aria-hidden="true"
-        >{{ relaxedTitlePadding ? 'タスク名を入力してください' : 'タスク名' }}</span>
+        >{{ workspaceMode ? 'スペース名を入力してください' : (relaxedTitlePadding ? 'タスク名を入力してください' : 'タスク名') }}</span>
       </div>
     </section>
     <div ref="actionButtonsRef" class="action-buttons">
-      <button
-        type="button"
-        class="action-btn"
-        :class="{ 'action-btn--active': activePopover === 'start-date' }"
-        :disabled="disabled"
-        @click="openDatePicker('start', $event)"
-      >
-        <span class="action-btn-icon" aria-hidden="true">
-          <CalendarDays :size="16" :stroke-width="2.25" />
-        </span>
-        開始日
-      </button>
-      <button
-        type="button"
-        class="action-btn"
-        :class="{ 'action-btn--active': activePopover === 'due-date' }"
-        :disabled="disabled"
-        @click="openDatePicker('due', $event)"
-      >
-        <span class="action-btn-icon" aria-hidden="true">
-          <CalendarCheck :size="16" :stroke-width="2.25" />
-        </span>
-        終了日
-      </button>
-      <button
-        type="button"
-        class="action-btn"
-        :class="{ 'action-btn--active': activePopover === 'effort' }"
-        :disabled="disabled"
-        @click="openEffortPicker($event)"
-      >
-        <span class="action-btn-icon" aria-hidden="true">
-          <Clock :size="16" :stroke-width="2.25" />
-        </span>
-        工数
-      </button>
+      <template v-if="!workspaceMode">
+        <button
+          type="button"
+          class="action-btn"
+          :class="{ 'action-btn--active': activePopover === 'start-date' }"
+          :disabled="disabled"
+          @click="openDatePicker('start', $event)"
+        >
+          <span class="action-btn-icon" aria-hidden="true">
+            <CalendarDays :size="16" :stroke-width="2.25" />
+          </span>
+          開始日
+        </button>
+        <button
+          type="button"
+          class="action-btn"
+          :class="{ 'action-btn--active': activePopover === 'due-date' }"
+          :disabled="disabled"
+          @click="openDatePicker('due', $event)"
+        >
+          <span class="action-btn-icon" aria-hidden="true">
+            <CalendarCheck :size="16" :stroke-width="2.25" />
+          </span>
+          終了日
+        </button>
+        <button
+          type="button"
+          class="action-btn"
+          :class="{ 'action-btn--active': activePopover === 'effort' }"
+          :disabled="disabled"
+          @click="openEffortPicker($event)"
+        >
+          <span class="action-btn-icon" aria-hidden="true">
+            <Clock :size="16" :stroke-width="2.25" />
+          </span>
+          工数
+        </button>
+      </template>
       <button
         type="button"
         class="action-btn"
@@ -91,7 +93,7 @@
       </button>
     </div>
     <div
-      v-if="draft.start_date || draft.due_date || showEffortDetailSection"
+      v-if="!workspaceMode && (draft.start_date || draft.due_date || showEffortDetailSection)"
       class="detail-meta-row detail-meta-row--schedule"
     >
       <section v-if="draft.start_date" class="detail-item detail-item--date">
@@ -367,7 +369,7 @@
                   :disabled="disabled"
                   @click.stop="removeMember(selectedMember)"
                 >
-                  タスクから削除
+                  {{ workspaceMode ? '担当者から外す' : 'タスクから削除' }}
                 </button>
               </div>
             </div>
@@ -388,34 +390,66 @@
               v-model="memberSearchQuery"
               type="search"
               class="label-search-input"
-              placeholder="担当者を検索..."
+              :placeholder="'メンバーを検索...'"
               :disabled="disabled"
               @click.stop
             />
-            <p class="label-section-heading">担当者</p>
             <div class="popover-scroll">
-              <ul class="label-picker-list">
-                <li v-for="member in filteredProjectMembers" :key="member.id">
-                  <button
-                    type="button"
-                    class="label-picker-row"
-                    @click.stop="toggleMember(member)"
-                  >
-                    <span
-                      class="label-picker-checkbox"
-                      :class="{ 'label-picker-checkbox--checked': isMemberAssigned(member.id) }"
-                      aria-hidden="true"
+              <template v-if="filteredAssignedMembers.length">
+                <p class="label-section-heading">担当者</p>
+                <ul class="label-picker-list">
+                  <li v-for="member in filteredAssignedMembers" :key="`assigned-${member.id}`">
+                    <button
+                      type="button"
+                      class="label-picker-row member-picker-row--workspace"
+                      @click.stop="toggleMember(member)"
                     >
-                      <span v-if="isMemberAssigned(member.id)">✓</span>
-                    </span>
-                    <span class="label-picker-bar member-picker-bar">
-                      {{ memberDisplayName(member) }}
-                    </span>
-                  </button>
-                </li>
-              </ul>
-              <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">ワークスペースメンバーがいません。</p>
-              <p v-else-if="!filteredProjectMembers.length" class="empty-text label-picker-empty">該当する担当者がいません。</p>
+                      <span class="label-picker-bar member-picker-bar">
+                        <MemberAvatar
+                          :member="member"
+                          size="xs"
+                          class="member-picker-avatar"
+                        />
+                        <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
+                      </span>
+                      <Check
+                        :size="16"
+                        :stroke-width="2.75"
+                        class="member-picker-check"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </li>
+                </ul>
+              </template>
+              <template v-if="filteredUnassignedMembers.length">
+                <p class="label-section-heading">メンバー</p>
+                <ul class="label-picker-list">
+                  <li v-for="member in filteredUnassignedMembers" :key="`member-${member.id}`">
+                    <button
+                      type="button"
+                      class="label-picker-row member-picker-row--workspace"
+                      @click.stop="toggleMember(member)"
+                    >
+                      <span class="label-picker-bar member-picker-bar">
+                        <MemberAvatar
+                          :member="member"
+                          size="xs"
+                          class="member-picker-avatar"
+                        />
+                        <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+              </template>
+              <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">
+                {{ workspaceMode ? '組織メンバーがいません。' : 'スペースメンバーがいません。' }}
+              </p>
+              <p
+                v-else-if="!filteredAssignedMembers.length && !filteredUnassignedMembers.length"
+                class="empty-text label-picker-empty"
+              >該当するメンバーがいません。</p>
               <p v-if="popoverError" class="err">{{ popoverError }}</p>
             </div>
           </PopoverShell>
@@ -484,6 +518,7 @@
 import {
   CalendarCheck,
   CalendarDays,
+  Check,
   Clock,
   Tags,
   Users,
@@ -492,6 +527,7 @@ import { useTaskFormPane } from '../../composables/useTaskFormPane'
 import {
   TASK_DESCRIPTION_MAX_LENGTH,
   TASK_TITLE_MAX_LENGTH,
+  WORKSPACE_NAME_MAX_LENGTH,
 } from '../../constants/fieldLengthLimits'
 import type {
   TaskFormDraft,
@@ -511,11 +547,13 @@ const props = withDefaults(defineProps<{
   portalActive?: boolean
   relaxedTitlePadding?: boolean
   autoFocusTitle?: boolean
+  workspaceMode?: boolean
 }>(), {
   disabled: false,
   portalActive: true,
   relaxedTitlePadding: false,
   autoFocusTitle: false,
+  workspaceMode: false,
 })
 const emit = defineEmits<{
   'update:modelValue': [TaskFormDraft]
@@ -592,7 +630,6 @@ const {
   openMemberPicker,
   openMemberDetail,
   openLabelPicker,
-  isMemberAssigned,
   isLabelSelected,
   toggleMember,
   removeMember,
@@ -607,14 +644,22 @@ const {
   orgEffortUnit,
   disabled: computed(() => props.disabled ?? false),
 })
-const filteredProjectMembers = computed(() => {
+function memberMatchesSearch (member: TaskFormMember, query: string): boolean {
+  if (!query) return true
+  const name = memberDisplayName(member).toLowerCase()
+  const email = (member.email ?? '').toLowerCase()
+  return name.includes(query) || email.includes(query)
+}
+const filteredAssignedMembers = computed(() => {
   const query = memberSearchQuery.value.trim().toLowerCase()
-  if (!query) return props.workspaceMembers
-  return props.workspaceMembers.filter((member) => {
-    const name = memberDisplayName(member).toLowerCase()
-    const email = (member.email ?? '').toLowerCase()
-    return name.includes(query) || email.includes(query)
-  })
+  return draft.value.assignees.filter(member => memberMatchesSearch(member, query))
+})
+const filteredUnassignedMembers = computed(() => {
+  const query = memberSearchQuery.value.trim().toLowerCase()
+  const assignedIds = new Set(draft.value.assignees.map(member => member.id))
+  return props.workspaceMembers.filter(
+    member => !assignedIds.has(member.id) && memberMatchesSearch(member, query),
+  )
 })
 const activeCalendarDate = computed(() => {
   if (activePopover.value === 'start-date') return draft.value.start_date
@@ -634,25 +679,25 @@ onMounted(() => {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 14px;
   overflow: visible;
 }
 .field-block {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .field-label {
-  font-size: 0.82rem;
+  font-size: 11.48px;
   font-weight: 700;
   color: mixin.$text-sub;
 }
 .title-block {
-  margin-bottom: 0.1rem;
+  margin-bottom: 1.4px;
   gap: 0;
 }
 .task-form-pane--relaxed-title .title-block {
-  gap: 0.45rem;
+  gap: 6.3px;
   margin-bottom: 0;
 }
 .task-form-pane--relaxed-title .title-block,
@@ -662,16 +707,16 @@ onMounted(() => {
 .task-form-pane--relaxed-title .title-input {
   @include mixin.input-border-default;
   border-radius: 8px;
-  padding: 0.62rem 0.75rem;
-  font-size: 0.9rem;
+  padding: 8.68px 10.5px;
+  font-size: 12.6px;
   font-weight: 400;
   line-height: 1.35;
   background: #fff;
 }
 .task-form-pane--relaxed-title .title-input-placeholder {
-  left: 0.75rem;
-  right: 0.75rem;
-  font-size: 0.9rem;
+  left: 10.5px;
+  right: 10.5px;
+  font-size: 12.6px;
   font-weight: 400;
   line-height: 1.35;
 }
@@ -685,8 +730,8 @@ onMounted(() => {
 .title-input {
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 0.5rem 0.6rem;
-  font-size: 1.8rem;
+  padding: 7px 8.4px;
+  font-size: 25.2px;
   font-weight: 800;
   color: #0f172a;
   background: transparent;
@@ -700,10 +745,10 @@ onMounted(() => {
 .title-input-placeholder {
   position: absolute;
   top: 50%;
-  left: 0.6rem;
-  right: 0.6rem;
+  left: 8.4px;
+  right: 8.4px;
   transform: translateY(-50%);
-  font-size: 1.8rem;
+  font-size: 25.2px;
   line-height: 1.25;
   color: #94a3b8;
   pointer-events: none;
@@ -718,16 +763,16 @@ onMounted(() => {
 .action-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 5.6px;
 }
 .action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 4.9px;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.38rem 0.7rem;
-  font-size: 0.84rem;
+  padding: 5.32px 9.8px;
+  font-size: 11.76px;
   font-weight: 600;
   color: #334155;
   background: #f8fafc;
@@ -769,25 +814,25 @@ onMounted(() => {
 .popover {
   position: absolute;
   z-index: 10;
-  width: min(18.5rem, calc(100vw - 1.5rem));
+  width: min(259px, calc(100vw - 21px));
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 10px 32px rgba(15, 23, 42, 0.2);
   border: 1px solid #e2e8f0;
-  padding: 0.75rem;
+  padding: 10.5px;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 9.1px;
 }
 .popover--date {
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0.6rem;
-  gap: 0.5rem;
+  padding: 8.4px;
+  gap: 7px;
 }
 .popover--members,
 .popover--labels {
-  width: min(19.5rem, calc(100vw - 1.5rem));
+  width: min(273px, calc(100vw - 21px));
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -795,8 +840,8 @@ onMounted(() => {
 }
 .popover--members .empty-text,
 .popover--members .err {
-  margin-left: 0.65rem;
-  margin-right: 0.65rem;
+  margin-left: 9.1px;
+  margin-right: 9.1px;
 }
 .popover-scroll {
   flex: 1 1 auto;
@@ -808,67 +853,67 @@ onMounted(() => {
 .popover-header--labels {
   position: relative;
   justify-content: center;
-  padding: 0.65rem 2rem 0.55rem;
+  padding: 9.1px 28px 7.7px;
   border-bottom: 1px solid #dfe1e6;
 }
 .popover-header--labels .popover-close {
   position: absolute;
-  right: 0.45rem;
+  right: 6.3px;
   top: 50%;
   transform: translateY(-50%);
 }
 .label-search-input {
   display: block;
-  width: calc(100% - 1.3rem);
-  margin: 0.55rem 0.65rem 0.45rem;
+  width: calc(100% - 18.2px);
+  margin: 7.7px 9.1px 6.3px;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 6px;
-  padding: 0.45rem 0.55rem;
-  font-size: 0.88rem;
+  padding: 6.3px 7.7px;
+  font-size: 12.32px;
   color: #172b4d;
 }
 .label-search-input:focus {
   @include mixin.input-focus-ring;
 }
 .label-section-heading {
-  margin: 0.15rem 0.65rem 0.35rem;
-  font-size: 0.78rem;
+  margin: 2.1px 9.1px 4.9px;
+  font-size: 10.92px;
   font-weight: 700;
   color: #5e6c84;
 }
 .label-picker-list {
   list-style: none;
   margin: 0;
-  padding: 0 0.5rem 0.65rem;
+  padding: 0 7px 9.1px;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 2.8px;
 }
 .label-picker-row {
   @include mixin.picker-checkbox-row;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 5.6px;
   width: 100%;
   border: none;
   background: transparent;
-  padding: 0.15rem 0;
+  padding: 2.1px 0;
   text-align: left;
 }
-.label-picker-row:hover .label-picker-bar {
+.label-picker-row:hover .label-picker-bar:not(.member-picker-bar) {
   filter: brightness(0.96);
 }
 .label-picker-checkbox {
-  width: 1rem;
-  height: 1rem;
+  width: 14px;
+  height: 14px;
   border: 2px solid #8590a2;
   border-radius: 3px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   font-weight: 800;
   color: #fff;
   background: #fff;
@@ -879,25 +924,59 @@ onMounted(() => {
 }
 .label-picker-bar {
   flex: 1;
-  min-height: 2rem;
+  min-height: 28px;
   border-radius: 4px;
-  padding: 0.38rem 0.55rem;
-  font-size: 0.88rem;
+  padding: 5.32px 7.7px;
+  font-size: 12.32px;
   font-weight: 700;
   line-height: 1.25;
   display: flex;
   align-items: center;
 }
 .member-picker-bar {
-  background: #f8fafc;
+  background: #fff;
   color: #172b4d;
+  gap: 7px;
+  transition: background 0.12s ease;
+}
+.label-picker-row.member-picker-row--workspace {
+  border-radius: 4px;
+  padding: 0 7.7px;
+  transition: background 0.12s ease;
+}
+.label-picker-row.member-picker-row--workspace:hover {
+  background: #f8fafc;
+}
+.member-picker-row--workspace .member-picker-bar {
+  flex: 1;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+.label-picker-row.member-picker-row--workspace:hover .member-picker-bar {
+  background: transparent;
+}
+.member-picker-check {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 2.1px;
+  color: #2563eb;
+}
+.member-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .label-picker-empty {
-  padding: 0 0.65rem 0.75rem;
+  padding: 0 9.1px 10.5px;
 }
 .popover--member-detail {
   padding: 0;
-  width: min(17rem, calc(100% - 1.5rem));
+  width: min(238px, calc(100% - 21px));
   overflow: hidden;
   gap: 0;
 }
@@ -908,20 +987,20 @@ onMounted(() => {
 .member-detail-header {
   position: relative;
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  padding: 1rem 0.85rem 1.2rem;
+  padding: 14px 11.9px 16.8px;
   color: #fff;
 }
 .member-detail-close {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  top: 6.3px;
+  right: 6.3px;
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.92);
-  font-size: 1rem;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  padding: 0.2rem 0.35rem;
+  padding: 2.8px 4.9px;
   border-radius: 6px;
 }
 .member-detail-close:hover:not(:disabled) {
@@ -930,13 +1009,13 @@ onMounted(() => {
 .member-detail-profile {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding-right: 1.25rem;
+  gap: 9.1px;
+  padding-right: 17.5px;
 }
 .member-detail-avatar,
 .member-detail-initial {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 38.5px;
+  height: 38.5px;
   border-radius: 999px;
   flex-shrink: 0;
   border: 2px solid rgba(255, 255, 255, 0.35);
@@ -948,18 +1027,18 @@ onMounted(() => {
   justify-content: center;
   background: #a67c52;
   color: #fff;
-  font-size: 1rem;
+  font-size: 14px;
   font-weight: 800;
 }
 .member-detail-name {
   margin: 0;
-  font-size: 1rem;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.25;
 }
 .member-detail-email {
-  margin: 0.2rem 0 0;
-  font-size: 0.82rem;
+  margin: 2.8px 0 0;
+  font-size: 11.48px;
   color: rgba(255, 255, 255, 0.88);
   line-height: 1.3;
   word-break: break-all;
@@ -971,9 +1050,9 @@ onMounted(() => {
   width: 100%;
   border: none;
   background: #fff;
-  padding: 0.8rem 0.9rem;
+  padding: 11.2px 12.6px;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 12.6px;
   font-weight: 600;
   color: #334155;
   cursor: pointer;
@@ -983,7 +1062,7 @@ onMounted(() => {
 }
 .member-detail-error {
   margin: 0;
-  padding: 0.5rem 0.75rem 0.75rem;
+  padding: 7px 10.5px 10.5px;
 }
 .popover-fade-enter-active,
 .popover-fade-leave-active {
@@ -997,42 +1076,40 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 1rem 1.25rem;
+  gap: 14px 17.5px;
 }
 .detail-meta-row--schedule .detail-item--date,
 .detail-meta-row--schedule .detail-item--effort {
   flex: 1 1 0;
-  min-width: 5.5rem;
+  min-width: 77px;
 }
 .detail-meta-row--people .detail-item--members,
 .detail-meta-row--people .detail-item--labels {
   flex: 1 1 0;
-  min-width: min(100%, 10rem);
+  min-width: min(100%, 140px);
 }
 .detail-chip-wrap {
   align-content: flex-start;
   box-sizing: border-box;
   padding: 3px;
-  max-height: calc(2 * 2rem + 0.35rem + 6px);
-  overflow: hidden;
 }
 .member-avatar-list.detail-chip-wrap {
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .detail-item--date {
   min-width: 0;
 }
 .detail-item--date .detail-value-btn {
-  font-size: 1.2rem;
-  padding: 0.45rem 0.7rem;
+  font-size: 16.8px;
+  padding: 6.3px 9.8px;
 }
 .detail-item--effort .detail-value-btn {
   align-self: flex-start;
   box-sizing: border-box;
-  font-size: 1.2rem;
+  font-size: 16.8px;
   line-height: 1.3;
-  padding: 0.45rem 0.7rem;
-  min-height: calc(1.2rem * 1.3 + 0.9rem);
+  padding: 6.3px 9.8px;
+  min-height: calc(16.8px * 1.3 + 12.6px);
 }
 .detail-item--effort .detail-value-btn:disabled {
   opacity: 1;
@@ -1043,14 +1120,14 @@ onMounted(() => {
   cursor: pointer;
 }
 .popover--effort {
-  width: min(18rem, calc(100vw - 1.5rem));
-  padding: 0.6rem;
-  gap: 0.5rem;
+  width: min(252px, calc(100vw - 21px));
+  padding: 8.4px;
+  gap: 7px;
 }
 .effort-input-row {
   display: flex;
   align-items: stretch;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .popover--effort .effort-input {
   flex: 1 1 auto;
@@ -1058,8 +1135,8 @@ onMounted(() => {
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.94rem;
+  padding: 6.3px 8.4px;
+  font-size: 13.16px;
   color: #0f172a;
   background: #fff;
   @include mixin.hide-number-spin-buttons;
@@ -1070,8 +1147,8 @@ onMounted(() => {
 .popover--effort .effort-unit-label {
   flex: 0 0 auto;
   box-sizing: border-box;
-  padding: 0.45rem 0.5rem;
-  font-size: 0.88rem;
+  padding: 6.3px 7px;
+  font-size: 12.32px;
   font-weight: 700;
   color: #64748b;
   white-space: nowrap;
@@ -1079,18 +1156,18 @@ onMounted(() => {
 .popover-field-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.55rem;
+  margin-top: 7.7px;
 }
 .popover-field-clear-btn {
-  min-width: 3.5rem;
-  height: 1.75rem;
-  padding: 0 0.65rem;
+  min-width: 49px;
+  height: 24.5px;
+  padding: 0 9.1px;
   border: 1px solid mixin.$border-light;
   border-radius: 6px;
   background: #fff;
   color: mixin.$text-sub;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -1105,10 +1182,10 @@ onMounted(() => {
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 4.9px;
 }
 .detail-item-label {
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 700;
   color: #64748b;
 }
@@ -1116,83 +1193,83 @@ onMounted(() => {
   align-self: flex-start;
   border: none;
   border-radius: 6px;
-  padding: 0.35rem 0.55rem;
-  font-size: 0.92rem;
+  padding: 4.9px 7.7px;
+  font-size: 12.88px;
   font-weight: 700;
   color: #0f172a;
   background: #fff;
   cursor: pointer;
 }
 .popover--date .calendar {
-  padding: 0.5rem;
+  padding: 7px;
 }
 .popover--date .calendar-nav {
-  margin-bottom: 0.4rem;
+  margin-bottom: 5.6px;
 }
 .popover--date .calendar-nav-btn {
-  width: 1.75rem;
-  height: 1.75rem;
-  font-size: 1rem;
+  width: 24.5px;
+  height: 24.5px;
+  font-size: 14px;
 }
 .popover--date .calendar-month-label {
-  font-size: 0.88rem;
+  font-size: 12.32px;
 }
 .popover--date .calendar-weekdays {
-  margin-bottom: 0.15rem;
+  margin-bottom: 2.1px;
 }
 .popover--date .calendar-grid {
-  gap: 0.1rem;
+  gap: 1.4px;
 }
 .popover--date .calendar-day {
   aspect-ratio: unset;
-  min-height: 1.65rem;
-  padding: 0.1rem 0;
-  font-size: 0.8rem;
+  min-height: 23.1px;
+  padding: 1.4px 0;
+  font-size: 11.2px;
 }
 .calendar {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 0.75rem;
+  padding: 10.5px;
   background: #f8fafc;
 }
 .calendar-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.65rem;
+  margin-bottom: 9.1px;
 }
 .calendar-nav-btn {
-  width: 2rem;
-  height: 2rem;
+  width: 28px;
+  height: 28px;
   border: 1px solid mixin.$border;
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 1.1rem;
+  font-size: 15.4px;
   cursor: pointer;
   line-height: 1;
 }
 .calendar-month-label {
-  font-size: 0.95rem;
+  font-size: 13.3px;
   font-weight: 800;
   color: #0f172a;
 }
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.15rem;
-  margin-bottom: 0.25rem;
+  gap: 2.1px;
+  margin-bottom: 3.5px;
 }
 .calendar-weekday {
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   font-weight: 700;
   color: #64748b;
 }
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.15rem;
+  gap: 2.1px;
 }
 .calendar-day {
   aspect-ratio: 1;
@@ -1200,7 +1277,7 @@ onMounted(() => {
   border-radius: 6px;
   background: #fff;
   color: #0f172a;
-  font-size: 0.86rem;
+  font-size: 12.04px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -1223,18 +1300,18 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 4.9px;
 }
 .label-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 2rem;
+  height: 28px;
   box-sizing: border-box;
-  padding: 0 0.55rem;
+  padding: 0 7.7px;
   border: none;
   border-radius: 6px;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -1245,8 +1322,8 @@ onMounted(() => {
   filter: brightness(0.94);
 }
 .label-chip-add {
-  width: 2rem;
-  height: 2rem;
+  width: 28px;
+  height: 28px;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 6px;
@@ -1260,13 +1337,13 @@ onMounted(() => {
   flex-shrink: 0;
 }
 .label-chip-add-plus {
-  font-size: 1.15rem;
+  font-size: 16.1px;
   font-weight: 400;
   line-height: 1;
 }
 .empty-text {
   margin: 0;
-  font-size: 0.84rem;
+  font-size: 11.76px;
   color: #94a3b8;
 }
 .description-block {
@@ -1277,7 +1354,7 @@ onMounted(() => {
   margin: 0;
   color: #b91c1c;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: 12.04px;
 }
 button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-picker-row) {
   opacity: 0.55;
@@ -1287,11 +1364,11 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 4.9px;
 }
 .member-avatar-btn {
-  width: 2rem;
-  height: 2rem;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: none;
   padding: 0;
@@ -1309,7 +1386,7 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
   color: #64748b;
 }
 .member-avatar-btn-plus {
-  font-size: 1.2rem;
+  font-size: 16.8px;
   font-weight: 400;
   line-height: 1;
 }
@@ -1330,26 +1407,11 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
   justify-content: center;
   background: #dbeafe;
   color: #1e3a8a;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 800;
   border-radius: 999px;
 }
 .member-picker-avatar {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  object-fit: cover;
-}
-.member-picker-initial {
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #dbeafe;
-  color: #1e3a8a;
-  font-size: 0.72rem;
-  font-weight: 800;
+  flex-shrink: 0;
 }
 </style>

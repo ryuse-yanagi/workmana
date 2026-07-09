@@ -312,19 +312,19 @@ watch(
 .task-checklist {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.85rem 0;
+  gap: 10.5px;
+  padding: 11.9px 0;
 }
 .task-checklist__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 10.5px;
 }
 .task-checklist__title-row {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 6.3px;
   min-width: 0;
 }
 .task-checklist__icon {
@@ -333,7 +333,7 @@ watch(
 }
 .task-checklist__title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 13.3px;
   font-weight: 800;
   color: #0f172a;
   line-height: 1.3;
@@ -342,9 +342,9 @@ watch(
   flex-shrink: 0;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.3rem 0.75rem;
+  padding: 4.2px 10.5px;
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 11.2px;
   font-weight: 600;
   color: #334155;
   background: #fff;
@@ -358,16 +358,16 @@ watch(
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 0.65rem;
+  gap: 9.1px;
 }
 .task-checklist__progress-label {
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 700;
   color: #64748b;
-  min-width: 2rem;
+  min-width: 28px;
 }
 .task-checklist__progress-track {
-  height: 0.35rem;
+  height: 4.9px;
   border-radius: 999px;
   background: #e2e8f0;
   overflow: hidden;
@@ -388,30 +388,30 @@ watch(
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .task-checklist__item-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.55rem;
+  gap: 7.7px;
   width: 100%;
 }
 .task-checklist__item-checkbox-label {
   display: inline-flex;
   flex-shrink: 0;
-  margin-top: 0.15rem;
+  margin-top: 2.1px;
   cursor: pointer;
 }
 .task-checklist__item-edit,
 .task-checklist__composer {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  padding-left: 1.55rem;
+  gap: 7.7px;
+  padding-left: 21.7px;
 }
 .task-checklist__item-checkbox {
-  width: 1rem;
-  height: 1rem;
+  width: 14px;
+  height: 14px;
   margin: 0;
   accent-color: mixin.$main;
 }
@@ -424,7 +424,7 @@ watch(
   padding: 0;
   margin: 0;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   line-height: 1.45;
   color: #1e293b;
   text-align: left;
@@ -445,9 +445,9 @@ watch(
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   line-height: 1.45;
   color: #0f172a;
 }
@@ -460,14 +460,14 @@ watch(
 .task-checklist__composer-actions {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 7.7px;
 }
 .task-checklist__add-btn {
   border: none;
   border-radius: 8px;
-  padding: 0.42rem 0.95rem;
+  padding: 5.88px 13.3px;
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 11.76px;
   font-weight: 700;
   color: #fff;
   background: mixin.$main;
@@ -483,9 +483,9 @@ watch(
 .task-checklist__cancel-btn {
   border: none;
   background: transparent;
-  padding: 0.42rem 0.55rem;
+  padding: 5.88px 7.7px;
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 11.76px;
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
@@ -499,7 +499,7 @@ watch(
   background: transparent;
   padding: 0;
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 11.76px;
   font-weight: 600;
   color: mixin.$main-hover;
   cursor: pointer;

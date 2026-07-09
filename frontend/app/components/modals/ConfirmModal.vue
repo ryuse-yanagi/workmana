@@ -3,7 +3,7 @@
     :model-value="modelValue"
     :title="title"
     :close-disabled="loading"
-    width="min(31rem, 100%)"
+    width="min(496px, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="confirm-modal-body">
@@ -53,19 +53,19 @@ syncAppLoadingCursor(() => props.loading)
 </script>
 <style lang="scss" scoped>
 .confirm-modal-body {
-  padding: 1rem;
+  padding: 14px;
 }
 .confirm-modal-message {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 12.6px;
   color: mixin.$text-sub;
   line-height: 1.45;
 }
 .confirm-modal-actions {
-  margin-top: 0.95rem;
+  margin-top: 13.3px;
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 7px;
 }
 .ghost-btn,
 .primary-btn,
@@ -76,8 +76,8 @@ syncAppLoadingCursor(() => props.loading)
 .primary-btn--rounded,
 .danger-btn--rounded {
   border-radius: 10px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.86rem;
+  padding: 7px 10.5px;
+  font-size: 16px;
 }
 .ghost-btn {
   @include mixin.btn-ghost;

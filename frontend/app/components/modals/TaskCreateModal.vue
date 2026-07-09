@@ -240,6 +240,7 @@ const draft = ref<TaskFormDraft>(createEmptyTaskFormDraft())
 const createAsParent = ref(false)
 const parentTaskId = ref<number | null>(null)
 const parentTasks = ref<ParentTaskOption[]>([])
+const parentTasksFetched = ref(false)
 const parentTasksLoading = ref(false)
 const parentTaskDefaultsLoading = ref(false)
 const submitting = ref(false)
@@ -337,10 +338,11 @@ async function toggleParentPicker (event?: Event) {
   parentPickerAnchorEl.value = captureParentPickerAnchor(event)
   parentPickerError.value = null
   parentPickerOpen.value = true
-  if (!parentTasks.value.length) {
-    await fetchParentTasks()
-  }
   updateParentPickerPosition()
+  if (!parentTasksFetched.value) {
+    await fetchParentTasks()
+    updateParentPickerPosition()
+  }
 }
 function closeParentPicker () {
   parentPickerOpen.value = false
@@ -369,7 +371,7 @@ function shouldIgnoreParentPickerOutsideClose (target: Node): boolean {
   }
   return false
 }
-function onParentPickerOutsidePointerDown (event: MouseEvent) {
+function onParentPickerOutsidePointerUp (event: MouseEvent) {
   if (!parentPickerOpen.value || event.button !== 0) return
   const target = event.target
   if (!(target instanceof Node)) return
@@ -383,11 +385,11 @@ function onParentPickerEscape (event: KeyboardEvent) {
   closeParentPicker()
 }
 function bindParentPickerListeners () {
-  document.addEventListener('mousedown', onParentPickerOutsidePointerDown, true)
+  document.addEventListener('mouseup', onParentPickerOutsidePointerUp, true)
   document.addEventListener('keydown', onParentPickerEscape, true)
 }
 function unbindParentPickerListeners () {
-  document.removeEventListener('mousedown', onParentPickerOutsidePointerDown, true)
+  document.removeEventListener('mouseup', onParentPickerOutsidePointerUp, true)
   document.removeEventListener('keydown', onParentPickerEscape, true)
 }
 function onBackdropClose () {
@@ -442,12 +444,15 @@ async function fetchParentTasks () {
     parentTasks.value = []
   } finally {
     parentTasksLoading.value = false
+    parentTasksFetched.value = true
   }
 }
 function resetForm () {
   draft.value = createEmptyTaskFormDraft()
   createAsParent.value = false
   parentTaskId.value = null
+  parentTasks.value = []
+  parentTasksFetched.value = false
   parentTaskDefaultsLoading.value = false
   submitError.value = null
   parentPickerError.value = null
@@ -564,7 +569,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 4rem 1rem 1rem;
+  padding: 56px 14px 14px;
   z-index: 70;
   overflow-y: auto;
 }
@@ -573,7 +578,7 @@ onBeforeUnmount(() => {
 }
 .modal-card {
   position: relative;
-  width: min(40rem, 100%);
+  width: min(560px, 100%);
   border-radius: 12px;
   overflow: visible;
   background: #fff;
@@ -585,7 +590,7 @@ onBeforeUnmount(() => {
 }
 .modal-header h3 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 14.7px;
   line-height: 1;
 }
 .icon-close {
@@ -593,40 +598,40 @@ onBeforeUnmount(() => {
   background: transparent;
   border: none;
   color: #fff;
-  font-size: 1.4rem;
+  font-size: 19.6px;
   line-height: 1;
   cursor: pointer;
 }
 .modal-body {
   position: relative;
-  padding: 1.2rem 1.35rem 1.35rem;
+  padding: 16.8px 18.9px 18.9px;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 15.4px;
   overflow: visible;
   border-radius: 0 0 12px 12px;
 }
 .parent-section {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 14px;
 }
 .parent-toggle-card {
   border: 1.6px solid mixin.$main;
   border-radius: 10px;
   background: mixin.$main-aqua-surface;
-  padding: 0.85rem 0.95rem;
+  padding: 11.9px 13.3px;
 }
 .parent-toggle-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 10.5px;
 }
 .parent-toggle-card__label-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 6.3px;
   min-width: 0;
 }
 .parent-toggle-card__icon {
@@ -634,15 +639,15 @@ onBeforeUnmount(() => {
   color: mixin.$text;
 }
 .parent-toggle-card__label {
-  font-size: 0.92rem;
+  font-size: 12.88px;
   font-weight: 700;
   color: mixin.$text;
   line-height: 1.3;
 }
 .parent-toggle-card__hint {
-  margin: 0.45rem 0 0;
-  padding-left: 1.65rem;
-  font-size: 0.78rem;
+  margin: 6.3px 0 0;
+  padding-left: 23.1px;
+  font-size: 10.92px;
   line-height: 1.45;
   color: mixin.$text;
 }
@@ -660,11 +665,11 @@ onBeforeUnmount(() => {
 .toggle-switch__track {
   display: inline-flex;
   align-items: center;
-  width: 2.6rem;
-  height: 1.45rem;
+  width: 36.4px;
+  height: 20.3px;
   border-radius: 999px;
   background: #cbd5e1;
-  padding: 0.15rem;
+  padding: 2.1px;
   box-sizing: border-box;
   transition: background 0.15s ease;
 }
@@ -672,8 +677,8 @@ onBeforeUnmount(() => {
   background: mixin.$main;
 }
 .toggle-switch__thumb {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 16.1px;
+  height: 16.1px;
   border-radius: 999px;
   background: #fff;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
@@ -681,12 +686,12 @@ onBeforeUnmount(() => {
   transition: transform 0.15s ease;
 }
 .toggle-switch[aria-checked='true'] .toggle-switch__thumb {
-  transform: translateX(1.15rem);
+  transform: translateX(16.1px);
 }
 .parent-picker-block {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 10.5px;
 }
 .parent-select-wrap {
   position: relative;
@@ -706,18 +711,18 @@ onBeforeUnmount(() => {
 .popover {
   position: absolute;
   z-index: 10;
-  width: min(18.5rem, calc(100vw - 1.5rem));
+  width: min(259px, calc(100vw - 21px));
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 10px 32px rgba(15, 23, 42, 0.2);
   border: 1px solid #e2e8f0;
-  padding: 0.75rem;
+  padding: 10.5px;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 9.1px;
 }
 .popover--parent-task {
-  width: min(19.5rem, calc(100vw - 1.5rem));
+  width: min(273px, calc(100vw - 21px));
   padding: 0;
   gap: 0;
 }
@@ -732,11 +737,11 @@ onBeforeUnmount(() => {
 .action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 4.9px;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.38rem 0.7rem;
-  font-size: 0.84rem;
+  padding: 5.32px 9.8px;
+  font-size: 11.76px;
   font-weight: 600;
   color: #334155;
   background: #f8fafc;
@@ -763,19 +768,19 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 1rem 1.25rem;
+  gap: 14px 17.5px;
 }
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 4.9px;
 }
 .detail-item--parent {
   min-width: 0;
   flex: 1 1 0;
 }
 .detail-item-label {
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 700;
   color: #64748b;
 }
@@ -783,8 +788,8 @@ onBeforeUnmount(() => {
   align-self: flex-start;
   border: none;
   border-radius: 6px;
-  padding: 0.35rem 0.55rem;
-  font-size: 0.92rem;
+  padding: 4.9px 7.7px;
+  font-size: 12.88px;
   font-weight: 700;
   color: #0f172a;
   background: #fff;
@@ -792,8 +797,8 @@ onBeforeUnmount(() => {
   text-align: left;
 }
 .detail-item--parent .detail-value-btn {
-  font-size: 1.2rem;
-  padding: 0.45rem 0.7rem;
+  font-size: 16.8px;
+  padding: 6.3px 9.8px;
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -808,18 +813,18 @@ onBeforeUnmount(() => {
 }
 .modal-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding-top: 0.25rem;
+  justify-content: center;
+  gap: 7px;
+  padding-top: 3.5px;
 }
 .primary-btn,
 .ghost-btn {
   border-radius: 999px;
   border: 1px solid transparent;
-  padding: 0.5rem 1.1rem;
+  padding: 7px 15.4px;
   font-weight: 800;
   cursor: pointer;
-  font-size: 0.86rem;
+  font-size: 16px;
 }
 .primary-btn {
   background: mixin.$main;
@@ -834,7 +839,7 @@ onBeforeUnmount(() => {
   margin: 0;
   color: #b91c1c;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: 12.04px;
 }
 button:disabled:not(.parent-task-picker-row):not(.detail-value-btn) {
   opacity: 0.55;

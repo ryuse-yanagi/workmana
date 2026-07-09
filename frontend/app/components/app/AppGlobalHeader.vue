@@ -3,11 +3,16 @@
     <div class="global-header__inner">
       <div class="global-header__left">
         <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goWorkspaceList">
+          <FolderOpen :size="20" :stroke-width="2.25" class="nav-btn__icon" aria-hidden="true" />
           Workspaces
         </button>
         <button type="button" class="nav-btn" :disabled="!orgSlug" @click="goDocumentsList">
+          <NotebookText :size="20" :stroke-width="2.25" class="nav-btn__icon" aria-hidden="true" />
           Documents
         </button>
+      </div>
+
+      <div class="global-header__right">
         <button
           type="button"
           class="nav-btn nav-btn--icon"
@@ -18,9 +23,7 @@
         >
           <Settings :size="24" :stroke-width="2.25" aria-hidden="true" />
         </button>
-      </div>
-
-      <div class="global-header__right">
+        <span class="global-header__divider" aria-hidden="true" />
         <div class="profile" data-profile-root>
           <button type="button" class="profile-trigger" :aria-expanded="menuOpen" @click.stop="toggleMenu">
             <span class="avatar-btn">
@@ -47,8 +50,9 @@
 </template>
 
 <script setup lang="ts">
-import { Settings } from 'lucide-vue-next'
+import { FolderOpen, NotebookText, Settings } from 'lucide-vue-next'
 import ProfileSettingsModal from '../modals/ProfileSettingsModal.vue'
+import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 import { useApi } from '../../composables/useApi'
 import { useAuth } from '../../composables/useAuth'
 import { useOrgPageCacheWarmup } from '../../composables/useOrgPageCacheWarmup'
@@ -138,6 +142,8 @@ function toggleMenu () {
   menuOpen.value = !menuOpen.value
 }
 
+useDropdownEscapeClose(menuOpen, closeMenu)
+
 async function goWorkspaceList () {
   if (!orgSlug.value) return
   closeMenu()
@@ -222,21 +228,25 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .global-header {
+  @include mixin.header-font;
+  --global-header-bg: #28384a;
   position: sticky;
   top: 0;
   z-index: 50;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.35);
-  background: mixin.$main;
-  backdrop-filter: blur(10px);
+  height: var(--tm-global-header-height, 56px);
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--global-header-bg);
 }
 
 .global-header__inner {
   width: 100%;
-  padding: 0.48rem 0.85rem;
+  height: 100%;
+  padding: 0 11.9px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.65rem;
+  gap: 9.1px;
   box-sizing: border-box;
   min-width: 0;
 }
@@ -244,7 +254,7 @@ onBeforeUnmount(() => {
 .global-header__left {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 9.1px;
   flex-wrap: wrap;
   min-width: 0;
 }
@@ -252,31 +262,46 @@ onBeforeUnmount(() => {
 .global-header__right {
   display: flex;
   align-items: center;
+  gap: 0;
   margin-left: auto;
   justify-content: flex-end;
   min-width: 0;
   max-width: 100%;
 }
 
+.global-header__divider {
+  flex-shrink: 0;
+  width: 1.2px;
+  height: 28px;
+  margin: 0 15.4px;
+  background: rgba(255, 255, 255, 0.38);
+}
+
 .nav-btn {
   border: none;
-  background: mixin.$main;
+  background: var(--global-header-bg);
   color: #f8fafc;
   border-radius: 999px;
-  padding: 0.35rem 0.7rem;
-  min-height: 2rem;
+  padding: 4.9px 9.8px;
+  min-height: 28px;
   display: inline-flex;
   align-items: center;
-  font-size: 0.98rem;
-  line-height: 1.1;
-  font-weight: 500;
+  gap: 5.6px;
+  font-size: mixin.$header-nav-label-font-size;
+  font-weight: mixin.$header-nav-label-font-weight;
+  letter-spacing: 0.06em;
   cursor: pointer;
 }
 
+.nav-btn__icon {
+  flex-shrink: 0;
+  display: block;
+}
+
 .nav-btn--icon {
-  width: 2rem;
-  height: 2rem;
-  min-height: 2rem;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
   padding: 0;
   justify-content: center;
 }
@@ -292,34 +317,34 @@ onBeforeUnmount(() => {
 
 .profile-trigger {
   border: none;
-  background: transparent;
+  background: var(--global-header-bg);
   color: #f8fafc;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.45rem;
+  gap: 6.3px;
   cursor: pointer;
   padding: 0;
   min-width: 0;
-  max-width: min(100%, 26rem);
+  max-width: min(100%, 364px);
 }
 
 .avatar-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.35);
   padding: 0;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--global-header-bg);
   cursor: pointer;
 }
 
 .profile-name {
-  font-size: 0.875rem;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.1;
   color: #f8fafc;
@@ -350,13 +375,13 @@ onBeforeUnmount(() => {
 .dropdown {
   position: absolute;
   right: 0;
-  top: calc(100% + 0.45rem);
-  width: 14rem;
+  top: calc(100% + 6.3px);
+  width: 196px;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  padding: 0.35rem;
+  padding: 4.9px;
 }
 
 .dropdown-item {
@@ -364,7 +389,7 @@ onBeforeUnmount(() => {
   text-align: left;
   border: none;
   background: transparent;
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   border-radius: 8px;
   font-weight: 800;
   color: #0f172a;

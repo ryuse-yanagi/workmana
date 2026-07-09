@@ -7,33 +7,33 @@
   background: #fff;
   border: 1px solid #dbe3ee;
   border-radius: 10px;
-  padding: 1rem;
+  padding: 14px;
 }
 
 .settings-panel__title {
-  margin: 0 0 0.5rem;
-  font-size: 1.2rem;
+  margin: 0 0 7px;
+  font-size: 16.8px;
 }
 
 .settings-panel__note {
-  margin: 0 0 1rem;
+  margin: 0 0 14px;
   color: #64748b;
 }
 
 .settings-field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 4.9px;
   color: #1e293b;
-  font-size: 0.9rem;
+  font-size: 12.6px;
   font-weight: 700;
 }
 
 .settings-input {
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.55rem 0.7rem;
-  font-size: 0.95rem;
+  padding: 7.7px 9.8px;
+  font-size: 13.3px;
   background: #fff;
 
   &:focus {
@@ -42,9 +42,9 @@
 }
 
 .settings-button-row {
-  margin-top: 0.55rem;
+  margin-top: 7.7px;
   display: flex;
-  gap: 0.5rem;
+  gap: 7px;
 }
 
 .settings-button-row--start {
@@ -55,8 +55,8 @@
 .settings-ghost-btn {
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 0.5rem 0.8rem;
-  font-size: 0.86rem;
+  padding: 7px 11.2px;
+  font-size: 12.04px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -79,7 +79,7 @@
 }
 
 .settings-msg {
-  margin: 0.55rem 0 0;
+  margin: 7.7px 0 0;
   color: #0f766e;
   font-weight: 700;
 }
@@ -89,37 +89,37 @@
 }
 
 .settings-label-list {
-  margin: 0.8rem 0 0;
+  margin: 11.2px 0 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 
 .settings-label-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 4.9px;
   border: 1px solid #dbe3ee;
   border-radius: 999px;
-  padding: 0.3rem 0.55rem;
+  padding: 4.2px 7.7px;
   background: #fff;
 }
 
 .settings-label-dot {
-  width: 0.65rem;
-  height: 0.65rem;
+  width: 9.1px;
+  height: 9.1px;
   border-radius: 999px;
 }
 
 .settings-label-name {
-  font-size: 0.85rem;
+  font-size: 11.9px;
   color: #0f172a;
   font-weight: 600;
 }
 
 .settings-label-empty {
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: 12.6px;
 }

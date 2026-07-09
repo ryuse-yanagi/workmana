@@ -39,6 +39,6 @@ export function useWorkspaceViewPageCssVars () {
   })
   return computed(() => ({
     '--global-header-offset': `${globalHeaderOffsetPx.value}px`,
-    '--app-shell-page-pad': '0.25rem',
+    '--app-shell-page-pad': '4px',
   } as Record<string, string>))
 }

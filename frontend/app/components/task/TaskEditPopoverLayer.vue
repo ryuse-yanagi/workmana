@@ -192,7 +192,7 @@
                 </button>
               </li>
             </ul>
-            <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">ワークスペースメンバーがいません。</p>
+            <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">スペースメンバーがいません。</p>
             <p v-else-if="!filteredProjectMembers.length" class="empty-text label-picker-empty">該当する担当者がいません。</p>
             <p v-if="popoverError" class="err">{{ popoverError }}</p>
           </div>
@@ -344,8 +344,8 @@ const emit = defineEmits<{
 const taskRef = ref<TaskPopoverEditable | null>(null)
 const memberSearchQuery = ref('')
 function bindTask (task: TaskPopoverEditable | null) {
-  if (taskRef.value?.id !== task?.id) {
-    void closePopover()
+  if (taskRef.value && taskRef.value.id !== task?.id) {
+    dismissPopover()
   }
   taskRef.value = task
 }
@@ -383,6 +383,7 @@ const {
   finalizeEffortPopover,
   clearEffort,
   closePopover,
+  dismissPopover,
   openMemberPicker,
   openMemberDetail,
   openLabelPicker,
@@ -406,7 +407,7 @@ const {
   task: taskRef,
   disabled: computed(() => props.disabled),
   onUpdated: (task) => emit('updated', task),
-  zIndex: 80,
+  zIndex: 130,
 })
 watch(
   [activePopover, () => taskRef.value?.id ?? null],
@@ -441,7 +442,7 @@ defineExpose({
 .popover-layer--portal {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 130;
   pointer-events: none;
 }
 .popover-layer--portal .popover {
@@ -452,25 +453,25 @@ defineExpose({
 .popover {
   position: absolute;
   z-index: 10;
-  width: min(18.5rem, calc(100vw - 1.5rem));
+  width: min(259px, calc(100vw - 21px));
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 10px 32px rgba(15, 23, 42, 0.2);
   border: 1px solid #e2e8f0;
-  padding: 0.75rem;
+  padding: 10.5px;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 9.1px;
 }
 .popover--date {
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0.6rem;
-  gap: 0.5rem;
+  padding: 8.4px;
+  gap: 7px;
 }
 .popover--members,
 .popover--labels {
-  width: min(19.5rem, calc(100vw - 1.5rem));
+  width: min(273px, calc(100vw - 21px));
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -478,11 +479,11 @@ defineExpose({
 }
 .popover--members .empty-text,
 .popover--members .err {
-  margin-left: 0.65rem;
-  margin-right: 0.65rem;
+  margin-left: 9.1px;
+  margin-right: 9.1px;
 }
 .popover--description {
-  width: min(22rem, calc(100vw - 1.5rem));
+  width: min(308px, calc(100vw - 21px));
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -490,12 +491,12 @@ defineExpose({
 }
 .popover--description .description-input {
   @include mixin.description-textarea;
-  margin: 0.65rem;
-  width: calc(100% - 1.3rem);
-  min-height: 8rem;
+  margin: 9.1px;
+  width: calc(100% - 18.2px);
+  min-height: 112px;
 }
 .popover--description .err {
-  margin: 0 0.65rem 0.65rem;
+  margin: 0 9.1px 9.1px;
 }
 .popover-scroll {
   flex: 1 1 auto;
@@ -507,67 +508,67 @@ defineExpose({
 .popover-header--labels {
   position: relative;
   justify-content: center;
-  padding: 0.65rem 2rem 0.55rem;
+  padding: 9.1px 28px 7.7px;
   border-bottom: 1px solid #dfe1e6;
 }
 .popover-header--labels :deep(.popover-shell__close) {
   position: absolute;
-  right: 0.45rem;
+  right: 6.3px;
   top: 50%;
   transform: translateY(-50%);
 }
 .label-search-input {
   display: block;
-  width: calc(100% - 1.3rem);
-  margin: 0.55rem 0.65rem 0.45rem;
+  width: calc(100% - 18.2px);
+  margin: 7.7px 9.1px 6.3px;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 6px;
-  padding: 0.45rem 0.55rem;
-  font-size: 0.88rem;
+  padding: 6.3px 7.7px;
+  font-size: 12.32px;
   color: #172b4d;
 }
 .label-search-input:focus {
   @include mixin.input-focus-ring;
 }
 .label-section-heading {
-  margin: 0.15rem 0.65rem 0.35rem;
-  font-size: 0.78rem;
+  margin: 2.1px 9.1px 4.9px;
+  font-size: 10.92px;
   font-weight: 700;
   color: #5e6c84;
 }
 .label-picker-list {
   list-style: none;
   margin: 0;
-  padding: 0 0.5rem 0.65rem;
+  padding: 0 7px 9.1px;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 2.8px;
 }
 .label-picker-row {
   @include mixin.picker-checkbox-row;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 5.6px;
   width: 100%;
   border: none;
   background: transparent;
-  padding: 0.15rem 0;
+  padding: 2.1px 0;
   text-align: left;
 }
 .label-picker-row:hover .label-picker-bar {
   filter: brightness(0.96);
 }
 .label-picker-checkbox {
-  width: 1rem;
-  height: 1rem;
+  width: 14px;
+  height: 14px;
   border: 2px solid #8590a2;
   border-radius: 3px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   font-weight: 800;
   color: #fff;
   background: #fff;
@@ -578,10 +579,10 @@ defineExpose({
 }
 .label-picker-bar {
   flex: 1;
-  min-height: 2rem;
+  min-height: 28px;
   border-radius: 4px;
-  padding: 0.38rem 0.55rem;
-  font-size: 0.88rem;
+  padding: 5.32px 7.7px;
+  font-size: 12.32px;
   font-weight: 700;
   line-height: 1.25;
   display: flex;
@@ -592,11 +593,11 @@ defineExpose({
   color: #172b4d;
 }
 .label-picker-empty {
-  padding: 0 0.65rem 0.75rem;
+  padding: 0 9.1px 10.5px;
 }
 .popover--member-detail {
   padding: 0;
-  width: min(17rem, calc(100% - 1.5rem));
+  width: min(238px, calc(100% - 21px));
   overflow: hidden;
   gap: 0;
 }
@@ -607,20 +608,20 @@ defineExpose({
 .member-detail-header {
   position: relative;
   background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  padding: 1rem 0.85rem 1.2rem;
+  padding: 14px 11.9px 16.8px;
   color: #fff;
 }
 .member-detail-close {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  top: 6.3px;
+  right: 6.3px;
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.92);
-  font-size: 1rem;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  padding: 0.2rem 0.35rem;
+  padding: 2.8px 4.9px;
   border-radius: 6px;
 }
 .member-detail-close:hover:not(:disabled) {
@@ -629,13 +630,13 @@ defineExpose({
 .member-detail-profile {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding-right: 1.25rem;
+  gap: 9.1px;
+  padding-right: 17.5px;
 }
 .member-detail-avatar,
 .member-detail-initial {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 38.5px;
+  height: 38.5px;
   border-radius: 999px;
   flex-shrink: 0;
   border: 2px solid rgba(255, 255, 255, 0.35);
@@ -647,18 +648,18 @@ defineExpose({
   justify-content: center;
   background: #a67c52;
   color: #fff;
-  font-size: 1rem;
+  font-size: 14px;
   font-weight: 800;
 }
 .member-detail-name {
   margin: 0;
-  font-size: 1rem;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.25;
 }
 .member-detail-email {
-  margin: 0.2rem 0 0;
-  font-size: 0.82rem;
+  margin: 2.8px 0 0;
+  font-size: 11.48px;
   color: rgba(255, 255, 255, 0.88);
   line-height: 1.3;
   word-break: break-all;
@@ -670,9 +671,9 @@ defineExpose({
   width: 100%;
   border: none;
   background: #fff;
-  padding: 0.8rem 0.9rem;
+  padding: 11.2px 12.6px;
   text-align: left;
-  font-size: 0.9rem;
+  font-size: 12.6px;
   font-weight: 600;
   color: #334155;
   cursor: pointer;
@@ -682,7 +683,7 @@ defineExpose({
 }
 .member-detail-error {
   margin: 0;
-  padding: 0.5rem 0.75rem 0.75rem;
+  padding: 7px 10.5px 10.5px;
 }
 .popover-fade-enter-active,
 .popover-fade-leave-active {
@@ -693,14 +694,14 @@ defineExpose({
   opacity: 0;
 }
 .popover--effort {
-  width: min(18rem, calc(100vw - 1.5rem));
-  padding: 0.6rem;
-  gap: 0.5rem;
+  width: min(252px, calc(100vw - 21px));
+  padding: 8.4px;
+  gap: 7px;
 }
 .effort-input-row {
   display: flex;
   align-items: stretch;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .popover--effort .effort-input {
   flex: 1 1 auto;
@@ -708,8 +709,8 @@ defineExpose({
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.94rem;
+  padding: 6.3px 8.4px;
+  font-size: 13.16px;
   color: #0f172a;
   background: #fff;
   @include mixin.hide-number-spin-buttons;
@@ -720,8 +721,8 @@ defineExpose({
 .popover--effort .effort-unit-label {
   flex: 0 0 auto;
   box-sizing: border-box;
-  padding: 0.45rem 0.5rem;
-  font-size: 0.88rem;
+  padding: 6.3px 7px;
+  font-size: 12.32px;
   font-weight: 700;
   color: #64748b;
   white-space: nowrap;
@@ -729,18 +730,18 @@ defineExpose({
 .popover-field-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.55rem;
+  margin-top: 7.7px;
 }
 .popover-field-clear-btn {
-  min-width: 3.5rem;
-  height: 1.75rem;
-  padding: 0 0.65rem;
+  min-width: 49px;
+  height: 24.5px;
+  padding: 0 9.1px;
   border: 1px solid mixin.$border-light;
   border-radius: 6px;
   background: #fff;
   color: mixin.$text-sub;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -753,75 +754,75 @@ defineExpose({
   cursor: default;
 }
 .popover--date .calendar {
-  padding: 0.5rem;
+  padding: 7px;
 }
 .popover--date .calendar-nav {
-  margin-bottom: 0.4rem;
+  margin-bottom: 5.6px;
 }
 .popover--date .calendar-nav-btn {
-  width: 1.75rem;
-  height: 1.75rem;
-  font-size: 1rem;
+  width: 24.5px;
+  height: 24.5px;
+  font-size: 14px;
 }
 .popover--date .calendar-month-label {
-  font-size: 0.88rem;
+  font-size: 12.32px;
 }
 .popover--date .calendar-weekdays {
-  margin-bottom: 0.15rem;
+  margin-bottom: 2.1px;
 }
 .popover--date .calendar-grid {
-  gap: 0.1rem;
+  gap: 1.4px;
 }
 .popover--date .calendar-day {
   aspect-ratio: unset;
-  min-height: 1.65rem;
-  padding: 0.1rem 0;
-  font-size: 0.8rem;
+  min-height: 23.1px;
+  padding: 1.4px 0;
+  font-size: 11.2px;
 }
 .calendar {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 0.75rem;
+  padding: 10.5px;
   background: #f8fafc;
 }
 .calendar-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.65rem;
+  margin-bottom: 9.1px;
 }
 .calendar-nav-btn {
-  width: 2rem;
-  height: 2rem;
+  width: 28px;
+  height: 28px;
   border: 1px solid mixin.$border;
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 1.1rem;
+  font-size: 15.4px;
   cursor: pointer;
   line-height: 1;
 }
 .calendar-month-label {
-  font-size: 0.95rem;
+  font-size: 13.3px;
   font-weight: 800;
   color: #0f172a;
 }
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.15rem;
-  margin-bottom: 0.25rem;
+  gap: 2.1px;
+  margin-bottom: 3.5px;
 }
 .calendar-weekday {
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   font-weight: 700;
   color: #64748b;
 }
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.15rem;
+  gap: 2.1px;
 }
 .calendar-day {
   aspect-ratio: 1;
@@ -829,7 +830,7 @@ defineExpose({
   border-radius: 6px;
   background: #fff;
   color: #0f172a;
-  font-size: 0.86rem;
+  font-size: 12.04px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -850,35 +851,35 @@ defineExpose({
 }
 .empty-text {
   margin: 0;
-  font-size: 0.84rem;
+  font-size: 11.76px;
   color: #94a3b8;
 }
 .err {
   margin: 0;
   color: #b91c1c;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: 12.04px;
 }
 .popover--list {
-  width: min(19.5rem, calc(100vw - 1.5rem));
+  width: min(273px, calc(100vw - 21px));
 }
 .list-picker-list {
   list-style: none;
   margin: 0;
-  padding: 0.5rem 0.65rem 0.65rem;
+  padding: 7px 9.1px 9.1px;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 2.8px;
 }
 .list-picker-row {
   @include mixin.picker-checkbox-row;
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 7.7px;
   width: 100%;
   border: none;
   border-radius: 8px;
-  padding: 0.45rem 0.35rem;
+  padding: 6.3px 4.9px;
   background: transparent;
   text-align: left;
 }
@@ -889,8 +890,8 @@ defineExpose({
   background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
 }
 .list-picker-radio {
-  width: 1rem;
-  height: 1rem;
+  width: 14px;
+  height: 14px;
   border: 2px solid #8590a2;
   border-radius: 50%;
   flex-shrink: 0;
@@ -905,7 +906,7 @@ defineExpose({
 }
 .list-picker-radio--checked::after {
   content: '✓';
-  font-size: 0.62rem;
+  font-size: 8.68px;
   font-weight: 800;
   line-height: 1;
   color: mixin.$white;
@@ -913,7 +914,7 @@ defineExpose({
 .list-picker-label {
   flex: 1;
   min-width: 0;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   font-weight: 600;
   line-height: 1.35;
   color: mixin.$text;
@@ -921,7 +922,7 @@ defineExpose({
   word-break: break-word;
 }
 .list-picker-empty {
-  margin: 0.55rem 0.65rem 0.65rem;
+  margin: 7.7px 9.1px 9.1px;
 }
 button:disabled:not(.label-picker-row):not(.member-picker-row):not(.list-picker-row) {
   opacity: 0.55;

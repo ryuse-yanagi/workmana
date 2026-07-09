@@ -27,8 +27,8 @@ const { showLabelNames, toggleLabelNames } = useBoardCardLabelDisplay()
 .task-label-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem;
-  margin-bottom: 0.25rem;
+  gap: 2.8px;
+  margin-bottom: 3.5px;
 }
 .task-label-list :deep(.label-strip--bar),
 .task-label-list :deep(.label-strip--named) {

@@ -1,5 +1,14 @@
 <template>
-  <div class="workspace-table-gantt-view workspace-view-page workspace-view-page--table" :style="pageCssVars">
+  <WorkspaceBoard
+    v-if="mode === 'board'"
+    ref="boardRef"
+  />
+  <div
+    v-else
+    class="workspace-project-view workspace-view-page"
+    :class="`workspace-view-page--${mode}`"
+    :style="pageCssVars"
+  >
     <header class="page-header">
       <div class="subheader">
         <NuxtLink :to="`/org/${orgSlug}/workspaces`" class="subheader-title subheader-back-link">
@@ -9,7 +18,7 @@
         <div class="subheader-spacer" />
       </div>
     </header>
-    <section class="workspace-view-page__body workspace-view-page__body--table">
+    <section class="workspace-view-page__body">
       <WorkspaceTableBoard
         v-if="mode === 'table'"
         ref="tableBoardRef"
@@ -26,35 +35,45 @@
   </div>
 </template>
 <script setup lang="ts">
-import WorkspaceViewSwitcher from './WorkspaceViewSwitcher.vue'
-import WorkspaceTableBoard from './WorkspaceTableBoard.vue'
-import WorkspaceGanttBoard from './WorkspaceGanttBoard.vue'
+import type { WorkspaceViewKey } from '../../composables/useWorkspaceViewRoutes'
 import { useWorkspaceViewPageCssVars } from '../../composables/useWorkspaceViewPageRoot'
+import WorkspaceBoard from './WorkspaceBoard.vue'
+import WorkspaceGanttBoard from './WorkspaceGanttBoard.vue'
+import WorkspaceTableBoard from './WorkspaceTableBoard.vue'
+import WorkspaceViewSwitcher from './WorkspaceViewSwitcher.vue'
+
 const props = defineProps<{
-  orgSlug: string
-  workspaceId: string
-  mode: 'table' | 'gantt'
+  mode: WorkspaceViewKey
+  orgSlug?: string
+  workspaceId?: string
 }>()
+
+const boardRef = ref<InstanceType<typeof WorkspaceBoard> | null>(null)
 const tableBoardRef = ref<InstanceType<typeof WorkspaceTableBoard> | null>(null)
 const ganttBoardRef = ref<InstanceType<typeof WorkspaceGanttBoard> | null>(null)
 const pageCssVars = useWorkspaceViewPageCssVars()
+
 function refreshOnViewSwitch (): Promise<void> {
+  if (props.mode === 'board') {
+    return boardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
+  }
   if (props.mode === 'table') {
     return tableBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
   }
   return ganttBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
 }
+
 defineExpose({
   refreshOnViewSwitch,
 })
 </script>
 <style lang="scss" scoped>
-.workspace-table-gantt-view {
+.workspace-project-view {
   box-sizing: border-box;
-  height: calc(100dvh - var(--global-header-offset, 46px) - var(--app-shell-page-pad, 0.25rem));
-  max-height: calc(100dvh - var(--global-header-offset, 46px) - var(--app-shell-page-pad, 0.25rem));
-  padding: 0 1rem;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
+  height: calc(100dvh - var(--global-header-offset, 56px) - var(--app-shell-page-pad, 3.5px));
+  max-height: calc(100dvh - var(--global-header-offset, 56px) - var(--app-shell-page-pad, 3.5px));
+  padding: 0 14px;
+  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
   padding-top: 0;
   display: flex;
   flex-direction: column;
@@ -65,18 +84,11 @@ defineExpose({
   position: relative;
   z-index: 40;
   flex-shrink: 0;
-  margin-bottom: 0.2rem;
-  width: calc(100% + 2rem);
-  margin-left: -1rem;
-  margin-right: -1rem;
-  box-sizing: border-box;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  padding: 0 1.4rem 0 0.9rem;
-  background: #fff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.35);
-  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.18);
+  width: calc(100% + 28px);
+  margin-left: -14px;
+  margin-right: -14px;
+  @include mixin.page-header-shell;
+  padding: 0 19.6px 0 12.6px;
 }
 .page-header > * {
   width: 100%;
@@ -85,24 +97,19 @@ defineExpose({
 .subheader {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 7px;
   height: 100%;
   min-width: 0;
 }
 .subheader-title {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 900;
-  color: #2b2e2f;
-  line-height: 1.1;
-  flex-shrink: 0;
+  @include mixin.page-header-title;
 }
 .subheader-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 4.2px;
   text-decoration: none;
-  color: mixin.$main-aqua;
+  color: mixin.$main;
   letter-spacing: 0.05em;
   line-height: 1.1;
   transition: color 0.16s ease;
@@ -127,14 +134,14 @@ defineExpose({
   flex: 1;
   min-width: 0;
 }
-.workspace-view-page__body--table {
+.workspace-view-page__body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 0 0.75rem;
+  padding: 0 0 10.5px;
 }
-.workspace-view-page__body--table > :deep(*) {
+.workspace-view-page__body > :deep(*) {
   flex: 1;
   min-height: 0;
 }

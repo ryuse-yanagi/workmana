@@ -72,7 +72,7 @@ defineExpose({ inputRef })
 .inline-composer {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .inline-composer__input,
 .inline-composer__textarea {
@@ -80,14 +80,14 @@ defineExpose({ inputRef })
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.55rem 0.7rem;
+  padding: 7.7px 9.8px;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 12.6px;
   background: #fff;
 }
 .inline-composer__textarea {
   resize: vertical;
-  min-height: 4.5rem;
+  min-height: 63px;
 }
 .inline-composer__input:focus,
 .inline-composer__textarea:focus {
@@ -95,7 +95,7 @@ defineExpose({ inputRef })
 }
 .inline-composer__actions {
   display: flex;
-  gap: 0.4rem;
+  gap: 5.6px;
 }
 .ghost-btn,
 .primary-btn {
@@ -107,8 +107,8 @@ defineExpose({ inputRef })
 }
 .ghost-btn--compact,
 .primary-btn--compact {
-  padding: 0.35rem 0.85rem;
-  font-size: 0.82rem;
+  padding: 4.9px 11.9px;
+  font-size: 11.48px;
 }
 .ghost-btn {
   @include mixin.btn-ghost;

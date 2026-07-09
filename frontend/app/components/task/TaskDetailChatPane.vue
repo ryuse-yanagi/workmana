@@ -192,6 +192,7 @@ import { COMMENT_BODY_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { useApi } from '../../composables/useApi'
 import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import { useCurrentUser } from '../../composables/useCurrentUser'
+import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 import { memberDisplayName, type MemberLike } from '../../composables/useMemberDisplay'
 import type { TaskCommentReaction, TaskDetailComment } from './taskCommentTypes'
 type TaskComment = TaskDetailComment
@@ -268,10 +269,10 @@ watch(
   { immediate: true },
 )
 onMounted(() => {
-  document.addEventListener('mousedown', onDocumentClick)
+  document.addEventListener('mouseup', onDocumentClick)
 })
 onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', onDocumentClick)
+  document.removeEventListener('mouseup', onDocumentClick)
   unbindDeleteMenuListeners()
 })
 function closeDeleteMenu () {
@@ -279,6 +280,14 @@ function closeDeleteMenu () {
   deleteError.value = null
   deleteMenuAnchorEl.value = null
 }
+const anyCommentMenuOpen = computed(() => (
+  openDeleteMenuCommentId.value !== null || openReactionMenuCommentId.value !== null
+))
+function closeCommentMenus () {
+  closeDeleteMenu()
+  openReactionMenuCommentId.value = null
+}
+useDropdownEscapeClose(anyCommentMenuOpen, closeCommentMenus)
 function updateDeleteMenuPosition () {
   nextTick(() => {
     requestAnimationFrame(() => {
@@ -621,8 +630,8 @@ defineExpose({ resetComments })
 </script>
 <style lang="scss" scoped>
 .task-detail-chat-pane {
-  flex: 1 1 22rem;
-  min-width: 18rem;
+  flex: 1 1 308px;
+  min-width: 252px;
   min-height: 0;
   max-height: 100%;
   overflow: hidden;
@@ -635,39 +644,39 @@ defineExpose({ resetComments })
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.6rem 0.85rem;
+  gap: 4.9px;
+  padding: 8.4px 11.9px;
   background: #6b7f94;
   color: mixin.$white;
 }
 .chat-header-title {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 11.48px;
   font-weight: 700;
   line-height: 1;
 }
 .chat-header-count {
-  font-size: 0.68rem;
+  font-size: 9.52px;
   font-weight: 700;
   line-height: 1;
-  padding: 0.12rem 0.35rem;
+  padding: 1.68px 4.9px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
 }
 .chat-messages {
   flex: 1 1 auto;
-  min-height: 12rem;
+  min-height: 168px;
   overflow-y: auto;
-  padding: 0.85rem 0.85rem 0.5rem;
+  padding: 11.9px 11.9px 7px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 14px;
 }
 .chat-state {
   margin: auto 0;
   text-align: center;
   color: mixin.$text-muted;
-  font-size: 0.86rem;
+  font-size: 12.04px;
 }
 .chat-state--error {
   color: mixin.$danger;
@@ -675,7 +684,7 @@ defineExpose({ resetComments })
 .comment-item {
   display: flex;
   align-items: flex-start;
-  gap: 0.55rem;
+  gap: 7.7px;
 }
 .comment-item__body {
   flex: 1;
@@ -685,33 +694,33 @@ defineExpose({ resetComments })
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.35rem;
+  gap: 4.9px;
+  margin-bottom: 4.9px;
 }
 .comment-item__author {
-  font-size: 0.86rem;
+  font-size: 12.04px;
   font-weight: 800;
   color: mixin.$text;
 }
 .comment-item__time {
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 600;
   line-height: 1.2;
   color: mixin.$main;
 }
 .comment-item__edited {
-  font-size: 0.74rem;
+  font-size: 10.36px;
   color: mixin.$text-muted;
 }
 .comment-item__card {
   border: 1px solid #dfe1e6;
   border-radius: 8px;
   background: mixin.$white;
-  padding: 0.55rem 0.7rem;
+  padding: 7.7px 9.8px;
 }
 .comment-item__text {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   line-height: 1.5;
   color: mixin.$text;
   white-space: pre-wrap;
@@ -720,16 +729,16 @@ defineExpose({ resetComments })
 .comment-item__edit {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .comment-item__edit-input {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.55rem 0.7rem;
+  padding: 7.7px 9.8px;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   line-height: 1.5;
   resize: vertical;
 }
@@ -739,14 +748,14 @@ defineExpose({ resetComments })
 .comment-item__edit-actions {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .comment-item__edit-save,
 .comment-item__edit-cancel {
   border: none;
   border-radius: 6px;
-  padding: 0.42rem 0.75rem;
-  font-size: 0.82rem;
+  padding: 5.88px 10.5px;
+  font-size: 11.48px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -770,24 +779,24 @@ defineExpose({ resetComments })
 .comment-item__edit-error {
   margin: 0;
   color: mixin.$danger;
-  font-size: 0.78rem;
+  font-size: 10.92px;
 }
 .comment-item__reactions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
+  gap: 4.9px;
+  margin-top: 4.9px;
 }
 .comment-item__reaction {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 3.5px;
   border: 1px solid #dfe1e6;
   border-radius: 999px;
-  padding: 0.15rem 0.45rem;
+  padding: 2.1px 6.3px;
   background: mixin.$white;
   color: mixin.$text;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   cursor: pointer;
 }
 .comment-item__reaction--mine {
@@ -800,15 +809,15 @@ defineExpose({ resetComments })
 .comment-item__actions {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
+  gap: 4.9px;
+  margin-top: 4.9px;
 }
 .comment-item__action {
   border: none;
   padding: 0;
   background: transparent;
   color: #5e6c84;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
@@ -825,8 +834,8 @@ defineExpose({ resetComments })
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.35rem;
-    height: 1.35rem;
+    width: 18.9px;
+    height: 18.9px;
     border-radius: 4px;
     &:hover:not(:disabled) {
       text-decoration: none;
@@ -846,8 +855,8 @@ defineExpose({ resetComments })
   left: 0;
   z-index: 20;
   display: flex;
-  gap: 0.2rem;
-  padding: 0.35rem;
+  gap: 2.8px;
+  padding: 4.9px;
   border: 1px solid mixin.$border;
   border-radius: 8px;
   background: mixin.$white;
@@ -856,10 +865,10 @@ defineExpose({ resetComments })
 .comment-item__reaction-choice {
   border: none;
   border-radius: 6px;
-  width: 1.8rem;
-  height: 1.8rem;
+  width: 25.2px;
+  height: 25.2px;
   background: transparent;
-  font-size: 1rem;
+  font-size: 14px;
   cursor: pointer;
   &:hover:not(:disabled) {
     background: mixin.$surface-muted;
@@ -870,7 +879,7 @@ defineExpose({ resetComments })
 }
 .comment-item__action-sep {
   color: #97a0af;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   line-height: 1;
   user-select: none;
 }
@@ -878,20 +887,20 @@ defineExpose({ resetComments })
   display: inline-flex;
 }
 .comment-item__delete-menu {
-  min-width: 13rem;
-  max-width: min(16rem, calc(100vw - 1.5rem));
-  padding: 0.65rem 0.75rem;
+  min-width: 182px;
+  max-width: min(224px, calc(100vw - 21px));
+  padding: 9.1px 10.5px;
   border: 1px solid mixin.$border;
   border-radius: 8px;
   background: mixin.$white;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 7.7px;
 }
 .comment-item__delete-menu-message {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   line-height: 1.45;
   font-weight: 600;
   color: mixin.$text-sub;
@@ -903,10 +912,10 @@ defineExpose({ resetComments })
   align-self: flex-end;
   border: none;
   border-radius: 6px;
-  padding: 0.42rem 0.75rem;
+  padding: 5.88px 10.5px;
   background: mixin.$danger;
   color: mixin.$white;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 700;
   cursor: pointer;
   &:hover:not(:disabled) {
@@ -921,21 +930,21 @@ defineExpose({ resetComments })
   flex-shrink: 0;
   display: flex;
   align-items: flex-end;
-  gap: 0.45rem;
-  padding: 0.65rem 0.75rem 0.75rem;
+  gap: 6.3px;
+  padding: 9.1px 10.5px 10.5px;
   background: mixin.$white;
   border-top: 1px solid mixin.$border-light;
 }
 .chat-input {
   flex: 1 1 auto;
-  min-height: 2.35rem;
-  max-height: 7.5rem;
+  min-height: 32.9px;
+  max-height: 105px;
   resize: none;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.55rem 0.75rem;
+  padding: 7.7px 10.5px;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   line-height: 1.4;
   background: mixin.$white;
 }
@@ -946,10 +955,10 @@ defineExpose({ resetComments })
   flex-shrink: 0;
   border: none;
   border-radius: 8px;
-  padding: 0.55rem 0.85rem;
+  padding: 7.7px 11.9px;
   background: mixin.$main;
   color: mixin.$white;
-  font-size: 0.82rem;
+  font-size: 11.48px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -962,14 +971,14 @@ defineExpose({ resetComments })
 }
 .chat-send-error {
   margin: 0;
-  padding: 0 0.75rem 0.65rem;
+  padding: 0 10.5px 9.1px;
   color: mixin.$danger;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 700;
 }
-@media (max-width: 62rem) {
+@media (max-width: 868px) {
   .task-detail-chat-pane {
-    min-height: 18rem;
+    min-height: 252px;
     border-left: none;
     border-top: 1px solid mixin.$border-light;
   }

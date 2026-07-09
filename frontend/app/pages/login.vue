@@ -28,13 +28,13 @@ function startLogin () {
 }
 </script>
 <style lang="scss" scoped>
-.page { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+.page { max-width: 448px; margin: 28px auto; padding: 0 14px; }
 .muted { color: #64748b; }
-.card { margin-top: 1rem; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; }
-.err { color: #b91c1c; margin-bottom: 0.75rem; }
+.card { margin-top: 14px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; }
+.err { color: #b91c1c; margin-bottom: 10.5px; }
 button {
-  padding: 0.5rem 1rem; border-radius: 6px; border: none; background: #0f172a; color: white;
-  cursor: pointer; font-size: 0.9rem;
+  padding: 7px 14px; border-radius: 6px; border: none; background: #0f172a; color: white;
+  cursor: pointer; font-size: 12.6px;
 }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

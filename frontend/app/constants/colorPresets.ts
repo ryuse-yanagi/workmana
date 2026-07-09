@@ -18,8 +18,8 @@ export const COLOR_PRESETS = [
   '#c883e2',
   // 3行目 — 濃色
   '#1f845a',
-  '#b89400',
-  '#c56f0a',
+  '#946f00',
+  '#bd5b00',
   '#eb1f00',
   '#9e49c5',
   // 4行目 — 淡色
@@ -138,28 +138,36 @@ function parseHexColor (hex: string): [number, number, number] | null {
 }
 /** 淡色スウォッチ（1行目・4行目）のインデックス */
 const LIGHT_COLOR_PRESET_INDICES = new Set([0, 1, 2, 3, 4, 15, 16, 17, 18, 19])
+/** 標準色スウォッチ（2行目・5行目）のインデックス */
+const STANDARD_COLOR_PRESET_INDEX_SET = new Set<number>(STANDARD_COLOR_PRESET_INDICES)
 /** 枠線コントラストが弱い色は専用の濃い枠線を使う */
 const COLOR_SWATCH_BORDER_OVERRIDES: Readonly<Record<string, string>> = {
-  '#fef3b0': '#b89400',
+  '#fef3b0': '#946f00',
   '#ffe600': '#9a7300',
-  '#b89400': '#7a5c00',
 }
 function findColorPresetIndex (hex: string): number {
   const normalized = hex.toLowerCase()
   return COLOR_PRESETS.findIndex(color => color.toLowerCase() === normalized)
 }
-function swatchLuminance (hex: string): number {
-  const rgb = parseHexColor(hex)
-  if (!rgb) {
-    return 0
-  }
-  return (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
+/** 同列の濃色（淡色なら標準色、標準色なら濃色） */
+function darkColorForPresetIndex (presetIndex: number): string | null {
+  const dark = COLOR_PRESETS[presetIndex + 5]
+  return dark ?? null
 }
 /** 標準色に対応する薄い背景色（リスト列など） */
 export function standardColorSurfaceBackground (hex: string): string {
   return STANDARD_COLOR_SURFACE_BY_COLOR[hex.toLowerCase()] ?? '#ffffff'
 }
-/** スウォッチ枠線（淡色は同列の標準色、標準色も淡い場合は濃色） */
+/** 標準色に対応する濃い文字色（ステータスバッジなど） */
+export function standardColorEmphasisText (hex: string): string {
+  const standardIndex = standardColorIndexFromHex(hex)
+  const presetIndex = STANDARD_COLOR_PRESET_INDICES[standardIndex]
+  if (presetIndex === undefined) {
+    return COLOR_PRESETS[10]
+  }
+  return COLOR_PRESETS[presetIndex + 5] ?? COLOR_PRESETS[10]
+}
+/** スウォッチ枠線（淡色・標準色は同列の濃色） */
 export function colorSwatchBorderColor (hex: string): string {
   const normalized = hex.toLowerCase()
   const override = COLOR_SWATCH_BORDER_OVERRIDES[normalized]
@@ -167,15 +175,11 @@ export function colorSwatchBorderColor (hex: string): string {
     return override
   }
   const presetIndex = findColorPresetIndex(hex)
-  if (presetIndex >= 0 && LIGHT_COLOR_PRESET_INDICES.has(presetIndex)) {
-    const standard = COLOR_PRESETS[presetIndex + 5] ?? hex
-    const dark = COLOR_PRESETS[presetIndex + 10] ?? standard
-    const standardLum = swatchLuminance(standard)
-    const fillLum = swatchLuminance(hex)
-    if (standardLum > 0.75 || (fillLum > 0.85 && standardLum - fillLum < 0.15)) {
-      return dark
-    }
-    return standard
+  if (presetIndex >= 0 && (
+    LIGHT_COLOR_PRESET_INDICES.has(presetIndex)
+    || STANDARD_COLOR_PRESET_INDEX_SET.has(presetIndex)
+  )) {
+    return darkColorForPresetIndex(presetIndex) ?? hex
   }
   const rgb = parseHexColor(hex)
   if (!rgb) {
@@ -184,8 +188,12 @@ export function colorSwatchBorderColor (hex: string): string {
   const factor = 0.82
   return `rgb(${Math.round(rgb[0] * factor)}, ${Math.round(rgb[1] * factor)}, ${Math.round(rgb[2] * factor)})`
 }
-/** 選択チェックマークの色（背景の明るさに応じて白/黒） */
+/** 選択チェックマークの色（標準色は白、それ以外は背景輝度で白/黒） */
 export function colorSwatchCheckColor (hex: string): string {
+  const presetIndex = findColorPresetIndex(hex)
+  if (presetIndex >= 0 && STANDARD_COLOR_PRESET_INDEX_SET.has(presetIndex)) {
+    return '#fff'
+  }
   const rgb = parseHexColor(hex)
   if (!rgb) {
     return '#fff'

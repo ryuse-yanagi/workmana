@@ -311,7 +311,7 @@
       :workspace-id="workspaceId"
       :org-labels="orgLabels"
       :workspace-members="workspaceMembers"
-      :project-lists="workspaceLists"
+      :workspace-lists="workspaceLists"
       @updated="syncTaskUpdate"
       @popover-active-change="onPopoverActiveChange"
     />
@@ -790,8 +790,8 @@ watch(loading, async (isLoading) => {
 .workspace-table-board__state,
 .workspace-table-board__error {
   margin: 0;
-  padding: 1rem 0.25rem;
-  font-size: 0.875rem;
+  padding: 14px 3.5px;
+  font-size: 12.25px;
 }
 .workspace-table-board__error {
   color: mixin.$danger;
@@ -807,7 +807,7 @@ watch(loading, async (isLoading) => {
   width: var(--table-width);
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 0.8125rem;
+  font-size: 11.375px;
 }
 .workspace-table__drag-col {
   width: var(--table-drag-col-width);
@@ -830,8 +830,8 @@ watch(loading, async (isLoading) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 21px;
+  height: 21px;
   margin: 0;
   padding: 0;
   border: 1px solid mixin.$border-light;
@@ -857,11 +857,11 @@ watch(loading, async (isLoading) => {
   top: 0;
   z-index: 2;
   min-width: 0;
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   background: mixin.$table-header-bg;
   border-bottom: 1px solid mixin.$table-header-bg;
   text-align: left;
-  font-size: 0.75rem;
+  font-size: 10.5px;
   font-weight: 700;
   color: mixin.$white;
   white-space: nowrap;
@@ -873,7 +873,7 @@ watch(loading, async (isLoading) => {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-right: 0.35rem;
+  padding-right: 4.9px;
 }
 .workspace-table__resize-guide {
   position: absolute;
@@ -938,7 +938,7 @@ watch(loading, async (isLoading) => {
   align-items: center;
   box-sizing: border-box;
   min-height: var(--table-row-height);
-  padding: 0 0.65rem;
+  padding: 0 9.1px;
 }
 .workspace-table__task-row:last-child td {
   border-bottom: none;
@@ -966,7 +966,7 @@ watch(loading, async (isLoading) => {
   min-width: 0;
   width: 100%;
   height: var(--table-row-height);
-  padding-right: 0.65rem;
+  padding-right: 9.1px;
 }
 .workspace-table__title-cell--editable {
   cursor: pointer;
@@ -984,7 +984,7 @@ watch(loading, async (isLoading) => {
   height: var(--table-parent-row-height);
 }
 .workspace-table__title-cell--child {
-  padding-left: 1.35rem;
+  padding-left: 18.9px;
 }
 .workspace-table__title-field {
   flex: 1;
@@ -996,16 +996,16 @@ watch(loading, async (isLoading) => {
   min-height: 100%;
 }
 .workspace-table__title-field--after-toggle {
-  padding-left: 0.35rem;
+  padding-left: 4.9px;
 }
 .workspace-table__title-text,
 .workspace-table__title-input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  padding: 0 0.35rem;
+  padding: 0 4.9px;
   border-radius: 4px;
-  font-size: 0.8125rem;
+  font-size: 11.375px;
   font-weight: inherit;
   font-family: inherit;
   line-height: 1;
@@ -1022,12 +1022,12 @@ watch(loading, async (isLoading) => {
   border: 1px solid transparent;
 }
 .workspace-table__title-input {
-  height: 1.5rem;
-  min-height: 1.5rem;
+  height: 21px;
+  min-height: 21px;
   margin: auto 0;
   border: 1px solid mixin.$border;
   background: #fff;
-  line-height: calc(1.5rem - 2px);
+  line-height: calc(21px - 2px);
 }
 .workspace-table__title-input:focus {
   @include mixin.input-focus-ring;
@@ -1038,7 +1038,7 @@ watch(loading, async (isLoading) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.35rem;
+  width: 18.9px;
   height: auto;
   padding: 0;
   border: none;
@@ -1062,7 +1062,7 @@ watch(loading, async (isLoading) => {
   min-width: 0;
   min-height: var(--table-row-height);
   margin: 0;
-  padding: 0 0.9rem;
+  padding: 0 12.6px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -1111,7 +1111,7 @@ watch(loading, async (isLoading) => {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 0.2rem;
+  gap: 2.8px;
   min-width: 0;
   height: 100%;
   overflow: hidden;
@@ -1137,7 +1137,7 @@ watch(loading, async (isLoading) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 16.8px;
   font-weight: 400;
   line-height: 1;
   transform: translateY(-0.08em);
@@ -1158,7 +1158,7 @@ watch(loading, async (isLoading) => {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 0.2rem;
+  gap: 2.8px;
   min-width: 0;
   overflow: hidden;
 }
@@ -1171,7 +1171,7 @@ watch(loading, async (isLoading) => {
   min-width: var(--table-label-chip-width);
   justify-content: center;
   padding: 0;
-  font-size: 0.68rem;
+  font-size: 9.52px;
   line-height: 1;
 }
 .workspace-table__label-add-chip {
@@ -1192,7 +1192,7 @@ watch(loading, async (isLoading) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.05rem;
+  font-size: 14.7px;
   font-weight: 400;
   line-height: 1;
   transform: translateY(-0.08em);

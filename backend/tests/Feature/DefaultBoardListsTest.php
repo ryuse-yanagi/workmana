@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\Workspace;
 use App\Models\User;
-use App\Support\DefaultBoardLists;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -37,8 +36,11 @@ class DefaultBoardListsTest extends TestCase
             ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/lists")
             ->assertOk()
             ->assertJsonPath('data.0.name', '未着手')
+            ->assertJsonPath('data.0.color_index', 0)
             ->assertJsonPath('data.1.name', '進行中')
-            ->assertJsonPath('data.2.name', '完了');
+            ->assertJsonPath('data.1.color_index', 1)
+            ->assertJsonPath('data.2.name', '完了')
+            ->assertJsonPath('data.2.color_index', 3);
     }
 
     public function test_workspace_creation_uses_organization_default_board_list_settings(): void
@@ -109,13 +111,22 @@ class DefaultBoardListsTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->getJson('/api/orgs/acme/settings')
             ->assertOk()
-            ->assertJsonPath('default_board_list_names', DefaultBoardLists::DEFAULT_NAMES);
+            ->assertJsonPath('default_board_list_names.0.name', '未着手')
+            ->assertJsonPath('default_board_list_names.0.color_index', 0)
+            ->assertJsonPath('default_board_list_names.2.name', '完了')
+            ->assertJsonPath('default_board_list_names.2.color_index', 3);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson('/api/orgs/acme/settings', [
-                'default_board_list_names' => ['To Do', 'Doing', 'Done'],
+                'default_board_list_names' => [
+                    ['name' => 'To Do', 'color_index' => 5],
+                    ['name' => 'Doing', 'color_index' => 1],
+                    ['name' => 'Done', 'color_index' => 3],
+                ],
             ])
             ->assertOk()
-            ->assertJsonPath('default_board_list_names', ['To Do', 'Doing', 'Done']);
+            ->assertJsonPath('default_board_list_names.0.name', 'To Do')
+            ->assertJsonPath('default_board_list_names.0.color_index', 5)
+            ->assertJsonPath('default_board_list_names.2.color_index', 3);
     }
 }

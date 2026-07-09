@@ -301,7 +301,7 @@
       :workspace-id="workspaceId"
       :org-labels="orgLabels"
       :workspace-members="workspaceMembers"
-      :project-lists="workspaceLists"
+      :workspace-lists="workspaceLists"
       @updated="syncTaskUpdate"
     />
     <TaskDetailModal
@@ -865,21 +865,21 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.45rem;
+  gap: 10.5px;
+  margin-bottom: 6.3px;
   flex-shrink: 0;
 }
 .workspace-gantt-board__month-nav {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 4.9px;
 }
 .workspace-gantt-board__month-strip {
   display: flex;
   align-items: flex-end;
   width: fit-content;
   min-width: 100%;
-  margin-bottom: 0.2rem;
+  margin-bottom: 2.8px;
   flex-shrink: 0;
 }
 .workspace-gantt-board__month-strip-spacer {
@@ -888,8 +888,8 @@ defineExpose({
 .workspace-gantt-board__month-strip-label {
   flex: 1;
   min-width: 0;
-  padding-left: 0.35rem;
-  font-size: 0.75rem;
+  padding-left: 4.9px;
+  font-size: 10.5px;
   font-weight: 700;
   color: mixin.$text;
   line-height: 1.2;
@@ -907,16 +907,16 @@ defineExpose({
   font: inherit;
 }
 .workspace-gantt-board__nav-btn {
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 24.5px;
+  height: 24.5px;
   padding: 0;
-  font-size: 1.1rem;
+  font-size: 15.4px;
   line-height: 1;
 }
 .workspace-gantt-board__today-btn {
-  height: 1.75rem;
-  padding: 0 0.65rem;
-  font-size: 0.75rem;
+  height: 24.5px;
+  padding: 0 9.1px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 .workspace-gantt-board__nav-btn:hover,
@@ -948,8 +948,8 @@ defineExpose({
 .workspace-gantt-board__state,
 .workspace-gantt-board__error {
   margin: 0;
-  padding: 1rem 0.25rem;
-  font-size: 0.875rem;
+  padding: 14px 3.5px;
+  font-size: 12.25px;
 }
 .workspace-gantt-board__error {
   color: mixin.$danger;
@@ -971,7 +971,7 @@ defineExpose({
   width: var(--gantt-table-width);
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 0.8125rem;
+  font-size: 11.375px;
 }
 .workspace-gantt-table__task-col {
   width: var(--gantt-task-col-width);
@@ -1007,9 +1007,9 @@ defineExpose({
   width: var(--gantt-task-col-width);
   min-width: var(--gantt-task-col-width);
   max-width: var(--gantt-task-col-width);
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   text-align: left;
-  font-size: 0.75rem;
+  font-size: 10.5px;
   white-space: nowrap;
 }
 .workspace-gantt-table__assignees-header {
@@ -1018,18 +1018,18 @@ defineExpose({
   width: var(--gantt-assignees-col-width);
   min-width: var(--gantt-assignees-col-width);
   max-width: var(--gantt-assignees-col-width);
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   text-align: left;
-  font-size: 0.75rem;
+  font-size: 10.5px;
   white-space: nowrap;
 }
 .workspace-gantt-table__date-header {
   width: var(--gantt-date-col-width);
   min-width: var(--gantt-date-col-width);
   max-width: var(--gantt-date-col-width);
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   text-align: left;
-  font-size: 0.75rem;
+  font-size: 10.5px;
   white-space: nowrap;
 }
 .workspace-gantt-table__date-header--start {
@@ -1044,7 +1044,7 @@ defineExpose({
   width: var(--gantt-day-col-width);
   min-width: var(--gantt-day-col-width);
   max-width: var(--gantt-day-col-width);
-  padding: 0.3rem 0;
+  padding: 4.2px 0;
   line-height: 1.05;
 }
 .workspace-gantt-table__day-header:last-child {
@@ -1058,14 +1058,14 @@ defineExpose({
 }
 .workspace-gantt-table__day-date {
   display: block;
-  font-size: 0.68rem;
+  font-size: 9.52px;
   font-weight: 700;
   line-height: 1.05;
 }
 .workspace-gantt-table__day-weekday {
   display: block;
-  margin-top: 0.02rem;
-  font-size: 0.6rem;
+  margin-top: 0.28px;
+  font-size: 8.4px;
   font-weight: 600;
   line-height: 1.05;
   opacity: 0.92;

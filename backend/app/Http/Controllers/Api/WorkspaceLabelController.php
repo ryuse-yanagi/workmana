@@ -7,6 +7,7 @@ use App\Models\WorkspaceLabel;
 use App\Models\WorkspaceLabelCategory;
 use App\Support\FieldLengthLimits;
 use App\Support\LabelColorPresets;
+use App\Support\SortOrderReorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -95,6 +96,7 @@ class WorkspaceLabelController extends ApiController
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::LABEL_NAME],
             'color_index' => ['sometimes', 'integer', 'min:0', 'max:'.(LabelColorPresets::COUNT - 1)],
+            'sort_order' => ['sometimes', 'integer', 'min:0'],
         ]);
 
         if (array_key_exists('name', $validated)) {
@@ -121,9 +123,56 @@ class WorkspaceLabelController extends ApiController
             $workspaceLabel->color_index = $colorIndex;
         }
 
+        if (array_key_exists('sort_order', $validated)) {
+            $workspaceLabel->sort_order = (int) $validated['sort_order'];
+        }
+
         $workspaceLabel->save();
 
         return response()->json($this->labelPayload($workspaceLabel));
+    }
+
+    public function reorder(Request $request, Organization $organization): JsonResponse
+    {
+        $pivot = $request->attributes->get('organization_membership');
+        if (($pivot->role ?? '') !== 'admin') {
+            abort(403, 'Only organization admins can reorder workspace labels.');
+        }
+
+        $validated = $request->validate([
+            'category_id' => ['required', 'integer', 'exists:workspace_label_categories,id'],
+            'label_ids' => ['present', 'array'],
+            'label_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $category = WorkspaceLabelCategory::query()->find($validated['category_id']);
+        if ($category === null || (int) $category->organization_id !== (int) $organization->id) {
+            return response()->json(['message' => 'Invalid category for this organization.'], 422);
+        }
+
+        /** @var list<int> $labelIds */
+        $labelIds = array_map('intval', $validated['label_ids']);
+
+        $activeLabelIds = WorkspaceLabel::query()
+            ->where('category_id', $category->id)
+            ->pluck('id')
+            ->sort()
+            ->values()
+            ->all();
+
+        SortOrderReorder::assertExactIdSet(
+            $labelIds,
+            $activeLabelIds,
+            'label_ids',
+            'label_ids must include every workspace label in the category exactly once.',
+        );
+
+        SortOrderReorder::apply(
+            WorkspaceLabel::query()->where('category_id', $category->id),
+            $labelIds,
+        );
+
+        return response()->json(['data' => ['ok' => true]]);
     }
 
     public function destroy(Request $request, Organization $organization, WorkspaceLabel $workspaceLabel): JsonResponse

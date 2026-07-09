@@ -67,7 +67,7 @@ function shouldIgnoreOutsideClose (target: Node): boolean {
   }
   return Boolean(target.closest('.workspace-gantt-table__day-cell--clickable'))
 }
-function handleOutsidePointerDown (event: MouseEvent) {
+function handleOutsidePointerUp (event: MouseEvent) {
   if (!props.open || props.saving || event.button !== 0) {
     return
   }
@@ -93,11 +93,11 @@ function handleEscape (event: KeyboardEvent) {
   emit('close')
 }
 function bindOutsideListeners () {
-  document.addEventListener('mousedown', handleOutsidePointerDown, true)
+  document.addEventListener('mouseup', handleOutsidePointerUp, true)
   document.addEventListener('keydown', handleEscape, true)
 }
 function unbindOutsideListeners () {
-  document.removeEventListener('mousedown', handleOutsidePointerDown, true)
+  document.removeEventListener('mouseup', handleOutsidePointerUp, true)
   document.removeEventListener('keydown', handleEscape, true)
 }
 watch(() => props.open, (open) => {
@@ -127,6 +127,6 @@ defineExpose({
 </style>
 <style lang="scss">
 .popover.popover--gantt-color {
-  padding: 0.75rem 0.85rem 0.9rem;
+  padding: 10.5px 11.9px 12.6px;
 }
 </style>

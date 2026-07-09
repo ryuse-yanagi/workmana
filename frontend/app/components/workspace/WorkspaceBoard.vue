@@ -17,12 +17,6 @@
           </NuxtLink>
           <WorkspaceViewSwitcher :org-slug="slug" :workspace-id="workspaceId" />
           <div class="subheader-filters">
-            <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
-              <option value="">全ラベル</option>
-              <option v-for="label in orgLabels" :key="label.id" :value="String(label.id)">
-                {{ label.name }}
-              </option>
-            </select>
             <p class="subheader-count" aria-live="polite">{{ visibleTaskCount }} 件</p>
             <input
               v-model.trim="searchQuery"
@@ -32,7 +26,18 @@
               aria-label="タスク名検索"
             />
           </div>
-          <div class="subheader-menu" data-subheader-menu-root>
+          <div class="subheader-actions" data-subheader-actions-root>
+            <button
+              ref="boardFilterTriggerRef"
+              type="button"
+              class="subheader-menu-trigger"
+              :aria-expanded="boardFilterOpen"
+              aria-haspopup="dialog"
+              aria-label="絞り込み"
+              @click.stop="toggleBoardFilter"
+            >
+              <ListFilter :size="24" :stroke-width="2.25" aria-hidden="true" />
+            </button>
             <button
               ref="subheaderMenuTriggerRef"
               type="button"
@@ -185,7 +190,7 @@
               >
                 <template #item="{ element: task }">
                   <article
-                    v-show="isTaskVisible(task)"
+                    v-show="visibleTaskIdSet.has(task.id)"
                     :data-task-id="task.id"
                     :class="[
                       'task-card',
@@ -312,6 +317,7 @@
                   @mousedown.prevent
                   @click="openTaskCreateModal(list.listId)"
                 >
+                  <FilePlus :size="20" :stroke-width="2.25" aria-hidden="true" />
                   タスク追加
                 </button>
               </div>
@@ -387,6 +393,80 @@
       </div>
     </template>
     <Teleport to="body">
+      <div
+        v-if="boardFilterOpen && boardFilterPosition"
+        class="board-filter-dropdown"
+        role="dialog"
+        aria-label="絞り込み"
+        :style="boardFilterStyle"
+        @click.stop
+      >
+        <section class="board-filter-section">
+          <h3 class="board-filter-section-title">担当者</h3>
+          <ul class="board-filter-options">
+            <li>
+              <label class="board-filter-option">
+                <input
+                  type="checkbox"
+                  :checked="isAssigneeFilterSelected('unset')"
+                  @change="setAssigneeFilter('unset', $event)"
+                >
+                <span>未設定</span>
+              </label>
+            </li>
+            <li v-for="member in workspaceMembers" :key="member.id">
+              <label class="board-filter-option">
+                <input
+                  type="checkbox"
+                  :checked="isAssigneeFilterSelected(String(member.id))"
+                  @change="setAssigneeFilter(String(member.id), $event)"
+                >
+                <span>{{ memberDisplayName(member) }}</span>
+              </label>
+            </li>
+          </ul>
+        </section>
+        <section class="board-filter-section">
+          <h3 class="board-filter-section-title">ラベル</h3>
+          <ul class="board-filter-options">
+            <li>
+              <label class="board-filter-option">
+                <input
+                  type="checkbox"
+                  :checked="isLabelFilterSelected('unset')"
+                  @change="toggleLabelFilter('unset')"
+                >
+                <span>未設定</span>
+              </label>
+            </li>
+            <li v-for="label in orgLabels" :key="label.id">
+              <label class="board-filter-option">
+                <input
+                  type="checkbox"
+                  :checked="isLabelFilterSelected(String(label.id))"
+                  @change="toggleLabelFilter(String(label.id))"
+                >
+                <span>{{ label.name }}</span>
+              </label>
+            </li>
+          </ul>
+        </section>
+        <section class="board-filter-section">
+          <h3 class="board-filter-section-title">日程</h3>
+          <ul class="board-filter-options">
+            <li v-for="option in scheduleFilterOptions" :key="option.key">
+              <label class="board-filter-option">
+                <input
+                  type="checkbox"
+                  :checked="isScheduleFilterSelected(option.key)"
+                  @change="toggleScheduleFilter(option.key)"
+                >
+                <span>{{ option.label }}</span>
+              </label>
+            </li>
+          </ul>
+        </section>
+      </div>
       <div
         v-if="subheaderMenuOpen && subheaderMenuPosition"
         class="subheader-menu-dropdown"
@@ -473,7 +553,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { CalendarDays, Clock, Ellipsis, ListPlus, ListTree, Pencil, Trash2 } from 'lucide-vue-next'
+import { CalendarDays, Clock, Ellipsis, FilePlus, ListFilter, ListPlus, ListTree, Pencil, Trash2 } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import ArchivedTasksModal from '../modals/ArchivedTasksModal.vue'
 import ListCreateModal from '../modals/ListCreateModal.vue'
@@ -502,6 +582,7 @@ import {
   hasTaskCardScheduleMeta,
   resolveParentTaskTitle,
 } from '../../composables/useTaskCardMeta'
+import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 import { useWorkspaceRealtimeChannel } from '../../composables/useWorkspaceRealtimeChannel'
 import { resolveLabelColors, withResolvedListColor } from '../../utils/colorPresetResolution'
 import {
@@ -533,11 +614,26 @@ const pageReady = ref(false)
 const fatalLoadError = ref<string | null>(null)
 const searchQuery = ref('')
 const subheaderMenuOpen = ref(false)
+const boardFilterOpen = ref(false)
 const archivedModalOpen = ref(false)
 const archivedModalRef = ref<InstanceType<typeof ArchivedTasksModal> | null>(null)
 const subheaderMenuTriggerRef = ref<HTMLElement | null>(null)
+const boardFilterTriggerRef = ref<HTMLElement | null>(null)
 const subheaderMenuPosition = ref<{ top: number; left: number } | null>(null)
+const boardFilterPosition = ref<{ top: number; left: number } | null>(null)
 const SUBHEADER_MENU_MIN_WIDTH = 200
+const BOARD_FILTER_WIDTH = 384
+const BOARD_FILTER_BOTTOM_OFFSET = 12
+type ScheduleFilterKey = 'unset' | 'before_start' | 'in_progress' | 'after_end'
+const scheduleFilterOptions: Array<{ key: ScheduleFilterKey; label: string }> = [
+  { key: 'unset', label: '未設定' },
+  { key: 'before_start', label: '開始予定前' },
+  { key: 'in_progress', label: '進行中' },
+  { key: 'after_end', label: '終了予定後' },
+]
+const assigneeFilterSelected = ref<string[]>([])
+const labelFilterSelected = ref(new Set<string>())
+const scheduleFilterSelected = ref(new Set<ScheduleFilterKey>())
 const listCreateOpen = ref(false)
 const listCreateLoading = ref(false)
 const listModalMode = ref<'create' | 'edit'>('create')
@@ -559,7 +655,6 @@ const orgLabels = ref<Label[]>([])
 const workspaceMembers = ref<TaskDetailMember[]>([])
 const boardParentTasks = ref<Array<{ id: number; title: string }>>([])
 const taskCommentsByTaskId = ref<TaskCommentsByTaskId>({})
-const labelFilterId = ref('')
 const editingListKey = ref<string | null>(null)
 const listEditDrafts = reactive<Record<string, string>>({})
 const listRenamePending = ref(false)
@@ -619,7 +714,7 @@ const globalHeaderOffsetPx = ref(46)
 const boardPageCssVars = computed(() => {
   return {
     '--global-header-offset': `${globalHeaderOffsetPx.value}px`,
-    '--app-shell-page-pad': '0.25rem',
+    '--app-shell-page-pad': '3.5px',
   } as Record<string, string>
 })
 let globalHeaderObserver: ResizeObserver | null = null
@@ -732,6 +827,20 @@ const subheaderMenuStyle = computed(() => {
     zIndex: 1000,
   }
 })
+const boardFilterStyle = computed(() => {
+  if (!boardFilterPosition.value) {
+    return {}
+  }
+  const { top, left } = boardFilterPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    bottom: `${BOARD_FILTER_BOTTOM_OFFSET}px`,
+    width: `${BOARD_FILTER_WIDTH}px`,
+    zIndex: 1000,
+  }
+})
 const openListMenuList = computed(() => {
   const key = openListMenuKey.value
   if (!key) {
@@ -770,16 +879,162 @@ const filteredTaskIds = computed<Set<number> | null>(() => {
   }
   return ids
 })
+function normalizeTaskDate (value: string | null | undefined): string | null {
+  if (!value) {
+    return null
+  }
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) {
+    return null
+  }
+  return `${match[1]}-${match[2]}-${match[3]}`
+}
+function todayIso (): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+function compareIsoDates (left: string, right: string): number {
+  return left.localeCompare(right)
+}
+function getTaskScheduleCategories (task: Task, today: string): ScheduleFilterKey[] {
+  const startIso = normalizeTaskDate(task.start_date)
+  const dueIso = normalizeTaskDate(task.due_date)
+  const categories: ScheduleFilterKey[] = []
+  if (!startIso && !dueIso) {
+    categories.push('unset')
+    return categories
+  }
+  if (startIso && compareIsoDates(today, startIso) < 0) {
+    categories.push('before_start')
+  }
+  if (dueIso && compareIsoDates(today, dueIso) > 0) {
+    categories.push('after_end')
+  }
+  let inProgress = false
+  if (startIso && !dueIso) {
+    inProgress = compareIsoDates(today, startIso) >= 0
+  } else if (!startIso && dueIso) {
+    inProgress = compareIsoDates(today, dueIso) <= 0
+  } else if (startIso && dueIso) {
+    inProgress = compareIsoDates(today, startIso) >= 0 && compareIsoDates(today, dueIso) <= 0
+  }
+  if (inProgress) {
+    categories.push('in_progress')
+  }
+  return categories
+}
+function taskAssigneeUserIds (task: Task): number[] {
+  const relationIds = (task.assignees ?? [])
+    .map(assignee => assignee.id)
+    .filter(id => Number.isFinite(id))
+  if (relationIds.length > 0) {
+    return relationIds
+  }
+  const legacyAssigneeId = (task as Task & { assignee_id?: number | null }).assignee_id
+  if (legacyAssigneeId != null && Number.isFinite(legacyAssigneeId)) {
+    return [legacyAssigneeId]
+  }
+  return []
+}
+function matchesAssigneeFilter (task: Task): boolean {
+  const selected = assigneeFilterSelected.value
+  if (selected.length === 0) {
+    return true
+  }
+  const assigneeIds = taskAssigneeUserIds(task)
+  const selectedMemberIds = selected.filter(key => key !== 'unset')
+  const includesUnset = selected.includes('unset')
+  const matchesUnset = includesUnset && assigneeIds.length === 0
+  const matchesMember = selectedMemberIds.length > 0
+    && assigneeIds.some(id => selectedMemberIds.includes(String(id)))
+  return matchesUnset || matchesMember
+}
+function matchesLabelFilter (task: Task): boolean {
+  if (labelFilterSelected.value.size === 0) {
+    return true
+  }
+  const labels = task.labels ?? []
+  if (labelFilterSelected.value.has('unset') && labels.length === 0) {
+    return true
+  }
+  return labels.some(label => labelFilterSelected.value.has(String(label.id)))
+}
+function matchesScheduleFilter (task: Task): boolean {
+  if (scheduleFilterSelected.value.size === 0) {
+    return true
+  }
+  const categories = getTaskScheduleCategories(task, todayIso())
+  return categories.some(category => scheduleFilterSelected.value.has(category))
+}
+function isAssigneeFilterSelected (key: string): boolean {
+  return assigneeFilterSelected.value.includes(key)
+}
+function setAssigneeFilter (key: string, event: Event) {
+  const input = event.target
+  if (!(input instanceof HTMLInputElement)) {
+    return
+  }
+  const selected = new Set(assigneeFilterSelected.value)
+  if (input.checked) {
+    selected.add(key)
+  } else {
+    selected.delete(key)
+  }
+  assigneeFilterSelected.value = [...selected]
+}
+function isLabelFilterSelected (key: string): boolean {
+  return labelFilterSelected.value.has(key)
+}
+function toggleLabelFilter (key: string) {
+  const next = new Set(labelFilterSelected.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  labelFilterSelected.value = next
+}
+function isScheduleFilterSelected (key: ScheduleFilterKey): boolean {
+  return scheduleFilterSelected.value.has(key)
+}
+function toggleScheduleFilter (key: ScheduleFilterKey) {
+  const next = new Set(scheduleFilterSelected.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  scheduleFilterSelected.value = next
+}
 function isTaskVisible (task: Task) {
   const ids = filteredTaskIds.value
   const byQuery = !ids || ids.has(task.id)
-  if (!byQuery) return false
-  if (!labelFilterId.value) return true
-  return (task.labels ?? []).some(label => String(label.id) === labelFilterId.value)
+  if (!byQuery) {
+    return false
+  }
+  if (!matchesAssigneeFilter(task)) {
+    return false
+  }
+  if (!matchesLabelFilter(task)) {
+    return false
+  }
+  return matchesScheduleFilter(task)
 }
+const visibleTaskIdSet = computed(() => {
+  const ids = new Set<number>()
+  for (const task of tasks.value ?? []) {
+    if (isTaskVisible(task)) {
+      ids.add(task.id)
+    }
+  }
+  return ids
+})
 function visibleCount (listKey: string) {
   const cards = tasksByList[listKey] ?? []
-  return cards.filter(isTaskVisible).length
+  return cards.filter(task => visibleTaskIdSet.value.has(task.id)).length
 }
 /** 空リスト用の余白スタイル（ドラッグ中のソース列の見かけの空きも含む） */
 function isListColumnEmpty (listKey: string): boolean {
@@ -807,11 +1062,20 @@ function isListColumnEmpty (listKey: string): boolean {
   }
   return count === 0
 }
-const visibleTaskCount = computed(() => {
-  const list = tasks.value
-  if (!list?.length) return 0
-  return list.filter(task => isTaskVisible(task)).length
-})
+const visibleTaskCount = computed(() => visibleTaskIdSet.value.size)
+const anyBoardDropdownOpen = computed(() => (
+  boardFilterOpen.value
+  || subheaderMenuOpen.value
+  || openCardMenuTaskId.value !== null
+  || openListMenuKey.value !== null
+))
+function closeAnyBoardDropdown () {
+  closeBoardFilter()
+  closeSubheaderMenu()
+  closeCardMenu()
+  closeListMenu()
+}
+useDropdownEscapeClose(anyBoardDropdownOpen, closeAnyBoardDropdown)
 function rebuildBoardFromTasks () {
   for (const key of Object.keys(tasksByList)) {
     delete tasksByList[key]
@@ -898,6 +1162,7 @@ function toggleListMenu (listKey: string, event: MouseEvent) {
   }
   closeCardMenu()
   closeSubheaderMenu()
+  closeBoardFilter()
   const el = event.currentTarget
   if (!(el instanceof HTMLElement)) {
     return
@@ -912,6 +1177,10 @@ function openArchivedModal () {
 function closeSubheaderMenu () {
   subheaderMenuOpen.value = false
   subheaderMenuPosition.value = null
+}
+function closeBoardFilter () {
+  boardFilterOpen.value = false
+  boardFilterPosition.value = null
 }
 function positionSubheaderMenu () {
   const anchor = subheaderMenuTriggerRef.value
@@ -934,8 +1203,40 @@ function toggleSubheaderMenu () {
     closeSubheaderMenu()
     return
   }
+  closeBoardFilter()
   subheaderMenuOpen.value = true
   nextTick(() => positionSubheaderMenu())
+}
+function positionBoardFilter () {
+  const anchor = boardFilterTriggerRef.value
+  if (!anchor || !import.meta.client) {
+    boardFilterPosition.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const pad = 8
+  const gap = 6
+  let left = rect.right - BOARD_FILTER_WIDTH
+  left = Math.max(pad, Math.min(left, window.innerWidth - BOARD_FILTER_WIDTH - pad))
+  boardFilterPosition.value = {
+    top: rect.bottom + gap,
+    left,
+  }
+}
+function openBoardFilter () {
+  if (boardFilterOpen.value) {
+    return
+  }
+  closeSubheaderMenu()
+  boardFilterOpen.value = true
+  nextTick(() => positionBoardFilter())
+}
+function toggleBoardFilter () {
+  if (boardFilterOpen.value) {
+    closeBoardFilter()
+    return
+  }
+  openBoardFilter()
 }
 function closeCardMenu () {
   openCardMenuTaskId.value = null
@@ -996,10 +1297,25 @@ function onGlobalClick (ev: Event) {
     if (el && el.closest('.card-menu')) {
       return
     }
-    if (el && el.closest('[data-subheader-menu-root]')) {
+    if (el && el.closest('[data-subheader-actions-root]')) {
+      return
+    }
+    if (el && el.closest('[data-workspace-view-switcher-root]')) {
+      return
+    }
+    if (el && el.closest('.workspace-view-switcher-menu')) {
+      return
+    }
+    if (el && el.closest('.workspace-table__cell-btn')) {
+      return
+    }
+    if (el && el.closest('.popover-layer, .popover')) {
       return
     }
     if (el && el.closest('.subheader-menu-dropdown')) {
+      return
+    }
+    if (el && el.closest('.board-filter-dropdown')) {
       return
     }
     if (el && el.closest('.list-header-menu-host')) {
@@ -1011,11 +1327,13 @@ function onGlobalClick (ev: Event) {
   }
   closeCardMenu()
   closeSubheaderMenu()
+  closeBoardFilter()
   closeListMenu()
 }
 function onWindowResize () {
   closeCardMenu()
   closeSubheaderMenu()
+  closeBoardFilter()
   closeListMenu()
   updateStickyOffsets()
   updateDropZoneScrollableState()
@@ -1268,6 +1586,29 @@ function isListColumnHitTestTarget (col: HTMLElement): boolean {
 function findListColumnByKey (listKey: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`.list-column[data-list-key="${listKey}"]`)
 }
+/** ポインタ直下の表示中タスク（カード上にカーソルがあるとき） */
+function resolvePointerTask (): Task | null {
+  if (!import.meta.client || !tasks.value) {
+    return null
+  }
+  const hitEl = document.elementFromPoint(boardPointerX, boardPointerY)
+  if (!(hitEl instanceof Element)) {
+    return null
+  }
+  const cardEl = hitEl.closest('.task-card[data-task-id]')
+  if (!(cardEl instanceof HTMLElement)) {
+    return null
+  }
+  const taskId = getTaskIdFromDragEl(cardEl)
+  if (taskId === null) {
+    return null
+  }
+  const task = tasks.value.find(row => row.id === taskId) ?? null
+  if (!task || !isTaskVisible(task)) {
+    return null
+  }
+  return task
+}
 /** ポインタ位置が属するリスト ID（列内・列下の余白も含む） */
 function resolvePointerListId (): number | null {
   if (!import.meta.client) {
@@ -1325,6 +1666,7 @@ function canUseBoardKeyboardShortcut (): boolean {
     || listDeleteOpen.value
     || archiveConfirmTaskOpen.value
     || subheaderMenuOpen.value
+    || boardFilterOpen.value
     || openCardMenuTaskId.value !== null
     || openListMenuKey.value !== null
     || editingListKey.value
@@ -1338,7 +1680,26 @@ function canUseBoardKeyboardShortcut (): boolean {
   return true
 }
 function onBoardKeydown (event: KeyboardEvent) {
-  if (event.key !== 'n' && event.key !== 'N') {
+  const key = event.key
+  if (key === 'Enter') {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
+      return
+    }
+    if (isKeyboardShortcutBlockedTarget(event.target)) {
+      return
+    }
+    if (!canUseBoardKeyboardShortcut()) {
+      return
+    }
+    const task = resolvePointerTask()
+    if (!task) {
+      return
+    }
+    event.preventDefault()
+    openTaskDetail(task)
+    return
+  }
+  if (key !== 'n' && key !== 'N' && key !== 'f' && key !== 'F') {
     return
   }
   if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
@@ -1348,6 +1709,11 @@ function onBoardKeydown (event: KeyboardEvent) {
     return
   }
   if (!canUseBoardKeyboardShortcut()) {
+    return
+  }
+  if (key === 'f' || key === 'F') {
+    event.preventDefault()
+    openBoardFilter()
     return
   }
   const listId = resolvePointerListId()
@@ -2546,9 +2912,9 @@ onBeforeUnmount(() => {
 </script>
 <style lang="scss" scoped>
 .board-page {
-  height: calc(100dvh - var(--global-header-offset, 46px));
-  padding: 0 1rem 0;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
+  height: calc(100dvh - var(--global-header-offset, 56px));
+  padding: 0 14px 0;
+  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
   padding-top: 0;
   display: flex;
   flex-direction: column;
@@ -2565,18 +2931,11 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 40;
   flex-shrink: 0;
-  margin-bottom: 0.2rem;
-  width: calc(100% + 2rem);
-  margin-left: -1rem;
-  margin-right: -1rem;
-  box-sizing: border-box;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  padding: 0 1.4rem 0 0.9rem;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.35);
-  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.18);
+  width: calc(100% + 28px);
+  margin-left: -14px;
+  margin-right: -14px;
+  @include mixin.page-header-shell;
+  padding: 0 19.6px 0 12.6px;
 }
 .page-header > * {
   width: 100%;
@@ -2585,7 +2944,7 @@ onBeforeUnmount(() => {
 .subheader {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 7px;
   height: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -2596,26 +2955,19 @@ onBeforeUnmount(() => {
   display: none;
 }
 .subheader-title {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 900;
-  color: #2b2e2f;
-  line-height: 1.1;
-  flex-shrink: 0;
+  @include mixin.page-header-title;
 }
 .subheader-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 4.2px;
   border: none;
   background: transparent;
   font-family: inherit;
-  font-size: 0.9rem;
-  font-weight: 900;
   cursor: pointer;
   padding: 0;
   text-decoration: none;
-  color: mixin.$main-aqua;
+  color: mixin.$main;
   letter-spacing: 0.05em;
   line-height: 1.1;
   transition: color 0.16s ease;
@@ -2639,49 +2991,42 @@ onBeforeUnmount(() => {
 .subheader-filters {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 6.3px;
   flex: 1;
   min-width: 0;
 }
-.header-search,
-.header-sort {
+.header-search {
+  flex: 1;
+  min-width: 84px;
+  max-width: 252px;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0 0.55rem;
-  font-size: 0.82rem;
+  padding: 0 7.7px;
+  font-size: 11.48px;
   background: #fff;
   color: #0f172a;
   box-sizing: border-box;
   height: 32px;
   line-height: 32px;
 }
-.header-search {
-  flex: 1;
-  min-width: 6rem;
-  max-width: 18rem;
-}
 .header-search::placeholder {
   color: #94a3b8;
 }
-.header-search:focus,
-.header-sort:focus {
+.header-search:focus {
   @include mixin.input-focus-ring;
-}
-.header-sort {
-  flex-shrink: 0;
-  width: 6.75rem;
-  padding-right: 1.5rem;
-  cursor: pointer;
 }
 .subheader-count {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 11.48px;
   font-weight: 600;
   color: #64748b;
   white-space: nowrap;
   flex-shrink: 0;
 }
-.subheader-menu {
+.subheader-actions {
+  display: flex;
+  align-items: center;
+  gap: 2.8px;
   flex-shrink: 0;
 }
 .subheader-menu-trigger {
@@ -2696,33 +3041,79 @@ onBeforeUnmount(() => {
   line-height: 0;
 }
 .subheader-menu-dropdown {
-  min-width: 12.5rem;
+  min-width: 175px;
   box-sizing: border-box;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  padding: 0.35rem;
+  padding: 4.9px;
 }
 .subheader-menu-item {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 6.3px;
   width: 100%;
   box-sizing: border-box;
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   border: none;
   background: transparent;
   border-radius: 8px;
   font: inherit;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: 12.04px;
   text-decoration: none;
   text-align: left;
   cursor: pointer;
 }
 .subheader-menu-item:hover:not(:disabled) {
   background: #f1f5f9;
+}
+.board-filter-dropdown {
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  padding: 10px 0 12px;
+}
+.board-filter-section + .board-filter-section {
+  margin-top: 14px;
+}
+.board-filter-section-title {
+  margin: 0;
+  padding: 4px 14px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+.board-filter-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.board-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 7.7px;
+  margin: 0 8px;
+  padding: 6px 6px;
+  border-radius: 8px;
+  font-size: 12.04px;
+  color: #0f172a;
+  cursor: pointer;
+}
+.board-filter-option:hover {
+  background: #f8fafc;
+}
+.board-filter-option input[type='checkbox'] {
+  margin: 0;
+  flex-shrink: 0;
 }
 .subheader-menu-item:disabled {
   opacity: 0.55;
@@ -2739,12 +3130,12 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 .board {
-  width: calc(100% + 2rem);
+  width: calc(100% + 28px);
   max-width: none;
-  margin: 0.55rem -1rem 0;
+  margin: 7.7px -14px 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 2rem;
+  padding-bottom: 28px;
   margin-bottom: 0;
   flex: 1;
   min-height: 0;
@@ -2768,19 +3159,19 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: row;
   align-items: start;
-  gap: 0.9rem;
+  gap: 12.6px;
   width: max-content;
   margin-inline: auto;
-  padding-inline: 1rem;
+  padding-inline: 14px;
   box-sizing: border-box;
 }
 .board-lists-sortable {
   --task-card-width: 246px;
-  --list-column-width: calc(var(--task-card-width) + 1.5rem);
+  --list-column-width: calc(var(--task-card-width) + 21px);
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: var(--list-column-width);
-  gap: 0.9rem;
+  gap: 12.6px;
   align-items: start;
 }
 .board-lists-sortable .list-column {
@@ -2791,7 +3182,7 @@ onBeforeUnmount(() => {
 }
 .board-lists-sortable .list-column.drag-ghost {
   border: 1px dashed #94a3b8;
-  min-height: 3.5rem;
+  min-height: 49px;
   opacity: 1;
 }
 .board-lists-sortable .list-column.drag-active {
@@ -2818,7 +3209,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-self: start;
   height: auto;
-  max-height: calc(100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px) - 3rem);
+  max-height: calc(100dvh - var(--tm-global-header-height, 56px) - var(--tm-page-header-height, 48px) - 42px);
   box-sizing: border-box;
   position: relative;
   background: mixin.$list-column-bg;
@@ -2831,8 +3222,8 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.8rem;
+  gap: 7px;
+  padding: 11.2px;
   flex-shrink: 0;
   cursor: pointer;
   touch-action: none;
@@ -2859,12 +3250,12 @@ onBeforeUnmount(() => {
   margin: 0;
   width: 100%;
   box-sizing: border-box;
-  font-size: 1.1rem;
+  font-size: 15.4px;
   line-height: 1.35;
   font-weight: 700;
   font-family: inherit;
   color: #fff;
-  padding: 0.1rem 0.6rem;
+  padding: 1.4px 8.4px;
   border: 1px solid transparent;
   border-radius: 4px;
   overflow-wrap: anywhere;
@@ -2906,23 +3297,23 @@ onBeforeUnmount(() => {
 .list-header-right {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 2.1px;
   flex-shrink: 0;
 }
 .edit-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 5.6px;
 }
 .ghost-btn.small {
-  padding: 0.35rem 0.55rem;
-  font-size: 0.78rem;
+  padding: 4.9px 7.7px;
+  font-size: 10.92px;
   border-radius: 8px;
 }
 .card-edit-form {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
   touch-action: auto;
   user-select: text;
   -webkit-user-select: text;
@@ -2932,9 +3323,9 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 6px;
-  padding: 0.2rem 0.35rem;
+  padding: 2.8px 4.9px;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 12.25px;
   font-weight: 700;
   line-height: 1.25;
   color: #0f172a;
@@ -2950,11 +3341,11 @@ onBeforeUnmount(() => {
 }
 .list-count {
   border-radius: 999px;
-  font-size: 1rem;
-  padding: 0.12rem 0.55rem;
+  font-size: 14px;
+  padding: 1.68px 7.7px;
   color: #fff;
   font-weight: 600;
-  margin-right: 0.1rem;
+  margin-right: 1.4px;
 }
 .list-header-menu-host {
   display: inline-flex;
@@ -2964,12 +3355,12 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.85rem;
-  height: 1.85rem;
+  width: 25.9px;
+  height: 25.9px;
   border: none;
   border-radius: 999px;
   padding: 0;
-  margin: -0.15rem -0.1rem -0.15rem 0;
+  margin: -2.1px -1.4px -2.1px 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.92);
   cursor: pointer;
@@ -2983,7 +3374,7 @@ onBeforeUnmount(() => {
 }
 .list-header-menu-dropdown {
   margin: 0;
-  padding: 0.35rem 0;
+  padding: 4.9px 0;
   list-style: none;
   background: #fff;
   border: 1px solid mixin.$border;
@@ -2995,9 +3386,9 @@ onBeforeUnmount(() => {
   width: 100%;
   border: none;
   background: transparent;
-  padding: 0.55rem 0.85rem;
+  padding: 7.7px 11.9px;
   text-align: left;
-  font-size: 0.86rem;
+  font-size: 12.04px;
   font-weight: 600;
   color: mixin.$text;
   cursor: pointer;
@@ -3016,16 +3407,16 @@ onBeforeUnmount(() => {
   }
 }
 .list-drop-zone {
-  padding: 0.65rem 0.75rem 0;
+  padding: 9.1px 10.5px 0;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.45rem;
+  gap: 6.3px;
   flex: 0 1 auto;
   min-height: 0;
-  max-height: calc(100dvh - var(--tm-global-header-height, 46px) - var(--tm-page-header-height, 48px) - 8.5rem);
+  max-height: calc(100dvh - var(--tm-global-header-height, 56px) - var(--tm-page-header-height, 48px) - 119px);
   position: relative;
   scrollbar-width: none;
 }
@@ -3051,7 +3442,7 @@ onBeforeUnmount(() => {
 }
 .list-column--empty .list-drop-zone {
   padding-top: 0;
-  padding-bottom: 0.1rem;
+  padding-bottom: 1.4px;
   gap: 0;
 }
 /* 他リストへ移動中はソース列にプレースホルダを出さない */
@@ -3076,7 +3467,7 @@ onBeforeUnmount(() => {
   overflow: hidden !important;
 }
 .list-column--tail-target .list-drop-zone {
-  min-height: 2.75rem;
+  min-height: 38.5px;
 }
 .drag-ghost--tail-preview {
   flex-shrink: 0;
@@ -3140,7 +3531,7 @@ onBeforeUnmount(() => {
   background: #fff;
   border: 1px solid mixin.$border;
   border-radius: 10px;
-  padding: 0.45rem 0.55rem;
+  padding: 6.3px 7.7px;
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
   user-select: none;
@@ -3151,7 +3542,7 @@ onBeforeUnmount(() => {
   border-color: #2563eb;
 }
 .task-card--parent .task-title {
-  font-size: 0.9375rem;
+  font-size: 13.125px;
   color: mixin.$main;
 }
 .task-card--fade-in {
@@ -3203,9 +3594,9 @@ onBeforeUnmount(() => {
   visibility: visible !important;
 }
 .task-parent-title {
-  margin: 0 0 0.2rem;
+  margin: 0 0 2.8px;
   max-width: 100%;
-  font-size: 0.75rem;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1.25;
   color: mixin.$main;
@@ -3216,13 +3607,13 @@ onBeforeUnmount(() => {
 .task-title-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.3rem;
+  gap: 4.2px;
   margin: 0;
   min-width: 0;
 }
 .task-title-row__icon {
   flex-shrink: 0;
-  margin-top: 0.12rem;
+  margin-top: 1.68px;
   color: mixin.$main;
 }
 .task-title {
@@ -3230,7 +3621,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  font-size: 0.875rem;
+  font-size: 12.25px;
   font-weight: 700;
   line-height: 1.25;
   white-space: normal;
@@ -3240,15 +3631,15 @@ onBeforeUnmount(() => {
 .task-card-meta {
   display: flex;
   flex-direction: column;
-  gap: 0.18rem;
-  margin-top: 0.35rem;
+  gap: 2.52px;
+  margin-top: 4.9px;
 }
 .task-card-meta__row {
   display: inline-flex;
   align-items: center;
-  gap: 0.28rem;
+  gap: 3.92px;
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   font-weight: 600;
   line-height: 1.25;
   color: #64748b;
@@ -3265,15 +3656,15 @@ onBeforeUnmount(() => {
 .task-card-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.3rem;
+  margin-top: 4.2px;
 }
 .task-card-members {
   display: flex;
   align-items: center;
 }
 .task-card-member {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 17.5px;
+  height: 17.5px;
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
@@ -3285,7 +3676,7 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 .task-card-member + .task-card-member {
-  margin-left: -0.35rem;
+  margin-left: -4.9px;
 }
 .task-card-member-image {
   width: 100%;
@@ -3293,7 +3684,7 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 .task-card-member-initial {
-  font-size: 0.56rem;
+  font-size: 7.84px;
   font-weight: 700;
   color: mixin.$text-sub;
   line-height: 1;
@@ -3304,8 +3695,8 @@ onBeforeUnmount(() => {
 }
 .card-menu-wrap {
   position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
+  top: 3.5px;
+  right: 3.5px;
   z-index: 2;
   opacity: 0;
   pointer-events: none;
@@ -3324,7 +3715,7 @@ onBeforeUnmount(() => {
   background: #fff;
   color: #64748b;
   line-height: 1;
-  padding: 0.2rem;
+  padding: 2.8px;
   border-radius: 999px;
   cursor: pointer;
 }
@@ -3334,9 +3725,9 @@ onBeforeUnmount(() => {
 }
 .card-menu {
   margin: 0;
-  padding: 0.25rem 0;
+  padding: 3.5px 0;
   list-style: none;
-  min-width: 9rem;
+  min-width: 126px;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -3347,8 +3738,8 @@ onBeforeUnmount(() => {
   text-align: left;
   border: none;
   background: transparent;
-  padding: 0.45rem 0.75rem;
-  font-size: 0.88rem;
+  padding: 6.3px 10.5px;
+  font-size: 12.32px;
   font-weight: 600;
   cursor: pointer;
   color: #0f172a;
@@ -3358,21 +3749,21 @@ onBeforeUnmount(() => {
 }
 .undo-toast {
   position: fixed;
-  bottom: 3rem;
+  bottom: 42px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 55;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-width: 24rem;
-  max-width: min(42rem, calc(100vw - 1.5rem));
-  gap: 0.7rem;
-  padding: 0.7rem 1.1rem;
+  min-width: 336px;
+  max-width: min(588px, calc(100vw - 21px));
+  gap: 9.8px;
+  padding: 9.8px 15.4px;
   background: mixin.$main;
   color: mixin.$white;
   border-radius: 10px;
-  font-size: 1rem;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.55;
   white-space: nowrap;
@@ -3387,10 +3778,10 @@ onBeforeUnmount(() => {
   border: none;
   background: transparent;
   color: #ffffff;
-  font-size: 1.35rem;
+  font-size: 18.9px;
   line-height: 1;
   cursor: pointer;
-  padding: 0 0.1rem;
+  padding: 0 1.4px;
   flex-shrink: 0;
 }
 .undo-toast-close:hover {
@@ -3400,22 +3791,22 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 0.45rem 0.75rem 0.5rem;
+  padding: 6.3px 10.5px 7px;
   flex-shrink: 0;
 }
 .composer-form {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 7px;
 }
 .composer-input {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 12.25px;
   line-height: 1.4;
   background: #fff;
   box-shadow: none;
@@ -3431,15 +3822,15 @@ onBeforeUnmount(() => {
 .composer-actions {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 3.5px;
 }
 .composer-submit-btn {
   border: none;
   border-radius: 8px;
-  padding: 0.42rem 0.72rem;
+  padding: 5.88px 10.08px;
   background: mixin.$main;
   color: mixin.$white;
-  font-size: 0.875rem;
+  font-size: 12.25px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -3454,9 +3845,9 @@ onBeforeUnmount(() => {
   border: none;
   background: transparent;
   color: #626f86;
-  font-size: 1.2rem;
+  font-size: 16.8px;
   line-height: 1;
-  padding: 0.35rem 0.45rem;
+  padding: 4.9px 6.3px;
   border-radius: 6px;
   cursor: pointer;
   margin-left: auto;
@@ -3468,8 +3859,8 @@ onBeforeUnmount(() => {
 .primary-btn {
   border: 1px solid transparent;
   border-radius: 999px;
-  padding: 0.4rem 2rem;
-  font-size: 0.9rem;
+  padding: 5.6px 28px;
+  font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.1em;
   cursor: pointer;
@@ -3478,12 +3869,13 @@ onBeforeUnmount(() => {
   justify-content: center;
   white-space: nowrap;
   flex-shrink: 0;
+  gap: 4.9px;
   background: mixin.$main-aqua;
   color: mixin.$white;
 }
 .primary-btn--compact {
-  padding: 0.35rem 1rem;
-  font-size: 0.82rem;
+  padding: 4.9px 14px;
+  font-size: 11.48px;
 }
 .ghost-btn {
   background: transparent;
@@ -3491,7 +3883,7 @@ onBeforeUnmount(() => {
   border: 1px solid #94a3b8;
   font-weight: 600;
   border-radius: 10px;
-  padding: 0.65rem 0.85rem;
+  padding: 9.1px 11.9px;
   cursor: pointer;
 }
 button:disabled {
@@ -3499,8 +3891,8 @@ button:disabled {
   cursor: not-allowed;
 }
 .err {
-  max-width: 72rem;
-  margin: 0 auto 0.8rem;
+  max-width: 1008px;
+  margin: 0 auto 11.2px;
   color: #b91c1c;
   font-weight: 700;
 }
@@ -3509,7 +3901,7 @@ button:disabled {
 <style lang="scss">
 .list-column.sortable-fallback {
   --task-card-width: 246px;
-  --list-column-width: calc(var(--task-card-width) + 1.5rem);
+  --list-column-width: calc(var(--task-card-width) + 21px);
   font-family: mixin.$font-family;
   width: var(--list-column-width) !important;
   max-width: var(--list-column-width) !important;
@@ -3532,7 +3924,7 @@ button:disabled {
   background: #fff;
   border: 1px solid mixin.$border;
   border-radius: 10px;
-  padding: 0.45rem 0.55rem;
+  padding: 6.3px 7.7px;
   cursor: default;
   pointer-events: none;
   opacity: 1 !important;
@@ -3545,9 +3937,9 @@ button:disabled {
   min-width: 0;
 }
 .task-card.sortable-fallback .task-parent-title {
-  margin: 0 0 0.2rem;
+  margin: 0 0 2.8px;
   max-width: 100%;
-  font-size: 0.75rem;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1.25;
   color: mixin.$main;
@@ -3558,13 +3950,13 @@ button:disabled {
 .task-card.sortable-fallback .task-title-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.3rem;
+  gap: 4.2px;
   margin: 0;
   min-width: 0;
 }
 .task-card.sortable-fallback .task-title-row__icon {
   flex-shrink: 0;
-  margin-top: 0.12rem;
+  margin-top: 1.68px;
   color: mixin.$main;
 }
 .task-card.sortable-fallback .task-title {
@@ -3572,7 +3964,7 @@ button:disabled {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  font-size: 0.875rem;
+  font-size: 12.25px;
   font-weight: 700;
   line-height: 1.25;
   white-space: normal;
@@ -3580,21 +3972,21 @@ button:disabled {
   word-break: break-word;
 }
 .task-card--parent.sortable-fallback .task-title {
-  font-size: 0.9375rem;
+  font-size: 13.125px;
   color: mixin.$main;
 }
 .task-card.sortable-fallback .task-card-meta {
   display: flex;
   flex-direction: column;
-  gap: 0.18rem;
-  margin-top: 0.35rem;
+  gap: 2.52px;
+  margin-top: 4.9px;
 }
 .task-card.sortable-fallback .task-card-meta__row {
   display: inline-flex;
   align-items: center;
-  gap: 0.28rem;
+  gap: 3.92px;
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   font-weight: 600;
   line-height: 1.25;
   color: #64748b;
@@ -3602,8 +3994,8 @@ button:disabled {
 .task-card.sortable-fallback .task-label-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.2rem;
-  margin-bottom: 0.25rem;
+  gap: 2.8px;
+  margin-bottom: 3.5px;
 }
 .task-card.sortable-fallback .task-label-list__strip {
   flex: 0 0 auto;
@@ -3651,15 +4043,15 @@ button:disabled {
 .task-card.sortable-fallback .task-card-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.3rem;
+  margin-top: 4.2px;
 }
 .task-card.sortable-fallback .task-card-members {
   display: flex;
   align-items: center;
 }
 .task-card.sortable-fallback .task-card-member {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 17.5px;
+  height: 17.5px;
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
@@ -3671,7 +4063,7 @@ button:disabled {
   justify-content: center;
 }
 .task-card.sortable-fallback .task-card-member + .task-card-member {
-  margin-left: -0.35rem;
+  margin-left: -4.9px;
 }
 .task-card.sortable-fallback .task-card-member-image {
   width: 100%;
@@ -3679,7 +4071,7 @@ button:disabled {
   object-fit: cover;
 }
 .task-card.sortable-fallback .task-card-member-initial {
-  font-size: 0.56rem;
+  font-size: 7.84px;
   font-weight: 700;
   color: mixin.$text-sub;
   line-height: 1;

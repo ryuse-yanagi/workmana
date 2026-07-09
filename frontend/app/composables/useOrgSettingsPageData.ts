@@ -1,4 +1,5 @@
-import type { SettingsPageSnapshot } from '../components/settings/types'
+import type { SettingsLabelCategory, SettingsLabelTabKey, SettingsPageSnapshot } from '../components/settings/types'
+import { normalizeSettingsLabelCategories } from '../components/settings/labelCategoryNormalize'
 import { normalizeEffortUnit } from './useTaskFormHelpers'
 import { useApi } from './useApi'
 import { useOrgEffortSettings } from './useOrgEffortSettings'
@@ -10,20 +11,33 @@ export function useOrgSettingsPageData () {
   const { api } = useApi()
   const { syncEffortSettings } = useOrgEffortSettings()
 
-  async function fetchSnapshot (orgSlug: string): Promise<SettingsPageSnapshot> {
+  async function fetchSnapshot (orgSlug: string, opts?: { refresh?: boolean }): Promise<SettingsPageSnapshot> {
     const slug = orgSlug.trim()
+    if (!opts?.refresh) {
+      const cached = cacheBySlug.get(slug)
+      if (cached) {
+        return cached
+      }
+    }
+
     const inflight = inflightBySlug.get(slug)
     if (inflight) {
       return inflight
     }
 
     const job = (async () => {
-      const orgSettings = await api<SettingsPageSnapshot['orgSettings']>(`/orgs/${slug}/settings`)
+      const [orgSettings, workspaceLabelCategoriesRes, taskLabelCategoriesRes] = await Promise.all([
+        api<SettingsPageSnapshot['orgSettings']>(`/orgs/${slug}/settings`),
+        api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/workspace-label-categories`),
+        api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/task-label-categories`),
+      ])
       syncEffortSettings(slug, {
         effort_unit: normalizeEffortUnit(orgSettings.effort_unit),
       })
       const snapshot: SettingsPageSnapshot = {
         orgSettings,
+        workspaceLabelCategories: normalizeSettingsLabelCategories(workspaceLabelCategoriesRes.data),
+        taskLabelCategories: normalizeSettingsLabelCategories(taskLabelCategoriesRes.data),
       }
       cacheBySlug.set(slug, snapshot)
       return snapshot
@@ -40,16 +54,42 @@ export function useOrgSettingsPageData () {
   }
 
   async function prefetch (orgSlug: string): Promise<SettingsPageSnapshot> {
-    const slug = orgSlug.trim()
-    const cached = cacheBySlug.get(slug)
-    if (cached) {
-      return cached
-    }
-    return fetchSnapshot(slug)
+    return fetchSnapshot(orgSlug)
   }
 
   function getCached (orgSlug: string): SettingsPageSnapshot | null {
     return cacheBySlug.get(orgSlug.trim()) ?? null
+  }
+
+  function getCachedLabelCategories (
+    orgSlug: string,
+    labelKind: SettingsLabelTabKey,
+  ): SettingsLabelCategory[] | null {
+    const snapshot = getCached(orgSlug)
+    if (!snapshot) {
+      return null
+    }
+    return labelKind === 'workspace'
+      ? snapshot.workspaceLabelCategories
+      : snapshot.taskLabelCategories
+  }
+
+  function patchLabelCategoriesCache (
+    orgSlug: string,
+    labelKind: SettingsLabelTabKey,
+    categories: SettingsLabelCategory[],
+  ): void {
+    const slug = orgSlug.trim()
+    const existing = cacheBySlug.get(slug)
+    if (!existing) {
+      return
+    }
+    cacheBySlug.set(slug, {
+      ...existing,
+      ...(labelKind === 'workspace'
+        ? { workspaceLabelCategories: categories }
+        : { taskLabelCategories: categories }),
+    })
   }
 
   function invalidateCached (orgSlug: string): void {
@@ -60,6 +100,8 @@ export function useOrgSettingsPageData () {
     fetchSnapshot,
     prefetch,
     getCached,
+    getCachedLabelCategories,
+    patchLabelCategoriesCache,
     invalidateCached,
   }
 }

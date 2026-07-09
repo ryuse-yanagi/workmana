@@ -1,63 +1,95 @@
 <template>
-  <BaseModal
-    :model-value="modelValue"
-    :title="title"
-    :aria-label="title"
-    :close-disabled="loading"
-    focus-primary-input-on-open
-    width="min(36rem, 100%)"
-    @update:model-value="emit('update:modelValue', $event)"
-  >
-    <form class="workspace-create-modal-body" @submit.prevent="submit">
-      <label class="field">
-        <span>ワークスペース名</span>
-        <input
-          v-model.trim="name"
-          type="text"
-          required
-          minlength="2"
-          :maxlength="WORKSPACE_NAME_MAX_LENGTH"
-          placeholder="ワークスペース名を入力してください"
-          :disabled="loading"
-        />
-      </label>
-      <label class="field">
-        <span>ラベル（複数選択）</span>
-        <div class="label-picker">
-          <label v-for="label in labels" :key="label.id" class="label-option">
-            <input
-              v-model="labelIds"
-              type="checkbox"
-              :value="label.id"
+  <Teleport to="body">
+    <div
+      v-if="modelValue"
+      ref="overlayRef"
+      class="modal-overlay"
+      :class="{ 'modal-overlay--popover-open': panePopoverOpen }"
+      role="presentation"
+      @mousedown="onOverlayMouseDown"
+    >
+      <section
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="title"
+      >
+        <header class="modal-header">
+          <h3>{{ title }}</h3>
+          <button
+            type="button"
+            class="icon-close"
+            :disabled="loading"
+            aria-label="閉じる"
+            @click="close"
+          >✕</button>
+        </header>
+        <div class="modal-body">
+          <div class="workspace-form-section">
+            <TaskFormPane
+              ref="formPaneRef"
+              v-model="draft"
+              :org-slug="orgSlug"
+              :org-labels="labels"
+              :workspace-members="orgMembers"
               :disabled="loading"
+              workspace-mode
+              relaxed-title-padding
+              auto-focus-title
             />
-            <span class="label-dot" :style="{ backgroundColor: label.color }" />
-            <span>{{ label.name }}</span>
-          </label>
-          <p v-if="!labels.length" class="label-empty">ラベルは設定画面から作成できます。</p>
+          </div>
+          <p v-if="submitError" class="err">{{ submitError }}</p>
+          <footer class="modal-footer">
+            <button
+              type="button"
+              class="ghost-btn"
+              :disabled="loading"
+              @click="close"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              class="primary-btn"
+              :disabled="!canSubmit"
+              @click="submit"
+            >
+              {{ loading ? '作成中...' : '登録' }}
+            </button>
+          </footer>
         </div>
-      </label>
-      <div class="actions">
-        <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">
-          キャンセル
-        </button>
-        <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading || name.length < 2">
-          {{ loading ? '作成中...' : '登録' }}
-        </button>
-      </div>
-    </form>
-  </BaseModal>
+      </section>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
+import TaskFormPane from '../task/TaskFormPane.vue'
+import {
+  createEmptyTaskFormDraft,
+  type TaskFormDraft,
+  type TaskFormLabel,
+  type TaskFormMember,
+} from '../../composables/useTaskFormHelpers'
+import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
 import { WORKSPACE_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
+import { createOverlayBackdropClose, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
 
-export type WorkspaceCreateLabel = { id: number; name: string; color: string }
+export type WorkspaceCreateLabel = TaskFormLabel
+
+type FormPaneExpose = {
+  resetPaneState: () => void
+  focusTitleInput: () => void
+  activePopover?: TaskFormPopoverType | null
+  closePopover?: () => void | Promise<void>
+}
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title: string
+  orgSlug: string
   labels: WorkspaceCreateLabel[]
+  orgMembers: TaskFormMember[]
   loading?: boolean
 }>(), {
   loading: false,
@@ -65,90 +97,192 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [boolean]
-  submit: [{ name: string; label_ids: number[] }]
+  submit: [{
+    name: string
+    description: string | null
+    label_ids: number[]
+    assignee_ids: number[]
+  }]
 }>()
 
-const name = ref('')
-const labelIds = ref<number[]>([])
+const draft = ref<TaskFormDraft>(createEmptyTaskFormDraft())
+const submitError = ref<string | null>(null)
+const formPaneRef = ref<FormPaneExpose | null>(null)
+const overlayRef = ref<HTMLElement | null>(null)
 
-watch(
-  () => props.modelValue,
-  (open) => {
-    if (open) {
-      name.value = ''
-      labelIds.value = []
-    }
-  },
-)
+const panePopoverOpen = computed(() => formPaneRef.value?.activePopover != null)
+
+const canSubmit = computed(() => {
+  const name = draft.value.title.trim()
+  return name.length >= 2 && name.length <= WORKSPACE_NAME_MAX_LENGTH && !props.loading
+})
+
+function resetForm () {
+  draft.value = createEmptyTaskFormDraft()
+  submitError.value = null
+  nextTick(() => {
+    formPaneRef.value?.resetPaneState()
+  })
+}
 
 function close () {
   if (props.loading) return
   emit('update:modelValue', false)
 }
 
-function submit () {
-  if (props.loading || name.value.length < 2) return
-  emit('submit', { name: name.value, label_ids: [...labelIds.value] })
+function onBackdropClose () {
+  if (props.loading) return
+  if (panePopoverOpen.value) {
+    void formPaneRef.value?.closePopover?.()
+    return
+  }
+  close()
 }
+
+function onDocumentKeydown (event: KeyboardEvent) {
+  if (!props.modelValue) return
+  if (getTopmostModalOverlay() !== overlayRef.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    onBackdropClose()
+    return
+  }
+  if (isCtrlEnterKeydown(event)) {
+    if (!canSubmit.value) return
+    event.preventDefault()
+    event.stopPropagation()
+    submit()
+  }
+}
+
+const {
+  onOverlayMouseDown,
+  resetOverlayBackdropClose,
+} = createOverlayBackdropClose({
+  onClose: onBackdropClose,
+  canClose: () => !props.loading,
+})
+
+function submit () {
+  if (!canSubmit.value) return
+  const name = draft.value.title.trim()
+  const description = draft.value.description.trim()
+  emit('submit', {
+    name,
+    description: description === '' ? null : description,
+    label_ids: draft.value.labels.map(label => label.id),
+    assignee_ids: draft.value.assignees.map(member => member.id),
+  })
+}
+
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (!import.meta.client) return
+    if (open) {
+      document.addEventListener('keydown', onDocumentKeydown, true)
+      resetForm()
+      return
+    }
+    document.removeEventListener('keydown', onDocumentKeydown, true)
+    resetOverlayBackdropClose()
+    void formPaneRef.value?.closePopover?.()
+  },
+)
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onDocumentKeydown, true)
+  resetOverlayBackdropClose()
+})
 </script>
 
 <style lang="scss" scoped>
-.workspace-create-modal-body {
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 56px 14px 14px;
+  z-index: 70;
+  overflow-y: auto;
 }
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #334155;
+.modal-overlay--popover-open {
+  overflow: hidden;
 }
-
-.field input[type='text'] {
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 0.55rem 0.65rem;
-  font: inherit;
-}
-
-.label-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.label-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  border: 1px solid #dbe3ee;
-  border-radius: 999px;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.82rem;
-  font-weight: 600;
+.modal-card {
+  position: relative;
+  width: min(560px, 100%);
+  border-radius: 12px;
+  overflow: visible;
   background: #fff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
 }
-
-.label-dot {
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 999px;
+.modal-header {
+  @include mixin.modal-header-bar;
+  border-radius: 12px 12px 0 0;
 }
-
-.label-empty {
+.modal-header h3 {
   margin: 0;
-  color: #64748b;
-  font-size: 0.82rem;
+  font-size: 14.7px;
+  line-height: 1;
 }
-
-.actions {
+.icon-close {
+  @include mixin.modal-close-hit-area;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 19.6px;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-body {
+  position: relative;
+  padding: 16.8px 18.9px 18.9px;
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
+  flex-direction: column;
+  gap: 15.4px;
+  overflow: visible;
+  border-radius: 0 0 12px 12px;
+}
+.workspace-form-section {
+  overflow: visible;
+  min-width: 0;
+}
+.modal-footer {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  padding-top: 3.5px;
+}
+.primary-btn,
+.ghost-btn {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 7px 15.4px;
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 16px;
+}
+.primary-btn {
+  background: mixin.$main;
+  color: mixin.$white;
+}
+.ghost-btn {
+  border-color: #cbd5e1;
+  color: mixin.$text-sub;
+  background: #f1f5f9;
+}
+.err {
+  margin: 0;
+  color: #b91c1c;
+  font-weight: 700;
+  font-size: 12.04px;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 </style>

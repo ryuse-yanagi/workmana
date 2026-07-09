@@ -57,10 +57,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { ChartGantt, Check, LayoutPanelLeft, NotebookPen, TableProperties } from 'lucide-vue-next'
-import {
-  useWorkspaceViewRoutes,
-  type WorkspaceViewKey,
-} from '../../composables/useWorkspaceViewRoutes'
+import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 const viewIcons: Record<WorkspaceViewKey, Component> = {
   board: LayoutPanelLeft,
   table: TableProperties,
@@ -137,26 +134,60 @@ function toggleMenu () {
     return
   }
   menuOpen.value = true
-  menuPosition.value = null
   nextTick(() => {
     positionMenu()
-    nextTick(() => positionMenu())
+    requestAnimationFrame(() => positionMenu())
   })
 }
+function isTriggerVisible (): boolean {
+  const trigger = triggerRef.value
+  if (!trigger) {
+    return false
+  }
+  return trigger.getClientRects().length > 0
+}
+function shouldIgnoreGlobalClick (el: Element | null | undefined): boolean {
+  if (!el) {
+    return false
+  }
+  if (el.closest('[data-workspace-view-switcher-root]')) {
+    return true
+  }
+  if (el.closest('.workspace-view-switcher-menu')) {
+    return true
+  }
+  if (el.closest('.popover-layer, .popover')) {
+    return true
+  }
+  return false
+}
 function onGlobalClick (ev: Event) {
+  if (!isTriggerVisible()) {
+    closeMenu()
+    return
+  }
   const t = ev.target
   if (!(t instanceof Node)) {
     closeMenu()
     return
   }
   const el = t instanceof Element ? t : t.parentElement
-  if (el?.closest('[data-workspace-view-switcher-root]')) {
-    return
-  }
-  if (el?.closest('.workspace-view-switcher-menu')) {
+  if (shouldIgnoreGlobalClick(el)) {
     return
   }
   closeMenu()
+}
+function bindGlobalClick () {
+  if (!import.meta.client) {
+    return
+  }
+  window.addEventListener('click', onGlobalClick)
+}
+function unbindGlobalClick () {
+  if (!import.meta.client) {
+    return
+  }
+  window.removeEventListener('click', onGlobalClick)
 }
 function onWindowResize () {
   if (!menuOpen.value) {
@@ -164,19 +195,41 @@ function onWindowResize () {
   }
   positionMenu()
 }
+watch(activeView, () => {
+  closeMenu()
+})
+watch(menuOpen, (open) => {
+  if (!import.meta.client) {
+    return
+  }
+  unbindGlobalClick()
+  if (!open) {
+    return
+  }
+  setTimeout(() => {
+    if (!menuOpen.value) {
+      return
+    }
+    if (!isTriggerVisible()) {
+      closeMenu()
+      return
+    }
+    bindGlobalClick()
+  }, 0)
+})
+onBeforeUnmount(() => {
+  unbindGlobalClick()
+  if (!import.meta.client) {
+    return
+  }
+  window.removeEventListener('resize', onWindowResize)
+})
+useDropdownEscapeClose(menuOpen, closeMenu)
 onMounted(() => {
   if (!import.meta.client) {
     return
   }
-  window.addEventListener('click', onGlobalClick)
   window.addEventListener('resize', onWindowResize)
-})
-onBeforeUnmount(() => {
-  if (!import.meta.client) {
-    return
-  }
-  window.removeEventListener('click', onGlobalClick)
-  window.removeEventListener('resize', onWindowResize)
 })
 </script>
 <style lang="scss" scoped>
@@ -186,13 +239,13 @@ onBeforeUnmount(() => {
   align-self: stretch;
   height: 100%;
   flex-shrink: 0;
-  margin-left: 2.4rem;
+  margin-left: 33.6px;
 }
 .workspace-view-switcher-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 5.6px;
   height: 100%;
   border: none;
   background: transparent;
@@ -206,7 +259,7 @@ onBeforeUnmount(() => {
   display: block;
 }
 .workspace-view-switcher-trigger__label {
-  font-size: 0.9rem;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -220,21 +273,21 @@ onBeforeUnmount(() => {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  padding: 0.35rem;
+  padding: 4.9px;
 }
 .workspace-view-switcher-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 7px;
   width: 100%;
   box-sizing: border-box;
   border: none;
   border-radius: 8px;
-  padding: 0.55rem 0.65rem;
+  padding: 7.7px 9.1px;
   background: transparent;
   color: #0f172a;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 12.25px;
   font-weight: 600;
   text-align: left;
   text-decoration: none;
@@ -253,6 +306,6 @@ onBeforeUnmount(() => {
 .workspace-view-switcher-item__check {
   margin-left: auto;
   flex-shrink: 0;
-  color: mixin.$main-aqua;
+  color: mixin.$main;
 }
 </style>

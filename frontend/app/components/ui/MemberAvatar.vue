@@ -52,16 +52,16 @@ const initial = computed(() => memberInitial(props.member))
   cursor: pointer;
 }
 .member-avatar--xs {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 21px;
+  height: 21px;
 }
 .member-avatar--sm {
-  width: 2rem;
-  height: 2rem;
+  width: 28px;
+  height: 28px;
 }
 .member-avatar--md {
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 32.9px;
+  height: 32.9px;
 }
 .member-avatar__image {
   width: 100%;
@@ -74,13 +74,13 @@ const initial = computed(() => memberInitial(props.member))
   line-height: 1;
 }
 .member-avatar--xs .member-avatar__initial {
-  font-size: 0.58rem;
+  font-size: 8.12px;
   font-weight: 600;
 }
 .member-avatar--sm .member-avatar__initial {
-  font-size: 0.82rem;
+  font-size: 11.48px;
 }
 .member-avatar--md .member-avatar__initial {
-  font-size: 0.9rem;
+  font-size: 12.6px;
 }
 </style>

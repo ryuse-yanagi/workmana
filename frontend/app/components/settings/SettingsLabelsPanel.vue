@@ -1,5 +1,5 @@
 <template>
-  <SettingsPanel title="ラベル設定" note="ワークスペースやタスクで使うラベルをカテゴリごとに管理します。">
+  <SettingsPanel title="ラベル設定" note="スペースやタスクで使うラベルをカテゴリごとに管理します。">
     <div class="settings-label-tabs" role="tablist" aria-label="ラベル種別">
       <button
         v-for="item in labelTabs"
@@ -35,7 +35,7 @@ const props = defineProps<{
   initialLabelTab?: SettingsLabelTabKey
 }>()
 const labelTabs: Array<{ key: SettingsLabelTabKey; label: string }> = [
-  { key: 'workspace', label: 'ワークスペース' },
+  { key: 'workspace', label: 'スペース' },
   { key: 'task', label: 'タスク' },
 ]
 const activeLabelTab = ref<SettingsLabelTabKey>(props.initialLabelTab ?? 'workspace')
@@ -54,9 +54,9 @@ watch(
 <style lang="scss" scoped>
 .settings-label-tabs {
   display: inline-flex;
-  gap: 0.35rem;
-  margin-bottom: 0.85rem;
-  padding: 0.2rem;
+  gap: 4.9px;
+  margin-bottom: 11.9px;
+  padding: 2.8px;
   border: 1px solid #dbe3ee;
   border-radius: 9px;
   background: #f8fafc;
@@ -64,8 +64,8 @@ watch(
 .settings-label-tabs__btn {
   border: 1px solid transparent;
   border-radius: 7px;
-  padding: 0.42rem 0.85rem;
-  font-size: 0.86rem;
+  padding: 5.88px 11.9px;
+  font-size: 12.04px;
   font-weight: 700;
   color: #475569;
   background: transparent;

@@ -1,10 +1,11 @@
 <template>
   <div class="project-page-root">
-    <WorkspaceBoard
+    <WorkspaceProjectView
       ref="boardRef"
       v-show="displayedView === 'board'"
+      mode="board"
     />
-    <WorkspaceTableGanttView
+    <WorkspaceProjectView
       v-if="tableMounted"
       ref="tableViewRef"
       v-show="displayedView === 'table'"
@@ -12,7 +13,7 @@
       :org-slug="slug"
       :workspace-id="workspaceId"
     />
-    <WorkspaceTableGanttView
+    <WorkspaceProjectView
       v-if="ganttMounted"
       ref="ganttViewRef"
       v-show="displayedView === 'gantt'"
@@ -23,8 +24,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import WorkspaceBoard from '../../../../../components/workspace/WorkspaceBoard.vue'
-import WorkspaceTableGanttView from '../../../../../components/workspace/WorkspaceTableGanttView.vue'
+import WorkspaceProjectView from '../../../../../components/workspace/WorkspaceProjectView.vue'
 import { withAppLoadingCursor } from '../../../../../composables/useAppLoadingCursor'
 import { useWorkspaceViewRoutes, type WorkspaceViewKey } from '../../../../../composables/useWorkspaceViewRoutes'
 import { useWorkspaceViewPageRoot } from '../../../../../composables/useWorkspaceViewPageRoot'
@@ -38,9 +38,9 @@ const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const workspaceId = computed(() => route.params.id as string)
 const { activeView } = useWorkspaceViewRoutes(() => slug.value, () => workspaceId.value)
-const boardRef = ref<InstanceType<typeof WorkspaceBoard> | null>(null)
-const tableViewRef = ref<InstanceType<typeof WorkspaceTableGanttView> | null>(null)
-const ganttViewRef = ref<InstanceType<typeof WorkspaceTableGanttView> | null>(null)
+const boardRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
+const tableViewRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
+const ganttViewRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
 const tableMounted = ref(false)
 const ganttMounted = ref(false)
 function initialProjectView (): WorkspaceViewKey {
@@ -119,7 +119,7 @@ onDeactivated(() => {
 </script>
 <style lang="scss" scoped>
 .project-page-root {
-  min-height: calc(100dvh - var(--global-header-offset, 46px) - var(--app-shell-page-pad, 0.25rem));
+  min-height: calc(100dvh - var(--global-header-offset, 56px) - var(--app-shell-page-pad, 3.5px));
   display: flex;
   flex-direction: column;
 }

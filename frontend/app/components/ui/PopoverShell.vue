@@ -51,13 +51,13 @@ defineExpose({ rootRef })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.65rem 0.75rem;
+  gap: 7px;
+  padding: 9.1px 10.5px;
   border-bottom: 1px solid #e2e8f0;
 }
 .popover-shell__title {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: 12.88px;
   font-weight: 800;
   color: #0f172a;
 }
@@ -65,7 +65,7 @@ defineExpose({ rootRef })
   background: transparent;
   border: none;
   color: #64748b;
-  font-size: 1.1rem;
+  font-size: 15.4px;
   line-height: 1;
   cursor: pointer;
   padding: 0;

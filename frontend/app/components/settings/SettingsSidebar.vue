@@ -27,7 +27,7 @@ const emit = defineEmits<{
 .settings-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 7px;
   width: 320px;
   max-width: 100%;
 }
@@ -39,9 +39,9 @@ const emit = defineEmits<{
   border: 1px solid #dbe3ee;
   background: #fff;
   border-radius: 9px;
-  padding: 0 0.9rem;
+  padding: 0 12.6px;
   text-align: left;
-  font-size: 0.95rem;
+  font-size: 13.3px;
   font-weight: 700;
   color: #0f2945;
   display: flex;
@@ -55,7 +55,7 @@ const emit = defineEmits<{
 }
 .menu-arrow {
   color: #94a3b8;
-  font-size: 1.1rem;
+  font-size: 15.4px;
 }
 @media (max-width: 1240px) {
   .settings-sidebar {

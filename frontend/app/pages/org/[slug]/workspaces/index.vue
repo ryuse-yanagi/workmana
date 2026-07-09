@@ -27,7 +27,7 @@
                   v-model.trim="searchQuery"
                   class="header-search"
                   type="search"
-                  :placeholder="'ワークスペース名で検索'"
+                  :placeholder="'スペース名で検索'"
                   aria-label="検索"
                 />
               </div>
@@ -37,8 +37,8 @@
                 :disabled="pending"
                 @click="openWorkspaceCreateModal"
               >
-                <FolderPlus :size="18" :stroke-width="2.25" aria-hidden="true" />
-                新規追加
+                <FolderPlus :size="20" :stroke-width="2.25" aria-hidden="true" />
+                スペース作成
               </button>
             </div>
       </header>
@@ -51,13 +51,14 @@
                 <thead>
                   <tr>
                     <th>名前</th>
-                    <th>ID</th>
-                    <th>操作</th>
+                    <th>担当者</th>
+                    <th>説明</th>
+                    <th>ステータス</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!visibleWorkspaces.length">
-                    <td colspan="3" class="empty">該当するワークスペースがありません。</td>
+                    <td colspan="4" class="empty">該当するスペースがありません。</td>
                   </tr>
                   <tr
                     v-for="workspace in visibleWorkspaces"
@@ -74,24 +75,53 @@
                     :aria-busy="loadingWorkspaceId === workspace.id"
                     @pointerenter="warmWorkspaceBoard(workspace.id)"
                     @focusin="warmWorkspaceBoard(workspace.id)"
-                    @click="goToWorkspace(workspace.id)"
+                    @pointerdown="onWorkspacePointerDown($event, workspace.id)"
+                    @pointermove="onWorkspacePointerMove($event, workspace.id)"
+                    @pointerup="onWorkspacePointerUp($event, workspace.id)"
+                    @pointercancel="onWorkspacePointerCancel"
                     @keydown.enter.prevent="goToWorkspace(workspace.id)"
                     @keydown.space.prevent="goToWorkspace(workspace.id)"
                   >
-                    <td class="name-cell">
-                      <p class="name-text">{{ workspace.name }}</p>
-                      <div v-if="workspace.labels?.length" class="label-list">
-                        <LabelStrip
-                          v-for="label in workspace.labels"
-                          :key="label.id"
-                          :label="label"
-                          size="md"
-                        />
+                    <td colspan="4" class="workspace-card-cell">
+                      <div class="workspace-card">
+                        <div
+                          v-if="workspace.labels?.length"
+                          class="workspace-card__labels"
+                        >
+                          <OverflowFlexRow :watch-key="workspace.labels.length">
+                            <LabelStrip
+                              v-for="label in workspace.labels"
+                              :key="label.id"
+                              :label="label"
+                              size="md"
+                            />
+                          </OverflowFlexRow>
+                        </div>
+                        <div class="workspace-card__body">
+                          <div class="workspace-card__name">
+                            <p class="name-text">{{ workspace.name }}</p>
+                          </div>
+                          <div class="workspace-card__assignees">
+                            <WorkspaceAssigneeCountButton
+                              v-if="workspace.assignees?.length"
+                              :assignees="workspace.assignees"
+                            />
+                          </div>
+                          <div class="workspace-card__description">
+                            <p v-if="workspace.description" class="description-text">
+                              {{ workspace.description }}
+                            </p>
+                          </div>
+                          <div class="workspace-card__status">
+                            <WorkspaceStatusSelect
+                              :status="workspace.status"
+                              :statuses="workspaceStatuses"
+                              :pending="updatingStatusWorkspaceId === workspace.id"
+                              @select="status => updateWorkspaceStatus(workspace, status)"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td>#{{ workspace.id }}</td>
-                    <td>
-                      <span class="mini-btn">詳細</span>
                     </td>
                   </tr>
                 </tbody>
@@ -102,9 +132,10 @@
       <!-- 作成モーダル（オーバーレイのためフェード対象外） -->
       <WorkspaceCreateModal
         v-model="workspaceCreateModalOpen"
-        title="ワークスペースの作成"
-        
+        title="スペースの作成"
+        :org-slug="slug"
         :labels="orgLabels"
+        :org-members="orgMembers"
         :loading="pending"
         @submit="createWorkspace"
       />
@@ -116,15 +147,31 @@ import { FolderPlus } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import { useApi } from '../../../../composables/useApi'
-import { useOrgWorkspaceIndexPageData, type OrgWorkspaceIndexPageSnapshot } from '../../../../composables/useOrgWorkspaceIndexPageData'
+import {
+  useOrgWorkspaceIndexPageData,
+  type OrgWorkspaceIndexPageSnapshot,
+  type OrgWorkspaceStatus,
+} from '../../../../composables/useOrgWorkspaceIndexPageData'
+import type { TaskFormMember } from '../../../../composables/useTaskFormHelpers'
 import { useWorkspaceBoardPageData } from '../../../../composables/useWorkspaceBoardPageData'
+import { DEFAULT_WORKSPACE_STATUS_ITEMS } from '../../../../components/settings/types'
+import { resolveStandardColors } from '../../../../utils/colorPresetResolution'
+import WorkspaceStatusSelect from '../../../../components/workspace/WorkspaceStatusSelect.vue'
 definePageMeta({
   name: 'org-slug-workspaces',
   key: route => route.fullPath,
   keepalive: true,
 })
 type Label = { id: number; name: string; color: string }
-type Workspace = { id: number; name: string; labels?: Label[] }
+type WorkspaceStatus = OrgWorkspaceStatus
+type Workspace = {
+  id: number
+  name: string
+  description?: string | null
+  status?: WorkspaceStatus | null
+  labels?: Label[]
+  assignees?: TaskFormMember[]
+}
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const { api } = useApi()
@@ -132,6 +179,7 @@ const {
   fetchSnapshot: fetchOrgWorkspaceIndexSnapshot,
   getCached: getOrgWorkspaceIndexCached,
   invalidateCached: invalidateOrgWorkspaceIndexCached,
+  patchCachedWorkspaceStatus,
 } = useOrgWorkspaceIndexPageData()
 const { warmWorkspaceBoardCache, prefetch } = useWorkspaceBoardPageData()
 const workspaces = ref<Workspace[]>([])
@@ -145,16 +193,27 @@ const searchQuery = ref('')
 const sortMode = ref<'newest' | 'oldest' | 'name'>('newest')
 const workspaceCreateModalOpen = ref(false)
 const orgLabels = ref<Label[]>([])
+const orgMembers = ref<TaskFormMember[]>([])
+const workspaceStatuses = ref<WorkspaceStatus[]>([])
 const labelFilterId = ref('')
 const justCreatedWorkspaceIds = reactive<Record<number, true>>({})
 const loadingWorkspaceId = ref<number | null>(null)
+const updatingStatusWorkspaceId = ref<number | null>(null)
+const CLICK_MOVE_TOLERANCE_PX = 6
+const pointerPressState = ref<{
+  workspaceId: number
+  pointerId: number
+  startX: number
+  startY: number
+  moved: boolean
+} | null>(null)
 const globalHeaderOffsetPx = ref(46)
 const listPageCssVars = computed(() => {
   return {
     '--global-header-offset': `${globalHeaderOffsetPx.value}px`,
-    // `app.vue` の `.app-shell__page { padding-top: 0.25rem; }` を打ち消して、
+    // `app.vue` の `.app-shell__page { padding-top: 4px; }` を打ち消して、
     // 最上部スクロール時に共通ヘッダーと画面別ヘッダーの隙間をなくす
-    '--app-shell-page-pad': '0.25rem',
+    '--app-shell-page-pad': '3.5px',
   } as Record<string, string>
 })
 const visibleWorkspaces = computed(() => {
@@ -188,6 +247,42 @@ function openWorkspaceCreateModal () {
 function applyOrgWorkspaceIndexSnapshot (snapshot: OrgWorkspaceIndexPageSnapshot) {
   workspaces.value = snapshot.workspaces
   orgLabels.value = snapshot.orgLabels
+  orgMembers.value = snapshot.orgMembers ?? []
+  workspaceStatuses.value = snapshot.workspaceStatuses ?? resolveStandardColors(DEFAULT_WORKSPACE_STATUS_ITEMS)
+}
+function applyWorkspaceStatusLocally (workspaceId: number, status: WorkspaceStatus | null) {
+  workspaces.value = workspaces.value.map(workspace => (
+    workspace.id === workspaceId
+      ? { ...workspace, status }
+      : workspace
+  ))
+  patchCachedWorkspaceStatus(slug.value, workspaceId, status)
+}
+async function updateWorkspaceStatus (workspace: Workspace, status: WorkspaceStatus) {
+  if (workspace.status?.name === status.name || updatingStatusWorkspaceId.value !== null) {
+    return
+  }
+  const previousStatus = workspace.status ?? null
+  updatingStatusWorkspaceId.value = workspace.id
+  error.value = null
+  applyWorkspaceStatusLocally(workspace.id, status)
+  try {
+    const updated = await api<Workspace>(`/orgs/${slug.value}/workspaces/${workspace.id}`, {
+      method: 'PATCH',
+      body: { status: status.name },
+    })
+    const nextStatus = updated.status
+      ? resolveStandardColors([updated.status])[0] ?? updated.status
+      : status
+    applyWorkspaceStatusLocally(workspace.id, nextStatus)
+  } catch (e: unknown) {
+    applyWorkspaceStatusLocally(workspace.id, previousStatus)
+    error.value = e instanceof Error ? e.message : 'ステータスの更新に失敗しました'
+  } finally {
+    if (updatingStatusWorkspaceId.value === workspace.id) {
+      updatingStatusWorkspaceId.value = null
+    }
+  }
 }
 async function load (opts?: { refresh?: boolean }) {
   const refresh = opts?.refresh ?? false
@@ -242,14 +337,24 @@ function retryInitialLoad () {
   pageReady.value = false
   void load()
 }
-async function createWorkspace (payload: { name: string; label_ids: number[] }) {
+async function createWorkspace (payload: {
+  name: string
+  description: string | null
+  label_ids: number[]
+  assignee_ids: number[]
+}) {
   pending.value = true
   error.value = null
   try {
     await withAppLoadingCursor(async () => {
       const createdWorkspace = await api<Workspace>(`/orgs/${slug.value}/workspaces`, {
         method: 'POST',
-        body: { name: payload.name, label_ids: payload.label_ids },
+        body: {
+          name: payload.name,
+          description: payload.description,
+          label_ids: payload.label_ids,
+          assignee_ids: payload.assignee_ids,
+        },
       })
       workspaceCreateModalOpen.value = false
       await load({ refresh: true })
@@ -263,6 +368,45 @@ async function createWorkspace (payload: { name: string; label_ids: number[] }) 
 }
 function warmWorkspaceBoard (workspaceId: number) {
   void warmWorkspaceBoardCache(slug.value, String(workspaceId))
+}
+function onWorkspacePointerDown (event: PointerEvent, workspaceId: number) {
+  if (event.button !== 0 || loadingWorkspaceId.value !== null) {
+    pointerPressState.value = null
+    return
+  }
+  pointerPressState.value = {
+    workspaceId,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    moved: false,
+  }
+}
+function onWorkspacePointerMove (event: PointerEvent, workspaceId: number) {
+  const state = pointerPressState.value
+  if (!state || state.workspaceId !== workspaceId || state.pointerId !== event.pointerId) {
+    return
+  }
+  if (state.moved) return
+  const movedX = Math.abs(event.clientX - state.startX)
+  const movedY = Math.abs(event.clientY - state.startY)
+  if (movedX > CLICK_MOVE_TOLERANCE_PX || movedY > CLICK_MOVE_TOLERANCE_PX) {
+    state.moved = true
+  }
+}
+function onWorkspacePointerCancel () {
+  pointerPressState.value = null
+}
+function onWorkspacePointerUp (event: PointerEvent, workspaceId: number) {
+  const state = pointerPressState.value
+  pointerPressState.value = null
+  if (!state || state.workspaceId !== workspaceId || state.pointerId !== event.pointerId) {
+    return
+  }
+  if (state.moved) {
+    return
+  }
+  void goToWorkspace(workspaceId)
 }
 async function goToWorkspace (workspaceId: number) {
   if (loadingWorkspaceId.value !== null) {
@@ -354,34 +498,27 @@ onBeforeUnmount(() => {
 </script>
 <style lang="scss" scoped>
 .list-page {
-  min-height: calc(100dvh - var(--global-header-offset, 46px));
-  padding: 0 1rem 1rem;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
+  min-height: calc(100dvh - var(--global-header-offset, 56px));
+  padding: 0 14px 14px;
+  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
   padding-top: 0;
   box-sizing: border-box;
 }
 .table-card,
 .err {
-  max-width: 72rem;
+  max-width: 1248px;
   margin-left: auto;
   margin-right: auto;
 }
 .page-header {
   position: sticky;
-  top: var(--global-header-offset, 46px);
+  top: var(--global-header-offset, 56px);
   z-index: 40;
-  margin-bottom: 1rem;
-  width: calc(100% + 2rem);
-  margin-left: -1rem;
-  margin-right: -1rem;
-  box-sizing: border-box;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  padding: 0 0.9rem;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.35);
-  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.18);
+  width: calc(100% + 28px);
+  margin-left: -14px;
+  margin-right: -14px;
+  @include mixin.page-header-shell;
+  padding: 0 14px;
 }
 .page-header > * {
   width: 100%;
@@ -390,7 +527,7 @@ onBeforeUnmount(() => {
 .subheader {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 7px;
   height: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -401,18 +538,13 @@ onBeforeUnmount(() => {
   display: none;
 }
 .subheader-title {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 900;
-  color: #2b2e2f;
-  line-height: 1.1;
+  @include mixin.page-header-title;
   letter-spacing: 0.05em;
-  flex-shrink: 0;
 }
 .subheader-filters {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 6px;
   flex: 1;
   min-width: 0;
 }
@@ -420,8 +552,8 @@ onBeforeUnmount(() => {
 .header-sort {
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0 0.55rem;
-  font-size: 0.82rem;
+  padding: 0 8px;
+  font-size: 11.48px;
   background: #fff;
   color: #0f172a;
   box-sizing: border-box;
@@ -430,8 +562,8 @@ onBeforeUnmount(() => {
 }
 .header-search {
   flex: 1;
-  min-width: 6rem;
-  max-width: 18rem;
+  min-width: 84px;
+  max-width: 252px;
 }
 .header-search::placeholder {
   color: #94a3b8;
@@ -442,13 +574,13 @@ onBeforeUnmount(() => {
 }
 .header-sort {
   flex-shrink: 0;
-  width: 6.75rem;
-  padding-right: 1.5rem;
+  width: 94.5px;
+  padding-right: 21px;
   cursor: pointer;
 }
 .subheader-count {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
   white-space: nowrap;
@@ -459,59 +591,153 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 10px;
   overflow: visible;
+  margin-top: 8px;
 }
 .table-wrap {
   overflow-x: auto;
   background: transparent;
 }
 .workspace-table {
-  width: 100%;
+  --col-name-width: 480px;
+  --col-assignees-width: 112px;
+  --col-description-width: 528px;
+  --col-status-width: 128px;
+  width: 1248px;
+  max-width: 1248px;
+  table-layout: fixed;
   border-collapse: separate;
-  border-spacing: 0 10px;
-  min-width: 28rem;
+  border-spacing: 0 8px;
 }
 .workspace-table th,
 .workspace-table td {
   text-align: left;
-  padding: 0.72rem 0.95rem;
-  font-size: 0.92rem;
+  padding: 0;
   color: #1e293b;
 }
+.workspace-table tbody tr {
+  height: 80px;
+}
 .workspace-table th {
-  background: #f8fafd;
+  height: 24px;
+  box-sizing: border-box;
+  background: none;
   color: #64748b;
-  font-size: 0.8rem;
+  font-size: 14px;
   letter-spacing: 0.02em;
+  vertical-align: middle;
+  text-align: left;
+  padding: 0 16px;
 }
-.workspace-table tbody tr:hover {
-  background: #f8fbff;
+.workspace-table th:nth-child(1) {
+  width: var(--col-name-width);
+  max-width: var(--col-name-width);
 }
-.workspace-table tbody tr:hover td {
-  background: #f9fcff;
+.workspace-table th:nth-child(2) {
+  width: var(--col-assignees-width);
+  max-width: var(--col-assignees-width);
+  text-align: center;
 }
-.workspace-table tbody td {
+.workspace-table th:nth-child(3) {
+  width: var(--col-description-width);
+  max-width: var(--col-description-width);
+}
+.workspace-table th:nth-child(4) {
+  width: var(--col-status-width);
+  max-width: var(--col-status-width);
+  text-align: center;
+}
+.workspace-card-cell {
+  height: 80px;
+  box-sizing: border-box;
+  vertical-align: middle;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.workspace-card {
+  position: relative;
+  height: 80px;
+  box-sizing: border-box;
   background: #fff;
-  border-top: 1px solid #edf2f7;
-  border-bottom: 1px solid #edf2f7;
+  border: 1px solid #edf2f7;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
 }
-.workspace-table tbody td:first-child {
-  border-left: 1px solid #edf2f7;
-  border-radius: 8px 0 0 8px;
+.workspace-card__labels {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  padding: 0 16px;
+  min-width: 0;
+  pointer-events: none;
 }
-.workspace-table tbody td:last-child {
-  border-right: 1px solid #edf2f7;
-  border-radius: 0 8px 8px 0;
+.workspace-card__body {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  min-width: 1248px;
+}
+.workspace-card__name {
+  width: var(--col-name-width);
+  max-width: var(--col-name-width);
+  box-sizing: border-box;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+.workspace-card__assignees {
+  width: var(--col-assignees-width);
+  max-width: var(--col-assignees-width);
+  box-sizing: border-box;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.workspace-card__description {
+  width: var(--col-description-width);
+  max-width: var(--col-description-width);
+  box-sizing: border-box;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.workspace-card__status {
+  width: var(--col-status-width);
+  max-width: var(--col-status-width);
+  box-sizing: border-box;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  font-size: 14px;
+  flex-shrink: 0;
 }
 .clickable-row {
   cursor: pointer;
-  transition: opacity 0.35s ease;
 }
 .clickable-row:hover:not(.workspace-row--loading) {
   opacity: 0.8;
 }
 .workspace-row--loading,
 .workspace-row--loading:hover {
-  opacity: 0.4;
+  opacity: 0.6;
   cursor: wait;
 }
 .workspace-row--fade-in {
@@ -531,66 +757,38 @@ onBeforeUnmount(() => {
   outline: 2px solid #2563eb;
   outline-offset: -2px;
 }
-.name-cell {
-  font-weight: 600;
-}
 .name-text {
   margin: 0;
-}
-.label-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-.label-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  border: 1px solid #dbe3ee;
-  border-radius: 999px;
-  padding: 0.2rem 0.5rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  background: #fff;
-}
-.label-empty {
-  margin: 0.1rem 0 0;
-  color: #64748b;
-  font-size: 0.82rem;
-}
-.label-list {
-  margin-top: 0.35rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-.label-strip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.18rem 0.55rem;
-  border-radius: 4px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: #fff;
-  white-space: nowrap;
-  max-width: 100%;
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.description-text {
+  margin: 0;
+  width: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  max-height: calc(1.4em * 2);
+  color: #475569;
+  word-break: break-word;
 }
 .empty {
   text-align: center;
   color: #64748b;
-  padding: 1rem 0.95rem;
+  padding: 14px;
 }
 .primary-btn,
-.ghost-btn,
-.mini-btn {
+.ghost-btn {
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 0.3rem 0.9rem;
-  font-size: 0.9rem;
+  padding: 4px 12px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
@@ -603,19 +801,16 @@ onBeforeUnmount(() => {
   background: mixin.$main-aqua;
   color: mixin.$white;
   border-radius: 999px;
-  padding: 0.4rem 2rem;
+  padding: 6px 28px;
+  font-size: 14px;
   white-space: nowrap;
   flex-shrink: 0;
-  gap: 0.35rem;
+  gap: 4.9px;
 }
 .ghost-btn {
   background: #fff;
   color: #334155;
   border-color: #94a3b8;
-}
-.mini-btn {
-  background: #f1f5f9;
-  color: #0f172a;
 }
 button:disabled {
   opacity: 0.55;
@@ -623,7 +818,7 @@ button:disabled {
 }
 .err {
   margin-top: 0;
-  margin-bottom: 0.9rem;
+  margin-bottom: 12px;
   color: #b91c1c;
   font-weight: 700;
 }

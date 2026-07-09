@@ -84,13 +84,13 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
 .task-hierarchy {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding: 0.85rem 0;
+  gap: 11.9px;
+  padding: 11.9px 0;
 }
 .task-hierarchy__header {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 6.3px;
   min-width: 0;
 }
 .task-hierarchy__icon {
@@ -99,7 +99,7 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
 }
 .task-hierarchy__title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 13.3px;
   font-weight: 800;
   color: #0f172a;
   line-height: 1.3;
@@ -107,11 +107,11 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
 .task-hierarchy__group {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .task-hierarchy__group-label {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 700;
   color: #64748b;
 }
@@ -119,8 +119,8 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   margin: 0;
   border: 1px dashed mixin.$border;
   border-radius: 10px;
-  padding: 0.65rem 0.75rem;
-  font-size: 0.82rem;
+  padding: 9.1px 10.5px;
+  font-size: 11.48px;
   color: #94a3b8;
   background: #f8fafc;
 }
@@ -130,20 +130,20 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
 }
 .task-hierarchy__row {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 7.7px;
   min-width: 0;
   border: 1px solid mixin.$border;
   border-radius: 10px;
   background: #fff;
-  padding: 0.65rem 0.75rem;
+  padding: 9.1px 10.5px;
 }
 .task-hierarchy__row--parent {
-  gap: 0.5rem;
+  gap: 7px;
 }
 .task-hierarchy__row--child {
   justify-content: flex-start;
@@ -156,7 +156,7 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
 .task-hierarchy__row-title {
   min-width: 0;
   flex: 1 1 auto;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   font-weight: 600;
   color: #0f172a;
   line-height: 1.35;
@@ -167,9 +167,9 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
 .task-hierarchy__date {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 4.2px;
   flex-shrink: 0;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   color: #64748b;
   white-space: nowrap;
 }
@@ -179,10 +179,10 @@ function listBadgeTone (name: string): 'done' | 'progress' | 'default' {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.55rem;
-  padding: 0 0.55rem;
+  min-height: 21.7px;
+  padding: 0 7.7px;
   border-radius: 999px;
-  font-size: 0.74rem;
+  font-size: 10.36px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;

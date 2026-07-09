@@ -115,13 +115,13 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   background: #fff;
   border: 1px solid mixin.$border;
   border-radius: 10px;
-  padding: 0.45rem 0.55rem;
+  padding: 6.3px 7.7px;
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
 }
 .task-parent-title {
-  margin: 0 0 0.2rem;
+  margin: 0 0 2.8px;
   max-width: 100%;
-  font-size: 0.75rem;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1.25;
   color: mixin.$main;
@@ -132,13 +132,13 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
 .task-title-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.3rem;
+  gap: 4.2px;
   margin: 0;
   min-width: 0;
 }
 .task-title-row__icon {
   flex-shrink: 0;
-  margin-top: 0.12rem;
+  margin-top: 1.68px;
   color: mixin.$main;
 }
 .task-title {
@@ -146,7 +146,7 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  font-size: 0.875rem;
+  font-size: 12.25px;
   font-weight: 700;
   line-height: 1.25;
   white-space: normal;
@@ -154,21 +154,21 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
   word-break: break-word;
 }
 .task-card--parent .task-title {
-  font-size: 0.9375rem;
+  font-size: 13.125px;
   color: mixin.$main;
 }
 .task-card-meta {
   display: flex;
   flex-direction: column;
-  gap: 0.18rem;
-  margin-top: 0.35rem;
+  gap: 2.52px;
+  margin-top: 4.9px;
 }
 .task-card-meta__row {
   display: inline-flex;
   align-items: center;
-  gap: 0.28rem;
+  gap: 3.92px;
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   font-weight: 600;
   line-height: 1.25;
   color: #64748b;
@@ -185,7 +185,7 @@ const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3)
 .task-card-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.3rem;
+  margin-top: 4.2px;
 }
 .task-card-members {
   display: flex;

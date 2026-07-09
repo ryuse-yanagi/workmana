@@ -1,0 +1,60 @@
+/**
+ * スペース作成・タスク追加・設定の追加ボタンなど、
+ * アプリ共通のボタン内テキストを上下中央に揃える。
+ */
+.primary-btn,
+.ghost-btn,
+.danger-btn,
+.settings-primary-btn,
+.settings-ghost-btn,
+.named-color-items-panel__add-btn,
+.label-category-panel__add-category-btn,
+.label-action-btn,
+.composer-submit-btn,
+.profile-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+/**
+ * モーダル内の「キャンセル + 実行系」2ボタンを統一。
+ * - 160px x 40px
+ * - 中央寄せ
+ * - キャンセル: 薄い灰色 / 濃い灰色
+ * - 実行系（作成・更新・削除・追加など）: main / white
+ */
+.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions),
+.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > :is(.ghost-btn, .primary-btn, .danger-btn),
+.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > :is(.ghost-btn, .primary-btn, .danger-btn) {
+  width: 160px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .ghost-btn,
+.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .ghost-btn {
+  background: #e5e7eb;
+  color: #475569;
+  border-color: transparent;
+}
+
+.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > :is(.primary-btn, .danger-btn),
+.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > :is(.primary-btn, .danger-btn) {
+  background: mixin.$main;
+  color: mixin.$white;
+  border-color: transparent;
+}

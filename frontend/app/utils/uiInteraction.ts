@@ -142,7 +142,7 @@ export function isModalOverlayBackdropTarget (target: Node): boolean {
 }
 /**
  * プルダウン外クリックでモーダル背面を押したとき、続く mouseup によるモーダル閉じを抑止する。
- * （capture 段階でプルダウンが先に閉じると、mouseup 時には開いていないためモーダルまで閉じてしまうのを防ぐ）
+ * （プルダウンが mouseup で閉じるとき、同じ mouseup でモーダルまで閉じないようにする）
  */
 export function suppressOverlayBackdropCloseOnce () {
   suppressNextOverlayBackdropClose = true

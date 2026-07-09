@@ -55,6 +55,49 @@ class LabelCategoryApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('name', '実装');
 
+        $categoryB = $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/orgs/acme/task-label-categories', [
+                'name' => '優先度',
+            ])
+            ->assertCreated()
+            ->json('id');
+
+        $labelB = $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson('/api/orgs/acme/task-labels', [
+                'category_id' => $categoryId,
+                'name' => 'レビュー',
+                'color_index' => 1,
+            ])
+            ->assertCreated()
+            ->json('id');
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson('/api/orgs/acme/task-label-categories/reorder', [
+                'category_ids' => [$categoryB, $categoryId],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson('/api/orgs/acme/task-label-categories')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $categoryB)
+            ->assertJsonPath('data.1.id', $categoryId);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson('/api/orgs/acme/task-labels/reorder', [
+                'category_id' => $categoryId,
+                'label_ids' => [$labelB, $labelId],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->getJson('/api/orgs/acme/task-label-categories')
+            ->assertOk()
+            ->assertJsonPath('data.1.labels.0.id', $labelB)
+            ->assertJsonPath('data.1.labels.1.id', $labelId);
+
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->deleteJson("/api/orgs/acme/task-labels/{$labelId}")
             ->assertNoContent();

@@ -57,12 +57,12 @@ const stripStyle = computed(() => ({
   text-overflow: ellipsis;
 }
 .label-strip--sm {
-  padding: 0.12rem 0.4rem;
-  font-size: 0.68rem;
+  padding: 1.68px 5.6px;
+  font-size: 9.52px;
 }
 .label-strip--md {
-  padding: 0.18rem 0.55rem;
-  font-size: 0.78rem;
+  padding: 2.52px 7.7px;
+  font-size: 10.92px;
 }
 .label-strip__text {
   display: block;

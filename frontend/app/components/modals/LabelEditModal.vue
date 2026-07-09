@@ -5,7 +5,7 @@
     :aria-label="title"
     :close-disabled="loading"
     focus-primary-input-on-open
-    width="min(32rem, 100%)"
+    width="min(512px, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <form class="label-edit-modal-body" @keydown="onFormKeydown">
@@ -78,32 +78,32 @@ function onFormKeydown (event: KeyboardEvent) {
 </script>
 <style lang="scss" scoped>
 .label-edit-modal-body {
-  padding: 1rem;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 11.2px;
 }
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
   color: #1e293b;
   font-weight: 700;
 }
 .field input {
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.55rem 0.7rem;
-  font-size: 0.94rem;
+  padding: 7.7px 9.8px;
+  font-size: 13.16px;
   &:focus {
     @include mixin.input-focus-ring;
   }
 }
 .actions {
-  margin-top: 0.2rem;
+  margin-top: 2.8px;
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 7px;
 }
 .ghost-btn,
 .primary-btn {

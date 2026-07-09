@@ -5,7 +5,7 @@
     :aria-label="modalTitle"
     :close-disabled="loading"
     focus-primary-input-on-open
-    width="min(32rem, 100%)"
+    width="min(512px, 100%)"
     align="top"
     @update:model-value="emit('update:modelValue', $event)"
   >
@@ -111,26 +111,26 @@ defineExpose({ setSubmitError })
 </script>
 <style lang="scss" scoped>
 .list-create-modal-body {
-  padding: 1rem 1.35rem 1.35rem;
+  padding: 14px 18.9px 18.9px;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 11.9px;
 }
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
   color: #0f172a;
   font-weight: 800;
-  font-size: 0.88rem;
+  font-size: 12.32px;
 }
 .field input {
   box-sizing: border-box;
   width: 100%;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.62rem 0.75rem;
-  font-size: 0.9rem;
+  padding: 8.68px 10.5px;
+  font-size: 12.6px;
   font-weight: 400;
   color: #0f172a;
   background: #fff;
@@ -143,13 +143,13 @@ defineExpose({ setSubmitError })
   margin: 0;
   color: #b91c1c;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: 12.04px;
 }
 .actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding-top: 0.25rem;
+  justify-content: center;
+  gap: 7px;
+  padding-top: 3.5px;
 }
 .ghost-btn,
 .primary-btn {

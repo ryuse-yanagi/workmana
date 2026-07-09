@@ -13,6 +13,7 @@ class Organization extends Model
         'name',
         'slug',
         'default_board_list_names',
+        'default_workspace_status_names',
         'effort_unit',
         'created_by',
     ];
@@ -21,6 +22,7 @@ class Organization extends Model
     {
         return [
             'default_board_list_names' => 'array',
+            'default_workspace_status_names' => 'array',
         ];
     }
 

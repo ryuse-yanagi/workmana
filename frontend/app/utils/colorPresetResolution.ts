@@ -75,3 +75,9 @@ export function resolveListColors<T extends ColorIndexedEntity> (
 ): Array<T & { color_index: number; color: string }> {
   return items.map(withResolvedListColor)
 }
+
+export function resolveStandardColors<T extends ColorIndexedEntity> (
+  items: T[],
+): Array<T & { color_index: number; color: string }> {
+  return resolveListColors(items)
+}

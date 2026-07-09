@@ -61,13 +61,13 @@ function selectColor (colorItem: string) {
 .color-preset-picker {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 6.3px;
   color: #1e293b;
   font-weight: 700;
 }
 .color-preset-picker__list {
   display: grid;
-  gap: 0.35rem;
+  gap: 4.9px;
 }
 .color-preset-picker__btn {
   @include mixin.picker-checkbox-row;
@@ -76,7 +76,7 @@ function selectColor (colorItem: string) {
   justify-content: center;
   width: 100%;
   aspect-ratio: 1.55;
-  min-height: 1.65rem;
+  min-height: 23.1px;
   border-radius: 6px;
   border: 1px solid transparent;
   padding: 0;

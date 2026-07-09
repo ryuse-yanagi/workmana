@@ -13,7 +13,10 @@ use Illuminate\Database\Seeder;
 class LabelSeeder extends Seeder
 {
     /** @var list<string> */
-    private const CATEGORY_NAMES = ['dmy_ctg_a', 'dmy_ctg_b'];
+    private const WORKSPACE_CATEGORY_NAMES = ['dmy_ctg_ws_a', 'dmy_ctg_ws_b'];
+
+    /** @var list<string> */
+    private const TASK_CATEGORY_NAMES = ['dmy_ctg_task_a', 'dmy_ctg_task_b'];
 
     /**
      * 標準色プリセット index: 赤 #ff624d, 青 #669df1, 黄 #ffe600, 緑 #4bce97
@@ -23,11 +26,19 @@ class LabelSeeder extends Seeder
     private const LABEL_COLOR_INDICES = [8, 20, 6, 5];
 
     /** @var list<array{category: string, name: string}> */
-    private const LABELS = [
-        ['category' => 'dmy_ctg_a', 'name' => 'dmy_label_a_1'],
-        ['category' => 'dmy_ctg_a', 'name' => 'dmy_label_a_2'],
-        ['category' => 'dmy_ctg_b', 'name' => 'dmy_label_b_1'],
-        ['category' => 'dmy_ctg_b', 'name' => 'dmy_label_b_2'],
+    private const WORKSPACE_LABELS = [
+        ['category' => 'dmy_ctg_ws_a', 'name' => 'dmy_label_ws_a_1'],
+        ['category' => 'dmy_ctg_ws_a', 'name' => 'dmy_label_ws_a_2'],
+        ['category' => 'dmy_ctg_ws_b', 'name' => 'dmy_label_ws_b_1'],
+        ['category' => 'dmy_ctg_ws_b', 'name' => 'dmy_label_ws_b_2'],
+    ];
+
+    /** @var list<array{category: string, name: string}> */
+    private const TASK_LABELS = [
+        ['category' => 'dmy_ctg_task_a', 'name' => 'dmy_label_task_a_1'],
+        ['category' => 'dmy_ctg_task_a', 'name' => 'dmy_label_task_a_2'],
+        ['category' => 'dmy_ctg_task_b', 'name' => 'dmy_label_task_b_1'],
+        ['category' => 'dmy_ctg_task_b', 'name' => 'dmy_label_task_b_2'],
     ];
 
     public function run (): void
@@ -39,9 +50,9 @@ class LabelSeeder extends Seeder
             return;
         }
 
-        $creator = User::query()->where('name', 'dmy_user_1')->first();
+        $creator = User::query()->where('name', 'dmy_user_01')->first();
         if ($creator === null) {
-            $this->command?->warn('dmy_user_1 not found. Run UserSeeder first.');
+            $this->command?->warn('dmy_user_01 not found. Run UserSeeder first.');
 
             return;
         }
@@ -56,9 +67,10 @@ class LabelSeeder extends Seeder
             WorkspaceLabelCategory::class,
             $org,
             $creator,
+            self::WORKSPACE_CATEGORY_NAMES,
         );
 
-        foreach (self::LABELS as $index => $definition) {
+        foreach (self::WORKSPACE_LABELS as $index => $definition) {
             $category = $categoriesByName[$definition['category']] ?? null;
             if ($category === null) {
                 continue;
@@ -85,9 +97,10 @@ class LabelSeeder extends Seeder
             TaskLabelCategory::class,
             $org,
             $creator,
+            self::TASK_CATEGORY_NAMES,
         );
 
-        foreach (self::LABELS as $index => $definition) {
+        foreach (self::TASK_LABELS as $index => $definition) {
             $category = $categoriesByName[$definition['category']] ?? null;
             if ($category === null) {
                 continue;
@@ -112,11 +125,11 @@ class LabelSeeder extends Seeder
      * @param  class-string<WorkspaceLabelCategory|TaskLabelCategory>  $modelClass
      * @return array<string, WorkspaceLabelCategory|TaskLabelCategory>
      */
-    private function seedCategories (string $modelClass, Organization $org, User $creator): array
+    private function seedCategories (string $modelClass, Organization $org, User $creator, array $categoryNames): array
     {
         $byName = [];
 
-        foreach (self::CATEGORY_NAMES as $sortOrder => $name) {
+        foreach ($categoryNames as $sortOrder => $name) {
             $byName[$name] = $modelClass::query()->firstOrCreate(
                 [
                     'organization_id' => $org->id,

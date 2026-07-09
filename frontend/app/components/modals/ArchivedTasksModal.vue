@@ -3,14 +3,14 @@
     :model-value="modelValue"
     title="アーカイブ済みカード"
     aria-label="アーカイブ済みカード"
-    width="min(42rem, 100%)"
+    width="min(672px, 100%)"
     align="top"
     :close-disabled="pendingId !== null"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="archived-tasks-modal__body">
       <p class="archived-tasks-modal__subtitle">
-        ワークスペース #{{ workspaceId }} — アーカイブしたカードだけが表示されます。完全削除はこの画面からのみ行えます。
+        スペース #{{ workspaceId }} — アーカイブしたカードだけが表示されます。完全削除はこの画面からのみ行えます。
       </p>
       <p v-if="error" class="archived-tasks-modal__err">{{ error }}</p>
       <div v-if="loading && !tasks" class="archived-tasks-modal__state">
@@ -206,26 +206,26 @@ defineExpose({
 </script>
 <style lang="scss" scoped>
 .archived-tasks-modal__body {
-  padding: 1rem;
-  max-height: min(70vh, 36rem);
+  padding: 14px;
+  max-height: min(70vh, 504px);
   overflow-y: auto;
 }
 .archived-tasks-modal__subtitle {
-  margin: 0 0 0.85rem;
+  margin: 0 0 11.9px;
   color: mixin.$text-sub;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   line-height: 1.5;
 }
 .archived-tasks-modal__err {
-  margin: 0 0 0.75rem;
+  margin: 0 0 10.5px;
   color: mixin.$danger;
   font-weight: 700;
-  font-size: 0.88rem;
+  font-size: 12.32px;
 }
 .archived-tasks-modal__state,
 .archived-tasks-modal__empty {
   color: mixin.$text-muted;
-  font-size: 0.9rem;
+  font-size: 12.6px;
 }
 .archived-tasks-modal__empty p {
   margin: 0;
@@ -236,7 +236,7 @@ defineExpose({
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 11.9px;
 }
 .archived-tasks-modal__item {
   display: flex;
@@ -247,16 +247,16 @@ defineExpose({
 .archived-tasks-modal__actions {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
-  padding-left: 0.15rem;
+  gap: 4.9px;
+  margin-top: 4.9px;
+  padding-left: 2.1px;
 }
 .archived-tasks-modal__action {
   border: none;
   padding: 0;
   background: transparent;
   color: #5e6c84;
-  font-size: 0.78rem;
+  font-size: 10.92px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
@@ -280,7 +280,7 @@ defineExpose({
 }
 .archived-tasks-modal__action-sep {
   color: #94a3b8;
-  font-size: 0.72rem;
+  font-size: 10.08px;
   line-height: 1;
   user-select: none;
 }

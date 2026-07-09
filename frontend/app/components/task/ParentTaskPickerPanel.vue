@@ -3,7 +3,7 @@
     <p v-if="loading" class="empty-text parent-task-loading">
       読み込み中...
     </p>
-    <ul v-else class="parent-task-picker-list">
+    <ul v-else-if="parents.length" class="parent-task-picker-list">
       <li
         v-for="parent in parents"
         :key="parent.id"
@@ -26,7 +26,7 @@
     <p v-if="!loading && !parents.length" class="empty-text parent-task-empty">
       親タスクがありません。
     </p>
-    <div v-if="!loading" class="popover-field-actions">
+    <div v-if="!loading && parents.length" class="popover-field-actions">
       <button
         type="button"
         class="popover-field-clear-btn"
@@ -64,34 +64,38 @@ const emit = defineEmits<{
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.parent-task-loading,
+.parent-task-loading {
+  margin: 8px;
+}
 .parent-task-empty {
-  margin: 0.55rem 0.65rem 0.65rem;
+  margin: 0;
+  padding: 28px 8px;
+  text-align: center;
 }
 .parent-task-picker-list {
   list-style: none;
   margin: 0;
-  padding: 0.5rem 0.65rem 0.25rem;
+  padding: 6.4px 8px 3.2px;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 2.8px;
 }
 .popover-field-actions {
   display: flex;
   justify-content: flex-end;
   margin-top: 0;
-  padding: 0.35rem 0.65rem 0.65rem;
+  padding: 4.8px 8px 8px;
 }
 .popover-field-clear-btn {
-  min-width: 3.5rem;
-  height: 1.75rem;
-  padding: 0 0.65rem;
+  min-width: 48px;
+  height: 24px;
+  padding: 0 8px;
   border: 1px solid mixin.$border-light;
   border-radius: 6px;
   background: #fff;
   color: mixin.$text-sub;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 10.4px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -107,11 +111,11 @@ const emit = defineEmits<{
   @include mixin.picker-checkbox-row;
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 8px;
   width: 100%;
   border: none;
   border-radius: 8px;
-  padding: 0.45rem 0.35rem;
+  padding: 6.4px 4.8px;
   background: transparent;
   text-align: left;
 }
@@ -122,8 +126,8 @@ const emit = defineEmits<{
   background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
 }
 .parent-task-picker-radio {
-  width: 1rem;
-  height: 1rem;
+  width: 14px;
+  height: 14px;
   border: 2px solid #8590a2;
   border-radius: 50%;
   flex-shrink: 0;
@@ -138,7 +142,7 @@ const emit = defineEmits<{
 }
 .parent-task-picker-radio--checked::after {
   content: '✓';
-  font-size: 0.62rem;
+  font-size: 8px;
   font-weight: 800;
   line-height: 1;
   color: mixin.$white;
@@ -146,7 +150,7 @@ const emit = defineEmits<{
 .parent-task-picker-label {
   flex: 1;
   min-width: 0;
-  font-size: 0.88rem;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.35;
   color: mixin.$text;
@@ -155,13 +159,13 @@ const emit = defineEmits<{
 }
 .empty-text {
   margin: 0;
-  font-size: 0.84rem;
+  font-size: 11.2px;
   color: #94a3b8;
 }
 .err {
-  margin: 0.45rem 0.65rem 0.65rem;
+  margin: 6.4px 8px;
   color: #b91c1c;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: 12.04px;
 }
 </style>

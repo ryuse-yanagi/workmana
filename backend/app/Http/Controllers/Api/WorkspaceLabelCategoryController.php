@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\WorkspaceLabel;
 use App\Models\WorkspaceLabelCategory;
 use App\Support\FieldLengthLimits;
+use App\Support\SortOrderReorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -77,6 +78,7 @@ class WorkspaceLabelCategoryController extends ApiController
                     ->where(fn ($q) => $q->where('organization_id', $organization->id))
                     ->ignore($category->id),
             ],
+            'sort_order' => ['sometimes', 'integer', 'min:0'],
         ]);
 
         if (array_key_exists('name', $validated)) {
@@ -87,9 +89,47 @@ class WorkspaceLabelCategoryController extends ApiController
             $category->name = $name;
         }
 
+        if (array_key_exists('sort_order', $validated)) {
+            $category->sort_order = (int) $validated['sort_order'];
+        }
+
         $category->save();
 
         return response()->json($this->categoryPayload($category->load('labels')));
+    }
+
+    public function reorder(Request $request, Organization $organization): JsonResponse
+    {
+        $this->ensureAdmin($request);
+
+        $validated = $request->validate([
+            'category_ids' => ['present', 'array'],
+            'category_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        /** @var list<int> $categoryIds */
+        $categoryIds = array_map('intval', $validated['category_ids']);
+
+        $activeCategoryIds = WorkspaceLabelCategory::query()
+            ->where('organization_id', $organization->id)
+            ->pluck('id')
+            ->sort()
+            ->values()
+            ->all();
+
+        SortOrderReorder::assertExactIdSet(
+            $categoryIds,
+            $activeCategoryIds,
+            'category_ids',
+            'category_ids must include every workspace label category in the organization exactly once.',
+        );
+
+        SortOrderReorder::apply(
+            WorkspaceLabelCategory::query()->where('organization_id', $organization->id),
+            $categoryIds,
+        );
+
+        return response()->json(['data' => ['ok' => true]]);
     }
 
     public function destroy(Request $request, Organization $organization, WorkspaceLabelCategory $category): JsonResponse

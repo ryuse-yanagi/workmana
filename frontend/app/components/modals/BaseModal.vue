@@ -59,7 +59,7 @@ const props = withDefaults(defineProps<{
   showClose: true,
   closeOnBackdrop: true,
   focusPrimaryInputOnOpen: false,
-  width: 'min(36rem, 100%)',
+  width: 'min(576px, 100%)',
   borderRadius: '10px',
   align: 'center',
   zIndex: 70,
@@ -151,14 +151,14 @@ defineExpose({ cardRef })
   background: rgba(15, 23, 42, 0.45);
   display: flex;
   justify-content: center;
-  padding: 1rem;
+  padding: 14px;
 }
 .base-modal-overlay--center {
   align-items: center;
 }
 .base-modal-overlay--top {
   align-items: flex-start;
-  padding-top: 4rem;
+  padding-top: 56px;
   overflow-y: auto;
 }
 .base-modal-card {
@@ -171,7 +171,7 @@ defineExpose({ cardRef })
 }
 .base-modal-title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 14.7px;
   line-height: 1;
 }
 .base-modal-close {
@@ -179,7 +179,7 @@ defineExpose({ cardRef })
   background: transparent;
   border: none;
   color: #fff;
-  font-size: 1.4rem;
+  font-size: 19.6px;
   line-height: 1;
   cursor: pointer;
 }

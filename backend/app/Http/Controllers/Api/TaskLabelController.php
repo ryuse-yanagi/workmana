@@ -7,6 +7,7 @@ use App\Models\TaskLabel;
 use App\Models\TaskLabelCategory;
 use App\Support\FieldLengthLimits;
 use App\Support\LabelColorPresets;
+use App\Support\SortOrderReorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -94,6 +95,7 @@ class TaskLabelController extends ApiController
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::LABEL_NAME],
             'color_index' => ['sometimes', 'integer', 'min:0', 'max:'.(LabelColorPresets::COUNT - 1)],
+            'sort_order' => ['sometimes', 'integer', 'min:0'],
         ]);
 
         if (array_key_exists('name', $validated)) {
@@ -120,9 +122,56 @@ class TaskLabelController extends ApiController
             $taskLabel->color_index = $colorIndex;
         }
 
+        if (array_key_exists('sort_order', $validated)) {
+            $taskLabel->sort_order = (int) $validated['sort_order'];
+        }
+
         $taskLabel->save();
 
         return response()->json($this->labelPayload($taskLabel));
+    }
+
+    public function reorder(Request $request, Organization $organization): JsonResponse
+    {
+        $pivot = $request->attributes->get('organization_membership');
+        if (($pivot->role ?? '') !== 'admin') {
+            abort(403, 'Only organization admins can reorder task labels.');
+        }
+
+        $validated = $request->validate([
+            'category_id' => ['required', 'integer', 'exists:task_label_categories,id'],
+            'label_ids' => ['present', 'array'],
+            'label_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $category = TaskLabelCategory::query()->find($validated['category_id']);
+        if ($category === null || (int) $category->organization_id !== (int) $organization->id) {
+            return response()->json(['message' => 'Invalid category for this organization.'], 422);
+        }
+
+        /** @var list<int> $labelIds */
+        $labelIds = array_map('intval', $validated['label_ids']);
+
+        $activeLabelIds = TaskLabel::query()
+            ->where('category_id', $category->id)
+            ->pluck('id')
+            ->sort()
+            ->values()
+            ->all();
+
+        SortOrderReorder::assertExactIdSet(
+            $labelIds,
+            $activeLabelIds,
+            'label_ids',
+            'label_ids must include every task label in the category exactly once.',
+        );
+
+        SortOrderReorder::apply(
+            TaskLabel::query()->where('category_id', $category->id),
+            $labelIds,
+        );
+
+        return response()->json(['data' => ['ok' => true]]);
     }
 
     public function destroy(Request $request, Organization $organization, TaskLabel $taskLabel): JsonResponse

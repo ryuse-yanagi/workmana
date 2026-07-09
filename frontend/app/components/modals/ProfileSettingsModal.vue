@@ -4,7 +4,7 @@
     title="プロフィール設定"
     aria-label="プロフィール設定"
     :close-disabled="nameLoading || avatarLoading"
-    width="min(36rem, 100%)"
+    width="min(576px, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="profile-settings-modal-body">
@@ -185,42 +185,42 @@ watch(
 </script>
 <style lang="scss" scoped>
 .profile-settings-modal-body {
-  padding: 1rem 1.15rem 1.2rem;
+  padding: 14px 16.1px 16.8px;
 }
 .profile-settings-modal-note {
-  margin: 0 0 1rem;
+  margin: 0 0 14px;
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: 12.6px;
 }
 .profile-field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 4.9px;
   color: #1e293b;
-  font-size: 0.9rem;
+  font-size: 12.6px;
   font-weight: 700;
 }
 .profile-input {
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0.55rem 0.7rem;
-  font-size: 0.95rem;
+  padding: 7.7px 9.8px;
+  font-size: 13.3px;
   background: #fff;
   &:focus {
     @include mixin.input-focus-ring;
   }
 }
 .profile-button-row {
-  margin-top: 0.55rem;
+  margin-top: 7.7px;
   display: flex;
-  gap: 0.5rem;
+  gap: 7px;
 }
 .profile-primary-btn,
 .profile-ghost-btn {
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 0.5rem 0.8rem;
-  font-size: 0.86rem;
+  padding: 7px 11.2px;
+  font-size: 12.04px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -240,12 +240,12 @@ watch(
 }
 .profile-row {
   display: flex;
-  gap: 1rem;
+  gap: 14px;
   align-items: center;
-  margin-top: 1rem;
+  margin-top: 14px;
 }
 .profile-name-form {
-  max-width: 34rem;
+  max-width: 476px;
 }
 .avatar-image,
 .avatar-placeholder {
@@ -264,13 +264,13 @@ watch(
   justify-content: center;
   color: #64748b;
   background: #f8fafc;
-  font-size: 0.8rem;
+  font-size: 11.2px;
 }
 .profile-actions {
   flex: 1;
 }
 .profile-msg {
-  margin: 0.85rem 0 0;
+  margin: 11.9px 0 0;
   color: #0f766e;
   font-weight: 700;
 }

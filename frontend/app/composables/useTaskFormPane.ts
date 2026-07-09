@@ -245,7 +245,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     return true
   }
-  function handlePopoverOutsidePointerDown (event: MouseEvent) {
+  function handlePopoverOutsidePointerUp (event: MouseEvent) {
     if (!activePopover.value || event.button !== 0) return
     const target = event.target
     if (!(target instanceof Node)) return
@@ -261,14 +261,14 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
   }
   function bindPopoverListeners () {
     document.addEventListener('keydown', onPopoverEscape)
-    document.addEventListener('mousedown', handlePopoverOutsidePointerDown, true)
+    document.addEventListener('mouseup', handlePopoverOutsidePointerUp, true)
     const onResize = () => updatePopoverPosition()
     window.addEventListener('resize', onResize)
     removePopoverResizeListener = () => window.removeEventListener('resize', onResize)
   }
   function unbindPopoverListeners () {
     document.removeEventListener('keydown', onPopoverEscape)
-    document.removeEventListener('mousedown', handlePopoverOutsidePointerDown, true)
+    document.removeEventListener('mouseup', handlePopoverOutsidePointerUp, true)
     removePopoverResizeListener?.()
     removePopoverResizeListener = null
   }

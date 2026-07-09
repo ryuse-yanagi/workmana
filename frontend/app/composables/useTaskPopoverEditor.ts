@@ -222,6 +222,11 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   function capturePopoverAnchor (event?: Event): HTMLElement | null {
     const fromEvent = event?.currentTarget
     if (fromEvent instanceof HTMLElement) return fromEvent
+    const target = event?.target
+    if (target instanceof Element) {
+      const cellButton = target.closest('.workspace-table__cell-btn')
+      if (cellButton instanceof HTMLElement) return cellButton
+    }
     return null
   }
   function positionPopover () {
@@ -424,11 +429,25 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     dismissPopover()
   }
   function shouldIgnorePopoverOutsideClose (target: Node): boolean {
+    if (!(target instanceof Element)) {
+      return false
+    }
+    if (target.closest('.popover-layer, .popover')) {
+      return true
+    }
+    if (target.closest('[data-workspace-view-switcher-root], .workspace-view-switcher-menu')) {
+      return true
+    }
+    if (target.closest('.workspace-table__cell-btn')) {
+      return true
+    }
     const anchor = popoverAnchorEl.value
-    if (!anchor?.contains(target)) return false
-    return true
+    if (anchor?.contains(target)) {
+      return true
+    }
+    return false
   }
-  function handlePopoverOutsidePointerDown (event: MouseEvent) {
+  function handlePopoverOutsidePointerUp (event: MouseEvent) {
     if (!activePopover.value || event.button !== 0) return
     const target = event.target
     if (!(target instanceof Node)) return
@@ -444,20 +463,25 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   }
   function bindPopoverListeners () {
     document.addEventListener('keydown', onPopoverEscape)
-    document.addEventListener('mousedown', handlePopoverOutsidePointerDown, true)
+    document.addEventListener('mouseup', handlePopoverOutsidePointerUp, true)
     const onResize = () => updatePopoverPosition()
     window.addEventListener('resize', onResize)
     removePopoverResizeListener = () => window.removeEventListener('resize', onResize)
   }
   function unbindPopoverListeners () {
     document.removeEventListener('keydown', onPopoverEscape)
-    document.removeEventListener('mousedown', handlePopoverOutsidePointerDown, true)
+    document.removeEventListener('mouseup', handlePopoverOutsidePointerUp, true)
     removePopoverResizeListener?.()
     removePopoverResizeListener = null
   }
   watch(activePopover, (next, prev) => {
-    if (next && !prev) bindPopoverListeners()
-    if (!next && prev) unbindPopoverListeners()
+    if (next && !prev) {
+      bindPopoverListeners()
+      return
+    }
+    if (!next && prev) {
+      unbindPopoverListeners()
+    }
   })
   onBeforeUnmount(() => {
     unbindPopoverListeners()
@@ -566,8 +590,9 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       void closePopover()
       return
     }
+    const anchor = capturePopoverAnchor(event)
     await ensureOrgEffortSettings(options.orgSlug)
-    popoverAnchorEl.value = capturePopoverAnchor(event)
+    popoverAnchorEl.value = anchor
     activePopover.value = 'effort'
     popoverError.value = null
     effortDraft.value = effortValueToDraft(effortSource(task, orgEffortUnit.value))
@@ -785,6 +810,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     finalizeEffortPopover,
     clearEffort,
     closePopover,
+    dismissPopover,
     openMemberPicker,
     openMemberDetail,
     openLabelPicker,

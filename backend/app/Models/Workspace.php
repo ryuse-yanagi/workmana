@@ -17,6 +17,7 @@ class Workspace extends Model
         'created_by',
         'name',
         'description',
+        'status',
         'orphan_parent_label',
         'orphan_parent_sort_order',
         'archived_at',
@@ -60,6 +61,11 @@ class Workspace extends Model
     public function labels(): BelongsToMany
     {
         return $this->belongsToMany(WorkspaceLabel::class, 'workspace_workspace_label')->withTimestamps();
+    }
+
+    public function assignees(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'workspace_assignees')->withTimestamps();
     }
 
     public function scopeActive(Builder $query): Builder

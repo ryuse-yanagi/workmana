@@ -37,7 +37,7 @@ abstract class ApiController extends Controller
     {
         $pivot = $request->attributes->get('organization_membership');
         $role = $pivot->role ?? '';
-        if (! in_array($role, ['admin', 'leader'], true)) {
+        if ($role !== 'admin') {
             abort(403, 'Insufficient organization role to manage workspaces.');
         }
     }

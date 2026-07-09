@@ -1,7 +1,44 @@
 // 共通カラー — 各 Vue の <style lang="scss"> で mixin.$main のように使う
 // nuxt.config の additionalData で @use "~/assets/styles/mixin" as mixin; を注入済み
 
-$font-family: "Noto Sans JP", "Source Sans Pro", Avenir, Helvetica, Roboto, Arial, 游ゴシック体, YuGothic, メイリオ, Meiryo, sans-serif;
+$font-family: "Noto Sans JP", "Source Sans 3", Avenir, Helvetica, Roboto, Arial, 游ゴシック体, YuGothic, メイリオ, Meiryo, sans-serif;
+/** ヘッダー — ラテン文字は Inter、日本語は Noto Sans JP */
+$font-family-header: "Inter", $font-family;
+/** 全画面共通ヘッダー — Workspaces / Documents ラベル */
+$header-nav-label-font-size: 16px;
+$header-nav-label-font-weight: 600;
+/** 画面別ヘッダー — Workspaces / Documents タイトル */
+$page-header-title-font-size: 16px;
+$page-header-title-font-weight: $header-nav-label-font-weight;
+
+@mixin page-header-title {
+  margin: 0;
+  font-size: $page-header-title-font-size;
+  font-weight: $page-header-title-font-weight;
+  color: #2b2e2f;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+
+/** 画面別ヘッダー — padding 込みで 48px 固定 */
+@mixin page-header-shell {
+  box-sizing: border-box;
+  height: var(--tm-page-header-height, 48px);
+  min-height: var(--tm-page-header-height, 48px);
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/** ヘッダー内テキスト — button 等は UA 既定 (Arial 等) になるため明示 */
+@mixin header-font {
+  font-family: $font-family-header;
+
+  :where(button, input, select, textarea, a) {
+    font-family: inherit;
+  }
+}
 $main: #0c66e4;
 $main-hover: #053580;
 $main-aqua: #25c0f3;
@@ -30,7 +67,7 @@ $white: #fff;
 @mixin modal-header-bar {
   height: 48px;
   box-sizing: border-box;
-  padding: 0 1rem;
+  padding: 0 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -46,6 +83,11 @@ $white: #fff;
 }
 
 @mixin btn-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
   border: 1px solid transparent;
   font-weight: 700;
   cursor: pointer;
@@ -58,7 +100,7 @@ $white: #fff;
 
 @mixin btn-pill {
   border-radius: 999px;
-  padding: 0.45rem 1.4rem;
+  padding: 6.3px 19.6px;
   font-weight: 800;
 }
 
@@ -108,12 +150,12 @@ $white: #fff;
   display: block;
   width: 100%;
   box-sizing: border-box;
-  min-height: 5.5rem;
+  min-height: 77px;
   border: 1px solid $border;
   border-radius: 8px;
-  padding: 0.55rem 0.75rem;
+  padding: 7.7px 10.5px;
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 12.32px;
   line-height: 1.45;
   color: $text;
   background: $white;

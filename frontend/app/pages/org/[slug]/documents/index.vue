@@ -30,8 +30,8 @@
             type="button"
             disabled
           >
-            <FolderPlus :size="18" :stroke-width="2.25" aria-hidden="true" />
-            新規追加
+            <NotebookPen :size="20" :stroke-width="2.25" aria-hidden="true" />
+            資料作成
           </button>
         </div>
       </header>
@@ -46,7 +46,7 @@
   </main>
 </template>
 <script setup lang="ts">
-import { FolderPlus } from 'lucide-vue-next'
+import { NotebookPen } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import {
@@ -73,7 +73,7 @@ const sortMode = ref<'newest' | 'oldest' | 'name'>('newest')
 const globalHeaderOffsetPx = ref(46)
 const listPageCssVars = computed(() => ({
   '--global-header-offset': `${globalHeaderOffsetPx.value}px`,
-  '--app-shell-page-pad': '0.25rem',
+  '--app-shell-page-pad': '3.5px',
 } as Record<string, string>))
 const visibleDocuments = computed(() => {
   const query = searchQuery.value.toLowerCase()
@@ -192,28 +192,21 @@ onBeforeUnmount(() => {
 </script>
 <style lang="scss" scoped>
 .list-page {
-  min-height: calc(100dvh - var(--global-header-offset, 46px));
-  padding: 0 1rem 1rem;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 0.25rem));
+  min-height: calc(100dvh - var(--global-header-offset, 56px));
+  padding: 0 14px 14px;
+  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
   padding-top: 0;
   box-sizing: border-box;
 }
 .page-header {
   position: sticky;
-  top: var(--global-header-offset, 46px);
+  top: var(--global-header-offset, 56px);
   z-index: 40;
-  margin-bottom: 1rem;
-  width: calc(100% + 2rem);
-  margin-left: -1rem;
-  margin-right: -1rem;
-  box-sizing: border-box;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  padding: 0 0.9rem;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.35);
-  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.18);
+  width: calc(100% + 28px);
+  margin-left: -14px;
+  margin-right: -14px;
+  @include mixin.page-header-shell;
+  padding: 0 12.6px;
 }
 .page-header > * {
   width: 100%;
@@ -222,7 +215,7 @@ onBeforeUnmount(() => {
 .subheader {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 7px;
   height: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -233,18 +226,13 @@ onBeforeUnmount(() => {
   display: none;
 }
 .subheader-title {
-  margin: 0;
-  font-size: 0.9rem;
-  font-weight: 900;
-  color: #2b2e2f;
-  line-height: 1.1;
+  @include mixin.page-header-title;
   letter-spacing: 0.05em;
-  flex-shrink: 0;
 }
 .subheader-filters {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 6.3px;
   flex: 1;
   min-width: 0;
 }
@@ -252,8 +240,8 @@ onBeforeUnmount(() => {
 .header-sort {
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  padding: 0 0.55rem;
-  font-size: 0.82rem;
+  padding: 0 7.7px;
+  font-size: 11.48px;
   background: #fff;
   color: #0f172a;
   box-sizing: border-box;
@@ -262,8 +250,8 @@ onBeforeUnmount(() => {
 }
 .header-search {
   flex: 1;
-  min-width: 6rem;
-  max-width: 18rem;
+  min-width: 84px;
+  max-width: 252px;
 }
 .header-search::placeholder {
   color: #94a3b8;
@@ -274,23 +262,24 @@ onBeforeUnmount(() => {
 }
 .header-sort {
   flex-shrink: 0;
-  width: 6.75rem;
-  padding-right: 1.5rem;
+  width: 94.5px;
+  padding-right: 21px;
   cursor: pointer;
 }
 .subheader-count {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 11.48px;
   font-weight: 600;
   color: #64748b;
   white-space: nowrap;
   flex-shrink: 0;
+  gap: 4.9px;
 }
 .primary-btn {
   border: 1px solid transparent;
   border-radius: 999px;
-  padding: 0.4rem 2rem;
-  font-size: 0.9rem;
+  padding: 5.6px 28px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   text-decoration: none;
@@ -302,20 +291,20 @@ onBeforeUnmount(() => {
   color: mixin.$white;
   white-space: nowrap;
   flex-shrink: 0;
-  gap: 0.35rem;
+  gap: 4.9px;
 }
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 .documents-body {
-  max-width: 72rem;
+  max-width: 1008px;
   margin-left: auto;
   margin-right: auto;
 }
 .documents-body__lead {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 12.25px;
   color: mixin.$text-sub;
 }
 </style>

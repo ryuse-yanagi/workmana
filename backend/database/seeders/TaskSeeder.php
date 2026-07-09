@@ -29,9 +29,9 @@ class TaskSeeder extends Seeder
             return;
         }
 
-        $reporter = User::query()->where('name', 'dmy_user_1')->first();
+        $reporter = User::query()->where('name', 'dmy_user_01')->first();
         if ($reporter === null) {
-            $this->command?->warn('dmy_user_1 not found. Run UserSeeder first.');
+            $this->command?->warn('dmy_user_01 not found. Run UserSeeder first.');
 
             return;
         }

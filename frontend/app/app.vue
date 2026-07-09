@@ -2,7 +2,6 @@
   <div class="app-shell">
     <NuxtRouteAnnouncer />
     <AppGlobalHeader />
-    <AppLoadingCursor />
     <div class="app-shell__page">
       <NuxtPage keepalive />
     </div>
@@ -11,19 +10,28 @@
 <style lang="scss">
 @use '~/assets/styles/text-select';
 :root {
-  --tm-global-header-height: 46px;
+  --tm-global-header-height: 56px;
   --tm-page-header-height: 48px;
 }
 html,
 body {
   height: 100%;
 }
+html {
+  line-height: 1.5;
+  font-synthesis: none;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
 body {
   margin: 0;
   font-family: mixin.$font-family;
-  -webkit-text-size-adjust: 100%;
-  background: linear-gradient(160deg, #eef2ff 0%, #dbeafe 35%, #f8fafc 100%);
-  background-attachment: fixed;
+  font-size: 14px;
+  line-height: inherit;
+  font-synthesis: inherit;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f5f6fa;
 }
 html.workspace-view-page-root,
 body.workspace-view-page-root {
@@ -34,10 +42,16 @@ body.workspace-view-page-root {
   min-height: 100%;
 }
 .app-shell__page {
-  padding-top: 0.25rem;
+  padding-top: 3.5px;
 }
 .global-header,
 .page-header,
+.workspace-view-switcher-menu {
+  @include mixin.header-font;
+}
+.global-header,
+.page-header,
+.workspace-view-switcher-menu,
 .composer,
 .subheader-menu-dropdown,
 .list-header-menu-dropdown,
@@ -59,31 +73,31 @@ body.workspace-view-page-root {
 }
 /* 初回データ取得前のプレースホルダー（文言は出さない） */
 .page-await-spacer {
-  min-height: min(42vh, 28rem);
+  min-height: min(42vh, 392px);
   width: 100%;
 }
 /* 初回読み込み失敗・タイムアウト */
 .load-fatal-panel {
   box-sizing: border-box;
-  max-width: 36rem;
-  margin: 2rem auto;
-  padding: 1.5rem 1.25rem;
+  max-width: 504px;
+  margin: 28px auto;
+  padding: 21px 17.5px;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.55);
   border-radius: 12px;
   text-align: center;
 }
 .load-fatal-message {
-  margin: 0 0 1rem;
+  margin: 0 0 14px;
   color: #b91c1c;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 13.3px;
 }
 .load-fatal-retry {
   border: 1px solid #0f172a;
   border-radius: 8px;
-  padding: 0.5rem 1.1rem;
-  font-size: 0.9rem;
+  padding: 7px 15.4px;
+  font-size: 12.6px;
   font-weight: 700;
   cursor: pointer;
   background: #0f172a;

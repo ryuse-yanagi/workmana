@@ -5,11 +5,6 @@
     </template>
 
     <template v-else-if="settingsPageReady && settingsSnapshot">
-      <header class="settings-header">
-        <h1>設定</h1>
-        <p class="subtitle">左のメニューから変更したい設定を選択してください。</p>
-      </header>
-
       <div class="settings-main">
         <section class="settings-layout">
           <SettingsSidebar
@@ -22,7 +17,12 @@
             <SettingsDefaultBoardListsPanel
               v-show="activeTab === 'default_board_lists'"
               :org-slug="slug"
-              :initial-names="defaultBoardListNamesFromSnapshot"
+              :initial-items="defaultBoardListItemsFromSnapshot"
+            />
+            <SettingsDefaultWorkspaceStatusesPanel
+              v-show="activeTab === 'workspace_statuses'"
+              :org-slug="slug"
+              :initial-items="defaultWorkspaceStatusItemsFromSnapshot"
             />
             <SettingsEffortPanel
               v-show="activeTab === 'effort_settings'"
@@ -46,11 +46,13 @@ import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../
 import { withAppLoadingCursor } from '../../../composables/useAppLoadingCursor'
 import { useOrgSettingsPageData } from '../../../composables/useOrgSettingsPageData'
 import SettingsDefaultBoardListsPanel from '../../../components/settings/SettingsDefaultBoardListsPanel.vue'
+import SettingsDefaultWorkspaceStatusesPanel from '../../../components/settings/SettingsDefaultWorkspaceStatusesPanel.vue'
 import SettingsEffortPanel from '../../../components/settings/SettingsEffortPanel.vue'
 import SettingsLabelsPanel from '../../../components/settings/SettingsLabelsPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
 import {
-  normalizeDefaultBoardListNames,
+  normalizeDefaultBoardListItems,
+  normalizeDefaultWorkspaceStatusItems,
   type SettingsLabelTabKey,
   type SettingsPageSnapshot,
   type SettingsTabKey,
@@ -74,6 +76,7 @@ const {
 
 const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
   { key: 'default_board_lists', label: 'リスト設定' },
+  { key: 'workspace_statuses', label: 'ステータス設定' },
   { key: 'effort_settings', label: '工数設定' },
   { key: 'labels', label: 'ラベル設定' },
 ]
@@ -84,8 +87,12 @@ const settingsPageReady = ref(false)
 const settingsFatalError = ref<string | null>(null)
 const settingsSnapshot = ref<SettingsPageSnapshot | null>(null)
 
-const defaultBoardListNamesFromSnapshot = computed(() => {
-  return normalizeDefaultBoardListNames(settingsSnapshot.value?.orgSettings.default_board_list_names)
+const defaultBoardListItemsFromSnapshot = computed(() => {
+  return normalizeDefaultBoardListItems(settingsSnapshot.value?.orgSettings.default_board_list_names)
+})
+
+const defaultWorkspaceStatusItemsFromSnapshot = computed(() => {
+  return normalizeDefaultWorkspaceStatusItems(settingsSnapshot.value?.orgSettings.default_workspace_status_names)
 })
 
 const effortUnitFromSnapshot = computed(() => {
@@ -132,6 +139,10 @@ function applyTabFromRoute () {
   const tab = typeof raw === 'string' ? raw.trim() : ''
   if (tab === 'default_board_lists') {
     activeTab.value = 'default_board_lists'
+    return
+  }
+  if (tab === 'workspace_statuses') {
+    activeTab.value = 'workspace_statuses'
     return
   }
   if (tab === 'effort_settings') {
@@ -187,38 +198,23 @@ watch(
 <style lang="scss" scoped>
 .settings-page {
   min-height: 100vh;
-  padding: 1.25rem 1rem 2rem;
+  padding: 14px;
 }
 
-.settings-header,
 .settings-layout {
-  width: calc(320px + 880px + 1rem);
+  width: calc(320px + 880px + 14px);
   max-width: 100%;
   margin: 0 auto;
-}
-
-h1 {
-  margin: 0.7rem 0 0.3rem;
-  font-size: 1.7rem;
-  color: #0f172a;
-}
-
-.subtitle {
-  margin: 0 0 0.9rem;
-  color: mixin.$text-sub;
-}
-
-.settings-layout {
   display: grid;
   grid-template-columns: 320px 880px;
-  gap: 1rem;
+  gap: 14px;
   align-items: start;
 }
 
 .settings-content {
   width: 880px;
   max-width: 100%;
-  min-height: 22rem;
+  min-height: 308px;
 }
 
 @media (max-width: 1240px) {

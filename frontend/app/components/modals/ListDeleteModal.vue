@@ -4,7 +4,7 @@
     title="リストの削除"
     aria-label="リストの削除"
     :close-disabled="loading"
-    width="min(31rem, 100%)"
+    width="min(496px, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="list-delete-modal-body">
@@ -70,25 +70,25 @@ defineExpose({ setSubmitError })
 </script>
 <style lang="scss" scoped>
 .list-delete-modal-body {
-  padding: 1rem 1.35rem 1.35rem;
+  padding: 14px 18.9px 18.9px;
 }
 .list-delete-modal-message {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 12.6px;
   color: mixin.$text-sub;
   line-height: 1.45;
 }
 .err {
-  margin: 0.75rem 0 0;
+  margin: 10.5px 0 0;
   color: #b91c1c;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: 12.04px;
 }
 .actions {
-  margin-top: 0.95rem;
+  margin-top: 13.3px;
   display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 7px;
 }
 .ghost-btn,
 .danger-btn {
