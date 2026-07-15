@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Organization;
 use App\Support\DefaultBoardLists;
+use App\Support\DefaultDocumentCategories;
 use App\Support\DefaultWorkspaceStatuses;
 use App\Enums\TaskEffortUnit;
 use Illuminate\Http\JsonResponse;
@@ -91,6 +92,7 @@ class OrganizationController extends ApiController
             'slug' => $organization->slug,
             'default_board_list_names' => DefaultBoardLists::itemsForOrganization($organization),
             'default_workspace_status_names' => DefaultWorkspaceStatuses::itemsForOrganization($organization),
+            'default_document_category_names' => DefaultDocumentCategories::itemsForOrganization($organization),
             'effort_unit' => $organization->effort_unit ?? TaskEffortUnit::Hour->value,
         ]);
     }
@@ -105,6 +107,7 @@ class OrganizationController extends ApiController
         $validated = $request->validate([
             'default_board_list_names' => ['sometimes', 'array', 'max:20'],
             'default_workspace_status_names' => ['sometimes', 'array', 'max:20'],
+            'default_document_category_names' => ['sometimes', 'array', 'max:20'],
             'effort_unit' => ['sometimes', 'string', Rule::in(TaskEffortUnit::values())],
         ]);
 
@@ -120,6 +123,12 @@ class OrganizationController extends ApiController
             );
         }
 
+        if ($request->has('default_document_category_names')) {
+            $organization->default_document_category_names = DefaultDocumentCategories::normalizeItems(
+                $request->input('default_document_category_names'),
+            );
+        }
+
         if (array_key_exists('effort_unit', $validated)) {
             $organization->effort_unit = $validated['effort_unit'];
         }
@@ -131,6 +140,7 @@ class OrganizationController extends ApiController
             'slug' => $organization->slug,
             'default_board_list_names' => DefaultBoardLists::itemsForOrganization($organization),
             'default_workspace_status_names' => DefaultWorkspaceStatuses::itemsForOrganization($organization),
+            'default_document_category_names' => DefaultDocumentCategories::itemsForOrganization($organization),
             'effort_unit' => $organization->effort_unit ?? TaskEffortUnit::Hour->value,
         ]);
     }

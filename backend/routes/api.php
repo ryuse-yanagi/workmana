@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\WorkspaceLabelController;
 use App\Http\Controllers\Api\WorkspaceLabelCategoryController;
 use App\Http\Controllers\Api\TaskLabelController;
 use App\Http\Controllers\Api\TaskLabelCategoryController;
+use App\Http\Controllers\Api\DocumentLabelController;
+use App\Http\Controllers\Api\DocumentLabelCategoryController;
 use App\Http\Controllers\Api\SharedDocumentController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\TaskCommentController;
@@ -45,6 +47,16 @@ Route::middleware(['cognito'])->group(function () {
         Route::patch('/task-labels/reorder', [TaskLabelController::class, 'reorder']);
         Route::patch('/task-labels/{taskLabel}', [TaskLabelController::class, 'update']);
         Route::delete('/task-labels/{taskLabel}', [TaskLabelController::class, 'destroy']);
+        Route::get('/document-label-categories', [DocumentLabelCategoryController::class, 'index']);
+        Route::post('/document-label-categories', [DocumentLabelCategoryController::class, 'store']);
+        Route::patch('/document-label-categories/reorder', [DocumentLabelCategoryController::class, 'reorder']);
+        Route::patch('/document-label-categories/{category}', [DocumentLabelCategoryController::class, 'update']);
+        Route::delete('/document-label-categories/{category}', [DocumentLabelCategoryController::class, 'destroy']);
+        Route::get('/document-labels', [DocumentLabelController::class, 'index']);
+        Route::post('/document-labels', [DocumentLabelController::class, 'store']);
+        Route::patch('/document-labels/reorder', [DocumentLabelController::class, 'reorder']);
+        Route::patch('/document-labels/{documentLabel}', [DocumentLabelController::class, 'update']);
+        Route::delete('/document-labels/{documentLabel}', [DocumentLabelController::class, 'destroy']);
 
         Route::get('/workspaces', [WorkspaceController::class, 'index']);
         Route::post('/workspaces', [WorkspaceController::class, 'store']);

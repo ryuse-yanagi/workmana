@@ -1,5 +1,5 @@
 <template>
-  <SettingsPanel title="ラベル設定" note="スペースやタスクで使うラベルをカテゴリごとに管理します。">
+  <SettingsPanel title="ラベル設定" note="スペース、タスク、資料で使うラベルをカテゴリごとに管理します。">
     <div class="settings-label-tabs" role="tablist" aria-label="ラベル種別">
       <button
         v-for="item in labelTabs"
@@ -24,6 +24,11 @@
       :org-slug="orgSlug"
       label-kind="task"
     />
+    <SettingsLabelCategoryPanel
+      v-show="activeLabelTab === 'document'"
+      :org-slug="orgSlug"
+      label-kind="document"
+    />
   </SettingsPanel>
 </template>
 <script setup lang="ts">
@@ -37,6 +42,7 @@ const props = defineProps<{
 const labelTabs: Array<{ key: SettingsLabelTabKey; label: string }> = [
   { key: 'workspace', label: 'スペース' },
   { key: 'task', label: 'タスク' },
+  { key: 'document', label: '資料' },
 ]
 const activeLabelTab = ref<SettingsLabelTabKey>(props.initialLabelTab ?? 'workspace')
 watch(

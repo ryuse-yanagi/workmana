@@ -29,6 +29,11 @@
               :org-slug="slug"
               :initial-unit="effortUnitFromSnapshot"
             />
+            <SettingsDefaultDocumentCategoriesPanel
+              v-show="activeTab === 'document_categories'"
+              :org-slug="slug"
+              :initial-items="defaultDocumentCategoryItemsFromSnapshot"
+            />
             <SettingsLabelsPanel
               v-show="activeTab === 'labels'"
               :org-slug="slug"
@@ -47,11 +52,13 @@ import { withAppLoadingCursor } from '../../../composables/useAppLoadingCursor'
 import { useOrgSettingsPageData } from '../../../composables/useOrgSettingsPageData'
 import SettingsDefaultBoardListsPanel from '../../../components/settings/SettingsDefaultBoardListsPanel.vue'
 import SettingsDefaultWorkspaceStatusesPanel from '../../../components/settings/SettingsDefaultWorkspaceStatusesPanel.vue'
+import SettingsDefaultDocumentCategoriesPanel from '../../../components/settings/SettingsDefaultDocumentCategoriesPanel.vue'
 import SettingsEffortPanel from '../../../components/settings/SettingsEffortPanel.vue'
 import SettingsLabelsPanel from '../../../components/settings/SettingsLabelsPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
 import {
   normalizeDefaultBoardListItems,
+  normalizeDefaultDocumentCategoryItems,
   normalizeDefaultWorkspaceStatusItems,
   type SettingsLabelTabKey,
   type SettingsPageSnapshot,
@@ -78,6 +85,7 @@ const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
   { key: 'default_board_lists', label: 'リスト設定' },
   { key: 'workspace_statuses', label: 'ステータス設定' },
   { key: 'effort_settings', label: '工数設定' },
+  { key: 'document_categories', label: '資料カテゴリ設定' },
   { key: 'labels', label: 'ラベル設定' },
 ]
 
@@ -97,6 +105,10 @@ const defaultWorkspaceStatusItemsFromSnapshot = computed(() => {
 
 const effortUnitFromSnapshot = computed(() => {
   return normalizeEffortUnit(settingsSnapshot.value?.orgSettings.effort_unit)
+})
+
+const defaultDocumentCategoryItemsFromSnapshot = computed(() => {
+  return normalizeDefaultDocumentCategoryItems(settingsSnapshot.value?.orgSettings.default_document_category_names)
 })
 
 async function loadInitialData (opts?: { refresh?: boolean }) {
@@ -149,15 +161,28 @@ function applyTabFromRoute () {
     activeTab.value = 'effort_settings'
     return
   }
+  if (tab === 'document_categories') {
+    activeTab.value = 'document_categories'
+    return
+  }
   if (tab === 'task_labels') {
     activeTab.value = 'labels'
     initialLabelTab.value = 'task'
     return
   }
+  if (tab === 'document_labels') {
+    activeTab.value = 'labels'
+    initialLabelTab.value = 'document'
+    return
+  }
   if (tab === 'workspace_labels' || tab === 'project_labels' || tab === 'labels') {
     activeTab.value = 'labels'
     const labelTab = route.query.labelTab
-    initialLabelTab.value = labelTab === 'task' ? 'task' : 'workspace'
+    initialLabelTab.value = labelTab === 'task'
+      ? 'task'
+      : labelTab === 'document'
+        ? 'document'
+        : 'workspace'
     return
   }
   activeTab.value = 'default_board_lists'

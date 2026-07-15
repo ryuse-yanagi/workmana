@@ -26,10 +26,11 @@ export function useOrgSettingsPageData () {
     }
 
     const job = (async () => {
-      const [orgSettings, workspaceLabelCategoriesRes, taskLabelCategoriesRes] = await Promise.all([
+      const [orgSettings, workspaceLabelCategoriesRes, taskLabelCategoriesRes, documentLabelCategoriesRes] = await Promise.all([
         api<SettingsPageSnapshot['orgSettings']>(`/orgs/${slug}/settings`),
         api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/workspace-label-categories`),
         api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/task-label-categories`),
+        api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/document-label-categories`),
       ])
       syncEffortSettings(slug, {
         effort_unit: normalizeEffortUnit(orgSettings.effort_unit),
@@ -38,6 +39,7 @@ export function useOrgSettingsPageData () {
         orgSettings,
         workspaceLabelCategories: normalizeSettingsLabelCategories(workspaceLabelCategoriesRes.data),
         taskLabelCategories: normalizeSettingsLabelCategories(taskLabelCategoriesRes.data),
+        documentLabelCategories: normalizeSettingsLabelCategories(documentLabelCategoriesRes.data),
       }
       cacheBySlug.set(slug, snapshot)
       return snapshot
@@ -71,7 +73,9 @@ export function useOrgSettingsPageData () {
     }
     return labelKind === 'workspace'
       ? snapshot.workspaceLabelCategories
-      : snapshot.taskLabelCategories
+      : labelKind === 'task'
+        ? snapshot.taskLabelCategories
+        : snapshot.documentLabelCategories
   }
 
   function patchLabelCategoriesCache (
@@ -88,7 +92,9 @@ export function useOrgSettingsPageData () {
       ...existing,
       ...(labelKind === 'workspace'
         ? { workspaceLabelCategories: categories }
-        : { taskLabelCategories: categories }),
+        : labelKind === 'task'
+          ? { taskLabelCategories: categories }
+          : { documentLabelCategories: categories }),
     })
   }
 

@@ -2,9 +2,10 @@ export type SettingsTabKey =
   | 'default_board_lists'
   | 'workspace_statuses'
   | 'effort_settings'
+  | 'document_categories'
   | 'labels'
 
-export type SettingsLabelTabKey = 'workspace' | 'task'
+export type SettingsLabelTabKey = 'workspace' | 'task' | 'document'
 
 export type SettingsLabelItem = {
   id: number
@@ -30,6 +31,7 @@ export type DefaultNamedColorItem = {
 export type OrgSettingsResponse = {
   default_board_list_names?: Array<DefaultNamedColorItem | string> | null
   default_workspace_status_names?: Array<DefaultNamedColorItem | string> | null
+  default_document_category_names?: Array<DefaultNamedColorItem | string> | null
   effort_unit?: string | null
 }
 
@@ -37,6 +39,7 @@ export type SettingsPageSnapshot = {
   orgSettings: OrgSettingsResponse
   workspaceLabelCategories: SettingsLabelCategory[]
   taskLabelCategories: SettingsLabelCategory[]
+  documentLabelCategories: SettingsLabelCategory[]
 }
 
 export const DEFAULT_BOARD_LIST_ITEMS: DefaultNamedColorItem[] = [
@@ -50,6 +53,12 @@ export const DEFAULT_WORKSPACE_STATUS_ITEMS: DefaultNamedColorItem[] = [
   { name: '稼働中', color_index: 0 },
   { name: '保留', color_index: 3 },
   { name: '完了', color_index: 5 },
+]
+
+export const DEFAULT_DOCUMENT_CATEGORY_ITEMS: DefaultNamedColorItem[] = [
+  { name: 'マニュアル', color_index: 0 },
+  { name: '設計書', color_index: 1 },
+  { name: '会議', color_index: 3 },
 ]
 
 function normalizeDefaultNamedColorItems (
@@ -111,5 +120,15 @@ export function normalizeDefaultWorkspaceStatusItems (
 }
 
 export function serializeDefaultWorkspaceStatusItems (items: DefaultNamedColorItem[]): DefaultNamedColorItem[] {
+  return serializeDefaultNamedColorItems(items)
+}
+
+export function normalizeDefaultDocumentCategoryItems (
+  raw: OrgSettingsResponse['default_document_category_names'],
+): DefaultNamedColorItem[] {
+  return normalizeDefaultNamedColorItems(raw, DEFAULT_DOCUMENT_CATEGORY_ITEMS)
+}
+
+export function serializeDefaultDocumentCategoryItems (items: DefaultNamedColorItem[]): DefaultNamedColorItem[] {
   return serializeDefaultNamedColorItems(items)
 }

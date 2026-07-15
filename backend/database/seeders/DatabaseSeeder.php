@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             OrganizationSeeder::class,
             LabelSeeder::class,
+            DocumentSeeder::class,
             WorkspaceSeeder::class,
             TaskSeeder::class,
         ]);

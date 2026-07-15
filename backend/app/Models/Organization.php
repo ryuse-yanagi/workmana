@@ -14,6 +14,7 @@ class Organization extends Model
         'slug',
         'default_board_list_names',
         'default_workspace_status_names',
+        'default_document_category_names',
         'effort_unit',
         'created_by',
     ];
@@ -23,6 +24,7 @@ class Organization extends Model
         return [
             'default_board_list_names' => 'array',
             'default_workspace_status_names' => 'array',
+            'default_document_category_names' => 'array',
         ];
     }
 
@@ -66,5 +68,20 @@ class Organization extends Model
     public function taskLabels(): HasMany
     {
         return $this->hasMany(TaskLabel::class)->orderBy('sort_order')->orderBy('name');
+    }
+
+    public function documentLabelCategories(): HasMany
+    {
+        return $this->hasMany(DocumentLabelCategory::class)->orderBy('sort_order')->orderBy('name');
+    }
+
+    public function documentLabels(): HasMany
+    {
+        return $this->hasMany(DocumentLabel::class)->orderBy('sort_order')->orderBy('name');
+    }
+
+    public function sharedDocuments(): HasMany
+    {
+        return $this->hasMany(SharedDocument::class);
     }
 }

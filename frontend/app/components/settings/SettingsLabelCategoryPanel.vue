@@ -146,15 +146,21 @@ const labelCreateModalOpen = ref(false)
 const labelCreateCategoryId = ref<number | null>(null)
 const labelEditModalOpen = ref(false)
 const editingLabel = ref<SettingsLabelItem | null>(null)
-const categoryApiBase = computed(() => (
-  props.labelKind === 'workspace' ? 'workspace-label-categories' : 'task-label-categories'
-))
-const labelApiBase = computed(() => (
-  props.labelKind === 'workspace' ? 'workspace-labels' : 'task-labels'
-))
-const labelCreateTitle = computed(() => (
-  props.labelKind === 'workspace' ? 'ラベル（スペース）の作成' : 'ラベル（タスク）の作成'
-))
+const categoryApiBase = computed(() => {
+  if (props.labelKind === 'workspace') return 'workspace-label-categories'
+  if (props.labelKind === 'task') return 'task-label-categories'
+  return 'document-label-categories'
+})
+const labelApiBase = computed(() => {
+  if (props.labelKind === 'workspace') return 'workspace-labels'
+  if (props.labelKind === 'task') return 'task-labels'
+  return 'document-labels'
+})
+const labelCreateTitle = computed(() => {
+  if (props.labelKind === 'workspace') return 'ラベル（スペース）の作成'
+  if (props.labelKind === 'task') return 'ラベル（タスク）の作成'
+  return 'ラベル（資料）の作成'
+})
 function setMessage (msg: string, kind: 'ok' | 'err') {
   message.value = msg
   messageKind.value = kind

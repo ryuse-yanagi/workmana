@@ -1,7 +1,16 @@
 import { useApi } from './useApi'
+export type OrgDocumentLabel = {
+  id: number
+  category_id: number
+  name: string
+  color_index: number
+}
 export type OrgDocument = {
   id: number
   name: string
+  category: { name: string; color_index: number } | null
+  labels: OrgDocumentLabel[]
+  created_at?: string
 }
 export type OrgDocumentsPageSnapshot = {
   documents: OrgDocument[]

@@ -98,8 +98,10 @@ import DefaultNamedColorItemEditModal from '../modals/DefaultNamedColorItemEditM
 import SettingsPanel from './SettingsPanel.vue'
 import {
   normalizeDefaultBoardListItems,
+  normalizeDefaultDocumentCategoryItems,
   normalizeDefaultWorkspaceStatusItems,
   serializeDefaultBoardListItems,
+  serializeDefaultDocumentCategoryItems,
   serializeDefaultWorkspaceStatusItems,
   type DefaultNamedColorItem,
   type OrgSettingsResponse,
@@ -107,7 +109,7 @@ import {
 import { standardColorAtIndex } from '../../constants/colorPresets'
 
 type DraftItem = DefaultNamedColorItem & { _key: string }
-type SettingsField = 'default_board_list_names' | 'default_workspace_status_names'
+type SettingsField = 'default_board_list_names' | 'default_workspace_status_names' | 'default_document_category_names'
 
 const props = defineProps<{
   orgSlug: string
@@ -168,6 +170,9 @@ function normalizeFromResponse (res: OrgSettingsResponse): DefaultNamedColorItem
   if (props.settingsField === 'default_board_list_names') {
     return normalizeDefaultBoardListItems(res.default_board_list_names)
   }
+  if (props.settingsField === 'default_document_category_names') {
+    return normalizeDefaultDocumentCategoryItems(res.default_document_category_names)
+  }
   return normalizeDefaultWorkspaceStatusItems(res.default_workspace_status_names)
 }
 
@@ -175,6 +180,9 @@ function serializeItems (source: DraftItem[]): DefaultNamedColorItem[] {
   const plain = source.map(({ name, color_index }) => ({ name, color_index }))
   if (props.settingsField === 'default_board_list_names') {
     return serializeDefaultBoardListItems(plain)
+  }
+  if (props.settingsField === 'default_document_category_names') {
+    return serializeDefaultDocumentCategoryItems(plain)
   }
   return serializeDefaultWorkspaceStatusItems(plain)
 }

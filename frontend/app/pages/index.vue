@@ -1,6 +1,6 @@
 <template>
   <main class="page">
-    <h1>タスク管理</h1>
+    <h1>業務管理</h1>
     <p class="muted">
       バックエンド API(Laravel)と連携します。本番導線は <NuxtLink to="/login">ログイン画面</NuxtLink> です。ローカルでは Cognito バイパス時、トークン欄にユーザー ID(数字)を入れてください。
     </p>
@@ -16,7 +16,7 @@
     </section>
     <section class="card">
       <h2>ユーザーアイコン</h2>
-      <p class="muted">ログイン中ユーザーのアイコン画像を設定できます（最大2MB）。</p>
+      <p class="muted">ログイン中ユーザーのアイコン画像を設定できます(最大2MB)</p>
       <div class="avatar-row">
         <img
           v-if="avatarPreviewUrl"
