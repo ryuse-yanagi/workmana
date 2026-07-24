@@ -85,7 +85,7 @@
 }
 
 .settings-msg--err {
-  color: #b91c1c;
+  color: mixin.$danger;
 }
 
 .settings-label-list {

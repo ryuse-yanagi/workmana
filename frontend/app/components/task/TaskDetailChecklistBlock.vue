@@ -350,10 +350,6 @@ watch(
   background: #fff;
   cursor: pointer;
 }
-.task-checklist__delete-btn:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
-}
 .task-checklist__progress {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -431,15 +427,9 @@ watch(
   word-break: break-word;
   cursor: pointer;
 }
-.task-checklist__item-text-btn:hover {
-  color: mixin.$main-hover;
-}
 .task-checklist__item-text-btn--checked {
   color: #94a3b8;
   text-decoration: line-through;
-}
-.task-checklist__item-text-btn--checked:hover {
-  color: #64748b;
 }
 .task-checklist__composer-input {
   width: 100%;
@@ -473,9 +463,6 @@ watch(
   background: mixin.$main;
   cursor: pointer;
 }
-.task-checklist__add-btn:hover:not(:disabled) {
-  background: mixin.$main-hover;
-}
 .task-checklist__add-btn:disabled {
   opacity: 0.45;
   cursor: default;
@@ -489,9 +476,6 @@ watch(
   font-weight: 600;
   color: #64748b;
   cursor: pointer;
-}
-.task-checklist__cancel-btn:hover {
-  color: #334155;
 }
 .task-checklist__open-composer-btn {
   align-self: flex-start;

@@ -19,7 +19,7 @@ const cacheByKey = new Map<string, WorkspaceTablePageSnapshot>()
 const inflightByKey = new Map<string, Promise<WorkspaceTablePageSnapshot>>()
 export function useWorkspaceTablePageData () {
   const { api } = useApi()
-  const { ensureOrgEffortUnit } = useOrgEffortUnit()
+  const { ensureOrgEffortUnit } = useOrgEffortUnit('')
   async function fetchSnapshot (
     orgSlug: string,
     workspaceId: string,

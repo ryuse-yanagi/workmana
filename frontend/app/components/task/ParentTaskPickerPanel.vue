@@ -99,10 +99,6 @@ const emit = defineEmits<{
   font-weight: 600;
   cursor: pointer;
 }
-.popover-field-clear-btn:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.04);
-  color: mixin.$text;
-}
 .popover-field-clear-btn:disabled {
   opacity: 0.45;
   cursor: default;
@@ -118,9 +114,6 @@ const emit = defineEmits<{
   padding: 6.4px 4.8px;
   background: transparent;
   text-align: left;
-}
-.parent-task-picker-row:hover {
-  background: #f8fafc;
 }
 .parent-task-picker-row--selected {
   background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
@@ -164,7 +157,7 @@ const emit = defineEmits<{
 }
 .err {
   margin: 6.4px 8px;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 12.04px;
 }

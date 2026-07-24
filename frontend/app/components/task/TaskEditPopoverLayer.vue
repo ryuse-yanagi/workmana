@@ -192,7 +192,7 @@
                 </button>
               </li>
             </ul>
-            <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">スペースメンバーがいません。</p>
+            <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">スペースユーザーがいません。</p>
             <p v-else-if="!filteredProjectMembers.length" class="empty-text label-picker-empty">該当する担当者がいません。</p>
             <p v-if="popoverError" class="err">{{ popoverError }}</p>
           </div>
@@ -556,9 +556,6 @@ defineExpose({
   padding: 2.1px 0;
   text-align: left;
 }
-.label-picker-row:hover .label-picker-bar {
-  filter: brightness(0.96);
-}
 .label-picker-checkbox {
   width: 14px;
   height: 14px;
@@ -624,9 +621,6 @@ defineExpose({
   padding: 2.8px 4.9px;
   border-radius: 6px;
 }
-.member-detail-close:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
-}
 .member-detail-profile {
   display: flex;
   align-items: center;
@@ -677,9 +671,6 @@ defineExpose({
   font-weight: 600;
   color: #334155;
   cursor: pointer;
-}
-.member-detail-remove:hover:not(:disabled) {
-  background: #f8fafc;
 }
 .member-detail-error {
   margin: 0;
@@ -744,10 +735,6 @@ defineExpose({
   font-size: 10.92px;
   font-weight: 600;
   cursor: pointer;
-}
-.popover-field-clear-btn:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.04);
-  color: mixin.$text;
 }
 .popover-field-clear-btn:disabled {
   opacity: 0.45;
@@ -834,9 +821,6 @@ defineExpose({
   font-weight: 600;
   cursor: pointer;
 }
-.calendar-day:hover:not(:disabled) {
-  background: #e2e8f0;
-}
 .calendar-day--outside {
   color: #94a3b8;
   background: transparent;
@@ -856,7 +840,7 @@ defineExpose({
 }
 .err {
   margin: 0;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 12.04px;
 }
@@ -882,9 +866,6 @@ defineExpose({
   padding: 6.3px 4.9px;
   background: transparent;
   text-align: left;
-}
-.list-picker-row:hover {
-  background: #f8fafc;
 }
 .list-picker-row--selected {
   background: color-mix(in srgb, mixin.$main 8%, mixin.$white);

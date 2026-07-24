@@ -791,7 +791,7 @@ watch(loading, async (isLoading) => {
 .workspace-table-board__error {
   margin: 0;
   padding: 14px 3.5px;
-  font-size: 12.25px;
+  font-size: 14px;
 }
 .workspace-table-board__error {
   color: mixin.$danger;
@@ -807,7 +807,7 @@ watch(loading, async (isLoading) => {
   width: var(--table-width);
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 11.375px;
+  font-size: 14px;
 }
 .workspace-table__drag-col {
   width: var(--table-drag-col-width);
@@ -841,11 +841,6 @@ watch(loading, async (isLoading) => {
   cursor: pointer;
   touch-action: none;
 }
-.workspace-table__drag-handle:hover {
-  background: rgba(15, 23, 42, 0.06);
-  border-color: mixin.$border;
-  color: mixin.$text;
-}
 .workspace-table__drag-handle:active {
   cursor: default;
 }
@@ -861,7 +856,7 @@ watch(loading, async (isLoading) => {
   background: mixin.$table-header-bg;
   border-bottom: 1px solid mixin.$table-header-bg;
   text-align: left;
-  font-size: 10.5px;
+  font-size: 14px;
   font-weight: 700;
   color: mixin.$white;
   white-space: nowrap;
@@ -1005,7 +1000,7 @@ watch(loading, async (isLoading) => {
   min-width: 0;
   padding: 0 4.9px;
   border-radius: 4px;
-  font-size: 11.375px;
+  font-size: 14px;
   font-weight: inherit;
   font-family: inherit;
   line-height: 1;
@@ -1022,12 +1017,12 @@ watch(loading, async (isLoading) => {
   border: 1px solid transparent;
 }
 .workspace-table__title-input {
-  height: 21px;
-  min-height: 21px;
+  height: 24px;
+  min-height: 24px;
   margin: auto 0;
   border: 1px solid mixin.$border;
   background: #fff;
-  line-height: calc(21px - 2px);
+  line-height: calc(24px - 2px);
 }
 .workspace-table__title-input:focus {
   @include mixin.input-focus-ring;
@@ -1072,9 +1067,6 @@ watch(loading, async (isLoading) => {
   cursor: pointer;
   overflow: hidden;
   transition: background-color 0.12s ease;
-}
-.workspace-table__cell-btn:hover {
-  background: mixin.$main-aqua-surface-light;
 }
 .workspace-table__cell-btn--popover-open {
   box-shadow: inset 0 0 0 1.4px mixin.$main;
@@ -1137,7 +1129,7 @@ watch(loading, async (isLoading) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16.8px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1;
   transform: translateY(-0.08em);
@@ -1171,7 +1163,7 @@ watch(loading, async (isLoading) => {
   min-width: var(--table-label-chip-width);
   justify-content: center;
   padding: 0;
-  font-size: 9.52px;
+  font-size: 14px;
   line-height: 1;
 }
 .workspace-table__label-add-chip {
@@ -1192,7 +1184,7 @@ watch(loading, async (isLoading) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14.7px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1;
   transform: translateY(-0.08em);

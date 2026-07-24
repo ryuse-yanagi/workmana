@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $WslIp = (wsl hostname -I).Trim().Split(' ')[0]
-$BoardUrl = "http://${WslIp}:3000/org/dmy_org/workspaces/1"
+$BoardUrl = "http://${WslIp}:3000/org/abcde/workspaces/1"
 $BaseUrl = "http://${WslIp}:3000/"
 $LongTitle = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
 $Chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'

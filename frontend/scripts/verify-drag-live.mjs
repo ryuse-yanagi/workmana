@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { setTimeout as sleep } from 'node:timers/promises'
 import WebSocket from 'ws'
 const WSL_IP = (await import('node:child_process')).execSync('hostname -I').toString().trim().split(/\s+/)[0]
-const BOARD_URL = `http://${WSL_IP}:3000/org/dmy_org/workspaces/1`
+const BOARD_URL = `http://${WSL_IP}:3000/org/abcde/workspaces/1`
 const LONG_TITLE = 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'
 const WIN_CHROME = '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'
 const DEBUG_PORT = 9355

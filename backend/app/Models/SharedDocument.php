@@ -13,6 +13,8 @@ class SharedDocument extends Model
         'created_by',
         'category',
         'name',
+        'description',
+        'body',
     ];
 
     public function organization(): BelongsTo

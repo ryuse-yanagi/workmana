@@ -6,7 +6,6 @@
     :close-disabled="loading"
     focus-primary-input-on-open
     width="min(512px, 100%)"
-    align="top"
     @update:model-value="emit('update:modelValue', $event)"
   >
     <form class="named-color-item-edit-modal-body" @keydown="onFormKeydown">
@@ -21,6 +20,7 @@
           :disabled="loading"
           @keydown.enter.exact.prevent
         />
+        <p v-if="nameError" class="field-error">{{ nameError }}</p>
       </label>
       <ColorPresetPicker
         v-model="color"
@@ -33,7 +33,7 @@
         <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">
           キャンセル
         </button>
-        <button type="button" class="primary-btn primary-btn--pill" :disabled="loading || !name" @click="submit">
+        <button type="button" class="primary-btn primary-btn--pill" :disabled="loading" @click="submit">
           {{ loading ? submitPendingLabel : submitLabel }}
         </button>
       </div>
@@ -49,6 +49,7 @@ import {
   standardColorIndexFromHex,
 } from '../../constants/colorPresets'
 import { isCtrlEnterKeydown } from '../../utils/uiInteraction'
+import { requiredTextFieldError } from '../../utils/formValidation'
 const props = withDefaults(defineProps<{
   modelValue: boolean
   mode?: 'create' | 'edit'
@@ -70,6 +71,7 @@ const emit = defineEmits<{
 const name = ref('')
 const color = ref<string>(DEFAULT_STANDARD_COLOR)
 const submitError = ref<string | null>(null)
+const nameError = ref<string | null>(null)
 const modalTitle = computed(() => (
   props.mode === 'edit' ? props.editTitle : props.createTitle
 ))
@@ -93,15 +95,27 @@ watch(
         : DEFAULT_STANDARD_COLOR
     }
     submitError.value = null
+    nameError.value = null
   },
 )
+watch(name, () => {
+  if (nameError.value) {
+    nameError.value = null
+  }
+})
 function close () {
   if (props.loading) return
   emit('update:modelValue', false)
 }
 function submit () {
+  if (props.loading) return
+  const validationError = requiredTextFieldError(name.value, `${props.nameLabel}を入力してください`)
+  if (validationError) {
+    nameError.value = validationError
+    return
+  }
   const trimmed = name.value.trim()
-  if (!trimmed || props.loading) return
+  nameError.value = null
   submitError.value = null
   emit('submit', { name: trimmed, color_index: standardColorIndexFromHex(color.value) })
 }
@@ -147,7 +161,7 @@ defineExpose({ setSubmitError })
 }
 .err {
   margin: 0;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 12.04px;
 }

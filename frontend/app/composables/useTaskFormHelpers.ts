@@ -1,4 +1,5 @@
 export type TaskFormLabel = { id: number; name: string; color: string }
+export type TaskFormCategory = { name: string; color: string }
 export type TaskFormMember = {
   id: number
   name: string | null
@@ -16,6 +17,8 @@ export type TaskFormDraft = {
   effort_unit: TaskFormEffortUnit | null
   assignees: TaskFormMember[]
   labels: TaskFormLabel[]
+  category: TaskFormCategory | null
+  status: TaskFormCategory | null
 }
 export const EFFORT_UNIT_OPTIONS: { value: TaskFormEffortUnit, label: string }[] = [
   { value: 'minute', label: '分' },
@@ -33,6 +36,8 @@ export function createEmptyTaskFormDraft (): TaskFormDraft {
     effort_unit: null,
     assignees: [],
     labels: [],
+    category: null,
+    status: null,
   }
 }
 export function formatLocalDate (date: Date): string {
@@ -236,6 +241,8 @@ export function clearTaskDraftDefaults (draft: TaskFormDraft): TaskFormDraft {
     effort_unit: empty.effort_unit,
     assignees: [...empty.assignees],
     labels: [...empty.labels],
+    category: empty.category,
+    status: empty.status,
   }
 }
 export function buildTaskCreateBody (

@@ -80,6 +80,11 @@ class Organization extends Model
         return $this->hasMany(DocumentLabel::class)->orderBy('sort_order')->orderBy('name');
     }
 
+    public function memberGroups(): HasMany
+    {
+        return $this->hasMany(MemberGroup::class)->orderBy('sort_order')->orderBy('name');
+    }
+
     public function sharedDocuments(): HasMany
     {
         return $this->hasMany(SharedDocument::class);

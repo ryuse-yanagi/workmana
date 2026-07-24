@@ -1,6 +1,7 @@
 import type { Ref } from 'vue'
 import { dismissPopoverFromOutsidePointer } from '../utils/uiInteraction'
 import {
+  type TaskFormCategory,
   type TaskFormDraft,
   type TaskFormEffortUnit,
   type TaskFormLabel,
@@ -27,6 +28,8 @@ export type TaskFormPopoverType =
   | 'members'
   | 'member-detail'
   | 'labels'
+  | 'category'
+  | 'status'
 type CalendarCell = {
   key: string
   iso: string
@@ -40,6 +43,8 @@ type UseTaskFormPaneOptions = {
   workspaceMembers: Ref<TaskFormMember[]>
   orgEffortUnit: Ref<TaskFormEffortUnit>
   disabled: Ref<boolean>
+  documentCategories?: Ref<TaskFormCategory[]>
+  workspaceStatuses?: Ref<TaskFormCategory[]>
 }
 const POPOVER_VIEWPORT_PAD = 12
 const POPOVER_ANCHOR_GAP = 6
@@ -58,6 +63,8 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
   const pendingDate = ref<string | null>(null)
   const titleInputRef = ref<HTMLInputElement | null>(null)
   const labelSearchQuery = ref('')
+  const categorySearchQuery = ref('')
+  const statusSearchQuery = ref('')
   const effortDraft = ref<string | number>('')
   const effortInputRef = ref<HTMLInputElement | null>(null)
   let removePopoverResizeListener: (() => void) | null = null
@@ -66,6 +73,18 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     const query = labelSearchQuery.value.trim().toLowerCase()
     if (!query) return options.orgLabels.value
     return options.orgLabels.value.filter(label => label.name.toLowerCase().includes(query))
+  })
+  const filteredDocumentCategories = computed(() => {
+    const categories = options.documentCategories?.value ?? []
+    const query = categorySearchQuery.value.trim().toLowerCase()
+    if (!query) return categories
+    return categories.filter(category => category.name.toLowerCase().includes(query))
+  })
+  const filteredWorkspaceStatuses = computed(() => {
+    const statuses = options.workspaceStatuses?.value ?? []
+    const query = statusSearchQuery.value.trim().toLowerCase()
+    if (!query) return statuses
+    return statuses.filter(status => status.name.toLowerCase().includes(query))
   })
   const showEffortDetailSection = computed(() => {
     if (activePopover.value === 'effort') {
@@ -282,6 +301,12 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
   watch(labelSearchQuery, () => {
     if (activePopover.value === 'labels') updatePopoverPosition()
   })
+  watch(categorySearchQuery, () => {
+    if (activePopover.value === 'category') updatePopoverPosition()
+  })
+  watch(statusSearchQuery, () => {
+    if (activePopover.value === 'status') updatePopoverPosition()
+  })
   function openDatePicker (target: 'start' | 'due', event?: Event) {
     const next: TaskFormPopoverType = target === 'start' ? 'start-date' : 'due-date'
     if (activePopover.value === next) {
@@ -378,11 +403,39 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     popoverError.value = null
     updatePopoverPosition()
   }
+  function openCategoryPicker (event?: Event) {
+    if (activePopover.value === 'category') {
+      void closePopover()
+      return
+    }
+    categorySearchQuery.value = ''
+    popoverAnchorEl.value = capturePopoverAnchor(event)
+    activePopover.value = 'category'
+    popoverError.value = null
+    updatePopoverPosition()
+  }
+  function openStatusPicker (event?: Event) {
+    if (activePopover.value === 'status') {
+      void closePopover()
+      return
+    }
+    statusSearchQuery.value = ''
+    popoverAnchorEl.value = capturePopoverAnchor(event)
+    activePopover.value = 'status'
+    popoverError.value = null
+    updatePopoverPosition()
+  }
   function isMemberAssigned (memberId: number): boolean {
     return options.draft.value.assignees.some(member => member.id === memberId)
   }
   function isLabelSelected (labelId: number): boolean {
     return options.draft.value.labels.some(label => label.id === labelId)
+  }
+  function isCategorySelected (categoryName: string): boolean {
+    return options.draft.value.category?.name === categoryName
+  }
+  function isStatusSelected (statusName: string): boolean {
+    return options.draft.value.status?.name === statusName
   }
   function toggleMember (member: TaskFormMember) {
     if (options.disabled?.value) return
@@ -415,9 +468,27 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     popoverError.value = null
   }
+  function selectCategory (category: TaskFormCategory) {
+    if (options.disabled?.value) return
+    options.draft.value = {
+      ...options.draft.value,
+      category,
+    }
+    popoverError.value = null
+  }
+  function selectStatus (status: TaskFormCategory) {
+    if (options.disabled?.value) return
+    options.draft.value = {
+      ...options.draft.value,
+      status,
+    }
+    popoverError.value = null
+  }
   function resetPaneState () {
     dismissPopover()
     labelSearchQuery.value = ''
+    categorySearchQuery.value = ''
+    statusSearchQuery.value = ''
     effortDraft.value = ''
   }
   function focusTitleInput () {
@@ -440,10 +511,14 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     effortDetailAnchorRef,
     titleInputRef,
     labelSearchQuery,
+    categorySearchQuery,
+    statusSearchQuery,
     effortDraft,
     effortInputRef,
     weekdayLabels,
     filteredOrgLabels,
+    filteredDocumentCategories,
+    filteredWorkspaceStatuses,
     showEffortDetailSection,
     effortDetailDisplayText,
     calendarMonthLabel,
@@ -465,11 +540,17 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     openMemberPicker,
     openMemberDetail,
     openLabelPicker,
+    openCategoryPicker,
+    openStatusPicker,
     isMemberAssigned,
     isLabelSelected,
+    isCategorySelected,
+    isStatusSelected,
     toggleMember,
     removeMember,
     toggleLabel,
+    selectCategory,
+    selectStatus,
     resetPaneState,
     focusTitleInput,
     updatePopoverPosition,

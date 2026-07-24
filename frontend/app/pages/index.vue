@@ -169,7 +169,7 @@ button, .btn {
 button.secondary { background: #334155; }
 .status { margin-top: 10.5px; font-size: 12.6px; }
 .status.ok { color: #15803d; }
-.status.err { color: #b91c1c; }
+.status.err { color: mixin.$danger; }
 .small { margin-bottom: 7px; }
 code { background: #f1f5f9; padding: 1.4px 4.9px; border-radius: 4px; }
 .avatar-row { display: flex; gap: 14px; align-items: center; }

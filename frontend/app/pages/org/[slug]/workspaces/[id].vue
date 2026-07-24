@@ -24,10 +24,10 @@
   </div>
 </template>
 <script setup lang="ts">
-import WorkspaceProjectView from '../../../../../components/workspace/WorkspaceProjectView.vue'
-import { withAppLoadingCursor } from '../../../../../composables/useAppLoadingCursor'
-import { useWorkspaceViewRoutes, type WorkspaceViewKey } from '../../../../../composables/useWorkspaceViewRoutes'
-import { useWorkspaceViewPageRoot } from '../../../../../composables/useWorkspaceViewPageRoot'
+import WorkspaceProjectView from '../../../../components/workspace/WorkspaceProjectView.vue'
+import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
+import { useWorkspaceViewRoutes, type WorkspaceViewKey } from '../../../../composables/useWorkspaceViewRoutes'
+import { useWorkspaceViewPageRoot } from '../../../../composables/useWorkspaceViewPageRoot'
 definePageMeta({
   name: 'org-slug-workspaces-id',
   key: route => `${route.params.slug}:${route.params.id}`,

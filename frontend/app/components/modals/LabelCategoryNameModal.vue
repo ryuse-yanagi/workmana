@@ -19,15 +19,17 @@
           placeholder="カテゴリ名を入力してください"
           :disabled="loading"
         />
+        <p v-if="nameError" class="field-error">{{ nameError }}</p>
       </label>
       <div class="actions">
         <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">キャンセル</button>
-        <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading || !name">{{ submitLabel }}</button>
+        <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading">{{ submitLabel }}</button>
       </div>
     </form>
   </BaseModal>
 </template>
 <script setup lang="ts">
+import { requiredTextFieldError } from '../../utils/formValidation'
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title: string
@@ -44,22 +46,35 @@ const emit = defineEmits<{
   submit: [string]
 }>()
 const name = ref('')
+const nameError = ref<string | null>(null)
 watch(
   () => [props.modelValue, props.initialName] as const,
   ([open, initialName]) => {
     if (open) {
       name.value = initialName
+      nameError.value = null
     }
   },
   { immediate: true },
 )
+watch(name, () => {
+  if (nameError.value) {
+    nameError.value = null
+  }
+})
 function close () {
   if (props.loading) return
   emit('update:modelValue', false)
 }
 function submit () {
+  if (props.loading) return
+  const validationError = requiredTextFieldError(name.value, 'カテゴリ名を入力してください')
+  if (validationError) {
+    nameError.value = validationError
+    return
+  }
   const trimmed = name.value.trim()
-  if (!trimmed || props.loading) return
+  nameError.value = null
   emit('submit', trimmed)
 }
 </script>

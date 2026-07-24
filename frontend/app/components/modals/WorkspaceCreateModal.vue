@@ -12,10 +12,10 @@
         class="modal-card"
         role="dialog"
         aria-modal="true"
-        :aria-label="title"
+        :aria-label="modalTitle"
       >
         <header class="modal-header">
-          <h3>{{ title }}</h3>
+          <h3>{{ modalTitle }}</h3>
           <button
             type="button"
             class="icon-close"
@@ -32,7 +32,9 @@
               :org-slug="orgSlug"
               :org-labels="labels"
               :workspace-members="orgMembers"
+              :workspace-statuses="statuses"
               :disabled="loading"
+              :title-error="titleError"
               workspace-mode
               relaxed-title-padding
               auto-focus-title
@@ -51,10 +53,10 @@
             <button
               type="button"
               class="primary-btn"
-              :disabled="!canSubmit"
+              :disabled="loading"
               @click="submit"
             >
-              {{ loading ? '作成中...' : '登録' }}
+              {{ submitLabel }}
             </button>
           </footer>
         </div>
@@ -67,15 +69,26 @@
 import TaskFormPane from '../task/TaskFormPane.vue'
 import {
   createEmptyTaskFormDraft,
+  type TaskFormCategory,
   type TaskFormDraft,
   type TaskFormLabel,
   type TaskFormMember,
 } from '../../composables/useTaskFormHelpers'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
 import { WORKSPACE_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
+import { workspaceNameFieldError } from '../../utils/formValidation'
 import { createOverlayBackdropClose, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
 
 export type WorkspaceCreateLabel = TaskFormLabel
+export type WorkspaceCreateStatus = TaskFormCategory
+
+export type WorkspaceCreateInitialValues = {
+  name: string
+  description?: string | null
+  labels?: TaskFormLabel[]
+  assignees?: TaskFormMember[]
+  status?: TaskFormCategory | null
+}
 
 type FormPaneExpose = {
   resetPaneState: () => void
@@ -86,12 +99,19 @@ type FormPaneExpose = {
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
-  title: string
+  title?: string
+  mode?: 'create' | 'edit'
+  initialValues?: WorkspaceCreateInitialValues | null
   orgSlug: string
   labels: WorkspaceCreateLabel[]
   orgMembers: TaskFormMember[]
+  statuses?: WorkspaceCreateStatus[]
   loading?: boolean
 }>(), {
+  title: '',
+  mode: 'create',
+  initialValues: null,
+  statuses: () => [],
   loading: false,
 })
 
@@ -100,6 +120,7 @@ const emit = defineEmits<{
   submit: [{
     name: string
     description: string | null
+    status: string | null
     label_ids: number[]
     assignee_ids: number[]
   }]
@@ -107,19 +128,40 @@ const emit = defineEmits<{
 
 const draft = ref<TaskFormDraft>(createEmptyTaskFormDraft())
 const submitError = ref<string | null>(null)
+const titleError = ref<string | null>(null)
 const formPaneRef = ref<FormPaneExpose | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
 
 const panePopoverOpen = computed(() => formPaneRef.value?.activePopover != null)
 
-const canSubmit = computed(() => {
-  const name = draft.value.title.trim()
-  return name.length >= 2 && name.length <= WORKSPACE_NAME_MAX_LENGTH && !props.loading
+const modalTitle = computed(() => {
+  if (props.title) return props.title
+  return props.mode === 'edit' ? 'スペースの編集' : 'スペースの作成'
 })
 
+const submitLabel = computed(() => (
+  props.mode === 'edit' ? '保存' : '作成'
+))
+
+function draftFromInitialValues (values: WorkspaceCreateInitialValues | null | undefined): TaskFormDraft {
+  const empty = createEmptyTaskFormDraft()
+  if (!values) return empty
+  return {
+    ...empty,
+    title: values.name ?? '',
+    description: values.description ?? '',
+    labels: values.labels ? [...values.labels] : [],
+    assignees: values.assignees ? [...values.assignees] : [],
+    status: values.status ?? null,
+  }
+}
+
 function resetForm () {
-  draft.value = createEmptyTaskFormDraft()
+  draft.value = draftFromInitialValues(
+    props.mode === 'edit' ? props.initialValues : null,
+  )
   submitError.value = null
+  titleError.value = null
   nextTick(() => {
     formPaneRef.value?.resetPaneState()
   })
@@ -149,7 +191,6 @@ function onDocumentKeydown (event: KeyboardEvent) {
     return
   }
   if (isCtrlEnterKeydown(event)) {
-    if (!canSubmit.value) return
     event.preventDefault()
     event.stopPropagation()
     submit()
@@ -165,20 +206,39 @@ const {
 })
 
 function submit () {
-  if (!canSubmit.value) return
+  if (props.loading) return
   const name = draft.value.title.trim()
+  const validationError = workspaceNameFieldError(draft.value.title)
+  if (validationError) {
+    titleError.value = validationError
+    return
+  }
+  if (name.length > WORKSPACE_NAME_MAX_LENGTH) {
+    titleError.value = `スペース名は${WORKSPACE_NAME_MAX_LENGTH}文字以内で入力してください`
+    return
+  }
+  titleError.value = null
   const description = draft.value.description.trim()
   emit('submit', {
     name,
     description: description === '' ? null : description,
+    status: draft.value.status?.name ?? null,
     label_ids: draft.value.labels.map(label => label.id),
     assignee_ids: draft.value.assignees.map(member => member.id),
   })
 }
 
 watch(
-  () => props.modelValue,
-  (open) => {
+  () => draft.value.title,
+  () => {
+    if (titleError.value) {
+      titleError.value = null
+    }
+  },
+)
+watch(
+  () => [props.modelValue, props.mode, props.initialValues] as const,
+  ([open]) => {
     if (!import.meta.client) return
     if (open) {
       document.addEventListener('keydown', onDocumentKeydown, true)
@@ -204,8 +264,7 @@ onBeforeUnmount(() => {
   background: rgba(15, 23, 42, 0.45);
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 56px 14px 14px;
+  padding: 14px;
   z-index: 70;
   overflow-y: auto;
 }
@@ -215,6 +274,8 @@ onBeforeUnmount(() => {
 .modal-card {
   position: relative;
   width: min(560px, 100%);
+  margin: auto;
+  flex-shrink: 0;
   border-radius: 12px;
   overflow: visible;
   background: #fff;
@@ -277,7 +338,7 @@ onBeforeUnmount(() => {
 }
 .err {
   margin: 0;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 12.04px;
 }

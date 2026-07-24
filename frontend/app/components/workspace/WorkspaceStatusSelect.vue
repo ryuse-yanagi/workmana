@@ -344,6 +344,7 @@ useDropdownEscapeClose(isOpen, closeDropdown)
   height: 30px;
   min-width: 96px;
   max-width: 96px;
+  border: 1px solid #cbd5e1;
   border-radius: 999px;
   background: #f1f5f9;
   color: #64748b;
@@ -404,9 +405,6 @@ useDropdownEscapeClose(isOpen, closeDropdown)
   border-radius: 8px;
   background: transparent;
   cursor: pointer;
-}
-.workspace-status-select__option:hover:not(:disabled) {
-  background: #f1f5f9;
 }
 .workspace-status-select__option--selected {
   background: #f1f5f9;

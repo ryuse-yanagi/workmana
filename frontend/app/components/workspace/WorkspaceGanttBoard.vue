@@ -889,7 +889,7 @@ defineExpose({
   flex: 1;
   min-width: 0;
   padding-left: 4.9px;
-  font-size: 10.5px;
+  font-size: 14px;
   font-weight: 700;
   color: mixin.$text;
   line-height: 1.2;
@@ -910,18 +910,14 @@ defineExpose({
   width: 24.5px;
   height: 24.5px;
   padding: 0;
-  font-size: 15.4px;
+  font-size: 14px;
   line-height: 1;
 }
 .workspace-gantt-board__today-btn {
   height: 24.5px;
   padding: 0 9.1px;
-  font-size: 10.5px;
+  font-size: 14px;
   font-weight: 600;
-}
-.workspace-gantt-board__nav-btn:hover,
-.workspace-gantt-board__today-btn:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.04);
 }
 .workspace-gantt-board__today-btn:disabled {
   opacity: 0.45;
@@ -949,7 +945,7 @@ defineExpose({
 .workspace-gantt-board__error {
   margin: 0;
   padding: 14px 3.5px;
-  font-size: 12.25px;
+  font-size: 14px;
 }
 .workspace-gantt-board__error {
   color: mixin.$danger;
@@ -971,7 +967,7 @@ defineExpose({
   width: var(--gantt-table-width);
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 11.375px;
+  font-size: 14px;
 }
 .workspace-gantt-table__task-col {
   width: var(--gantt-task-col-width);
@@ -1009,7 +1005,7 @@ defineExpose({
   max-width: var(--gantt-task-col-width);
   padding: 7.7px 9.1px;
   text-align: left;
-  font-size: 10.5px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .workspace-gantt-table__assignees-header {
@@ -1020,7 +1016,7 @@ defineExpose({
   max-width: var(--gantt-assignees-col-width);
   padding: 7.7px 9.1px;
   text-align: left;
-  font-size: 10.5px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .workspace-gantt-table__date-header {
@@ -1029,7 +1025,7 @@ defineExpose({
   max-width: var(--gantt-date-col-width);
   padding: 7.7px 9.1px;
   text-align: left;
-  font-size: 10.5px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .workspace-gantt-table__date-header--start {
@@ -1058,14 +1054,14 @@ defineExpose({
 }
 .workspace-gantt-table__day-date {
   display: block;
-  font-size: 9.52px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.05;
 }
 .workspace-gantt-table__day-weekday {
   display: block;
   margin-top: 0.28px;
-  font-size: 8.4px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.05;
   opacity: 0.92;

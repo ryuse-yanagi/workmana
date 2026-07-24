@@ -21,9 +21,10 @@
             placeholder="表示名を入力してください"
             :disabled="nameLoading"
           />
+          <p v-if="nameError" class="field-error">{{ nameError }}</p>
         </label>
         <div class="profile-button-row">
-          <button type="submit" class="profile-primary-btn" :disabled="nameLoading || !nameDraft">
+          <button type="submit" class="profile-primary-btn" :disabled="nameLoading">
             {{ nameLoading ? '保存中...' : 'ユーザー名を保存' }}
           </button>
           <button type="button" class="profile-ghost-btn" :disabled="nameLoading" @click="resetNameDraft">
@@ -36,11 +37,12 @@
         <div v-else class="avatar-placeholder">No Icon</div>
         <div class="profile-actions">
           <input type="file" accept="image/*" :disabled="avatarLoading" @change="onAvatarFileChange" />
+          <p v-if="avatarError" class="field-error">{{ avatarError }}</p>
           <div class="profile-button-row">
             <button
               type="button"
               class="profile-primary-btn"
-              :disabled="avatarLoading || !selectedAvatarFile"
+              :disabled="avatarLoading"
               @click="uploadAvatar"
             >
               {{ avatarLoading ? '保存中...' : 'アイコンを保存' }}
@@ -65,6 +67,7 @@
 <script setup lang="ts">
 import { useApi } from '../../composables/useApi'
 import { USER_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
+import { requiredTextFieldError } from '../../utils/formValidation'
 import BaseModal from './BaseModal.vue'
 type MeResponse = {
   name?: string | null
@@ -83,6 +86,8 @@ const avatarLoading = ref(false)
 const nameCurrent = ref('')
 const nameDraft = ref('')
 const nameLoading = ref(false)
+const nameError = ref<string | null>(null)
+const avatarError = ref<string | null>(null)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
 function setMessage (msg: string, kind: 'ok' | 'err') {
@@ -99,15 +104,29 @@ async function load () {
   nameDraft.value = nameCurrent.value
   avatarPreviewUrl.value = me.avatar_url || null
   selectedAvatarFile.value = null
+  nameError.value = null
+  avatarError.value = null
   setMessage('', 'ok')
 }
 function resetNameDraft () {
   nameDraft.value = nameCurrent.value
+  nameError.value = null
   setMessage('', 'ok')
 }
+watch(nameDraft, () => {
+  if (nameError.value) {
+    nameError.value = null
+  }
+})
 async function saveProfileName () {
+  if (nameLoading.value) return
+  const validationError = requiredTextFieldError(nameDraft.value, '表示名を入力してください')
+  if (validationError) {
+    nameError.value = validationError
+    return
+  }
   const name = nameDraft.value.trim()
-  if (!name) return
+  nameError.value = null
   nameLoading.value = true
   setMessage('', 'ok')
   try {
@@ -131,13 +150,19 @@ function onAvatarFileChange (event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] ?? null
   selectedAvatarFile.value = file
+  avatarError.value = null
   if (file) {
     avatarPreviewUrl.value = URL.createObjectURL(file)
     setMessage('画像を選択しました。保存を押してください。', 'ok')
   }
 }
 async function uploadAvatar () {
-  if (!selectedAvatarFile.value) return
+  if (avatarLoading.value) return
+  if (!selectedAvatarFile.value) {
+    avatarError.value = 'アイコン画像を選択してください'
+    return
+  }
+  avatarError.value = null
   avatarLoading.value = true
   setMessage('', 'ok')
   try {
@@ -275,6 +300,6 @@ watch(
   font-weight: 700;
 }
 .profile-msg--err {
-  color: #b91c1c;
+  color: mixin.$danger;
 }
 </style>

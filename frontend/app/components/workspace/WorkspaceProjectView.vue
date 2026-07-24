@@ -11,22 +11,30 @@
   >
     <header class="page-header">
       <div class="subheader">
-        <NuxtLink :to="`/org/${orgSlug}/workspaces`" class="subheader-title subheader-back-link">
+        <NuxtLink
+          v-if="orgSlug && workspaceId"
+          :to="`/org/${orgSlug}/workspaces`"
+          class="subheader-title subheader-back-link"
+        >
           Workspaces
         </NuxtLink>
-        <WorkspaceViewSwitcher :org-slug="orgSlug" :workspace-id="workspaceId" />
+        <WorkspaceViewSwitcher
+          v-if="orgSlug && workspaceId"
+          :org-slug="orgSlug"
+          :workspace-id="workspaceId"
+        />
         <div class="subheader-spacer" />
       </div>
     </header>
     <section class="workspace-view-page__body">
       <WorkspaceTableBoard
-        v-if="mode === 'table'"
+        v-if="mode === 'table' && orgSlug && workspaceId"
         ref="tableBoardRef"
         :org-slug="orgSlug"
         :workspace-id="workspaceId"
       />
       <WorkspaceGanttBoard
-        v-else
+        v-else-if="mode === 'gantt' && orgSlug && workspaceId"
         ref="ganttBoardRef"
         :org-slug="orgSlug"
         :workspace-id="workspaceId"
@@ -108,11 +116,13 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   gap: 4.2px;
+  padding: 8px 0;
+  margin: -8px 0;
   text-decoration: none;
   color: mixin.$main;
   letter-spacing: 0.05em;
   line-height: 1.1;
-  transition: color 0.16s ease;
+  transition: opacity 0.16s ease;
   &::before {
     content: '';
     flex-shrink: 0;

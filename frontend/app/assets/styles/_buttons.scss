@@ -1,4 +1,31 @@
 /**
+ * 全ボタン共通: hover 時は色を変えず opacity のみ下げる。
+ * （モーダルの開始日など .action-btn は従来どおり背景色変更のため除外）
+ */
+button:hover:not(:disabled):not(.action-btn),
+input[type='button']:hover:not(:disabled),
+input[type='submit']:hover:not(:disabled),
+input[type='reset']:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+/**
+ * プルダウン / メニュー項目 / 一覧へ戻るリンク:
+ * button 以外（a・label・select）も含め、hover 時は文字の opacity を 0.8 に。
+ */
+select:hover:not(:disabled),
+.subheader-back-link:hover,
+[role='menu'] a:hover,
+[role='menu'] button:hover:not(:disabled),
+[role='menuitem']:hover,
+[role='listbox'] button:hover:not(:disabled),
+.board-filter-option:hover,
+.dropdown-item:hover:not(:disabled),
+.workspace-view-switcher-item:hover {
+  opacity: 0.8;
+}
+
+/**
  * スペース作成・タスク追加・設定の追加ボタンなど、
  * アプリ共通のボタン内テキストを上下中央に揃える。
  */
@@ -57,4 +84,12 @@
   background: mixin.$main;
   color: mixin.$white;
   border-color: transparent;
+}
+
+.field-error {
+  margin: 4px 0 0;
+  color: mixin.$danger;
+  font-size: 12.04px;
+  font-weight: 700;
+  line-height: 1.35;
 }

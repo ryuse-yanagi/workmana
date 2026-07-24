@@ -1,6 +1,7 @@
 export type SettingsTabKey =
   | 'default_board_lists'
   | 'workspace_statuses'
+  | 'member_groups'
   | 'effort_settings'
   | 'document_categories'
   | 'labels'
@@ -14,6 +15,21 @@ export type SettingsLabelItem = {
   color: string
   color_index?: number
   sort_order?: number
+}
+
+export type SettingsMemberGroupMember = {
+  id: number
+  name: string | null
+  email?: string | null
+  avatar_url?: string | null
+}
+
+export type SettingsMemberGroup = {
+  id: number
+  name: string
+  color_index: number
+  sort_order: number
+  members: SettingsMemberGroupMember[]
 }
 
 export type SettingsLabelCategory = {
@@ -56,9 +72,7 @@ export const DEFAULT_WORKSPACE_STATUS_ITEMS: DefaultNamedColorItem[] = [
 ]
 
 export const DEFAULT_DOCUMENT_CATEGORY_ITEMS: DefaultNamedColorItem[] = [
-  { name: 'マニュアル', color_index: 0 },
-  { name: '設計書', color_index: 1 },
-  { name: '会議', color_index: 3 },
+  { name: 'その他', color_index: 5 },
 ]
 
 function normalizeDefaultNamedColorItems (

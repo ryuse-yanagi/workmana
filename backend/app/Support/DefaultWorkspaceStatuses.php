@@ -74,35 +74,28 @@ class DefaultWorkspaceStatuses
      */
     public static function resolvedStatusPayload(Workspace $workspace, Organization $organization): ?array
     {
+        $status = $workspace->status;
+        if (! is_string($status) || $status === '') {
+            return null;
+        }
+
         $items = self::itemsForOrganization($organization);
         if ($items === []) {
             return null;
         }
 
-        $status = $workspace->status;
-        if (is_string($status) && $status !== '') {
-            $item = DefaultNamedColorItems::findItemByName($items, $status);
-            if ($item !== null) {
-                return $item;
-            }
-        }
-
-        return $items[0];
+        return DefaultNamedColorItems::findItemByName($items, $status);
     }
 
     public static function validateStatusForOrganization(Organization $organization, ?string $status): ?string
     {
-        $names = self::namesForOrganization($organization);
-        if ($names === []) {
+        if ($status === null || trim($status) === '') {
             return null;
         }
 
-        if ($status === null || trim($status) === '') {
-            return $names[0];
-        }
-
+        $names = self::namesForOrganization($organization);
         $trimmed = trim($status);
-        if (! in_array($trimmed, $names, true)) {
+        if ($names === [] || ! in_array($trimmed, $names, true)) {
             abort(422, 'Invalid workspace status for this organization.');
         }
 

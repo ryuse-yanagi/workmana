@@ -1,21 +1,21 @@
 <template>
   <div
     class="task-form-pane"
-    :class="{ 'task-form-pane--relaxed-title': relaxedTitlePadding }"
+    :class="{ 'task-form-pane--relaxed-title': relaxedTitlePadding || workspaceMode || documentMode }"
   >
     <section class="field-block title-block">
       <span
-        v-if="relaxedTitlePadding || workspaceMode"
+        v-if="relaxedTitlePadding || workspaceMode || documentMode"
         class="field-label"
-      >{{ workspaceMode ? 'スペース名' : 'タスク名' }}</span>
+      >{{ titleFieldLabel }}</span>
       <div class="title-input-wrap">
         <input
           ref="titleInputRef"
           v-model="titleDraft"
           type="text"
-          :maxlength="workspaceMode ? WORKSPACE_NAME_MAX_LENGTH : TASK_TITLE_MAX_LENGTH"
+          :maxlength="titleMaxLength"
           class="title-input"
-          :aria-label="workspaceMode ? 'スペース名' : 'タスク名'"
+          :aria-label="titleFieldLabel"
           :disabled="disabled"
           @input="onTitleInput"
           @compositionstart="onTitleCompositionStart"
@@ -25,11 +25,12 @@
           v-if="showTitlePlaceholder"
           class="title-input-placeholder"
           aria-hidden="true"
-        >{{ workspaceMode ? 'スペース名を入力してください' : (relaxedTitlePadding ? 'タスク名を入力してください' : 'タスク名') }}</span>
+        >{{ titlePlaceholder }}</span>
       </div>
+      <p v-if="titleError" class="field-error">{{ titleError }}</p>
     </section>
     <div ref="actionButtonsRef" class="action-buttons">
-      <template v-if="!workspaceMode">
+      <template v-if="!workspaceMode && !documentMode">
         <button
           type="button"
           class="action-btn"
@@ -68,6 +69,20 @@
         </button>
       </template>
       <button
+        v-if="documentMode"
+        type="button"
+        class="action-btn"
+        :class="{ 'action-btn--active': activePopover === 'category' }"
+        :disabled="disabled"
+        @click="openCategoryPicker($event)"
+      >
+        <span class="action-btn-icon" aria-hidden="true">
+          <Group :size="16" :stroke-width="2.25" />
+        </span>
+        カテゴリ
+      </button>
+      <button
+        v-if="!documentMode"
         type="button"
         class="action-btn"
         :class="{ 'action-btn--active': activePopover === 'members' }"
@@ -75,9 +90,22 @@
         @click="openMemberPicker($event)"
       >
         <span class="action-btn-icon" aria-hidden="true">
-          <Users :size="16" :stroke-width="2.25" />
+          <UserPlus :size="16" :stroke-width="2.25" />
         </span>
         担当者
+      </button>
+      <button
+        v-if="workspaceMode"
+        type="button"
+        class="action-btn"
+        :class="{ 'action-btn--active': activePopover === 'status' }"
+        :disabled="disabled"
+        @click="openStatusPicker($event)"
+      >
+        <span class="action-btn-icon" aria-hidden="true">
+          <BadgePlus :size="16" :stroke-width="2.25" />
+        </span>
+        ステータス
       </button>
       <button
         type="button"
@@ -93,7 +121,7 @@
       </button>
     </div>
     <div
-      v-if="!workspaceMode && (draft.start_date || draft.due_date || showEffortDetailSection)"
+      v-if="!workspaceMode && !documentMode && (draft.start_date || draft.due_date || showEffortDetailSection)"
       class="detail-meta-row detail-meta-row--schedule"
     >
       <section v-if="draft.start_date" class="detail-item detail-item--date">
@@ -137,11 +165,11 @@
       </section>
     </div>
     <div
-      v-if="draft.assignees.length || draft.labels.length"
+      v-if="draft.assignees.length || draft.labels.length || (documentMode && draft.category) || (workspaceMode && draft.status)"
       class="detail-meta-row detail-meta-row--people"
     >
       <section
-        v-if="draft.assignees.length"
+        v-if="draft.assignees.length && !documentMode"
         class="detail-item detail-item--members"
       >
         <span class="detail-item-label">担当者</span>
@@ -176,6 +204,48 @@
             @click="openMemberPicker($event)"
           >
             <span class="member-avatar-btn-plus" aria-hidden="true">+</span>
+          </button>
+        </div>
+      </section>
+      <section
+        v-if="workspaceMode && draft.status"
+        class="detail-item detail-item--status"
+      >
+        <span class="detail-item-label">ステータス</span>
+        <div class="label-chip-list detail-chip-wrap">
+          <button
+            type="button"
+            class="label-chip"
+            :style="{
+              backgroundColor: draft.status.color,
+              color: labelBarTextColor(draft.status.color),
+            }"
+            :disabled="disabled"
+            :aria-label="`ステータス: ${draft.status.name}`"
+            @click="openStatusPicker($event)"
+          >
+            {{ draft.status.name }}
+          </button>
+        </div>
+      </section>
+      <section
+        v-if="documentMode && draft.category"
+        class="detail-item detail-item--category"
+      >
+        <span class="detail-item-label">カテゴリ</span>
+        <div class="label-chip-list detail-chip-wrap">
+          <button
+            type="button"
+            class="label-chip"
+            :style="{
+              backgroundColor: draft.category.color,
+              color: labelBarTextColor(draft.category.color),
+            }"
+            :disabled="disabled"
+            :aria-label="`カテゴリ: ${draft.category.name}`"
+            @click="openCategoryPicker($event)"
+          >
+            {{ draft.category.name }}
           </button>
         </div>
       </section>
@@ -375,81 +445,128 @@
             </div>
             <p v-if="popoverError" class="err member-detail-error">{{ popoverError }}</p>
           </div>
-          <PopoverShell
+          <WorkspaceMemberPickerPopover
             v-else-if="activePopover === 'members'"
             ref="popoverElRef"
-            shell-class="popover popover--members"
+            :style="popoverStyle"
+            v-model:search-query="memberSearchQuery"
+            :assignees="draft.assignees"
+            :org-members="workspaceMembers"
+            :disabled="disabled"
+            :error="popoverError"
+            :empty-members-message="workspaceMode ? '組織ユーザーがいません。' : 'スペースユーザーがいません。'"
+            @close="closePopover"
+            @toggle-member="toggleMember"
+          />
+          <PopoverShell
+            v-else-if="activePopover === 'status'"
+            ref="popoverElRef"
+            shell-class="popover popover--labels"
             header-class="popover-header--labels"
             :style="popoverStyle"
-            title="担当者"
-            aria-label="担当者"
+            title="ステータス"
+            aria-label="ステータス"
             :close-disabled="disabled"
             @close="closePopover"
           >
             <input
-              v-model="memberSearchQuery"
+              v-model="statusSearchQuery"
               type="search"
               class="label-search-input"
-              :placeholder="'メンバーを検索...'"
+              placeholder="ステータスを検索..."
               :disabled="disabled"
               @click.stop
             />
+            <p class="label-section-heading">ステータス</p>
             <div class="popover-scroll">
-              <template v-if="filteredAssignedMembers.length">
-                <p class="label-section-heading">担当者</p>
-                <ul class="label-picker-list">
-                  <li v-for="member in filteredAssignedMembers" :key="`assigned-${member.id}`">
-                    <button
-                      type="button"
-                      class="label-picker-row member-picker-row--workspace"
-                      @click.stop="toggleMember(member)"
+              <ul class="label-picker-list">
+                <li v-for="status in filteredWorkspaceStatuses" :key="status.name">
+                  <button
+                    type="button"
+                    class="label-picker-row"
+                    @click.stop="selectStatus(status)"
+                  >
+                    <span
+                      class="label-picker-checkbox"
+                      :class="{ 'label-picker-checkbox--checked': isStatusSelected(status.name) }"
+                      aria-hidden="true"
                     >
-                      <span class="label-picker-bar member-picker-bar">
-                        <MemberAvatar
-                          :member="member"
-                          size="xs"
-                          class="member-picker-avatar"
-                        />
-                        <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
-                      </span>
-                      <Check
-                        :size="16"
-                        :stroke-width="2.75"
-                        class="member-picker-check"
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </li>
-                </ul>
-              </template>
-              <template v-if="filteredUnassignedMembers.length">
-                <p class="label-section-heading">メンバー</p>
-                <ul class="label-picker-list">
-                  <li v-for="member in filteredUnassignedMembers" :key="`member-${member.id}`">
-                    <button
-                      type="button"
-                      class="label-picker-row member-picker-row--workspace"
-                      @click.stop="toggleMember(member)"
+                      <span v-if="isStatusSelected(status.name)">✓</span>
+                    </span>
+                    <span
+                      class="label-picker-bar"
+                      :style="{
+                        backgroundColor: status.color,
+                        color: labelBarTextColor(status.color),
+                      }"
                     >
-                      <span class="label-picker-bar member-picker-bar">
-                        <MemberAvatar
-                          :member="member"
-                          size="xs"
-                          class="member-picker-avatar"
-                        />
-                        <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
-                      </span>
-                    </button>
-                  </li>
-                </ul>
-              </template>
-              <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">
-                {{ workspaceMode ? '組織メンバーがいません。' : 'スペースメンバーがいません。' }}
+                      {{ status.name }}
+                    </span>
+                  </button>
+                </li>
+              </ul>
+              <p v-if="!workspaceStatuses.length" class="empty-text label-picker-empty">
+                ステータスは設定画面で作成できます。
               </p>
-              <p
-                v-else-if="!filteredAssignedMembers.length && !filteredUnassignedMembers.length"
-                class="empty-text label-picker-empty"
-              >該当するメンバーがいません。</p>
+              <p v-else-if="!filteredWorkspaceStatuses.length" class="empty-text label-picker-empty">
+                該当するステータスがありません。
+              </p>
+              <p v-if="popoverError" class="err">{{ popoverError }}</p>
+            </div>
+          </PopoverShell>
+          <PopoverShell
+            v-else-if="activePopover === 'category'"
+            ref="popoverElRef"
+            shell-class="popover popover--labels"
+            header-class="popover-header--labels"
+            :style="popoverStyle"
+            title="カテゴリ"
+            aria-label="カテゴリ"
+            :close-disabled="disabled"
+            @close="closePopover"
+          >
+            <input
+              v-model="categorySearchQuery"
+              type="search"
+              class="label-search-input"
+              placeholder="カテゴリを検索..."
+              :disabled="disabled"
+              @click.stop
+            />
+            <p class="label-section-heading">カテゴリ</p>
+            <div class="popover-scroll">
+              <ul class="label-picker-list">
+                <li v-for="category in filteredDocumentCategories" :key="category.name">
+                  <button
+                    type="button"
+                    class="label-picker-row"
+                    @click.stop="selectCategory(category)"
+                  >
+                    <span
+                      class="label-picker-checkbox"
+                      :class="{ 'label-picker-checkbox--checked': isCategorySelected(category.name) }"
+                      aria-hidden="true"
+                    >
+                      <span v-if="isCategorySelected(category.name)">✓</span>
+                    </span>
+                    <span
+                      class="label-picker-bar"
+                      :style="{
+                        backgroundColor: category.color,
+                        color: labelBarTextColor(category.color),
+                      }"
+                    >
+                      {{ category.name }}
+                    </span>
+                  </button>
+                </li>
+              </ul>
+              <p v-if="!documentCategories.length" class="empty-text label-picker-empty">
+                カテゴリは設定画面で作成できます。
+              </p>
+              <p v-else-if="!filteredDocumentCategories.length" class="empty-text label-picker-empty">
+                該当するカテゴリがありません。
+              </p>
               <p v-if="popoverError" class="err">{{ popoverError }}</p>
             </div>
           </PopoverShell>
@@ -516,20 +633,24 @@
 </template>
 <script setup lang="ts">
 import {
+  BadgePlus,
   CalendarCheck,
   CalendarDays,
-  Check,
   Clock,
+  Group,
   Tags,
-  Users,
+  UserPlus,
 } from 'lucide-vue-next'
+import WorkspaceMemberPickerPopover from '../workspace/WorkspaceMemberPickerPopover.vue'
 import { useTaskFormPane } from '../../composables/useTaskFormPane'
 import {
   TASK_DESCRIPTION_MAX_LENGTH,
   TASK_TITLE_MAX_LENGTH,
+  DOCUMENT_NAME_MAX_LENGTH,
   WORKSPACE_NAME_MAX_LENGTH,
 } from '../../constants/fieldLengthLimits'
 import type {
+  TaskFormCategory,
   TaskFormDraft,
   TaskFormLabel,
   TaskFormMember,
@@ -548,12 +669,20 @@ const props = withDefaults(defineProps<{
   relaxedTitlePadding?: boolean
   autoFocusTitle?: boolean
   workspaceMode?: boolean
+  documentMode?: boolean
+  documentCategories?: TaskFormCategory[]
+  workspaceStatuses?: TaskFormCategory[]
+  titleError?: string | null
 }>(), {
   disabled: false,
   portalActive: true,
   relaxedTitlePadding: false,
   autoFocusTitle: false,
   workspaceMode: false,
+  documentMode: false,
+  documentCategories: () => [],
+  workspaceStatuses: () => [],
+  titleError: null,
 })
 const emit = defineEmits<{
   'update:modelValue': [TaskFormDraft]
@@ -572,6 +701,22 @@ const titleComposing = ref(false)
 const showTitlePlaceholder = computed(() => {
   if (titleComposing.value) return false
   return titleDraft.value.length === 0
+})
+const titleFieldLabel = computed(() => {
+  if (props.workspaceMode) return 'スペース名'
+  if (props.documentMode) return '資料名'
+  return 'タスク名'
+})
+const titlePlaceholder = computed(() => {
+  if (props.workspaceMode) return 'スペース名を入力してください'
+  if (props.documentMode) return '資料名を入力してください'
+  if (props.relaxedTitlePadding) return 'タスク名を入力してください'
+  return 'タスク名'
+})
+const titleMaxLength = computed(() => {
+  if (props.workspaceMode) return WORKSPACE_NAME_MAX_LENGTH
+  if (props.documentMode) return DOCUMENT_NAME_MAX_LENGTH
+  return TASK_TITLE_MAX_LENGTH
 })
 watch(
   () => props.modelValue.title,
@@ -605,10 +750,14 @@ const {
   effortDetailAnchorRef,
   titleInputRef,
   labelSearchQuery,
+  categorySearchQuery,
+  statusSearchQuery,
   effortDraft,
   effortInputRef,
   weekdayLabels,
   filteredOrgLabels,
+  filteredDocumentCategories,
+  filteredWorkspaceStatuses,
   showEffortDetailSection,
   effortDetailDisplayText,
   calendarMonthLabel,
@@ -630,10 +779,16 @@ const {
   openMemberPicker,
   openMemberDetail,
   openLabelPicker,
+  openCategoryPicker,
+  openStatusPicker,
   isLabelSelected,
+  isCategorySelected,
+  isStatusSelected,
   toggleMember,
   removeMember,
   toggleLabel,
+  selectCategory,
+  selectStatus,
   resetPaneState,
   focusTitleInput,
   updatePopoverPosition,
@@ -643,23 +798,8 @@ const {
   workspaceMembers: toRef(props, 'workspaceMembers'),
   orgEffortUnit,
   disabled: computed(() => props.disabled ?? false),
-})
-function memberMatchesSearch (member: TaskFormMember, query: string): boolean {
-  if (!query) return true
-  const name = memberDisplayName(member).toLowerCase()
-  const email = (member.email ?? '').toLowerCase()
-  return name.includes(query) || email.includes(query)
-}
-const filteredAssignedMembers = computed(() => {
-  const query = memberSearchQuery.value.trim().toLowerCase()
-  return draft.value.assignees.filter(member => memberMatchesSearch(member, query))
-})
-const filteredUnassignedMembers = computed(() => {
-  const query = memberSearchQuery.value.trim().toLowerCase()
-  const assignedIds = new Set(draft.value.assignees.map(member => member.id))
-  return props.workspaceMembers.filter(
-    member => !assignedIds.has(member.id) && memberMatchesSearch(member, query),
-  )
+  documentCategories: toRef(props, 'documentCategories'),
+  workspaceStatuses: toRef(props, 'workspaceStatuses'),
 })
 const activeCalendarDate = computed(() => {
   if (activePopover.value === 'start-date') return draft.value.start_date
@@ -708,7 +848,7 @@ onMounted(() => {
   @include mixin.input-border-default;
   border-radius: 8px;
   padding: 8.68px 10.5px;
-  font-size: 12.6px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1.35;
   background: #fff;
@@ -716,7 +856,7 @@ onMounted(() => {
 .task-form-pane--relaxed-title .title-input-placeholder {
   left: 10.5px;
   right: 10.5px;
-  font-size: 12.6px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1.35;
 }
@@ -901,9 +1041,6 @@ onMounted(() => {
   padding: 2.1px 0;
   text-align: left;
 }
-.label-picker-row:hover .label-picker-bar:not(.member-picker-bar) {
-  filter: brightness(0.96);
-}
 .label-picker-checkbox {
   width: 14px;
   height: 14px;
@@ -944,17 +1081,11 @@ onMounted(() => {
   padding: 0 7.7px;
   transition: background 0.12s ease;
 }
-.label-picker-row.member-picker-row--workspace:hover {
-  background: #f8fafc;
-}
 .member-picker-row--workspace .member-picker-bar {
   flex: 1;
   background: transparent;
   padding-left: 0;
   padding-right: 0;
-}
-.label-picker-row.member-picker-row--workspace:hover .member-picker-bar {
-  background: transparent;
 }
 .member-picker-check {
   flex-shrink: 0;
@@ -1002,9 +1133,6 @@ onMounted(() => {
   cursor: pointer;
   padding: 2.8px 4.9px;
   border-radius: 6px;
-}
-.member-detail-close:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
 }
 .member-detail-profile {
   display: flex;
@@ -1057,9 +1185,6 @@ onMounted(() => {
   color: #334155;
   cursor: pointer;
 }
-.member-detail-remove:hover:not(:disabled) {
-  background: #f8fafc;
-}
 .member-detail-error {
   margin: 0;
   padding: 7px 10.5px 10.5px;
@@ -1084,6 +1209,8 @@ onMounted(() => {
   min-width: 77px;
 }
 .detail-meta-row--people .detail-item--members,
+.detail-meta-row--people .detail-item--category,
+.detail-meta-row--people .detail-item--status,
 .detail-meta-row--people .detail-item--labels {
   flex: 1 1 0;
   min-width: min(100%, 140px);
@@ -1170,10 +1297,6 @@ onMounted(() => {
   font-size: 10.92px;
   font-weight: 600;
   cursor: pointer;
-}
-.popover-field-clear-btn:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.04);
-  color: mixin.$text;
 }
 .popover-field-clear-btn:disabled {
   opacity: 0.45;
@@ -1281,9 +1404,6 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
 }
-.calendar-day:hover:not(:disabled) {
-  background: #e2e8f0;
-}
 .calendar-day--outside {
   color: #94a3b8;
   background: transparent;
@@ -1318,9 +1438,6 @@ onMounted(() => {
   flex-shrink: 0;
   cursor: pointer;
 }
-.label-chip:hover:not(:disabled) {
-  filter: brightness(0.94);
-}
 .label-chip-add {
   width: 28px;
   height: 28px;
@@ -1352,7 +1469,7 @@ onMounted(() => {
 }
 .err {
   margin: 0;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 12.04px;
 }

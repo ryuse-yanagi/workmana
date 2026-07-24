@@ -4,7 +4,6 @@
     title="アーカイブ済みカード"
     aria-label="アーカイブ済みカード"
     width="min(672px, 100%)"
-    align="top"
     :close-disabled="pendingId !== null"
     @update:model-value="emit('update:modelValue', $event)"
   >
@@ -260,22 +259,12 @@ defineExpose({
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  &:hover:not(:disabled) {
-    color: mixin.$text;
-    text-decoration: underline;
-    text-underline-offset: 0.12em;
-  }
   &:disabled {
     opacity: 0.55;
     cursor: default;
   }
   &--danger {
     color: mixin.$danger;
-    &:hover:not(:disabled) {
-      color: mixin.$danger;
-      text-decoration: underline;
-      text-underline-offset: 0.12em;
-    }
   }
 }
 .archived-tasks-modal__action-sep {

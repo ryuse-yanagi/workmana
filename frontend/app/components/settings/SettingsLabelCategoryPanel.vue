@@ -7,7 +7,7 @@
         :disabled="loading"
         @click="openCreateCategory"
       >
-        <ListTree :size="20" :stroke-width="2.1" aria-hidden="true" />
+        <Group :size="20" :stroke-width="2.1" aria-hidden="true" />
         カテゴリ追加
       </button>
     </div>
@@ -117,7 +117,7 @@
 </template>
 <script setup lang="ts">
 import draggable from 'vuedraggable'
-import { Equal, ListTree } from 'lucide-vue-next'
+import { Equal, Group } from 'lucide-vue-next'
 import { TagPlus } from '../icons/TagPlusIcon'
 import { useApi } from '../../composables/useApi'
 import LabelCategoryNameModal from '../modals/LabelCategoryNameModal.vue'
@@ -416,7 +416,7 @@ defineExpose({ load })
   font-weight: 700;
   letter-spacing: 0.06em;
   color: mixin.$white;
-  background: mixin.$main-aqua;
+  background: mixin.$main;
   cursor: pointer;
 }
 .label-category-panel__add-category-btn:disabled {
@@ -534,7 +534,7 @@ defineExpose({ load })
   width: 64px;
 }
 .label-action-btn--edit {
-  color: mixin.$main-aqua;
+  color: mixin.$main;
 }
 .label-action-btn--delete {
   color: mixin.$danger;
@@ -547,7 +547,7 @@ defineExpose({ load })
   font-size: 12px;
   line-height: 1;
   color: mixin.$white;
-  background: mixin.$main-aqua;
+  background: mixin.$main;
   align-self: center;
 }
 .label-action-btn--primary :deep(svg) {

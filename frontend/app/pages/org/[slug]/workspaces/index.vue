@@ -38,7 +38,7 @@
                 @click="openWorkspaceCreateModal"
               >
                 <FolderPlus :size="20" :stroke-width="2.25" aria-hidden="true" />
-                スペース作成
+                新規作成
               </button>
             </div>
       </header>
@@ -50,15 +50,16 @@
               <table class="workspace-table">
                 <thead>
                   <tr>
-                    <th>名前</th>
+                    <th>スペース名</th>
                     <th>説明</th>
                     <th>担当者</th>
                     <th>ステータス</th>
+                    <th aria-hidden="true"></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!visibleWorkspaces.length">
-                    <td colspan="4" class="empty">該当するスペースがありません。</td>
+                    <td colspan="5" class="empty">該当するスペースがありません。</td>
                   </tr>
                   <tr
                     v-for="workspace in visibleWorkspaces"
@@ -79,10 +80,11 @@
                     @pointermove="onWorkspacePointerMove($event, workspace.id)"
                     @pointerup="onWorkspacePointerUp($event, workspace.id)"
                     @pointercancel="onWorkspacePointerCancel"
+                    @contextmenu.prevent="onWorkspaceContextMenu(workspace.id, $event)"
                     @keydown.enter.prevent="goToWorkspace(workspace.id)"
                     @keydown.space.prevent="goToWorkspace(workspace.id)"
                   >
-                    <td colspan="4" class="workspace-card-cell">
+                    <td colspan="5" class="workspace-card-cell">
                       <div class="workspace-card">
                         <div
                           v-if="workspace.labels?.length"
@@ -107,9 +109,11 @@
                             </p>
                           </div>
                           <div class="workspace-card__assignees">
-                            <WorkspaceAssigneeCountButton
-                              v-if="workspace.assignees?.length"
-                              :assignees="workspace.assignees"
+                            <WorkspaceAssigneeSelect
+                              :assignees="workspace.assignees ?? []"
+                              :org-members="orgMembers"
+                              :pending="updatingAssigneesWorkspaceId === workspace.id"
+                              @change="assigneeIds => updateWorkspaceAssignees(workspace, assigneeIds)"
                             />
                           </div>
                           <div class="workspace-card__status">
@@ -120,6 +124,19 @@
                               @select="status => updateWorkspaceStatus(workspace, status)"
                             />
                           </div>
+                          <div class="workspace-card__actions">
+                            <button
+                              type="button"
+                              class="workspace-card__menu-btn"
+                              aria-label="スペースのメニュー"
+                              :aria-expanded="openMenuWorkspaceId === workspace.id"
+                              @pointerdown.stop
+                              @pointerup.stop
+                              @click.stop="toggleWorkspaceMenu(workspace.id, $event)"
+                            >
+                              <Ellipsis :size="20" :stroke-width="2.25" aria-hidden="true" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -129,21 +146,62 @@
             </div>
           </section>
       </div>
-      <!-- 作成モーダル（オーバーレイのためフェード対象外） -->
+      <Teleport to="body">
+        <ul
+          v-if="openMenuWorkspace && workspaceMenuPosition"
+          class="workspace-card-menu-dropdown"
+          role="menu"
+          :style="workspaceMenuStyle"
+        >
+          <li role="none">
+            <button
+              type="button"
+              class="workspace-card-menu-item"
+              role="menuitem"
+              :disabled="pending"
+              @click="openWorkspaceEditModal(openMenuWorkspace)"
+            >
+              編集
+            </button>
+          </li>
+          <li role="none">
+            <button
+              type="button"
+              class="workspace-card-menu-item workspace-card-menu-item--danger"
+              role="menuitem"
+              :disabled="pending"
+              @click="openWorkspaceDeleteModal(openMenuWorkspace)"
+            >
+              削除
+            </button>
+          </li>
+        </ul>
+      </Teleport>
+      <!-- 作成・編集モーダル（オーバーレイのためフェード対象外） -->
       <WorkspaceCreateModal
-        v-model="workspaceCreateModalOpen"
-        title="スペースの作成"
+        v-model="workspaceFormModalOpen"
+        :mode="workspaceFormMode"
+        :title="workspaceFormMode === 'edit' ? 'スペースの編集' : 'スペースの作成'"
+        :initial-values="workspaceFormInitialValues"
         :org-slug="slug"
         :labels="orgLabels"
         :org-members="orgMembers"
+        :statuses="workspaceStatuses"
         :loading="pending"
-        @submit="createWorkspace"
+        @submit="onWorkspaceFormSubmit"
+      />
+      <WorkspaceDeleteModal
+        ref="workspaceDeleteModalRef"
+        v-model="workspaceDeleteModalOpen"
+        :workspace-name="workspaceDeleteTarget?.name ?? ''"
+        :loading="deletePending"
+        @confirm="confirmWorkspaceDelete"
       />
     </template>
   </main>
 </template>
 <script setup lang="ts">
-import { FolderPlus } from 'lucide-vue-next'
+import { Ellipsis, FolderPlus } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import { useApi } from '../../../../composables/useApi'
@@ -156,6 +214,13 @@ import type { TaskFormMember } from '../../../../composables/useTaskFormHelpers'
 import { useWorkspaceBoardPageData } from '../../../../composables/useWorkspaceBoardPageData'
 import { DEFAULT_WORKSPACE_STATUS_ITEMS } from '../../../../components/settings/types'
 import { resolveStandardColors } from '../../../../utils/colorPresetResolution'
+import {
+  getTopmostModalOverlay,
+  isKeyboardShortcutBlockedTarget,
+} from '../../../../utils/uiInteraction'
+import WorkspaceCreateModal from '../../../../components/modals/WorkspaceCreateModal.vue'
+import WorkspaceDeleteModal from '../../../../components/modals/WorkspaceDeleteModal.vue'
+import WorkspaceAssigneeSelect from '../../../../components/workspace/WorkspaceAssigneeSelect.vue'
 import WorkspaceStatusSelect from '../../../../components/workspace/WorkspaceStatusSelect.vue'
 definePageMeta({
   name: 'org-slug-workspaces',
@@ -180,8 +245,9 @@ const {
   getCached: getOrgWorkspaceIndexCached,
   invalidateCached: invalidateOrgWorkspaceIndexCached,
   patchCachedWorkspaceStatus,
+  patchCachedWorkspaceAssignees,
 } = useOrgWorkspaceIndexPageData()
-const { warmWorkspaceBoardCache, prefetch } = useWorkspaceBoardPageData()
+const { warmWorkspaceBoardCache, prefetch, invalidateCached: invalidateWorkspaceBoardCached } = useWorkspaceBoardPageData()
 const workspaces = ref<Workspace[]>([])
 /** 初回取得成功まで UI を出さない */
 const pageReady = ref(false)
@@ -191,7 +257,16 @@ const pending = ref(false)
 const error = ref<string | null>(null)
 const searchQuery = ref('')
 const sortMode = ref<'newest' | 'oldest' | 'name'>('newest')
-const workspaceCreateModalOpen = ref(false)
+const workspaceFormModalOpen = ref(false)
+const workspaceFormMode = ref<'create' | 'edit'>('create')
+const workspaceEditTarget = ref<Workspace | null>(null)
+const workspaceDeleteModalOpen = ref(false)
+const workspaceDeleteTarget = ref<Workspace | null>(null)
+const workspaceDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const deletePending = ref(false)
+const openMenuWorkspaceId = ref<number | null>(null)
+const workspaceMenuPosition = ref<{ top: number; left: number } | null>(null)
+const WORKSPACE_MENU_MIN_WIDTH = 160
 const orgLabels = ref<Label[]>([])
 const orgMembers = ref<TaskFormMember[]>([])
 const workspaceStatuses = ref<WorkspaceStatus[]>([])
@@ -199,6 +274,7 @@ const labelFilterId = ref('')
 const justCreatedWorkspaceIds = reactive<Record<number, true>>({})
 const loadingWorkspaceId = ref<number | null>(null)
 const updatingStatusWorkspaceId = ref<number | null>(null)
+const updatingAssigneesWorkspaceId = ref<number | null>(null)
 const CLICK_MOVE_TOLERANCE_PX = 6
 const pointerPressState = ref<{
   workspaceId: number
@@ -232,6 +308,43 @@ const visibleWorkspaces = computed(() => {
   }
   return labelFiltered.sort((a, b) => b.id - a.id)
 })
+const openMenuWorkspace = computed(() => {
+  const id = openMenuWorkspaceId.value
+  if (id == null) return null
+  return workspaces.value.find(workspace => workspace.id === id) ?? null
+})
+const workspaceMenuStyle = computed(() => {
+  if (!workspaceMenuPosition.value) {
+    return undefined
+  }
+  const { top, left } = workspaceMenuPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    minWidth: `${WORKSPACE_MENU_MIN_WIDTH}px`,
+    zIndex: 80,
+  }
+})
+const workspaceFormInitialValues = computed(() => {
+  if (workspaceFormMode.value !== 'edit' || !workspaceEditTarget.value) {
+    return null
+  }
+  const target = workspaceEditTarget.value
+  const status = target.status
+    ? {
+        name: target.status.name,
+        color: target.status.color ?? '',
+      }
+    : null
+  return {
+    name: target.name,
+    description: target.description ?? null,
+    labels: target.labels ?? [],
+    assignees: target.assignees ?? [],
+    status,
+  }
+})
 function isWorkspaceJustCreated (workspaceId: number): boolean {
   return !!justCreatedWorkspaceIds[workspaceId]
 }
@@ -241,8 +354,122 @@ function markWorkspaceAsJustCreated (workspaceId: number) {
     delete justCreatedWorkspaceIds[workspaceId]
   }, 260)
 }
+function closeWorkspaceMenu () {
+  openMenuWorkspaceId.value = null
+  workspaceMenuPosition.value = null
+}
+function positionWorkspaceMenu (anchor: HTMLElement) {
+  if (!import.meta.client) {
+    workspaceMenuPosition.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const pad = 8
+  const gap = 4
+  const menuWidth = WORKSPACE_MENU_MIN_WIDTH
+  let left = rect.right + gap
+  if (left + menuWidth > window.innerWidth - pad) {
+    left = Math.max(pad, rect.left - gap - menuWidth)
+  }
+  workspaceMenuPosition.value = {
+    top: rect.top,
+    left,
+  }
+}
+function openWorkspaceMenu (workspaceId: number, anchor: HTMLElement) {
+  if (openMenuWorkspaceId.value === workspaceId) {
+    closeWorkspaceMenu()
+    return
+  }
+  positionWorkspaceMenu(anchor)
+  openMenuWorkspaceId.value = workspaceId
+}
+function toggleWorkspaceMenu (workspaceId: number, event: MouseEvent) {
+  const el = event.currentTarget
+  if (!(el instanceof HTMLElement)) {
+    return
+  }
+  openWorkspaceMenu(workspaceId, el)
+}
+function onWorkspaceContextMenu (workspaceId: number, event: MouseEvent) {
+  pointerPressState.value = null
+  const row = event.currentTarget
+  if (!(row instanceof HTMLElement)) {
+    return
+  }
+  const trigger = row.querySelector('.workspace-card__menu-btn')
+  if (!(trigger instanceof HTMLElement)) {
+    return
+  }
+  openWorkspaceMenu(workspaceId, trigger)
+}
 function openWorkspaceCreateModal () {
-  workspaceCreateModalOpen.value = true
+  closeWorkspaceMenu()
+  workspaceFormMode.value = 'create'
+  workspaceEditTarget.value = null
+  workspaceFormModalOpen.value = true
+}
+function canUseWorkspaceListKeyboardShortcut (): boolean {
+  if (!pageReady.value || fatalLoadError.value) {
+    return false
+  }
+  if (getTopmostModalOverlay()) {
+    return false
+  }
+  if (
+    workspaceFormModalOpen.value
+    || workspaceDeleteModalOpen.value
+    || openMenuWorkspaceId.value !== null
+    || pending.value
+    || deletePending.value
+  ) {
+    return false
+  }
+  return true
+}
+function onWorkspaceListKeydown (event: KeyboardEvent) {
+  const key = event.key
+  if (key !== 'n' && key !== 'N') {
+    return
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
+    return
+  }
+  if (isKeyboardShortcutBlockedTarget(event.target)) {
+    return
+  }
+  if (!canUseWorkspaceListKeyboardShortcut()) {
+    return
+  }
+  event.preventDefault()
+  openWorkspaceCreateModal()
+}
+function openWorkspaceEditModal (workspace: Workspace) {
+  closeWorkspaceMenu()
+  workspaceFormMode.value = 'edit'
+  workspaceEditTarget.value = workspace
+  workspaceFormModalOpen.value = true
+}
+function openWorkspaceDeleteModal (workspace: Workspace) {
+  closeWorkspaceMenu()
+  workspaceDeleteTarget.value = workspace
+  workspaceDeleteModalOpen.value = true
+}
+function onGlobalClick (ev: Event) {
+  const t = ev.target
+  if (t instanceof Node) {
+    const el = t instanceof Element ? t : t.parentElement
+    if (el?.closest('.workspace-card__menu-btn')) {
+      return
+    }
+    if (el?.closest('.workspace-card-menu-dropdown')) {
+      return
+    }
+  }
+  closeWorkspaceMenu()
+}
+function onWindowResize () {
+  closeWorkspaceMenu()
 }
 function applyOrgWorkspaceIndexSnapshot (snapshot: OrgWorkspaceIndexPageSnapshot) {
   workspaces.value = snapshot.workspaces
@@ -257,6 +484,48 @@ function applyWorkspaceStatusLocally (workspaceId: number, status: WorkspaceStat
       : workspace
   ))
   patchCachedWorkspaceStatus(slug.value, workspaceId, status)
+}
+function applyWorkspaceAssigneesLocally (workspaceId: number, assignees: TaskFormMember[]) {
+  workspaces.value = workspaces.value.map(workspace => (
+    workspace.id === workspaceId
+      ? { ...workspace, assignees }
+      : workspace
+  ))
+  patchCachedWorkspaceAssignees(slug.value, workspaceId, assignees)
+}
+function resolveAssigneesFromIds (assigneeIds: number[]): TaskFormMember[] {
+  const memberById = new Map(orgMembers.value.map(member => [member.id, member]))
+  return assigneeIds
+    .map(id => memberById.get(id))
+    .filter((member): member is TaskFormMember => member != null)
+}
+async function updateWorkspaceAssignees (workspace: Workspace, assigneeIds: number[]) {
+  const currentIds = (workspace.assignees ?? []).map(member => member.id)
+  if (
+    JSON.stringify(currentIds) === JSON.stringify(assigneeIds)
+    || updatingAssigneesWorkspaceId.value !== null
+  ) {
+    return
+  }
+  const previousAssignees = workspace.assignees ?? []
+  const nextAssignees = resolveAssigneesFromIds(assigneeIds)
+  updatingAssigneesWorkspaceId.value = workspace.id
+  error.value = null
+  applyWorkspaceAssigneesLocally(workspace.id, nextAssignees)
+  try {
+    const updated = await api<Workspace>(`/orgs/${slug.value}/workspaces/${workspace.id}`, {
+      method: 'PATCH',
+      body: { assignee_ids: assigneeIds },
+    })
+    applyWorkspaceAssigneesLocally(workspace.id, updated.assignees ?? nextAssignees)
+  } catch (e: unknown) {
+    applyWorkspaceAssigneesLocally(workspace.id, previousAssignees)
+    error.value = e instanceof Error ? e.message : '担当者の更新に失敗しました'
+  } finally {
+    if (updatingAssigneesWorkspaceId.value === workspace.id) {
+      updatingAssigneesWorkspaceId.value = null
+    }
+  }
 }
 async function updateWorkspaceStatus (workspace: Workspace, status: WorkspaceStatus) {
   if (workspace.status?.name === status.name || updatingStatusWorkspaceId.value !== null) {
@@ -340,6 +609,7 @@ function retryInitialLoad () {
 async function createWorkspace (payload: {
   name: string
   description: string | null
+  status: string | null
   label_ids: number[]
   assignee_ids: number[]
 }) {
@@ -352,11 +622,12 @@ async function createWorkspace (payload: {
         body: {
           name: payload.name,
           description: payload.description,
+          status: payload.status,
           label_ids: payload.label_ids,
           assignee_ids: payload.assignee_ids,
         },
       })
-      workspaceCreateModalOpen.value = false
+      workspaceFormModalOpen.value = false
       await load({ refresh: true })
       markWorkspaceAsJustCreated(createdWorkspace.id)
     })
@@ -364,6 +635,79 @@ async function createWorkspace (payload: {
     error.value = e instanceof Error ? e.message : '作成に失敗しました'
   } finally {
     pending.value = false
+  }
+}
+async function updateWorkspace (payload: {
+  name: string
+  description: string | null
+  status: string | null
+  label_ids: number[]
+  assignee_ids: number[]
+}) {
+  const target = workspaceEditTarget.value
+  if (!target) return
+  pending.value = true
+  error.value = null
+  try {
+    await withAppLoadingCursor(async () => {
+      await api<Workspace>(`/orgs/${slug.value}/workspaces/${target.id}`, {
+        method: 'PATCH',
+        body: {
+          name: payload.name,
+          description: payload.description,
+          status: payload.status,
+          label_ids: payload.label_ids,
+          assignee_ids: payload.assignee_ids,
+        },
+      })
+      workspaceFormModalOpen.value = false
+      workspaceEditTarget.value = null
+      invalidateOrgWorkspaceIndexCached(slug.value)
+      invalidateWorkspaceBoardCached(slug.value, String(target.id))
+      await load({ refresh: true })
+    })
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : '更新に失敗しました'
+  } finally {
+    pending.value = false
+  }
+}
+async function onWorkspaceFormSubmit (payload: {
+  name: string
+  description: string | null
+  status: string | null
+  label_ids: number[]
+  assignee_ids: number[]
+}) {
+  if (workspaceFormMode.value === 'edit') {
+    await updateWorkspace(payload)
+    return
+  }
+  await createWorkspace(payload)
+}
+async function confirmWorkspaceDelete () {
+  const target = workspaceDeleteTarget.value
+  if (!target || deletePending.value) return
+  deletePending.value = true
+  error.value = null
+  try {
+    await withAppLoadingCursor(async () => {
+      await api(`/orgs/${slug.value}/workspaces/${target.id}`, {
+        method: 'DELETE',
+      })
+      workspaceDeleteModalOpen.value = false
+      workspaceDeleteTarget.value = null
+      workspaces.value = workspaces.value.filter(workspace => workspace.id !== target.id)
+      invalidateOrgWorkspaceIndexCached(slug.value)
+      invalidateWorkspaceBoardCached(slug.value, String(target.id))
+      await load({ refresh: true })
+    })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : '削除に失敗しました'
+    workspaceDeleteModalRef.value?.setSubmitError(message)
+    error.value = message
+  } finally {
+    deletePending.value = false
   }
 }
 function warmWorkspaceBoard (workspaceId: number) {
@@ -467,6 +811,15 @@ onActivated(() => {
     applyOrgWorkspaceIndexSnapshot(cached)
     pageReady.value = true
   }
+  if (import.meta.client) {
+    document.addEventListener('keydown', onWorkspaceListKeydown)
+  }
+})
+onDeactivated(() => {
+  closeWorkspaceMenu()
+  if (import.meta.client) {
+    document.removeEventListener('keydown', onWorkspaceListKeydown)
+  }
 })
 onMounted(() => {
   if (!pageReady.value) {
@@ -475,6 +828,9 @@ onMounted(() => {
   if (!import.meta.client) {
     return
   }
+  document.addEventListener('click', onGlobalClick)
+  document.addEventListener('keydown', onWorkspaceListKeydown)
+  window.addEventListener('resize', onWindowResize)
   nextTick(() => {
     updateStickyOffsets()
     const globalHeader = document.querySelector('.global-header') as HTMLElement | null
@@ -491,9 +847,13 @@ onBeforeUnmount(() => {
   if (!import.meta.client) {
     return
   }
+  document.removeEventListener('click', onGlobalClick)
+  document.removeEventListener('keydown', onWorkspaceListKeydown)
+  window.removeEventListener('resize', onWindowResize)
   window.removeEventListener('resize', updateStickyOffsets)
   globalHeaderObserver?.disconnect()
   globalHeaderObserver = null
+  closeWorkspaceMenu()
 })
 </script>
 <style lang="scss" scoped>
@@ -506,7 +866,7 @@ onBeforeUnmount(() => {
 }
 .table-card,
 .err {
-  max-width: 1248px;
+  max-width: 1304px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -598,12 +958,13 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 .workspace-table {
-  --col-name-width: 480px;
+  --col-name-width: 536px;
   --col-assignees-width: 112px;
-  --col-description-width: 528px;
+  --col-description-width: 476px;
   --col-status-width: 128px;
-  width: 1248px;
-  max-width: 1248px;
+  --col-actions-width: 52px;
+  width: 1304px;
+  max-width: 1304px;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0 8px;
@@ -631,6 +992,7 @@ onBeforeUnmount(() => {
 .workspace-table th:nth-child(1) {
   width: var(--col-name-width);
   max-width: var(--col-name-width);
+  padding: 0 16px 0 32px;
 }
 .workspace-table th:nth-child(2) {
   width: var(--col-description-width);
@@ -645,6 +1007,11 @@ onBeforeUnmount(() => {
   width: var(--col-status-width);
   max-width: var(--col-status-width);
   text-align: center;
+}
+.workspace-table th:nth-child(5) {
+  width: var(--col-actions-width);
+  max-width: var(--col-actions-width);
+  padding: 0 16px 0 0;
 }
 .workspace-card-cell {
   height: 80px;
@@ -669,9 +1036,11 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 6px;
   left: 0;
-  right: 0;
   z-index: 1;
-  padding: 0 16px;
+  box-sizing: border-box;
+  width: var(--col-name-width);
+  max-width: var(--col-name-width);
+  padding: 0 16px 0 32px;
   min-width: 0;
   pointer-events: none;
 }
@@ -679,20 +1048,20 @@ onBeforeUnmount(() => {
   height: 100%;
   display: flex;
   align-items: center;
-  min-width: 1248px;
+  min-width: 1304px;
 }
 .workspace-card__name {
   width: var(--col-name-width);
   max-width: var(--col-name-width);
   box-sizing: border-box;
-  padding: 0 16px;
+  padding: 0 16px 0 32px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   min-width: 0;
   flex-shrink: 0;
   font-weight: 600;
-  font-size: 14px;
+  font-size: 16px;
 }
 .workspace-card__assignees {
   width: var(--col-assignees-width);
@@ -728,6 +1097,62 @@ onBeforeUnmount(() => {
   min-width: 0;
   font-size: 14px;
   flex-shrink: 0;
+}
+.workspace-card__actions {
+  width: var(--col-actions-width);
+  max-width: var(--col-actions-width);
+  box-sizing: border-box;
+  padding: 0 16px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.workspace-card__menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+.workspace-card__menu-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.workspace-card-menu-dropdown {
+  margin: 0;
+  padding: 4.9px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid mixin.$border;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+}
+.workspace-card-menu-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 7.7px 11.9px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: mixin.$text;
+  cursor: pointer;
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+}
+.workspace-card-menu-item--danger {
+  color: mixin.$danger;
 }
 .clickable-row {
   cursor: pointer;
@@ -798,14 +1223,15 @@ onBeforeUnmount(() => {
   letter-spacing: 0.1em;
 }
 .primary-btn {
-  background: mixin.$main-aqua;
+  background: mixin.$main;
   color: mixin.$white;
   border-radius: 999px;
   padding: 6px 28px;
   font-size: 14px;
+  font-weight: bold;
   white-space: nowrap;
   flex-shrink: 0;
-  gap: 4.9px;
+  gap: 6px;
 }
 .ghost-btn {
   background: #fff;
@@ -819,7 +1245,7 @@ button:disabled {
 .err {
   margin-top: 0;
   margin-bottom: 12px;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
 }
 </style>

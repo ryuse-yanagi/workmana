@@ -8,7 +8,7 @@
     :default-items="DEFAULT_DOCUMENT_CATEGORY_ITEMS"
     item-kind="カテゴリ"
     add-button-label="カテゴリ追加"
-    :add-button-icon="ListTree"
+    :add-button-icon="Group"
     create-modal-title="カテゴリの作成"
     edit-modal-title="カテゴリの編集"
     delete-modal-title="カテゴリの削除"
@@ -17,7 +17,7 @@
   />
 </template>
 <script setup lang="ts">
-import { ListTree } from 'lucide-vue-next'
+import { Group } from 'lucide-vue-next'
 import SettingsDefaultNamedColorItemsPanel from './SettingsDefaultNamedColorItemsPanel.vue'
 import { DEFAULT_DOCUMENT_CATEGORY_ITEMS, type DefaultNamedColorItem } from './types'
 defineProps<{

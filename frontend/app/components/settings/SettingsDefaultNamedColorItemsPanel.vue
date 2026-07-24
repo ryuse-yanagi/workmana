@@ -340,7 +340,7 @@ defineExpose({ load })
   font-weight: 700;
   letter-spacing: 0.06em;
   color: mixin.$white;
-  background: mixin.$main-aqua;
+  background: mixin.$main;
   cursor: pointer;
 }
 .named-color-items-panel__add-btn:disabled {
@@ -432,7 +432,7 @@ defineExpose({ load })
   width: 64px;
 }
 .label-action-btn--edit {
-  color: mixin.$main-aqua;
+  color: mixin.$main;
 }
 .label-action-btn--delete {
   color: mixin.$danger;

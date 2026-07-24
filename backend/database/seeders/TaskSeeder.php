@@ -14,72 +14,60 @@ use Illuminate\Database\Seeder;
 
 class TaskSeeder extends Seeder
 {
-    /** @var list<string> */
-    private const WORKSPACE_NAMES = ['dmy_ws_a', 'dmy_ws_b', 'dmy_ws_c'];
-
-    /** @var list<string> */
-    private const WORKSPACE_SUFFIXES = ['a', 'b', 'c'];
-
     public function run (): void
     {
-        $org = Organization::query()->where('slug', OrganizationSeeder::SLUG)->first();
+        $org = Organization::query()->where('slug', DummySeederData::ORG_SLUG)->first();
         if ($org === null) {
-            $this->command?->warn('Organization "'.OrganizationSeeder::SLUG.'" not found. Run OrganizationSeeder first.');
+            $this->command?->warn('Organization "'.DummySeederData::ORG_SLUG.'" not found. Run OrganizationSeeder first.');
 
             return;
         }
 
-        $reporter = User::query()->where('name', 'dmy_user_01')->first();
+        $reporter = User::query()->where('name', DummySeederData::ADMIN_NAME)->first();
         if ($reporter === null) {
-            $this->command?->warn('dmy_user_01 not found. Run UserSeeder first.');
+            $this->command?->warn(DummySeederData::ADMIN_NAME.' not found. Run UserSeeder first.');
 
             return;
         }
 
-        foreach (self::WORKSPACE_NAMES as $index => $workspaceName) {
-            $workspace = Workspace::query()
-                ->where('organization_id', $org->id)
-                ->where('name', $workspaceName)
-                ->first();
+        $workspace = Workspace::query()
+            ->where('organization_id', $org->id)
+            ->where('name', DummySeederData::WORKSPACE_NAME)
+            ->first();
 
-            if ($workspace === null) {
-                $this->command?->warn("Workspace \"{$workspaceName}\" not found. Run WorkspaceSeeder first.");
+        if ($workspace === null) {
+            $this->command?->warn('Workspace "'.DummySeederData::WORKSPACE_NAME.'" not found. Run WorkspaceSeeder first.');
 
-                continue;
-            }
-
-            $this->seedTasksForWorkspace($org, $workspace, $reporter, self::WORKSPACE_SUFFIXES[$index]);
+            return;
         }
+
+        $this->seedTasksForWorkspace($org, $workspace, $reporter);
     }
 
     private function seedTasksForWorkspace (
         Organization $org,
         Workspace $workspace,
         User $reporter,
-        string $suffix,
     ): void {
-        $listsByName = $this->resolveDefaultLists($workspace);
-        $parents = [];
+        $list = $this->resolveDefaultList($workspace);
+        if ($list === null) {
+            $this->command?->warn('Default board list not found in workspace "'.DummySeederData::WORKSPACE_NAME.'".');
 
-        for ($parentIndex = 1; $parentIndex <= 3; $parentIndex++) {
-            $listName = DefaultBoardLists::DEFAULT_NAMES[$parentIndex - 1];
-            $list = $listsByName[$listName] ?? null;
-            if ($list === null) {
-                $this->command?->warn("List \"{$listName}\" not found in workspace \"{$workspace->name}\".");
+            return;
+        }
 
-                continue;
-            }
+        $parentSortOrder = 0;
 
-            $title = "dmy_p_task_{$suffix}_{$parentIndex}";
-            $parents[$parentIndex] = Task::query()->firstOrCreate(
+        foreach (DummySeederData::taskTree() as $parentTitle => $childTitles) {
+            $parent = Task::query()->updateOrCreate(
                 [
                     'workspace_id' => $workspace->id,
-                    'title' => $title,
+                    'title' => $parentTitle,
                 ],
                 [
                     'organization_id' => $org->id,
                     'list_id' => $list->id,
-                    'sort_order' => 0,
+                    'sort_order' => $parentSortOrder,
                     'is_parent_task' => true,
                     'parent_task_id' => null,
                     'description' => null,
@@ -88,53 +76,36 @@ class TaskSeeder extends Seeder
                     'reporter_id' => $reporter->id,
                 ],
             );
-        }
 
-        for ($childIndex = 1; $childIndex <= 9; $childIndex++) {
-            $parentIndex = (int) ceil($childIndex / 3);
-            $parent = $parents[$parentIndex] ?? null;
-            if ($parent === null) {
-                continue;
+            foreach ($childTitles as $childSortOrder => $childTitle) {
+                Task::query()->updateOrCreate(
+                    [
+                        'workspace_id' => $workspace->id,
+                        'title' => $childTitle,
+                        'parent_task_id' => $parent->id,
+                    ],
+                    [
+                        'organization_id' => $org->id,
+                        'list_id' => $list->id,
+                        'sort_order' => $childSortOrder + 1,
+                        'is_parent_task' => false,
+                        'description' => null,
+                        'status' => TaskStatus::Todo->value,
+                        'priority' => TaskPriority::Medium->value,
+                        'reporter_id' => $reporter->id,
+                    ],
+                );
             }
 
-            $childOrderInList = (($childIndex - 1) % 3) + 1;
-            $title = "dmy_task_{$suffix}_{$childIndex}";
-
-            Task::query()->firstOrCreate(
-                [
-                    'workspace_id' => $workspace->id,
-                    'title' => $title,
-                ],
-                [
-                    'organization_id' => $org->id,
-                    'list_id' => $parent->list_id,
-                    'sort_order' => $childOrderInList,
-                    'is_parent_task' => false,
-                    'parent_task_id' => $parent->id,
-                    'description' => null,
-                    'status' => TaskStatus::Todo->value,
-                    'priority' => TaskPriority::Medium->value,
-                    'reporter_id' => $reporter->id,
-                ],
-            );
+            $parentSortOrder++;
         }
     }
 
-    /**
-     * @return array<string, BoardList>
-     */
-    private function resolveDefaultLists (Workspace $workspace): array
+    private function resolveDefaultList (Workspace $workspace): ?BoardList
     {
-        $lists = $workspace->lists()
-            ->whereIn('name', DefaultBoardLists::DEFAULT_NAMES)
+        return $workspace->lists()
+            ->where('name', DefaultBoardLists::DEFAULT_NAMES[0])
             ->orderBy('sort_order')
-            ->get();
-
-        $byName = [];
-        foreach ($lists as $list) {
-            $byName[$list->name] = $list;
-        }
-
-        return $byName;
+            ->first();
     }
 }

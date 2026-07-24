@@ -24,6 +24,10 @@
               :org-slug="slug"
               :initial-items="defaultWorkspaceStatusItemsFromSnapshot"
             />
+            <SettingsMemberGroupsPanel
+              v-show="activeTab === 'member_groups'"
+              :org-slug="slug"
+            />
             <SettingsEffortPanel
               v-show="activeTab === 'effort_settings'"
               :org-slug="slug"
@@ -55,6 +59,7 @@ import SettingsDefaultWorkspaceStatusesPanel from '../../../components/settings/
 import SettingsDefaultDocumentCategoriesPanel from '../../../components/settings/SettingsDefaultDocumentCategoriesPanel.vue'
 import SettingsEffortPanel from '../../../components/settings/SettingsEffortPanel.vue'
 import SettingsLabelsPanel from '../../../components/settings/SettingsLabelsPanel.vue'
+import SettingsMemberGroupsPanel from '../../../components/settings/SettingsMemberGroupsPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
 import {
   normalizeDefaultBoardListItems,
@@ -84,6 +89,7 @@ const {
 const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
   { key: 'default_board_lists', label: 'リスト設定' },
   { key: 'workspace_statuses', label: 'ステータス設定' },
+  { key: 'member_groups', label: 'グループ設定' },
   { key: 'effort_settings', label: '工数設定' },
   { key: 'document_categories', label: '資料カテゴリ設定' },
   { key: 'labels', label: 'ラベル設定' },
@@ -155,6 +161,10 @@ function applyTabFromRoute () {
   }
   if (tab === 'workspace_statuses') {
     activeTab.value = 'workspace_statuses'
+    return
+  }
+  if (tab === 'member_groups') {
+    activeTab.value = 'member_groups'
     return
   }
   if (tab === 'effort_settings') {

@@ -45,6 +45,7 @@ $main-aqua: #25c0f3;
 $main-aqua-hover: #0096d1;
 $main-aqua-surface: #eef5ff;
 $main-aqua-surface-light: #f7fbff;
+$global-header-bg: #28384a;
 $accent-border: #388bff;
 $brand: #0b2bab;
 $action: $main;
@@ -53,6 +54,7 @@ $text: #0f172a;
 $text-sub: #475569;
 $text-muted: #64748b;
 $surface-muted: #f1f5f9;
+$surface-canvas: #f5f6fa;
 $list-column-bg: #f8fafc;
 $table-parent-bg: #f1f5f9;
 $table-header-bg: $text-sub;
@@ -62,6 +64,8 @@ $border-light: #e2e8f0;
 $danger: #f24545;
 $danger-surface: color-mix(in srgb, $danger 12%, white);
 $white: #fff;
+/** 資料本文など — 編集中の枠線 */
+$edit-border: #ff8a00;
 
 /** モーダル上部バー — padding 込みで 48px 固定 */
 @mixin modal-header-bar {
@@ -71,7 +75,7 @@ $white: #fff;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: $main;
+  background: $global-header-bg;
   color: $white;
   flex-shrink: 0;
 }
@@ -155,7 +159,7 @@ $white: #fff;
   border-radius: 8px;
   padding: 7.7px 10.5px;
   font: inherit;
-  font-size: 12.32px;
+  font-size: 14px;
   line-height: 1.45;
   color: $text;
   background: $white;

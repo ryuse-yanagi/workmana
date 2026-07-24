@@ -287,14 +287,11 @@ onMounted(() => {
   background: transparent;
   color: #0f172a;
   font: inherit;
-  font-size: 12.25px;
+  font-size: 16px;
   font-weight: 600;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  &:hover {
-    background: #f1f5f9;
-  }
 }
 .workspace-view-switcher-item__icon {
   flex-shrink: 0;

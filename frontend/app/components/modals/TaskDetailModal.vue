@@ -115,7 +115,7 @@
                 @click="openMemberPicker($event)"
               >
                 <span class="action-btn-icon" aria-hidden="true">
-                  <Users :size="16" :stroke-width="2.25" />
+                  <UserPlus :size="16" :stroke-width="2.25" />
                 </span>
                 担当者
               </button>
@@ -459,7 +459,7 @@
                   v-model="memberSearchQuery"
                   type="search"
                   class="label-search-input"
-                  placeholder="メンバーを検索..."
+                  placeholder="ユーザーを検索..."
                   :disabled="saving"
                   @click.stop
                 />
@@ -492,7 +492,7 @@
                     </ul>
                   </template>
                   <template v-if="filteredUnassignedMembers.length">
-                    <p class="label-section-heading">メンバー</p>
+                    <p class="label-section-heading">ユーザー</p>
                     <ul class="label-picker-list">
                       <li v-for="member in filteredUnassignedMembers" :key="`member-${member.id}`">
                         <button
@@ -512,11 +512,11 @@
                       </li>
                     </ul>
                   </template>
-                  <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">スペースメンバーがいません。</p>
+                  <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">スペースユーザーがいません。</p>
                   <p
                     v-else-if="!filteredAssignedMembers.length && !filteredUnassignedMembers.length"
                     class="empty-text label-picker-empty"
-                  >該当するメンバーがいません。</p>
+                  >該当するユーザーがいません。</p>
                   <p v-if="popoverError" class="err">{{ popoverError }}</p>
                 </div>
               </PopoverShell>
@@ -651,7 +651,7 @@ import {
   Clock,
   ListChecks,
   Tags,
-  Users,
+  UserPlus,
 } from 'lucide-vue-next'
 import ParentTaskPickerPanel from '../task/ParentTaskPickerPanel.vue'
 import TaskDetailChecklistBlock, {
@@ -2025,10 +2025,9 @@ async function saveDescription () {
   background: rgba(15, 23, 42, 0.45);
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 56px 14px;
+  padding: 14px;
   z-index: 70;
-  overflow: hidden;
+  overflow-y: auto;
 }
 .modal-overlay--popover-open {
   overflow: hidden;
@@ -2036,7 +2035,9 @@ async function saveDescription () {
 .modal-card {
   position: relative;
   width: min(calc(560px + 308px), 100%);
-  max-height: calc(100vh - 112px);
+  max-height: calc(100dvh - 28px);
+  margin: auto;
+  flex-shrink: 0;
   border-radius: 12px;
   overflow: hidden;
   background: #fff;
@@ -2172,7 +2173,7 @@ async function saveDescription () {
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 7px 8.4px;
-  font-size: 25.2px;
+  font-size: 24px;
   font-weight: 800;
   color: #0f172a;
   background: transparent;
@@ -2194,7 +2195,7 @@ async function saveDescription () {
   left: 8.4px;
   right: 8.4px;
   transform: translateY(-50%);
-  font-size: 25.2px;
+  font-size: 24px;
   line-height: 1.25;
   color: #94a3b8;
   pointer-events: none;
@@ -2348,9 +2349,6 @@ async function saveDescription () {
   padding: 2.1px 0;
   text-align: left;
 }
-.label-picker-row:hover .label-picker-bar:not(.member-picker-bar) {
-  filter: brightness(0.96);
-}
 .label-picker-checkbox {
   width: 14px;
   height: 14px;
@@ -2391,17 +2389,11 @@ async function saveDescription () {
   padding: 0 7.7px;
   transition: background 0.12s ease;
 }
-.label-picker-row.member-picker-row--workspace:hover {
-  background: #f8fafc;
-}
 .member-picker-row--workspace .member-picker-bar {
   flex: 1;
   background: transparent;
   padding-left: 0;
   padding-right: 0;
-}
-.label-picker-row.member-picker-row--workspace:hover .member-picker-bar {
-  background: transparent;
 }
 .member-picker-check {
   flex-shrink: 0;
@@ -2452,9 +2444,6 @@ async function saveDescription () {
   cursor: pointer;
   padding: 2.8px 4.9px;
   border-radius: 6px;
-}
-.member-detail-close:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
 }
 .member-detail-profile {
   display: flex;
@@ -2507,9 +2496,6 @@ async function saveDescription () {
   color: #334155;
   cursor: pointer;
 }
-.member-detail-remove:hover:not(:disabled) {
-  background: #f8fafc;
-}
 .member-detail-error {
   margin: 0;
   padding: 7px 10.5px 10.5px;
@@ -2535,10 +2521,6 @@ async function saveDescription () {
   cursor: pointer;
   padding: 2.1px 4.9px;
   border-radius: 6px;
-}
-.popover-close:hover:not(:disabled) {
-  background: #f1f5f9;
-  color: #0f172a;
 }
 .popover-fade-enter-active,
 .popover-fade-leave-active {
@@ -2665,10 +2647,6 @@ async function saveDescription () {
   font-weight: 600;
   cursor: pointer;
 }
-.popover-field-clear-btn:hover:not(:disabled) {
-  background: rgba(15, 23, 42, 0.04);
-  color: mixin.$text;
-}
 .popover-field-clear-btn:disabled {
   opacity: 0.45;
   cursor: default;
@@ -2775,9 +2753,6 @@ async function saveDescription () {
   font-weight: 600;
   cursor: pointer;
 }
-.calendar-day:hover:not(:disabled) {
-  background: #e2e8f0;
-}
 .calendar-day--outside {
   color: #94a3b8;
   background: transparent;
@@ -2816,9 +2791,6 @@ async function saveDescription () {
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
-}
-.label-chip:hover:not(:disabled) {
-  filter: brightness(0.94);
 }
 .label-chip-add {
   width: 28px;
@@ -2890,9 +2862,6 @@ async function saveDescription () {
   background: mixin.$main;
   cursor: pointer;
 }
-.checklist-create-submit:hover {
-  background: mixin.$main-hover;
-}
 .description-input {
   @include mixin.description-textarea;
   resize: none;
@@ -2930,7 +2899,7 @@ async function saveDescription () {
 }
 .err {
   margin: 0;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 12.04px;
 }

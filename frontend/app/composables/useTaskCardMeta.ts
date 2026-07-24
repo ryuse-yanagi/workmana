@@ -23,8 +23,12 @@ function normalizeDateIso (value: string | null | undefined): string | null {
   return `${match[1]}-${match[2]}-${match[3]}`
 }
 function parseDateParts (iso: string): DateParts {
-  const [year, month, day] = iso.split('-').map(Number)
-  return { year, month, day }
+  const [yearText = '0', monthText = '0', dayText = '0'] = iso.split('-')
+  return {
+    year: Number(yearText),
+    month: Number(monthText),
+    day: Number(dayText),
+  }
 }
 function formatMonthDay ({ month, day }: Pick<DateParts, 'month' | 'day'>): string {
   return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`

@@ -13,7 +13,7 @@ class DefaultWorkspaceStatusesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_workspace_creation_sets_default_status(): void
+    public function test_workspace_creation_leaves_status_unset_when_omitted(): void
     {
         $user = User::factory()->create();
 
@@ -29,12 +29,11 @@ class DefaultWorkspaceStatusesTest extends TestCase
                 'name' => 'Sprint 1',
             ])
             ->assertCreated()
-            ->assertJsonPath('status.name', '準備中')
-            ->assertJsonPath('status.color_index', 1);
+            ->assertJsonPath('status', null);
 
         $workspace = Workspace::query()->first();
         $this->assertNotNull($workspace);
-        $this->assertSame('準備中', $workspace->status);
+        $this->assertNull($workspace->status);
     }
 
     public function test_workspace_creation_uses_organization_default_workspace_status_settings(): void
@@ -56,8 +55,7 @@ class DefaultWorkspaceStatusesTest extends TestCase
                 'name' => 'Sprint 1',
             ])
             ->assertCreated()
-            ->assertJsonPath('status.name', '計画中')
-            ->assertJsonPath('status.color_index', 2);
+            ->assertJsonPath('status', null);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->postJson('/api/orgs/acme/workspaces', [

@@ -10,10 +10,9 @@ class UserSeeder extends Seeder
 {
     public function run (): void
     {
-        for ($i = 1; $i <= 20; $i++) {
-            $name = 'dmy_user_'.sprintf('%02d', $i);
+        foreach (DummySeederData::userNames() as $name) {
             User::query()->firstOrCreate(
-                ['email' => $name.'@example.com'],
+                ['email' => strtolower($name).'@example.com'],
                 [
                     'name' => $name,
                     'password' => Hash::make('password'),

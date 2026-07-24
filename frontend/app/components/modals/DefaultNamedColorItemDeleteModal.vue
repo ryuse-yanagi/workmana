@@ -80,7 +80,7 @@ defineExpose({ setSubmitError })
 }
 .err {
   margin: 10.5px 0 0;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 12.04px;
 }

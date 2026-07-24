@@ -129,11 +129,31 @@ export function useOrgWorkspaceIndexPageData () {
     })
   }
 
+  function patchCachedWorkspaceAssignees (
+    orgSlug: string,
+    workspaceId: number,
+    assignees: OrgWorkspaceAssignee[],
+  ): void {
+    const cached = cacheBySlug.get(orgSlug.trim())
+    if (!cached) {
+      return
+    }
+    cacheBySlug.set(orgSlug.trim(), {
+      ...cached,
+      workspaces: cached.workspaces.map(workspace => (
+        workspace.id === workspaceId
+          ? { ...workspace, assignees }
+          : workspace
+      )),
+    })
+  }
+
   return {
     fetchSnapshot,
     prefetch,
     getCached,
     invalidateCached,
     patchCachedWorkspaceStatus,
+    patchCachedWorkspaceAssignees,
   }
 }

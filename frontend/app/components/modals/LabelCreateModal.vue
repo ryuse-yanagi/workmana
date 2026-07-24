@@ -20,11 +20,12 @@
           :disabled="loading"
           @keydown.enter.exact.prevent
         />
+        <p v-if="nameError" class="field-error">{{ nameError }}</p>
       </label>
       <ColorPresetPicker v-model="color" :disabled="loading" />
       <div class="actions">
         <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">キャンセル</button>
-        <button type="button" class="primary-btn primary-btn--pill" :disabled="loading || !name" @click="submit">作成</button>
+        <button type="button" class="primary-btn primary-btn--pill" :disabled="loading" @click="submit">作成</button>
       </div>
     </form>
   </BaseModal>
@@ -33,6 +34,7 @@
 import { DEFAULT_COLOR_PRESET, colorPresetIndexFromHex } from '../../constants/colorPresets'
 import { LABEL_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { isCtrlEnterKeydown } from '../../utils/uiInteraction'
+import { requiredTextFieldError } from '../../utils/formValidation'
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title: string
@@ -47,22 +49,35 @@ const emit = defineEmits<{
 const defaultColor = DEFAULT_COLOR_PRESET
 const name = ref('')
 const color = ref<string>(defaultColor)
+const nameError = ref<string | null>(null)
 watch(
   () => props.modelValue,
   (open) => {
     if (open) {
       name.value = ''
       color.value = defaultColor
+      nameError.value = null
     }
   },
 )
+watch(name, () => {
+  if (nameError.value) {
+    nameError.value = null
+  }
+})
 function close () {
   if (props.loading) return
   emit('update:modelValue', false)
 }
 function submit () {
+  if (props.loading) return
+  const validationError = requiredTextFieldError(name.value, 'ラベル名を入力してください')
+  if (validationError) {
+    nameError.value = validationError
+    return
+  }
   const trimmed = name.value.trim()
-  if (!trimmed || props.loading) return
+  nameError.value = null
   emit('submit', { name: trimmed, color_index: colorPresetIndexFromHex(color.value) })
 }
 function onFormKeydown (event: KeyboardEvent) {

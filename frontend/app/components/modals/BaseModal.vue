@@ -4,7 +4,7 @@
       v-if="modelValue"
       ref="overlayRef"
       class="base-modal-overlay"
-      :class="[overlayAlignClass, overlayClass]"
+      :class="overlayClass"
       :style="overlayStyle"
       role="presentation"
       @mousedown="onOverlayMouseDown"
@@ -50,7 +50,6 @@ const props = withDefaults(defineProps<{
   focusPrimaryInputOnOpen?: boolean
   width?: string
   borderRadius?: string
-  align?: 'center' | 'top'
   zIndex?: number
   overlayClass?: string | Record<string, boolean> | Array<string | Record<string, boolean>>
 }>(), {
@@ -61,7 +60,6 @@ const props = withDefaults(defineProps<{
   focusPrimaryInputOnOpen: false,
   width: 'min(576px, 100%)',
   borderRadius: '10px',
-  align: 'center',
   zIndex: 70,
 })
 const emit = defineEmits<{
@@ -72,9 +70,6 @@ const emit = defineEmits<{
 }>()
 const cardRef = ref<HTMLElement | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
-const overlayAlignClass = computed(() =>
-  props.align === 'top' ? 'base-modal-overlay--top' : 'base-modal-overlay--center',
-)
 const cardStyle = computed(() => ({
   width: props.width,
   borderRadius: props.borderRadius,
@@ -151,17 +146,12 @@ defineExpose({ cardRef })
   background: rgba(15, 23, 42, 0.45);
   display: flex;
   justify-content: center;
+  overflow-y: auto;
   padding: 14px;
 }
-.base-modal-overlay--center {
-  align-items: center;
-}
-.base-modal-overlay--top {
-  align-items: flex-start;
-  padding-top: 56px;
-  overflow-y: auto;
-}
 .base-modal-card {
+  margin: auto;
+  flex-shrink: 0;
   overflow: hidden;
   background: #fff;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);

@@ -9,13 +9,29 @@ class DefaultDocumentCategories
 {
     /** @var list<array{name: string, color_index: int}> */
     public const DEFAULT_ITEMS = [
-        ['name' => 'マニュアル', 'color_index' => 0],
-        ['name' => '設計書', 'color_index' => 1],
-        ['name' => '会議', 'color_index' => 3],
+        ['name' => 'その他', 'color_index' => 5],
+    ];
+
+    /** @var list<array{name: string, color_index: int}> */
+    public const DUMMY_ITEMS = [
+        ['name' => '仕様書', 'color_index' => 1],
+        ['name' => '設計書', 'color_index' => 0],
+        ['name' => 'マニュアル', 'color_index' => 2],
+        ['name' => '議事録', 'color_index' => 3],
     ];
 
     /** @var list<string> */
-    public const DEFAULT_NAMES = ['マニュアル', '設計書', '会議'];
+    public const DEFAULT_NAMES = ['その他'];
+
+    /**
+     * 開発用シーダーが組織に投入する資料カテゴリ（ダミー4件 + その他）。
+     *
+     * @return list<array{name: string, color_index: int}>
+     */
+    public static function seededItems(): array
+    {
+        return array_merge(self::DUMMY_ITEMS, self::DEFAULT_ITEMS);
+    }
 
     /**
      * @return list<array{name: string, color_index: int}>
@@ -63,35 +79,28 @@ class DefaultDocumentCategories
      */
     public static function resolvedCategoryPayload(SharedDocument $document, Organization $organization): ?array
     {
+        $category = $document->category;
+        if (! is_string($category) || $category === '') {
+            return null;
+        }
+
         $items = self::itemsForOrganization($organization);
         if ($items === []) {
             return null;
         }
 
-        $category = $document->category;
-        if (is_string($category) && $category !== '') {
-            $item = DefaultNamedColorItems::findItemByName($items, $category);
-            if ($item !== null) {
-                return $item;
-            }
-        }
-
-        return $items[0];
+        return DefaultNamedColorItems::findItemByName($items, $category);
     }
 
     public static function validateCategoryForOrganization(Organization $organization, ?string $category): ?string
     {
-        $names = self::namesForOrganization($organization);
-        if ($names === []) {
+        if ($category === null || trim($category) === '') {
             return null;
         }
 
-        if ($category === null || trim($category) === '') {
-            return $names[0];
-        }
-
+        $names = self::namesForOrganization($organization);
         $trimmed = trim($category);
-        if (! in_array($trimmed, $names, true)) {
+        if ($names === [] || ! in_array($trimmed, $names, true)) {
             abort(422, 'Invalid document category for this organization.');
         }
 

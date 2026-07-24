@@ -2965,12 +2965,13 @@ onBeforeUnmount(() => {
   background: transparent;
   font-family: inherit;
   cursor: pointer;
-  padding: 0;
+  padding: 8px 0;
+  margin: -8px 0;
   text-decoration: none;
   color: mixin.$main;
   letter-spacing: 0.05em;
   line-height: 1.1;
-  transition: color 0.16s ease;
+  transition: opacity 0.16s ease;
   &::before {
     content: '';
     flex-shrink: 0;
@@ -3066,9 +3067,6 @@ onBeforeUnmount(() => {
   text-align: left;
   cursor: pointer;
 }
-.subheader-menu-item:hover:not(:disabled) {
-  background: #f1f5f9;
-}
 .board-filter-dropdown {
   overflow-y: auto;
   box-sizing: border-box;
@@ -3108,9 +3106,6 @@ onBeforeUnmount(() => {
   color: #0f172a;
   cursor: pointer;
 }
-.board-filter-option:hover {
-  background: #f8fafc;
-}
 .board-filter-option input[type='checkbox'] {
   margin: 0;
   flex-shrink: 0;
@@ -3121,9 +3116,6 @@ onBeforeUnmount(() => {
 }
 .subheader-menu-item--danger {
   color: mixin.$danger;
-}
-.subheader-menu-item--danger:hover {
-  background: mixin.$danger-surface;
 }
 .page-shell-fade > .board {
   flex: 1;
@@ -3364,9 +3356,6 @@ onBeforeUnmount(() => {
   background: transparent;
   color: rgba(255, 255, 255, 0.92);
   cursor: pointer;
-  &:hover {
-    background: rgba(255, 255, 255, 0.18);
-  }
   &:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.85);
     outline-offset: 1px;
@@ -3392,9 +3381,6 @@ onBeforeUnmount(() => {
   font-weight: 600;
   color: mixin.$text;
   cursor: pointer;
-  &:hover:not(:disabled) {
-    background: mixin.$surface-muted;
-  }
   &:disabled {
     opacity: 0.55;
     cursor: default;
@@ -3402,9 +3388,6 @@ onBeforeUnmount(() => {
 }
 .list-header-menu-item--danger {
   color: mixin.$danger;
-  &:hover:not(:disabled) {
-    background: mixin.$danger-surface;
-  }
 }
 .list-drop-zone {
   padding: 9.1px 10.5px 0;
@@ -3542,7 +3525,6 @@ onBeforeUnmount(() => {
   border-color: #2563eb;
 }
 .task-card--parent .task-title {
-  font-size: 13.125px;
   color: mixin.$main;
 }
 .task-card--fade-in {
@@ -3596,7 +3578,7 @@ onBeforeUnmount(() => {
 .task-parent-title {
   margin: 0 0 2.8px;
   max-width: 100%;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.25;
   color: mixin.$main;
@@ -3621,7 +3603,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  font-size: 12.25px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.25;
   white-space: normal;
@@ -3744,9 +3726,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
   color: #0f172a;
 }
-.card-menu-item:hover {
-  background: #f8fafc;
-}
 .undo-toast {
   position: fixed;
   bottom: 42px;
@@ -3783,9 +3762,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
   padding: 0 1.4px;
   flex-shrink: 0;
-}
-.undo-toast-close:hover {
-  opacity: 0.85;
 }
 .composer {
   display: flex;
@@ -3834,9 +3810,6 @@ onBeforeUnmount(() => {
   font-weight: 600;
   cursor: pointer;
 }
-.composer-submit-btn:hover:not(:disabled) {
-  background: mixin.$main-hover;
-}
 .composer-submit-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -3852,16 +3825,12 @@ onBeforeUnmount(() => {
   cursor: pointer;
   margin-left: auto;
 }
-.composer-close-btn:hover {
-  background: rgba(9, 30, 66, 0.08);
-  color: #44546f;
-}
 .primary-btn {
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 5.6px 28px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: bold;
   letter-spacing: 0.1em;
   cursor: pointer;
   display: inline-flex;
@@ -3869,8 +3838,8 @@ onBeforeUnmount(() => {
   justify-content: center;
   white-space: nowrap;
   flex-shrink: 0;
-  gap: 4.9px;
-  background: mixin.$main-aqua;
+  gap: 6px;
+  background: mixin.$main;
   color: mixin.$white;
 }
 .primary-btn--compact {
@@ -3893,7 +3862,7 @@ button:disabled {
 .err {
   max-width: 1008px;
   margin: 0 auto 11.2px;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
 }
 </style>
@@ -3939,7 +3908,7 @@ button:disabled {
 .task-card.sortable-fallback .task-parent-title {
   margin: 0 0 2.8px;
   max-width: 100%;
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.25;
   color: mixin.$main;
@@ -3964,7 +3933,7 @@ button:disabled {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  font-size: 12.25px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.25;
   white-space: normal;
@@ -3972,7 +3941,6 @@ button:disabled {
   word-break: break-word;
 }
 .task-card--parent.sortable-fallback .task-title {
-  font-size: 13.125px;
   color: mixin.$main;
 }
 .task-card.sortable-fallback .task-card-meta {

@@ -87,6 +87,7 @@ function slugFromRoute (): string | null {
   if (
     name === 'org-slug-workspaces'
     || name === 'org-slug-documents'
+    || name === 'org-slug-documents-id'
     || name === 'org-slug-settings'
     || name === 'org-slug-workspaces-id'
   ) {
@@ -396,9 +397,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.dropdown-item:hover {
-  background: #f1f5f9;
-}
 
 .dropdown-item.danger {
   color: mixin.$danger;

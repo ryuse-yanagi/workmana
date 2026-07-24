@@ -105,6 +105,7 @@
                 :org-labels="orgLabels"
                 :workspace-members="workspaceMembers"
                 :disabled="submitting"
+                :title-error="titleError"
                 relaxed-title-padding
                 auto-focus-title
               />
@@ -122,7 +123,7 @@
               <button
                 type="button"
                 class="primary-btn"
-                :disabled="!canSubmit"
+                :disabled="submitting"
                 @click="submit"
               >
                 {{ submitting ? '追加中...' : '新規追加' }}
@@ -179,6 +180,7 @@ import {
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
 import { useOrgEffortSettings } from '../../composables/useOrgEffortSettings'
 import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
+import { taskTitleFieldError } from '../../utils/formValidation'
 type ParentTaskOption = {
   id: number
   title: string
@@ -245,6 +247,7 @@ const parentTasksLoading = ref(false)
 const parentTaskDefaultsLoading = ref(false)
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
+const titleError = ref<string | null>(null)
 const parentPickerOpen = ref(false)
 const parentPickerRootRef = ref<HTMLElement | null>(null)
 const parentPickerAnchorEl = ref<HTMLElement | null>(null)
@@ -266,11 +269,6 @@ const selectedParentTaskTitle = computed(() => {
 })
 const panePopoverOpen = computed(() => taskFormPaneRef.value?.activePopover != null)
 const anyPopoverOpen = computed(() => panePopoverOpen.value || parentPickerOpen.value)
-const canSubmit = computed(() =>
-  draft.value.title.trim() !== ''
-  && !submitting.value
-  && props.listId !== null,
-)
 function toggleCreateAsParent () {
   if (submitting.value) return
   createAsParent.value = !createAsParent.value
@@ -418,9 +416,6 @@ function onDocumentKeydown (event: KeyboardEvent) {
     return
   }
   if (isCtrlEnterKeydown(event)) {
-    if (!canSubmit.value) {
-      return
-    }
     event.preventDefault()
     event.stopPropagation()
     void submit()
@@ -455,6 +450,7 @@ function resetForm () {
   parentTasksFetched.value = false
   parentTaskDefaultsLoading.value = false
   submitError.value = null
+  titleError.value = null
   parentPickerError.value = null
   closeParentPicker()
 }
@@ -489,7 +485,17 @@ async function applyParentTaskDefaults (parentId: number | null) {
   }
 }
 async function submit () {
-  if (!canSubmit.value || props.listId === null) return
+  if (submitting.value) return
+  const validationError = taskTitleFieldError(draft.value.title)
+  if (validationError) {
+    titleError.value = validationError
+    return
+  }
+  if (props.listId === null) {
+    submitError.value = 'リストが選択されていません'
+    return
+  }
+  titleError.value = null
   submitting.value = true
   submitError.value = null
   try {
@@ -538,6 +544,14 @@ watch(parentPickerOpen, (open) => {
   removeParentPickerResizeListener = null
 })
 watch(
+  () => draft.value.title,
+  () => {
+    if (titleError.value) {
+      titleError.value = null
+    }
+  },
+)
+watch(
   () => props.modelValue,
   (open) => {
     if (!import.meta.client) {
@@ -568,8 +582,7 @@ onBeforeUnmount(() => {
   background: rgba(15, 23, 42, 0.45);
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  padding: 56px 14px 14px;
+  padding: 14px;
   z-index: 70;
   overflow-y: auto;
 }
@@ -579,6 +592,8 @@ onBeforeUnmount(() => {
 .modal-card {
   position: relative;
   width: min(560px, 100%);
+  margin: auto;
+  flex-shrink: 0;
   border-radius: 12px;
   overflow: visible;
   background: #fff;
@@ -837,7 +852,7 @@ onBeforeUnmount(() => {
 }
 .err {
   margin: 0;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 12.04px;
 }

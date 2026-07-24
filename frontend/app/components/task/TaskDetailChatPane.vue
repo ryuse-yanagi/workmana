@@ -821,11 +821,6 @@ defineExpose({ resetComments })
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  &:hover:not(:disabled) {
-    color: mixin.$text;
-    text-decoration: underline;
-    text-underline-offset: 0.12em;
-  }
   &:disabled {
     opacity: 0.55;
     cursor: default;
@@ -837,10 +832,6 @@ defineExpose({ resetComments })
     width: 18.9px;
     height: 18.9px;
     border-radius: 4px;
-    &:hover:not(:disabled) {
-      text-decoration: none;
-      background: rgba(9, 30, 66, 0.08);
-    }
   }
   &--active {
     color: mixin.$text;
@@ -870,9 +861,6 @@ defineExpose({ resetComments })
   background: transparent;
   font-size: 14px;
   cursor: pointer;
-  &:hover:not(:disabled) {
-    background: mixin.$surface-muted;
-  }
   &:disabled {
     opacity: 0.55;
   }
@@ -918,9 +906,6 @@ defineExpose({ resetComments })
   font-size: 10.92px;
   font-weight: 700;
   cursor: pointer;
-  &:hover:not(:disabled) {
-    background: color-mix(in srgb, mixin.$danger 88%, black);
-  }
   &:disabled {
     opacity: 0.6;
     cursor: default;
@@ -961,9 +946,6 @@ defineExpose({ resetComments })
   font-size: 11.48px;
   font-weight: 700;
   cursor: pointer;
-}
-.chat-send-btn:hover:not(:disabled) {
-  background: mixin.$main-hover;
 }
 .chat-send-btn:disabled {
   opacity: 0.55;

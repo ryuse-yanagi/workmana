@@ -49,22 +49,6 @@ body.workspace-view-page-root {
 .workspace-view-switcher-menu {
   @include mixin.header-font;
 }
-.global-header,
-.page-header,
-.workspace-view-switcher-menu,
-.composer,
-.subheader-menu-dropdown,
-.list-header-menu-dropdown,
-.card-menu,
-.archived-tasks-modal__actions {
-  a:hover,
-  button:hover {
-    opacity: 0.8;
-  }
-}
-.settings-button-row--start > .settings-primary-btn[type='button']:hover {
-  opacity: 0.8;
-}
 /*
  * Toast・一覧メニュー用 Teleport などはページ側の都度。
  */
@@ -89,7 +73,7 @@ body.workspace-view-page-root {
 }
 .load-fatal-message {
   margin: 0 0 14px;
-  color: #b91c1c;
+  color: mixin.$danger;
   font-weight: 700;
   font-size: 13.3px;
 }
@@ -102,9 +86,6 @@ body.workspace-view-page-root {
   cursor: pointer;
   background: #0f172a;
   color: #fff;
-}
-.load-fatal-retry:hover {
-  opacity: 0.92;
 }
 input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']),
 textarea,
