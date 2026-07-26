@@ -16,7 +16,7 @@
     />
     <div class="inline-composer__actions">
       <button type="submit" class="primary-btn primary-btn--pill primary-btn--compact" :disabled="pending || !modelValue.trim()">
-        {{ pending ? pendingLabel : submitLabel }}
+        {{ submitLabel }}
       </button>
       <button type="button" class="ghost-btn ghost-btn--pill ghost-btn--compact" :disabled="pending" @click="$emit('cancel')">
         {{ cancelLabel }}
@@ -34,7 +34,6 @@ const props = withDefaults(defineProps<{
   rows?: number
   maxlength?: number
   submitLabel?: string
-  pendingLabel?: string
   cancelLabel?: string
 }>(), {
   placeholder: '',
@@ -43,7 +42,6 @@ const props = withDefaults(defineProps<{
   rows: 3,
   maxlength: TASK_TITLE_MAX_LENGTH,
   submitLabel: '追加',
-  pendingLabel: '追加中...',
   cancelLabel: 'キャンセル',
 })
 const emit = defineEmits<{

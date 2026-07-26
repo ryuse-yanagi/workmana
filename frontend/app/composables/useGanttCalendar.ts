@@ -1,4 +1,4 @@
-import { DEFAULT_COLOR_PRESET } from '../constants/colorPresets'
+import { ganttBarColorAtSequenceIndex } from '../constants/colorPresets'
 export type GanttDay = {
   iso: string
   year: number
@@ -81,19 +81,15 @@ export function isTaskActiveOnDay (
   }
   return isIsoInInclusiveRange(dayIso, range.start, range.end)
 }
-export function resolveGanttBarColor (task: {
-  gantt_bar_color?: string | null
-  labels?: Array<{ color: string }> | null
-}): string {
+export function resolveGanttBarColor (
+  task: { gantt_bar_color?: string | null },
+  sequenceIndex = 0,
+): string {
   const saved = task.gantt_bar_color?.trim()
   if (saved) {
     return saved
   }
-  const labelColor = task.labels?.[0]?.color?.trim()
-  if (labelColor) {
-    return labelColor
-  }
-  return DEFAULT_COLOR_PRESET
+  return ganttBarColorAtSequenceIndex(sequenceIndex)
 }
 function formatIsoDate (date: Date): string {
   const year = date.getFullYear()

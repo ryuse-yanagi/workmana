@@ -12,10 +12,10 @@
           class="modal-card"
           role="dialog"
           aria-modal="true"
-          aria-label="タスク追加"
+          aria-label="タスクの追加"
         >
           <header class="modal-header">
-            <h3>タスク追加</h3>
+            <h3>タスクの追加</h3>
             <button
               type="button"
               class="icon-close"
@@ -126,7 +126,7 @@
                 :disabled="submitting"
                 @click="submit"
               >
-                {{ submitting ? '追加中...' : '新規追加' }}
+                追加
               </button>
             </footer>
           </div>

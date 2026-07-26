@@ -180,7 +180,7 @@
           :disabled="deletePendingId === openDeleteMenuComment.id"
           @click="confirmDeleteComment(openDeleteMenuComment)"
         >
-          {{ deletePendingId === openDeleteMenuComment.id ? '削除中...' : '削除' }}
+          削除
         </button>
       </div>
     </Teleport>

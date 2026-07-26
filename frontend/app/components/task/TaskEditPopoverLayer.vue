@@ -138,7 +138,10 @@
                 </div>
               </div>
             </header>
-            <div class="member-detail-body">
+            <div
+              v-if="allowMemberRemove"
+              class="member-detail-body"
+            >
               <button
                 type="button"
                 class="member-detail-remove"
@@ -151,52 +154,19 @@
           </div>
           <p v-if="popoverError" class="err member-detail-error">{{ popoverError }}</p>
         </div>
-        <PopoverShell
+        <WorkspaceMemberPickerPopover
           v-else-if="activePopover === 'members'"
           ref="popoverElRef"
-          shell-class="popover popover--members"
-          header-class="popover-header--labels"
           :style="popoverStyle"
-          title="担当者"
-          aria-label="担当者"
-          :close-disabled="disabled"
+          v-model:search-query="memberSearchQuery"
+          :assignees="taskRef?.assignees ?? []"
+          :org-members="workspaceMembers"
+          :disabled="disabled"
+          :error="popoverError"
+          empty-members-message="スペースユーザーがいません。"
           @close="closePopover"
-        >
-          <input
-            v-model="memberSearchQuery"
-            type="search"
-            class="label-search-input"
-            placeholder="担当者を検索..."
-            :disabled="disabled"
-            @click.stop
-          />
-          <p class="label-section-heading">担当者</p>
-          <div class="popover-scroll">
-            <ul class="label-picker-list">
-              <li v-for="member in filteredProjectMembers" :key="member.id">
-                <button
-                  type="button"
-                  class="label-picker-row"
-                  @click.stop="toggleMember(member)"
-                >
-                  <span
-                    class="label-picker-checkbox"
-                    :class="{ 'label-picker-checkbox--checked': isMemberAssigned(member.id) }"
-                    aria-hidden="true"
-                  >
-                    <span v-if="isMemberAssigned(member.id)">✓</span>
-                  </span>
-                  <span class="label-picker-bar member-picker-bar">
-                    {{ memberDisplayName(member) }}
-                  </span>
-                </button>
-              </li>
-            </ul>
-            <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">スペースユーザーがいません。</p>
-            <p v-else-if="!filteredProjectMembers.length" class="empty-text label-picker-empty">該当する担当者がいません。</p>
-            <p v-if="popoverError" class="err">{{ popoverError }}</p>
-          </div>
-        </PopoverShell>
+          @toggle-member="toggleMember"
+        />
         <PopoverShell
           v-else-if="activePopover === 'labels'"
           ref="popoverElRef"
@@ -302,6 +272,7 @@
           @close="closePopover"
         >
           <textarea
+            ref="descriptionInputRef"
             v-model="descriptionDraft"
             class="description-input"
             rows="6"
@@ -327,6 +298,7 @@ import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFor
 import { TASK_DESCRIPTION_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
 import PopoverShell from '../ui/PopoverShell.vue'
+import WorkspaceMemberPickerPopover from '../workspace/WorkspaceMemberPickerPopover.vue'
 const props = withDefaults(defineProps<{
   orgSlug: string
   workspaceId: string
@@ -334,12 +306,18 @@ const props = withDefaults(defineProps<{
   workspaceMembers: TaskFormMember[]
   workspaceLists: WorkspaceListOption[]
   disabled?: boolean
+  allowMemberRemove?: boolean
 }>(), {
   disabled: false,
+  allowMemberRemove: true,
 })
 const emit = defineEmits<{
   updated: [TaskPopoverEditable]
-  'popover-active-change': [{ taskId: number | null; popover: PopoverType | null }]
+  'popover-active-change': [{
+    taskId: number | null
+    popover: PopoverType | null
+    memberId: number | null
+  }]
 }>()
 const taskRef = ref<TaskPopoverEditable | null>(null)
 const memberSearchQuery = ref('')
@@ -361,6 +339,7 @@ const {
   effortDraft,
   effortInputRef,
   descriptionDraft,
+  descriptionInputRef,
   descriptionSaving,
   weekdayLabels,
   filteredOrgLabels,
@@ -391,7 +370,6 @@ const {
   openListPicker,
   listSaving,
   selectList,
-  isMemberAssigned,
   isLabelSelected,
   toggleMember,
   removeMember,
@@ -410,21 +388,16 @@ const {
   zIndex: 130,
 })
 watch(
-  [activePopover, () => taskRef.value?.id ?? null],
-  ([popover, taskId]) => {
-    emit('popover-active-change', { taskId, popover })
+  [activePopover, () => taskRef.value?.id ?? null, () => selectedMember.value?.id ?? null],
+  ([popover, taskId, memberId]) => {
+    emit('popover-active-change', {
+      taskId,
+      popover,
+      memberId: popover === 'member-detail' ? memberId : null,
+    })
   },
   { flush: 'sync' },
 )
-const filteredProjectMembers = computed(() => {
-  const query = memberSearchQuery.value.trim().toLowerCase()
-  if (!query) return props.workspaceMembers
-  return props.workspaceMembers.filter((member) => {
-    const name = memberDisplayName(member).toLowerCase()
-    const email = (member.email ?? '').toLowerCase()
-    return name.includes(query) || email.includes(query)
-  })
-})
 defineExpose({
   bindTask,
   openDatePicker,
@@ -436,6 +409,7 @@ defineExpose({
   openListPicker,
   closePopover,
   activePopover,
+  selectedMember,
 })
 </script>
 <style lang="scss" scoped>
@@ -469,9 +443,15 @@ defineExpose({
   padding: 8.4px;
   gap: 7px;
 }
-.popover--members,
-.popover--labels {
+.popover--members {
   width: min(273px, calc(100vw - 21px));
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+.popover--labels {
+  width: min(252px, calc(100vw - 21px));
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -504,6 +484,7 @@ defineExpose({
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .popover-header--labels {
   position: relative;
@@ -576,6 +557,7 @@ defineExpose({
 }
 .label-picker-bar {
   flex: 1;
+  box-sizing: border-box;
   min-height: 28px;
   border-radius: 4px;
   padding: 5.32px 7.7px;
@@ -584,6 +566,12 @@ defineExpose({
   line-height: 1.25;
   display: flex;
   align-items: center;
+}
+.label-picker-bar:not(.member-picker-bar) {
+  flex: 0 0 200px;
+  width: 200px;
+  height: 38px;
+  min-height: 38px;
 }
 .member-picker-bar {
   background: #f8fafc;

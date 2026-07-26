@@ -215,11 +215,8 @@
         <div class="label-chip-list detail-chip-wrap">
           <button
             type="button"
-            class="label-chip"
-            :style="{
-              backgroundColor: draft.status.color,
-              color: labelBarTextColor(draft.status.color),
-            }"
+            class="label-chip label-chip--pill"
+            :style="surfacePillStyle(draft.status.color)"
             :disabled="disabled"
             :aria-label="`ステータス: ${draft.status.name}`"
             @click="openStatusPicker($event)"
@@ -236,11 +233,8 @@
         <div class="label-chip-list detail-chip-wrap">
           <button
             type="button"
-            class="label-chip"
-            :style="{
-              backgroundColor: draft.category.color,
-              color: labelBarTextColor(draft.category.color),
-            }"
+            class="label-chip label-chip--pill"
+            :style="surfacePillStyle(draft.category.color)"
             :disabled="disabled"
             :aria-label="`カテゴリ: ${draft.category.name}`"
             @click="openCategoryPicker($event)"
@@ -494,11 +488,8 @@
                       <span v-if="isStatusSelected(status.name)">✓</span>
                     </span>
                     <span
-                      class="label-picker-bar"
-                      :style="{
-                        backgroundColor: status.color,
-                        color: labelBarTextColor(status.color),
-                      }"
+                      class="label-picker-bar label-picker-bar--pill"
+                      :style="surfacePillStyle(status.color)"
                     >
                       {{ status.name }}
                     </span>
@@ -550,11 +541,8 @@
                       <span v-if="isCategorySelected(category.name)">✓</span>
                     </span>
                     <span
-                      class="label-picker-bar"
-                      :style="{
-                        backgroundColor: category.color,
-                        color: labelBarTextColor(category.color),
-                      }"
+                      class="label-picker-bar label-picker-bar--pill"
+                      :style="surfacePillStyle(category.color)"
                     >
                       {{ category.name }}
                     </span>
@@ -656,6 +644,10 @@ import type {
   TaskFormMember,
 } from '../../composables/useTaskFormHelpers'
 import { effortUnitLabel } from '../../composables/useTaskFormHelpers'
+import {
+  standardColorEmphasisText,
+  standardColorSurfaceBackground,
+} from '../../constants/colorPresets'
 import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
 import PopoverShell from '../ui/PopoverShell.vue'
@@ -801,6 +793,13 @@ const {
   documentCategories: toRef(props, 'documentCategories'),
   workspaceStatuses: toRef(props, 'workspaceStatuses'),
 })
+/** ステータス・カテゴリ用: 淡色背景+濃色文字のピル配色 */
+function surfacePillStyle (color: string) {
+  return {
+    backgroundColor: standardColorSurfaceBackground(color),
+    color: standardColorEmphasisText(color),
+  }
+}
 const activeCalendarDate = computed(() => {
   if (activePopover.value === 'start-date') return draft.value.start_date
   if (activePopover.value === 'due-date') return draft.value.due_date
@@ -970,9 +969,15 @@ onMounted(() => {
   padding: 8.4px;
   gap: 7px;
 }
-.popover--members,
-.popover--labels {
+.popover--members {
   width: min(273px, calc(100vw - 21px));
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+.popover--labels {
+  width: min(252px, calc(100vw - 21px));
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -989,6 +994,7 @@ onMounted(() => {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .popover-header--labels {
   position: relative;
@@ -1060,8 +1066,11 @@ onMounted(() => {
   border-color: #2563eb;
 }
 .label-picker-bar {
-  flex: 1;
-  min-height: 28px;
+  flex: 0 0 200px;
+  box-sizing: border-box;
+  width: 200px;
+  height: 38px;
+  min-height: 38px;
   border-radius: 4px;
   padding: 5.32px 7.7px;
   font-size: 12.32px;
@@ -1069,6 +1078,10 @@ onMounted(() => {
   line-height: 1.25;
   display: flex;
   align-items: center;
+}
+.label-picker-bar--pill {
+  box-sizing: border-box;
+  border: 1px solid currentColor;
 }
 .member-picker-bar {
   background: #fff;
@@ -1437,6 +1450,9 @@ onMounted(() => {
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
+}
+.label-chip--pill {
+  border: 1px solid currentColor;
 }
 .label-chip-add {
   width: 28px;

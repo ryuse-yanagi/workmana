@@ -490,7 +490,7 @@
           @click="openArchivedModal"
         >
           <Trash2 :size="18" :stroke-width="2.25" aria-hidden="true" />
-          アーカイブ済み
+          アーカイブ済みタスク一覧
         </button>
       </div>
       <ul
@@ -504,9 +504,9 @@
             type="button"
             class="card-menu-item"
             role="menuitem"
-            @click="openTaskEditFromMenu(openMenuTask)"
+            @click="openTaskDetail(openMenuTask)"
           >
-            タスク名を編集する
+            詳細
           </button>
         </li>
         <li role="none">
@@ -516,7 +516,7 @@
             role="menuitem"
             @click="openArchiveConfirm(openMenuTask)"
           >
-            タスクをアーカイブする
+            アーカイブ
           </button>
         </li>
       </ul>
@@ -2751,19 +2751,6 @@ async function saveListTitle (list: ListDef) {
   } finally {
     listRenamePending.value = false
   }
-}
-function startTaskEdit (task: Task) {
-  editingListKey.value = null
-  editingTaskId.value = task.id
-  taskTitleDraft.value = stripManualLineBreaks(task.title)
-  nextTick(() => {
-    adjustCardTitleTextareaHeight()
-    cardTitleTextareaEl.value?.focus()
-  })
-}
-function openTaskEditFromMenu (task: Task) {
-  closeCardMenu()
-  startTaskEdit(task)
 }
 function cancelTaskEdit () {
   editingTaskId.value = null

@@ -70,16 +70,22 @@ function parseStoredWidths (raw: string | null): TableColumnWidths | null {
 function columnIndex (key: TableColumnKey): number {
   return TABLE_COLUMNS.findIndex(column => column.key === key)
 }
-export function useTableColumnResize (storageKey: MaybeRefOrGetter<string>) {
+export function useTableColumnResize (
+  storageKey: MaybeRefOrGetter<string>,
+  options?: {
+    leadingColWidth?: MaybeRefOrGetter<number>
+  },
+) {
+  const resolveLeadingColWidth = () => toValue(options?.leadingColWidth ?? TABLE_DRAG_COL_WIDTH)
   const columnWidths = ref<TableColumnWidths>(createDefaultWidths())
   const isResizing = ref(false)
   const activeResize = ref<ResizeSession | null>(null)
   const tableWidth = computed(() => (
-    TABLE_DRAG_COL_WIDTH
+    resolveLeadingColWidth()
     + TABLE_COLUMNS.reduce((sum, column) => sum + columnWidths.value[column.key], 0)
   ))
   const columnResizeBoundaries = computed(() => {
-    let offset = TABLE_DRAG_COL_WIDTH
+    let offset = resolveLeadingColWidth()
     return TABLE_COLUMNS.map((column) => {
       offset += columnWidths.value[column.key]
       return {

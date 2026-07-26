@@ -24,7 +24,7 @@
           キャンセル
         </button>
         <button type="button" class="danger-btn danger-btn--pill" :disabled="loading" @click="submit">
-          {{ loading ? '削除中...' : '削除' }}
+          削除
         </button>
       </div>
     </div>

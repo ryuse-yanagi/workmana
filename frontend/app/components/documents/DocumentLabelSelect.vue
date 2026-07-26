@@ -373,7 +373,7 @@ onBeforeUnmount(() => {
   position: fixed;
   z-index: 120;
   box-sizing: border-box;
-  width: min(273px, calc(100vw - 21px));
+  width: min(252px, calc(100vw - 21px));
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: #fff;
@@ -434,6 +434,7 @@ onBeforeUnmount(() => {
   padding: 0 7px 9.1px;
   list-style: none;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   gap: 2.8px;
@@ -468,14 +469,18 @@ onBeforeUnmount(() => {
   border-color: #2563eb;
 }
 .document-label-select__bar {
-  flex: 1;
-  min-height: 28px;
+  flex: 0 0 200px;
+  width: 200px;
+  height: 38px;
+  min-height: 38px;
   border-radius: 4px;
   padding: 5.32px 7.7px;
   font-size: 12.32px;
   font-weight: 700;
   line-height: 1.2;
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 .document-label-select__empty {
   margin: 0 9.1px 9.1px;

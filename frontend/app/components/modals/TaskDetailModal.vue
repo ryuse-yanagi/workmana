@@ -2270,9 +2270,15 @@ async function saveDescription () {
   padding: 8.4px;
   gap: 7px;
 }
-.popover--members,
-.popover--labels {
+.popover--members {
   width: min(273px, calc(100vw - 21px));
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+}
+.popover--labels {
+  width: min(252px, calc(100vw - 21px));
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -2292,6 +2298,7 @@ async function saveDescription () {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .popover-header--labels {
   position: relative;
@@ -2369,6 +2376,7 @@ async function saveDescription () {
 }
 .label-picker-bar {
   flex: 1;
+  box-sizing: border-box;
   min-height: 28px;
   border-radius: 4px;
   padding: 5.32px 7.7px;
@@ -2377,6 +2385,12 @@ async function saveDescription () {
   line-height: 1.25;
   display: flex;
   align-items: center;
+}
+.label-picker-bar:not(.member-picker-bar) {
+  flex: 0 0 200px;
+  width: 200px;
+  height: 38px;
+  min-height: 38px;
 }
 .member-picker-bar {
   background: #fff;

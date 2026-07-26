@@ -147,6 +147,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   const labelSearchQuery = ref('')
   const effortDraft = ref<string | number>('')
   const effortInputRef = ref<HTMLInputElement | null>(null)
+  const descriptionInputRef = ref<HTMLTextAreaElement | null>(null)
   const descriptionDraft = ref('')
   const dateSaving = ref(false)
   const effortSaving = ref(false)
@@ -661,6 +662,13 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     activePopover.value = 'description'
     popoverError.value = null
     updatePopoverPosition()
+    nextTick(() => {
+      const el = descriptionInputRef.value
+      if (!el) return
+      el.focus()
+      const len = el.value.length
+      el.setSelectionRange(len, len)
+    })
   }
   function openListPicker (event?: Event) {
     const task = options.task.value
@@ -787,6 +795,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     labelSearchQuery,
     effortDraft,
     effortInputRef,
+    descriptionInputRef,
     descriptionDraft,
     descriptionSaving,
     weekdayLabels,

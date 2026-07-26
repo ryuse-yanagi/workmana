@@ -1,4 +1,4 @@
-export type WorkspaceViewKey = 'board' | 'table' | 'gantt'
+export type WorkspaceViewKey = 'board' | 'table'
 /** プルダウンに載せないルート（資料など） */
 export type WorkspaceRouteViewKey = WorkspaceViewKey | 'documents'
 export type WorkspaceViewOption = {
@@ -8,12 +8,9 @@ export type WorkspaceViewOption = {
 }
 /** 旧 URL の互換用 */
 /** 旧 URL クエリ `?view=wbs` などを table に正規化 */
-const LEGACY_TABLE_VIEW_QUERY_VALUES = new Set(['list', 'wbs'])
+const LEGACY_TABLE_VIEW_QUERY_VALUES = new Set(['list', 'wbs', 'gantt'])
 const LEGACY_BOARD_VIEW_QUERY_VALUES = new Set(['board'])
 export function normalizeProjectViewQuery (view: unknown): WorkspaceViewKey | null {
-  if (view === 'gantt') {
-    return 'gantt'
-  }
   if (view === 'table' || (typeof view === 'string' && LEGACY_TABLE_VIEW_QUERY_VALUES.has(view))) {
     return 'table'
   }
@@ -55,7 +52,6 @@ export function useWorkspaceViewRoutes (
   const views = computed((): WorkspaceViewOption[] => [
     { key: 'board', label: 'Board', to: basePath.value },
     { key: 'table', label: 'Table', to: `${basePath.value}?view=table` },
-    { key: 'gantt', label: 'Gantt', to: `${basePath.value}?view=gantt` },
   ])
   const activeView = computed((): WorkspaceRouteViewKey => workspaceViewFromRoute(route))
   return {

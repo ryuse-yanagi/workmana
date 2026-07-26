@@ -58,6 +58,28 @@ export const STANDARD_COLORS = [
 export const DEFAULT_STANDARD_COLOR = STANDARD_COLORS[0]
 /** 標準色（10色）— COLOR_PRESETS 内のインデックス */
 export const STANDARD_COLOR_PRESET_INDICES = [5, 6, 7, 8, 9, 20, 21, 22, 23, 24] as const
+/**
+ * ガントバー自動配色の循環順（赤→オレンジ→黄→青→水色→緑→黄緑→紫→ピンク→灰）
+ * 10色のあとは先頭の赤に戻る
+ */
+export const GANTT_BAR_COLOR_SEQUENCE = [
+  COLOR_PRESETS[8],  // 赤
+  COLOR_PRESETS[7],  // オレンジ
+  COLOR_PRESETS[6],  // 黄色
+  COLOR_PRESETS[20], // 青
+  COLOR_PRESETS[21], // 水色
+  COLOR_PRESETS[5],  // 緑
+  COLOR_PRESETS[22], // 黄緑
+  COLOR_PRESETS[9],  // 紫
+  COLOR_PRESETS[23], // ピンク
+  COLOR_PRESETS[24], // 灰色
+] as const
+export const DEFAULT_GANTT_BAR_COLOR = GANTT_BAR_COLOR_SEQUENCE[0]
+export function ganttBarColorAtSequenceIndex (sequenceIndex: number): string {
+  const len = GANTT_BAR_COLOR_SEQUENCE.length
+  const normalized = ((sequenceIndex % len) + len) % len
+  return GANTT_BAR_COLOR_SEQUENCE[normalized]!
+}
 export const DEFAULT_COLOR_PRESET_INDEX = 5
 export const DEFAULT_STANDARD_COLOR_INDEX = 0
 export function colorAtPresetIndex (index: number): string {
@@ -187,6 +209,24 @@ export function colorSwatchBorderColor (hex: string): string {
   }
   const factor = 0.82
   return `rgb(${Math.round(rgb[0] * factor)}, ${Math.round(rgb[1] * factor)}, ${Math.round(rgb[2] * factor)})`
+}
+/**
+ * ガントバー選択枠の色
+ * 淡色→標準色、標準色→濃色、濃色→#475569
+ */
+export function ganttBarSelectionBorderColor (hex: string): string {
+  const presetIndex = findColorPresetIndex(hex)
+  if (presetIndex < 0) {
+    return colorSwatchBorderColor(hex)
+  }
+  if (LIGHT_COLOR_PRESET_INDICES.has(presetIndex)) {
+    return COLOR_PRESETS[presetIndex + 5] ?? hex
+  }
+  if (STANDARD_COLOR_PRESET_INDEX_SET.has(presetIndex)) {
+    return COLOR_PRESETS[presetIndex + 5] ?? hex
+  }
+  // 濃色 → #475569
+  return '#475569'
 }
 /** 選択チェックマークの色（標準色は白、それ以外は背景輝度で白/黒） */
 export function colorSwatchCheckColor (hex: string): string {

@@ -4,6 +4,11 @@
       v-if="open"
       class="gantt-color-popover-layer"
     >
+      <div
+        class="gantt-color-popover-backdrop"
+        aria-hidden="true"
+        @pointerdown="onBackdropPointerDown"
+      />
       <PopoverShell
         ref="shellRef"
         title="バーの色"
@@ -54,34 +59,16 @@ const positionStyle = computed(() => {
     top: `${top}px`,
     left: `${left}px`,
     width: `${width}px`,
-    zIndex: '120',
+    zIndex: '1',
     visibility: 'visible',
   }
 })
-function resolvePopoverElement (): HTMLElement | null {
-  return shellRef.value?.rootRef ?? null
-}
-function shouldIgnoreOutsideClose (target: Node): boolean {
-  if (!(target instanceof Element)) {
-    return false
-  }
-  return Boolean(target.closest('.workspace-gantt-table__day-cell--clickable'))
-}
-function handleOutsidePointerUp (event: MouseEvent) {
-  if (!props.open || props.saving || event.button !== 0) {
+function onBackdropPointerDown (event: PointerEvent) {
+  if (props.saving || event.button !== 0) {
     return
   }
-  const target = event.target
-  if (!(target instanceof Node)) {
-    return
-  }
-  const popoverEl = resolvePopoverElement()
-  if (popoverEl?.contains(target)) {
-    return
-  }
-  if (shouldIgnoreOutsideClose(target)) {
-    return
-  }
+  event.preventDefault()
+  event.stopPropagation()
   emit('close')
 }
 function handleEscape (event: KeyboardEvent) {
@@ -93,11 +80,9 @@ function handleEscape (event: KeyboardEvent) {
   emit('close')
 }
 function bindOutsideListeners () {
-  document.addEventListener('mouseup', handleOutsidePointerUp, true)
   document.addEventListener('keydown', handleEscape, true)
 }
 function unbindOutsideListeners () {
-  document.removeEventListener('mouseup', handleOutsidePointerUp, true)
   document.removeEventListener('keydown', handleEscape, true)
 }
 watch(() => props.open, (open) => {
@@ -119,7 +104,10 @@ defineExpose({
   position: fixed;
   inset: 0;
   z-index: 119;
-  pointer-events: none;
+}
+.gantt-color-popover-backdrop {
+  position: absolute;
+  inset: 0;
 }
 .gantt-color-popover-layer :deep(.popover-shell) {
   pointer-events: auto;

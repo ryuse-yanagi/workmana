@@ -63,7 +63,7 @@
           キャンセル
         </button>
         <button type="button" class="primary-btn primary-btn--pill" :disabled="loading" @click="submit">
-          {{ loading ? submitPendingLabel : submitLabel }}
+          {{ submitLabel }}
         </button>
       </div>
     </form>
@@ -149,9 +149,6 @@ const modalTitle = computed(() => (
 ))
 const submitLabel = computed(() => (
   props.mode === 'edit' ? '保存' : '作成'
-))
-const submitPendingLabel = computed(() => (
-  props.mode === 'edit' ? '保存中...' : '作成中...'
 ))
 
 watch(

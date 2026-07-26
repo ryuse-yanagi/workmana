@@ -1457,7 +1457,7 @@ onBeforeUnmount(() => {
   font-family: inherit;
   line-height: 1.35;
   color: #0f172a;
-  padding: 4px;
+  padding: 8px 12px;
   border: 1px solid transparent;
   border-radius: 8px;
   overflow-wrap: anywhere;

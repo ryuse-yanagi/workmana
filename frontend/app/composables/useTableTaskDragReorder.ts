@@ -74,13 +74,7 @@ export const TABLE_LIST_DRAG_SURFACE: TableDragReorderSurface = {
   tableWidthCssVar: '--table-width',
   resizeHandleSelector: '.workspace-table__resize-handle',
   pageRootSelector: '.workspace-table-board',
-}
-export const GANTT_DRAG_SURFACE: TableDragReorderSurface = {
-  tableWrapSelector: '.workspace-gantt-table-wrap',
-  frameSelector: '.workspace-gantt-board__frame',
-  tableWidthCssVar: '--gantt-table-width',
-  stripCellSelector: '.workspace-gantt-table__day-cell',
-  pageRootSelector: '.workspace-gantt-board',
+  stripCellSelector: '.workspace-table__day-cell',
 }
 function syncGhostLayoutFromSource (
   sourceWrap: Element,

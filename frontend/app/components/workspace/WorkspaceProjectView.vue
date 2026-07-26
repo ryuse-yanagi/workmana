@@ -24,6 +24,49 @@
           :workspace-id="workspaceId"
         />
         <div class="subheader-spacer" />
+        <div
+          v-if="mode === 'table'"
+          class="subheader-actions"
+        >
+          <template v-if="!tableEditMode">
+            <button
+              type="button"
+              class="document-header-action-btn document-header-action-btn--primary document-header-action-btn--edit"
+              :disabled="!tableBoardRef"
+              @click="tableBoardRef?.startEdit()"
+            >
+              <Pencil
+                :size="16"
+                :stroke-width="2.25"
+                aria-hidden="true"
+              />
+              編集
+            </button>
+          </template>
+          <template v-else>
+            <button
+              type="button"
+              class="document-header-action-btn document-header-action-btn--muted"
+              :disabled="tableEditSaving"
+              @click="tableBoardRef?.cancelEdit()"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              class="document-header-action-btn document-header-action-btn--primary"
+              :disabled="tableEditSaving"
+              @click="tableBoardRef?.confirmEdit()"
+            >
+              <Check
+                :size="16"
+                :stroke-width="2.25"
+                aria-hidden="true"
+              />
+              {{ tableEditSaving ? '保存中...' : '完了' }}
+            </button>
+          </template>
+        </div>
       </div>
     </header>
     <section class="workspace-view-page__body">
@@ -32,21 +75,17 @@
         ref="tableBoardRef"
         :org-slug="orgSlug"
         :workspace-id="workspaceId"
-      />
-      <WorkspaceGanttBoard
-        v-else-if="mode === 'gantt' && orgSlug && workspaceId"
-        ref="ganttBoardRef"
-        :org-slug="orgSlug"
-        :workspace-id="workspaceId"
+        @edit-mode-change="tableEditMode = $event"
+        @edit-saving-change="tableEditSaving = $event"
       />
     </section>
   </div>
 </template>
 <script setup lang="ts">
+import { Check, Pencil } from 'lucide-vue-next'
 import type { WorkspaceViewKey } from '../../composables/useWorkspaceViewRoutes'
 import { useWorkspaceViewPageCssVars } from '../../composables/useWorkspaceViewPageRoot'
 import WorkspaceBoard from './WorkspaceBoard.vue'
-import WorkspaceGanttBoard from './WorkspaceGanttBoard.vue'
 import WorkspaceTableBoard from './WorkspaceTableBoard.vue'
 import WorkspaceViewSwitcher from './WorkspaceViewSwitcher.vue'
 
@@ -58,17 +97,23 @@ const props = defineProps<{
 
 const boardRef = ref<InstanceType<typeof WorkspaceBoard> | null>(null)
 const tableBoardRef = ref<InstanceType<typeof WorkspaceTableBoard> | null>(null)
-const ganttBoardRef = ref<InstanceType<typeof WorkspaceGanttBoard> | null>(null)
 const pageCssVars = useWorkspaceViewPageCssVars()
+const tableEditMode = ref(false)
+const tableEditSaving = ref(false)
+
+watch(
+  () => props.mode,
+  () => {
+    tableEditMode.value = false
+    tableEditSaving.value = false
+  },
+)
 
 function refreshOnViewSwitch (): Promise<void> {
   if (props.mode === 'board') {
     return boardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
   }
-  if (props.mode === 'table') {
-    return tableBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
-  }
-  return ganttBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
+  return tableBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
 }
 
 defineExpose({
@@ -143,6 +188,60 @@ defineExpose({
 .subheader-spacer {
   flex: 1;
   min-width: 0;
+}
+.subheader-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.document-header-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid mixin.$main;
+  border-radius: 6px;
+  background: #fff;
+  color: mixin.$main;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  :deep(svg) {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+}
+.document-header-action-btn:not(.document-header-action-btn--muted):not(.document-header-action-btn--edit) {
+  width: 96px;
+}
+.document-header-action-btn--edit {
+  min-width: 96px;
+}
+.document-header-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.document-header-action-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-header-action-btn--muted {
+  border-color: transparent;
+  background: #e5e7eb;
+  color: #475569;
+}
+.document-header-action-btn--primary {
+  background: mixin.$main;
+  color: #fff;
 }
 .workspace-view-page__body {
   flex: 1;

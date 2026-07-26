@@ -25,7 +25,7 @@
         </label>
         <div class="profile-button-row">
           <button type="submit" class="profile-primary-btn" :disabled="nameLoading">
-            {{ nameLoading ? '保存中...' : 'ユーザー名を保存' }}
+            ユーザー名を保存
           </button>
           <button type="button" class="profile-ghost-btn" :disabled="nameLoading" @click="resetNameDraft">
             元に戻す
@@ -45,7 +45,7 @@
               :disabled="avatarLoading"
               @click="uploadAvatar"
             >
-              {{ avatarLoading ? '保存中...' : 'アイコンを保存' }}
+              アイコンを保存
             </button>
             <button
               type="button"

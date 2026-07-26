@@ -1,8 +1,8 @@
 <template>
   <BaseModal
     :model-value="modelValue"
-    title="アーカイブ済みカード"
-    aria-label="アーカイブ済みカード"
+    title="アーカイブ済みタスク一覧"
+    aria-label="アーカイブ済みタスク一覧"
     width="min(672px, 100%)"
     :close-disabled="pendingId !== null"
     @update:model-value="emit('update:modelValue', $event)"
@@ -16,7 +16,7 @@
         読み込み中...
       </div>
       <section v-else-if="!tasks?.length" class="archived-tasks-modal__empty">
-        <p>アーカイブ済みのカードはありません。</p>
+        <p>アーカイブ済みのタスクはありません。</p>
       </section>
       <ul v-else class="archived-tasks-modal__list">
         <li v-for="task in tasks" :key="task.id" class="archived-tasks-modal__item">
@@ -28,7 +28,7 @@
               :disabled="pendingId === task.id"
               @click="openRestoreConfirm(task)"
             >
-              {{ pendingId === task.id ? '処理中...' : '復元' }}
+              復元
             </button>
             <span class="archived-tasks-modal__action-sep" aria-hidden="true">•</span>
             <button
