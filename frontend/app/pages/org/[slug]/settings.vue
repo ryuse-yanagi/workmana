@@ -18,30 +18,25 @@
               v-show="activeTab === 'default_board_lists'"
               :org-slug="slug"
               :initial-items="defaultBoardListItemsFromSnapshot"
+              :can-manage="canManageSettings"
             />
             <SettingsDefaultWorkspaceStatusesPanel
               v-show="activeTab === 'workspace_statuses'"
               :org-slug="slug"
               :initial-items="defaultWorkspaceStatusItemsFromSnapshot"
-            />
-            <SettingsMemberGroupsPanel
-              v-show="activeTab === 'member_groups'"
-              :org-slug="slug"
-            />
-            <SettingsEffortPanel
-              v-show="activeTab === 'effort_settings'"
-              :org-slug="slug"
-              :initial-unit="effortUnitFromSnapshot"
+              :can-manage="canManageSettings"
             />
             <SettingsDefaultDocumentCategoriesPanel
               v-show="activeTab === 'document_categories'"
               :org-slug="slug"
               :initial-items="defaultDocumentCategoryItemsFromSnapshot"
+              :can-manage="canManageSettings"
             />
             <SettingsLabelsPanel
               v-show="activeTab === 'labels'"
               :org-slug="slug"
               :initial-label-tab="initialLabelTab"
+              :can-manage="canManageSettings"
             />
           </section>
         </section>
@@ -53,13 +48,12 @@
 <script setup lang="ts">
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../composables/useAppLoadingCursor'
+import { useCurrentUser } from '../../../composables/useCurrentUser'
 import { useOrgSettingsPageData } from '../../../composables/useOrgSettingsPageData'
 import SettingsDefaultBoardListsPanel from '../../../components/settings/SettingsDefaultBoardListsPanel.vue'
 import SettingsDefaultWorkspaceStatusesPanel from '../../../components/settings/SettingsDefaultWorkspaceStatusesPanel.vue'
 import SettingsDefaultDocumentCategoriesPanel from '../../../components/settings/SettingsDefaultDocumentCategoriesPanel.vue'
-import SettingsEffortPanel from '../../../components/settings/SettingsEffortPanel.vue'
 import SettingsLabelsPanel from '../../../components/settings/SettingsLabelsPanel.vue'
-import SettingsMemberGroupsPanel from '../../../components/settings/SettingsMemberGroupsPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
 import {
   normalizeDefaultBoardListItems,
@@ -69,7 +63,6 @@ import {
   type SettingsPageSnapshot,
   type SettingsTabKey,
 } from '../../../components/settings/types'
-import { normalizeEffortUnit } from '../../../composables/useTaskFormHelpers'
 
 definePageMeta({
   name: 'org-slug-settings',
@@ -85,12 +78,11 @@ const {
   getCached,
   invalidateCached,
 } = useOrgSettingsPageData()
+const { ensureCurrentUser } = useCurrentUser()
 
 const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
   { key: 'default_board_lists', label: 'リスト設定' },
   { key: 'workspace_statuses', label: 'ステータス設定' },
-  { key: 'member_groups', label: 'グループ設定' },
-  { key: 'effort_settings', label: '工数設定' },
   { key: 'document_categories', label: '資料カテゴリ設定' },
   { key: 'labels', label: 'ラベル設定' },
 ]
@@ -100,6 +92,7 @@ const initialLabelTab = ref<SettingsLabelTabKey>('workspace')
 const settingsPageReady = ref(false)
 const settingsFatalError = ref<string | null>(null)
 const settingsSnapshot = ref<SettingsPageSnapshot | null>(null)
+const loadedForUserId = ref<number | null>(null)
 
 const defaultBoardListItemsFromSnapshot = computed(() => {
   return normalizeDefaultBoardListItems(settingsSnapshot.value?.orgSettings.default_board_list_names)
@@ -109,12 +102,12 @@ const defaultWorkspaceStatusItemsFromSnapshot = computed(() => {
   return normalizeDefaultWorkspaceStatusItems(settingsSnapshot.value?.orgSettings.default_workspace_status_names)
 })
 
-const effortUnitFromSnapshot = computed(() => {
-  return normalizeEffortUnit(settingsSnapshot.value?.orgSettings.effort_unit)
-})
-
 const defaultDocumentCategoryItemsFromSnapshot = computed(() => {
   return normalizeDefaultDocumentCategoryItems(settingsSnapshot.value?.orgSettings.default_document_category_names)
+})
+
+const canManageSettings = computed(() => {
+  return settingsSnapshot.value?.orgSettings.role === 'admin'
 })
 
 async function loadInitialData (opts?: { refresh?: boolean }) {
@@ -123,7 +116,7 @@ async function loadInitialData (opts?: { refresh?: boolean }) {
 
   if (!opts?.refresh) {
     const cached = getCached(slugValue)
-    if (cached) {
+    if (cached?.orgSettings?.role) {
       settingsSnapshot.value = cached
       settingsPageReady.value = true
       return
@@ -134,7 +127,7 @@ async function loadInitialData (opts?: { refresh?: boolean }) {
   }
 
   const r = await withAppLoadingCursor(() => raceWithTimeout(
-    () => fetchSnapshot(slugValue),
+    () => fetchSnapshot(slugValue, opts?.refresh ? { refresh: true } : undefined),
     TM_PAGE_LOAD_TIMEOUT_MS,
   ))
 
@@ -147,9 +140,24 @@ async function loadInitialData (opts?: { refresh?: boolean }) {
   settingsPageReady.value = true
 }
 
+async function syncForCurrentUser () {
+  const userId = await ensureCurrentUser()
+  if (
+    userId !== null
+    && loadedForUserId.value === userId
+    && settingsSnapshot.value?.orgSettings?.role
+  ) {
+    return
+  }
+
+  await loadInitialData({ refresh: loadedForUserId.value !== null })
+  loadedForUserId.value = userId
+}
+
 function retrySettingsLoad () {
   invalidateCached(slug.value)
-  void loadInitialData({ refresh: true })
+  loadedForUserId.value = null
+  void syncForCurrentUser()
 }
 
 function applyTabFromRoute () {
@@ -161,14 +169,6 @@ function applyTabFromRoute () {
   }
   if (tab === 'workspace_statuses') {
     activeTab.value = 'workspace_statuses'
-    return
-  }
-  if (tab === 'member_groups') {
-    activeTab.value = 'member_groups'
-    return
-  }
-  if (tab === 'effort_settings') {
-    activeTab.value = 'effort_settings'
     return
   }
   if (tab === 'document_categories') {
@@ -205,7 +205,7 @@ function selectTab (tab: SettingsTabKey) {
 
 onBeforeMount(() => {
   const cached = getCached(slug.value)
-  if (cached) {
+  if (cached?.orgSettings?.role) {
     settingsSnapshot.value = cached
     settingsPageReady.value = true
   }
@@ -213,13 +213,12 @@ onBeforeMount(() => {
 
 onMounted(() => {
   applyTabFromRoute()
-  if (!settingsPageReady.value) {
-    void loadInitialData()
-  }
+  void syncForCurrentUser()
 })
 
 onActivated(() => {
   applyTabFromRoute()
+  void syncForCurrentUser()
 })
 
 watch(
@@ -230,36 +229,4 @@ watch(
 )
 </script>
 
-<style lang="scss" scoped>
-.settings-page {
-  min-height: 100vh;
-  padding: 14px;
-}
-
-.settings-layout {
-  width: calc(320px + 880px + 14px);
-  max-width: 100%;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 320px 880px;
-  gap: 14px;
-  align-items: start;
-}
-
-.settings-content {
-  width: 880px;
-  max-width: 100%;
-  min-height: 308px;
-}
-
-@media (max-width: 1240px) {
-  .settings-layout {
-    grid-template-columns: 1fr;
-    width: 100%;
-  }
-
-  .settings-content {
-    width: 100%;
-  }
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/pages/org/slug/settings.scss"></style>

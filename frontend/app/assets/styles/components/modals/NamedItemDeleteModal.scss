@@ -1,0 +1,37 @@
+
+.named-item-delete-modal-body {
+  padding: 14px 18.9px 18.9px;
+}
+.named-item-delete-modal-message {
+  margin: 0;
+  font-size: 12.6px;
+  color: mixin.$text-sub;
+  line-height: 1.45;
+}
+.err {
+  margin: 10.5px 0 0;
+  color: mixin.$danger;
+  font-weight: 700;
+  font-size: 12.04px;
+}
+.actions {
+  margin-top: 13.3px;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+.ghost-btn,
+.danger-btn {
+  @include mixin.btn-base;
+}
+.ghost-btn--pill,
+.danger-btn--pill {
+  @include mixin.btn-pill;
+}
+.ghost-btn {
+  @include mixin.btn-ghost;
+}
+.danger-btn {
+  background: mixin.$danger;
+  color: #fff;
+}

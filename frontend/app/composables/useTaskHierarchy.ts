@@ -10,6 +10,7 @@ export type TaskHierarchySource = {
   due_date?: string | null
   list_id?: number | null
   list_name?: string | null
+  list_color?: string | null
   sort_order?: number
 }
 export function isTaskInHierarchy (task: TaskHierarchySource | null | undefined): boolean {
@@ -25,6 +26,24 @@ function compareHierarchyTasks (a: TaskHierarchySource, b: TaskHierarchySource):
   }
   return a.id - b.id
 }
+function resolveHierarchyListName (
+  task: TaskHierarchySource,
+  resolveListName?: (listId: number | null) => string | null,
+): string | null {
+  return task.list_name ?? resolveListName?.(task.list_id ?? null) ?? null
+}
+function toHierarchyParent (
+  task: TaskHierarchySource,
+  resolveListName?: (listId: number | null) => string | null,
+): TaskHierarchyParent {
+  return {
+    id: task.id,
+    title: task.title,
+    list_id: task.list_id ?? null,
+    list_name: resolveHierarchyListName(task, resolveListName),
+    list_color: task.list_color ?? null,
+  }
+}
 function toHierarchyChild (
   task: TaskHierarchySource,
   resolveListName?: (listId: number | null) => string | null,
@@ -33,7 +52,9 @@ function toHierarchyChild (
     id: task.id,
     title: task.title,
     due_date: task.due_date ?? null,
-    list_name: task.list_name ?? resolveListName?.(task.list_id ?? null) ?? null,
+    list_id: task.list_id ?? null,
+    list_name: resolveHierarchyListName(task, resolveListName),
+    list_color: task.list_color ?? null,
   }
 }
 export function resolveTaskHierarchyFromTasks<T extends TaskHierarchySource> (
@@ -47,7 +68,7 @@ export function resolveTaskHierarchyFromTasks<T extends TaskHierarchySource> (
       .sort(compareHierarchyTasks)
       .map(row => toHierarchyChild(row, resolveListName))
     return {
-      parent_task: { id: task.id, title: task.title },
+      parent_task: toHierarchyParent(task, resolveListName),
       child_tasks: childTasks,
     }
   }
@@ -58,7 +79,7 @@ export function resolveTaskHierarchyFromTasks<T extends TaskHierarchySource> (
       .sort(compareHierarchyTasks)
       .map(row => toHierarchyChild(row, resolveListName))
     return {
-      parent_task: parent ? { id: parent.id, title: parent.title } : null,
+      parent_task: parent ? toHierarchyParent(parent, resolveListName) : null,
       child_tasks: childTasks,
     }
   }

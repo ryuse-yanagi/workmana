@@ -1,14 +1,10 @@
 import {
   applyTableRowOrder,
-  buildFullTableDisplayRows,
-  buildTableDisplayRows,
   getTableDragBlock,
   getTableDragGhostBlock,
-  isTableOrphanParentTask,
   mapCollapsedTargetToFullIndex,
   moveTableDisplayRows,
   previewTableDragInsert,
-  resolveOrphanParentSortOrderFromRows,
   resolveTableDropIndexFromDom,
   type TableDisplayRow,
   type TableTask,
@@ -171,13 +167,14 @@ export function useTableTaskDragReorder (options: {
   tasks: Ref<TableTask[]>
   tableBodyEl: Ref<HTMLTableSectionElement | null>
   collapsedParentIds: Ref<ReadonlySet<number>>
-  orphanParentLabel: MaybeRefOrGetter<string>
-  orphanParentSortOrder: MaybeRefOrGetter<number | null>
+  /** このテーブルが表示している行（折りたたみ状態を反映） */
+  buildRows: () => TableDisplayRow[]
+  /** このテーブルの行を、すべての親を展開した状態で並べたもの */
+  buildExpandedRows: () => TableDisplayRow[]
+  /** このテーブルの行を、全テーブル通しの並び順に組み立て直す */
+  composeOrderedRows: (rows: TableDisplayRow[]) => TableDisplayRow[]
   surface?: TableDragReorderSurface
-  onCommit: (
-    tasks: TableTask[],
-    orphanParentSortOrder: number | null,
-  ) => Promise<void>
+  onCommit: (tasks: TableTask[]) => Promise<void>
 }) {
   const surface = options.surface ?? TABLE_LIST_DRAG_SURFACE
   const dragging = ref(false)
@@ -189,16 +186,7 @@ export function useTableTaskDragReorder (options: {
   let ghostEl: HTMLDivElement | null = null
   let ghostOffsetX = 0
   let ghostOffsetY = 0
-  const resolveOrphanParentLabel = () => toValue(options.orphanParentLabel)
-  const resolveOrphanParentSortOrder = () => toValue(options.orphanParentSortOrder)
-  const activeRows = computed(() => (
-    dragRows.value ?? buildTableDisplayRows(
-      options.tasks.value,
-      options.collapsedParentIds.value,
-      resolveOrphanParentLabel(),
-      resolveOrphanParentSortOrder(),
-    )
-  ))
+  const activeRows = computed(() => dragRows.value ?? options.buildRows())
   function removeDragGhost () {
     ghostEl?.remove()
     ghostEl = null
@@ -357,11 +345,7 @@ export function useTableTaskDragReorder (options: {
       options.collapsedParentIds.value,
     )
     if (nextRows && collapsedParentDrag) {
-      const fullRows = buildFullTableDisplayRows(
-        options.tasks.value,
-        resolveOrphanParentLabel(),
-        resolveOrphanParentSortOrder(),
-      )
+      const fullRows = options.buildExpandedRows()
       const parentId = baseRows[sourceIndex]?.task.id
       const fullSourceIndex = parentId == null
         ? -1
@@ -386,16 +370,12 @@ export function useTableTaskDragReorder (options: {
     }
     const updatedTasks = applyTableRowOrder(
       options.tasks.value,
-      nextRows,
+      options.composeOrderedRows(nextRows),
       reparentedChildIds,
-    )
-    const nextOrphanParentSortOrder = resolveOrphanParentSortOrderFromRows(
-      nextRows,
-      updatedTasks,
     )
     options.tasks.value = updatedTasks
     try {
-      await options.onCommit(updatedTasks, nextOrphanParentSortOrder)
+      await options.onCommit(updatedTasks)
     } catch {
       // Caller handles rollback/reload.
     }
@@ -414,12 +394,7 @@ export function useTableTaskDragReorder (options: {
     if (!tbody) {
       return
     }
-    const baseRows = buildTableDisplayRows(
-      options.tasks.value,
-      options.collapsedParentIds.value,
-      resolveOrphanParentLabel(),
-      resolveOrphanParentSortOrder(),
-    )
+    const baseRows = options.buildRows()
     const rowIndex = baseRows.findIndex(row => row.task.id === taskId)
     if (rowIndex < 0) {
       return

@@ -58,7 +58,6 @@ docsディレクトリでは、業務管理アプリの設計・仕様書を管�
 - 管理者：admin
 - プロジェクトリーダー：project_leader
 - 一般ユーザー：member
-- 閲覧者：viewer
 
 ## requirements ディレクトリ
 

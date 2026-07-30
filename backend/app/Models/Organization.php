@@ -15,7 +15,6 @@ class Organization extends Model
         'default_board_list_names',
         'default_workspace_status_names',
         'default_document_category_names',
-        'effort_unit',
         'created_by',
     ];
 
@@ -78,11 +77,6 @@ class Organization extends Model
     public function documentLabels(): HasMany
     {
         return $this->hasMany(DocumentLabel::class)->orderBy('sort_order')->orderBy('name');
-    }
-
-    public function memberGroups(): HasMany
-    {
-        return $this->hasMany(MemberGroup::class)->orderBy('sort_order')->orderBy('name');
     }
 
     public function sharedDocuments(): HasMany

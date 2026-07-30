@@ -60,6 +60,7 @@ export function boardTaskToTaskDetail (task: WorkspaceBoardTask): TaskDetail {
     description: task.description ?? null,
     status: task.status,
     list_id: task.list_id,
+    sort_order: task.sort_order,
     start_date: task.start_date ?? null,
     due_date: task.due_date ?? null,
     effort_hours: task.effort_hours ?? null,
@@ -78,6 +79,13 @@ function cacheKey (orgSlug: string, workspaceId: string): string {
 const cacheByKey = new Map<string, WorkspaceBoardPageSnapshot>()
 const staleCacheKeys = new Set<string>()
 const inflightByKey = new Map<string, Promise<WorkspaceBoardPageSnapshot>>()
+
+export function clearAllWorkspaceBoardPageCaches (): void {
+  cacheByKey.clear()
+  staleCacheKeys.clear()
+  inflightByKey.clear()
+}
+
 export function useWorkspaceBoardPageData () {
   const { api } = useApi()
   const { ensureCurrentUser } = useCurrentUser()
@@ -170,6 +178,9 @@ export function useWorkspaceBoardPageData () {
     const key = cacheKey(orgSlug, workspaceId)
     cacheByKey.delete(key)
     staleCacheKeys.delete(key)
+  }
+  function clearAllCached (): void {
+    clearAllWorkspaceBoardPageCaches()
   }
   function markCachedStale (orgSlug: string, workspaceId: string): void {
     staleCacheKeys.add(cacheKey(orgSlug, workspaceId))
@@ -264,6 +275,7 @@ export function useWorkspaceBoardPageData () {
     warmWorkspaceBoardCache,
     getCached,
     invalidateCached,
+    clearAllCached,
     markCachedStale,
     isCachedStale,
     clearCachedStale,

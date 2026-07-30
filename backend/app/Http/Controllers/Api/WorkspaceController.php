@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\MembershipRole;
+use App\Models\SharedDocument;
 use App\Models\WorkspaceLabel;
 use App\Models\Organization;
 use App\Models\Workspace;
+use App\Support\BidirectionalRelationSync;
 use App\Support\DefaultBoardLists;
 use App\Support\DefaultWorkspaceStatuses;
 use App\Support\FieldLengthLimits;
@@ -16,19 +18,23 @@ class WorkspaceController extends ApiController
 {
     public function index(Request $request, Organization $organization): JsonResponse
     {
+        $pivot = $request->attributes->get('organization_membership');
+        if (! $pivot) {
+            abort(403);
+        }
+
         $labelIds = $this->normalizeLabelIds($request->query('label_ids'));
 
-        $query = $request->user()
-            ->workspaces()
-            ->where('workspaces.organization_id', $organization->id)
+        $query = Workspace::query()
+            ->where('organization_id', $organization->id)
             ->with([
                 'labels:id,name,color_index',
                 'assignees:id,name,email,avatar_path',
             ])
-            ->orderByDesc('workspaces.created_at');
+            ->orderByDesc('created_at');
 
         if (! $request->boolean('archived')) {
-            $query->whereNull('workspaces.archived_at');
+            $query->whereNull('archived_at');
         }
 
         if ($labelIds !== []) {
@@ -39,13 +45,13 @@ class WorkspaceController extends ApiController
         }
 
         $workspaces = $query->get([
-            'workspaces.id',
-            'workspaces.name',
-            'workspaces.description',
-            'workspaces.status',
-            'workspaces.archived_at',
-            'workspaces.created_at',
-            'workspaces.updated_at',
+            'id',
+            'name',
+            'description',
+            'status',
+            'archived_at',
+            'created_at',
+            'updated_at',
         ]);
 
         return response()->json([
@@ -55,8 +61,6 @@ class WorkspaceController extends ApiController
 
     public function store(Request $request, Organization $organization): JsonResponse
     {
-        $this->assertCanManageWorkspacesInOrganization($request);
-
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:'.FieldLengthLimits::WORKSPACE_NAME],
             'description' => ['nullable', 'string'],
@@ -143,16 +147,197 @@ class WorkspaceController extends ApiController
         $workspace->load([
             'labels:id,name,color_index',
             'assignees:id,name,email,avatar_path',
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+            'relatedDocuments:id,name,description,organization_id',
         ]);
 
         return response()->json($this->workspacePayload($workspace, $organization));
+    }
+
+    public function attachRelatedWorkspaces(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    {
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+
+        if ($workspace->isArchived()) {
+            abort(403, 'Cannot update an archived workspace.');
+        }
+
+        $validated = $request->validate([
+            'workspace_ids' => ['required', 'array', 'min:1'],
+            'workspace_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $relatedIds = $this->validateRelatedWorkspaceIds(
+            $request,
+            $organization,
+            $workspace,
+            $validated['workspace_ids'],
+        );
+        BidirectionalRelationSync::attachRelatedWorkspaces($workspace, $relatedIds);
+        $workspace->load([
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+        ]);
+
+        return response()->json([
+            'data' => $workspace->relatedWorkspaces
+                ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
+                ->values(),
+        ]);
+    }
+
+    public function attachRelatedDocuments(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    {
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+
+        if ($workspace->isArchived()) {
+            abort(403, 'Cannot update an archived workspace.');
+        }
+
+        $validated = $request->validate([
+            'document_ids' => ['required', 'array', 'min:1'],
+            'document_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $documentIds = $this->validateRelatedDocumentIds(
+            $organization,
+            $validated['document_ids'],
+        );
+        $workspace->relatedDocuments()->syncWithoutDetaching($documentIds);
+        $workspace->load([
+            'relatedDocuments:id,name,description,organization_id',
+        ]);
+
+        return response()->json([
+            'data' => $workspace->relatedDocuments
+                ->map(fn (SharedDocument $item) => $this->relatedDocumentPayload($item))
+                ->values(),
+        ]);
+    }
+
+    public function syncRelatedWorkspaces(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    {
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+
+        if ($workspace->isArchived()) {
+            abort(403, 'Cannot update an archived workspace.');
+        }
+
+        $validated = $request->validate([
+            'workspace_ids' => ['present', 'array'],
+            'workspace_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $relatedIds = $this->validateRelatedWorkspaceIds(
+            $request,
+            $organization,
+            $workspace,
+            $validated['workspace_ids'] ?? [],
+            allowEmpty: true,
+        );
+        BidirectionalRelationSync::syncRelatedWorkspaces($workspace, $relatedIds);
+        $workspace->load([
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+        ]);
+
+        return response()->json([
+            'data' => $workspace->relatedWorkspaces
+                ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
+                ->values(),
+        ]);
+    }
+
+    public function syncRelatedDocuments(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    {
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+
+        if ($workspace->isArchived()) {
+            abort(403, 'Cannot update an archived workspace.');
+        }
+
+        $validated = $request->validate([
+            'document_ids' => ['present', 'array'],
+            'document_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $documentIds = $this->validateRelatedDocumentIds(
+            $organization,
+            $validated['document_ids'] ?? [],
+        );
+        $workspace->relatedDocuments()->sync($documentIds);
+        $workspace->load([
+            'relatedDocuments:id,name,description,organization_id',
+        ]);
+
+        return response()->json([
+            'data' => $workspace->relatedDocuments
+                ->map(fn (SharedDocument $item) => $this->relatedDocumentPayload($item))
+                ->values(),
+        ]);
+    }
+
+    public function detachRelatedWorkspace(
+        Request $request,
+        Organization $organization,
+        Workspace $workspace,
+        Workspace $relatedWorkspace,
+    ): JsonResponse {
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+
+        if ($workspace->isArchived()) {
+            abort(403, 'Cannot update an archived workspace.');
+        }
+
+        $this->ensureWorkspaceBelongsToOrganization($relatedWorkspace, $organization);
+        BidirectionalRelationSync::detachRelatedWorkspace($workspace, $relatedWorkspace);
+        $workspace->load([
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+        ]);
+
+        return response()->json([
+            'data' => $workspace->relatedWorkspaces
+                ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
+                ->values(),
+        ]);
+    }
+
+    public function detachRelatedDocument(
+        Request $request,
+        Organization $organization,
+        Workspace $workspace,
+        SharedDocument $document,
+    ): JsonResponse {
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+
+        if ($workspace->isArchived()) {
+            abort(403, 'Cannot update an archived workspace.');
+        }
+
+        if ($document->organization_id !== $organization->id) {
+            abort(404);
+        }
+
+        $workspace->relatedDocuments()->detach($document->id);
+        $workspace->load([
+            'relatedDocuments:id,name,description,organization_id',
+        ]);
+
+        return response()->json([
+            'data' => $workspace->relatedDocuments
+                ->map(fn (SharedDocument $item) => $this->relatedDocumentPayload($item))
+                ->values(),
+        ]);
     }
 
     public function update(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
 
         if ($workspace->isArchived()) {
             abort(403, 'Cannot update an archived workspace.');
@@ -197,6 +382,8 @@ class WorkspaceController extends ApiController
         $workspace->load([
             'labels:id,name,color_index',
             'assignees:id,name,email,avatar_path',
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+            'relatedDocuments:id,name,description,organization_id',
         ]);
 
         return response()->json($this->workspacePayload($workspace, $organization));
@@ -206,7 +393,6 @@ class WorkspaceController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
 
         $validated = $request->validate([
             'archived' => ['required', 'boolean'],
@@ -221,11 +407,6 @@ class WorkspaceController extends ApiController
     public function destroy(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-
-        $orgPivot = $request->attributes->get('organization_membership');
-        if (($orgPivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can delete workspaces.');
-        }
 
         $workspace->delete();
 
@@ -292,6 +473,85 @@ class WorkspaceController extends ApiController
     }
 
     /**
+     * @param array<int, mixed> $workspaceIds
+     * @return array<int, int>
+     */
+    private function validateRelatedWorkspaceIds(
+        Request $request,
+        Organization $organization,
+        Workspace $workspace,
+        array $workspaceIds,
+        bool $allowEmpty = false,
+    ): array {
+        $ids = array_values(array_unique(array_map('intval', $workspaceIds)));
+        $ids = array_values(array_filter($ids, fn (int $id) => $id !== (int) $workspace->id));
+        if ($ids === []) {
+            if ($allowEmpty) {
+                return [];
+            }
+
+            abort(422, 'One or more workspaces are invalid for this organization.');
+        }
+
+        $count = Workspace::query()
+            ->where('organization_id', $organization->id)
+            ->whereNull('archived_at')
+            ->whereIn('id', $ids)
+            ->count();
+        if ($count !== count($ids)) {
+            abort(422, 'One or more workspaces are invalid for this organization.');
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param array<int, mixed> $documentIds
+     * @return array<int, int>
+     */
+    private function validateRelatedDocumentIds(Organization $organization, array $documentIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $documentIds)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $count = SharedDocument::query()
+            ->where('organization_id', $organization->id)
+            ->whereIn('id', $ids)
+            ->count();
+        if ($count !== count($ids)) {
+            abort(422, 'One or more documents are invalid for this organization.');
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function relatedWorkspacePayload(Workspace $workspace): array
+    {
+        return [
+            'id' => $workspace->id,
+            'name' => $workspace->name,
+            'description' => $workspace->description,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function relatedDocumentPayload(SharedDocument $document): array
+    {
+        return [
+            'id' => $document->id,
+            'name' => $document->name,
+            'description' => $document->description,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function workspacePayload(Workspace $workspace, Organization $organization): array
@@ -322,6 +582,16 @@ class WorkspaceController extends ApiController
                         'email' => $user->email,
                         'avatar_url' => $this->avatarUrl($user->avatar_path),
                     ])->values(),
+            'related_workspaces' => $workspace->relationLoaded('relatedWorkspaces')
+                ? $workspace->relatedWorkspaces
+                    ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
+                    ->values()
+                : [],
+            'related_documents' => $workspace->relationLoaded('relatedDocuments')
+                ? $workspace->relatedDocuments
+                    ->map(fn (SharedDocument $item) => $this->relatedDocumentPayload($item))
+                    ->values()
+                : [],
         ];
     }
 }

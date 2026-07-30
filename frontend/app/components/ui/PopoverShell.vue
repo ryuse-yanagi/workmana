@@ -10,15 +10,18 @@
   >
     <header class="popover-shell__header" :class="headerClass">
       <h4 class="popover-shell__title">{{ title }}</h4>
-      <button
-        type="button"
-        class="popover-shell__close"
-        :disabled="closeDisabled"
-        aria-label="閉じる"
-        @click="$emit('close')"
-      >
-        ✕
-      </button>
+      <div class="popover-shell__header-end">
+        <slot name="header-end" />
+        <button
+          type="button"
+          class="popover-shell__close"
+          :disabled="closeDisabled"
+          aria-label="閉じる"
+          @click="$emit('close')"
+        >
+          ✕
+        </button>
+      </div>
     </header>
     <slot />
   </div>
@@ -40,38 +43,4 @@ defineEmits<{
 const rootRef = ref<HTMLElement | null>(null)
 defineExpose({ rootRef })
 </script>
-<style lang="scss" scoped>
-.popover-shell {
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
-  overflow: hidden;
-}
-.popover-shell__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 7px;
-  padding: 9.1px 10.5px;
-  border-bottom: 1px solid #e2e8f0;
-}
-.popover-shell__title {
-  margin: 0;
-  font-size: 12.88px;
-  font-weight: 800;
-  color: #0f172a;
-}
-.popover-shell__close {
-  background: transparent;
-  border: none;
-  color: #64748b;
-  font-size: 15.4px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-.popover-shell__close:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/components/ui/PopoverShell.scss"></style>

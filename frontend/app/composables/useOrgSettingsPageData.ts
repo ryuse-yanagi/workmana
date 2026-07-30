@@ -1,19 +1,24 @@
 import type { SettingsLabelCategory, SettingsLabelTabKey, SettingsPageSnapshot } from '../components/settings/types'
 import { normalizeSettingsLabelCategories } from '../components/settings/labelCategoryNormalize'
-import { normalizeEffortUnit } from './useTaskFormHelpers'
 import { useApi } from './useApi'
-import { useOrgEffortSettings } from './useOrgEffortSettings'
 
 const cacheBySlug = new Map<string, SettingsPageSnapshot>()
 const inflightBySlug = new Map<string, Promise<SettingsPageSnapshot>>()
 
+export function clearAllOrgSettingsPageCaches (): void {
+  cacheBySlug.clear()
+  inflightBySlug.clear()
+}
+
 export function useOrgSettingsPageData () {
   const { api } = useApi()
-  const { syncEffortSettings } = useOrgEffortSettings()
 
   async function fetchSnapshot (orgSlug: string, opts?: { refresh?: boolean }): Promise<SettingsPageSnapshot> {
     const slug = orgSlug.trim()
-    if (!opts?.refresh) {
+    if (opts?.refresh) {
+      cacheBySlug.delete(slug)
+      inflightBySlug.delete(slug)
+    } else {
       const cached = cacheBySlug.get(slug)
       if (cached) {
         return cached
@@ -32,9 +37,6 @@ export function useOrgSettingsPageData () {
         api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/task-label-categories`),
         api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/document-label-categories`),
       ])
-      syncEffortSettings(slug, {
-        effort_unit: normalizeEffortUnit(orgSettings.effort_unit),
-      })
       const snapshot: SettingsPageSnapshot = {
         orgSettings,
         workspaceLabelCategories: normalizeSettingsLabelCategories(workspaceLabelCategoriesRes.data),
@@ -102,6 +104,10 @@ export function useOrgSettingsPageData () {
     cacheBySlug.delete(orgSlug.trim())
   }
 
+  function clearAllCached (): void {
+    clearAllOrgSettingsPageCaches()
+  }
+
   return {
     fetchSnapshot,
     prefetch,
@@ -109,5 +115,6 @@ export function useOrgSettingsPageData () {
     getCachedLabelCategories,
     patchLabelCategoriesCache,
     invalidateCached,
+    clearAllCached,
   }
 }

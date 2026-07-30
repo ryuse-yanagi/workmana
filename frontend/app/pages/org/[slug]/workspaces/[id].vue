@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import WorkspaceProjectView from '../../../../components/workspace/WorkspaceProjectView.vue'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
+import { prefetchWorkspaceDetail, warmWorkspaceDetailCache } from '../../../../composables/useWorkspaceDetailMeta'
 import { useWorkspaceViewRoutes, type WorkspaceViewKey } from '../../../../composables/useWorkspaceViewRoutes'
 import { useWorkspaceViewPageRoot } from '../../../../composables/useWorkspaceViewPageRoot'
 definePageMeta({
@@ -29,6 +30,10 @@ useWorkspaceViewPageRoot()
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const workspaceId = computed(() => route.params.id as string)
+onBeforeMount(() => {
+  warmWorkspaceDetailCache(slug.value, workspaceId.value)
+  void prefetchWorkspaceDetail(slug.value, workspaceId.value)
+})
 const { activeView } = useWorkspaceViewRoutes(() => slug.value, () => workspaceId.value)
 const boardRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
 const tableViewRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
@@ -81,26 +86,19 @@ watch(activeView, async (view) => {
 }, { immediate: true })
 watch(
   () => [slug.value, workspaceId.value] as const,
-  () => {
+  ([nextSlug, nextWorkspaceId]) => {
     syncViewFromRoute()
+    warmWorkspaceDetailCache(nextSlug, nextWorkspaceId)
+    void prefetchWorkspaceDetail(nextSlug, nextWorkspaceId)
   },
 )
 onActivated(() => {
   syncViewFromRoute()
+  warmWorkspaceDetailCache(slug.value, workspaceId.value)
 })
 onDeactivated(() => {
   displayedView.value = 'board'
   tableMounted.value = false
 })
 </script>
-<style lang="scss" scoped>
-.project-page-root {
-  min-height: calc(100dvh - var(--global-header-offset, 56px) - var(--app-shell-page-pad, 3.5px));
-  display: flex;
-  flex-direction: column;
-}
-.project-page-root > :deep(*) {
-  flex: 1;
-  min-height: 0;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/pages/org/slug/workspaces/id.scss"></style>

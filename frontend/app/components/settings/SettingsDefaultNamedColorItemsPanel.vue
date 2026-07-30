@@ -1,7 +1,7 @@
 <template>
   <SettingsPanel :title="title" :note="note">
     <div class="named-color-items-panel">
-      <div class="named-color-items-panel__toolbar">
+      <div v-if="canManage" class="named-color-items-panel__toolbar">
         <button
           type="button"
           class="named-color-items-panel__add-btn"
@@ -16,7 +16,12 @@
         {{ message }}
       </p>
       <p v-if="!loading && !items.length" class="named-color-items-panel__empty">
-        まだ{{ itemKind }}がありません。「{{ addButtonLabel }}」から作成してください。
+        <template v-if="canManage">
+          まだ{{ itemKind }}がありません。「{{ addButtonLabel }}」から作成してください。
+        </template>
+        <template v-else>
+          まだ{{ itemKind }}がありません。
+        </template>
       </p>
       <draggable
         v-model="items"
@@ -24,7 +29,7 @@
         class="label-row-list"
         handle=".label-row__drag-handle"
         :animation="150"
-        :disabled="loading || reordering"
+        :disabled="!canManage || loading || reordering"
         ghost-class="label-settings-row--ghost"
         chosen-class="label-settings-row--chosen"
         @end="onDragEnd"
@@ -32,6 +37,7 @@
         <template #item="{ element: item, index }">
           <div class="label-row">
             <button
+              v-if="canManage"
               type="button"
               class="label-row__drag-handle"
               :aria-label="`ドラッグして${itemKind}の並び順を変更`"
@@ -45,7 +51,7 @@
               aria-hidden="true"
             />
             <span class="label-row__name">{{ item.name }}</span>
-            <div class="label-row__actions">
+            <div v-if="canManage" class="label-row__actions">
               <button
                 type="button"
                 class="label-action-btn label-action-btn--edit"
@@ -114,6 +120,7 @@ type SettingsField = 'default_board_list_names' | 'default_workspace_status_name
 const props = defineProps<{
   orgSlug: string
   initialItems: DefaultNamedColorItem[]
+  canManage: boolean
   title: string
   note: string
   settingsField: SettingsField
@@ -231,6 +238,7 @@ type DragEndEvent = {
 }
 
 function onDragEnd (evt: DragEndEvent) {
+  if (!props.canManage) return
   if (evt.oldIndex === undefined || evt.newIndex === undefined || evt.oldIndex === evt.newIndex) {
     return
   }
@@ -243,6 +251,7 @@ function onDragEnd (evt: DragEndEvent) {
 }
 
 function openCreate () {
+  if (!props.canManage) return
   if (items.value.length >= 20) return
   editModalMode.value = 'create'
   editingIndex.value = null
@@ -256,6 +265,7 @@ function openCreate () {
 }
 
 function openEdit (index: number) {
+  if (!props.canManage) return
   const item = items.value[index]
   if (!item) return
   editModalMode.value = 'edit'
@@ -265,11 +275,13 @@ function openEdit (index: number) {
 }
 
 function openDelete (index: number) {
+  if (!props.canManage) return
   deletingIndex.value = index
   deleteModalOpen.value = true
 }
 
 async function submitEdit (payload: { name: string; color_index: number }) {
+  if (!props.canManage) return
   const draft = cloneItems(items.value)
   if (editModalMode.value === 'create') {
     draft.push({
@@ -300,6 +312,7 @@ async function submitEdit (payload: { name: string; color_index: number }) {
 }
 
 async function confirmDelete () {
+  if (!props.canManage) return
   if (deletingIndex.value === null) return
   const draft = cloneItems(items.value)
   draft.splice(deletingIndex.value, 1)
@@ -320,125 +333,5 @@ onMounted(() => {
 
 defineExpose({ load })
 </script>
-<style lang="scss">
-@use './shared';
-</style>
-<style lang="scss" scoped>
-.named-color-items-panel__toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 11.9px;
-}
-.named-color-items-panel__add-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5.6px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 6.3px 18.9px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: mixin.$white;
-  background: mixin.$main;
-  cursor: pointer;
-}
-.named-color-items-panel__add-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.named-color-items-panel__empty {
-  margin: 0;
-  color: #64748b;
-  font-size: 12.6px;
-}
-.label-row-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6.3px;
-}
-.label-row {
-  display: flex;
-  align-items: center;
-  gap: 7.7px;
-  box-sizing: border-box;
-  width: 100%;
-  height: 54px;
-  padding: 0 10.5px;
-  border-radius: 10px;
-  background: #f5f6fa;
-}
-.label-row__drag-handle {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: #f5f6fa;
-  color: #a2abb6;
-  cursor: pointer;
-  touch-action: none;
-}
-.label-row__drag-handle:active {
-  cursor: default;
-}
-.label-settings-row--ghost {
-  opacity: 0.45;
-}
-.label-settings-row--chosen {
-  opacity: 0.85;
-}
-.label-row__name {
-  flex: 1;
-  min-width: 0;
-  font-size: 12.25px;
-  font-weight: 700;
-  color: #0f172a;
-}
-.label-row__dot {
-  flex-shrink: 0;
-  width: 11.9px;
-  height: 11.9px;
-  border-radius: 999px;
-}
-.label-row__actions {
-  display: flex;
-  align-items: center;
-  gap: 4.9px;
-  flex-shrink: 0;
-}
-.label-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  height: 24px;
-  border: none;
-  border-radius: 999px;
-  padding: 0;
-  font-size: 12.25px;
-  font-weight: 600;
-  background: #fff;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.label-action-btn--edit,
-.label-action-btn--delete {
-  width: 64px;
-}
-.label-action-btn--edit {
-  color: mixin.$main;
-}
-.label-action-btn--delete {
-  color: mixin.$danger;
-}
-.label-action-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-</style>
+<style lang="scss" src="~/assets/styles/components/settings/SettingsDefaultNamedColorItemsPanel.global.scss"></style>
+<style lang="scss" scoped src="~/assets/styles/components/settings/SettingsDefaultNamedColorItemsPanel.scss"></style>

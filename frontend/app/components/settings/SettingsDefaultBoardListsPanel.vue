@@ -2,6 +2,7 @@
   <SettingsDefaultNamedColorItemsPanel
     :org-slug="orgSlug"
     :initial-items="initialItems"
+    :can-manage="canManage"
     title="リスト設定"
     note="スペース新規追加時に自動で作成するリストの名前と色を設定します。上から順に左側の列として並びます。"
     settings-field="default_board_list_names"
@@ -23,5 +24,6 @@ import { DEFAULT_BOARD_LIST_ITEMS, type DefaultNamedColorItem } from './types'
 defineProps<{
   orgSlug: string
   initialItems: DefaultNamedColorItem[]
+  canManage: boolean
 }>()
 </script>

@@ -1,0 +1,10 @@
+
+.project-page-root {
+  min-height: calc(100dvh - var(--global-header-offset, 56px) - var(--app-shell-page-pad, 3.5px));
+  display: flex;
+  flex-direction: column;
+}
+.project-page-root > :deep(*) {
+  flex: 1;
+  min-height: 0;
+}

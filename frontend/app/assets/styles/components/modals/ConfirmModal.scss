@@ -1,0 +1,37 @@
+.confirm-modal-body {
+  padding: 14px;
+}
+.confirm-modal-message {
+  margin: 0;
+  font-size: 12.6px;
+  color: mixin.$text-sub;
+  line-height: 1.45;
+}
+.confirm-modal-actions {
+  margin-top: 13.3px;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+.ghost-btn,
+.primary-btn,
+.danger-btn {
+  @include mixin.btn-base;
+}
+.ghost-btn--rounded,
+.primary-btn--rounded,
+.danger-btn--rounded {
+  border-radius: 10px;
+  padding: 7px 10.5px;
+  font-size: 16px;
+}
+.ghost-btn {
+  @include mixin.btn-ghost;
+}
+.primary-btn {
+  @include mixin.btn-primary;
+}
+.danger-btn {
+  background: mixin.$danger;
+  color: #fff;
+}

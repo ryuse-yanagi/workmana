@@ -11,6 +11,4 @@ defineProps<{
   note?: string
 }>()
 </script>
-<style lang="scss">
-@use './shared';
-</style>
+<style lang="scss" src="~/assets/styles/components/settings/SettingsPanel.scss"></style>

@@ -1,0 +1,186 @@
+.list-column.sortable-fallback {
+  --task-card-width: 246px;
+  --list-column-width: calc(var(--task-card-width) + 21px);
+  font-family: mixin.$font-family;
+  width: var(--list-column-width) !important;
+  max-width: var(--list-column-width) !important;
+  min-width: var(--list-column-width) !important;
+  box-sizing: border-box;
+  border-radius: 14px;
+  cursor: default;
+  pointer-events: none;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+.task-card.sortable-fallback {
+  --task-card-width: 246px;
+  font-family: mixin.$font-family;
+  width: var(--task-card-width);
+  max-width: var(--task-card-width);
+  min-width: var(--task-card-width);
+  box-sizing: border-box;
+  flex-shrink: 0;
+  background: #fff;
+  border: 1px solid mixin.$border;
+  border-radius: 10px;
+  padding: 6.3px 7.7px;
+  cursor: default;
+  pointer-events: none;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+.task-card.sortable-fallback .task-card-body {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+}
+.task-card.sortable-fallback .task-parent-title {
+  margin: 0 0 2.8px;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: mixin.$main;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.task-card.sortable-fallback .task-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4.2px;
+  margin: 0;
+  min-width: 0;
+}
+.task-card.sortable-fallback .task-title-row__icon {
+  flex-shrink: 0;
+  margin-top: 1.68px;
+  color: mixin.$main;
+}
+.task-card.sortable-fallback .task-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.task-card--parent.sortable-fallback .task-title {
+  color: mixin.$main;
+}
+.task-card.sortable-fallback .task-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2.52px;
+  margin-top: 4.9px;
+}
+.task-card.sortable-fallback .task-card-meta__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.92px;
+  margin: 0;
+  font-size: 10.08px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #64748b;
+}
+.task-card.sortable-fallback .task-label-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.8px;
+  margin-bottom: 3.5px;
+}
+.task-card.sortable-fallback .task-label-list__strip {
+  flex: 0 0 auto;
+}
+.task-card.sortable-fallback .label-strip--bar {
+  display: block;
+  flex-shrink: 0;
+  width: 40px;
+  height: 8px;
+  padding: 0;
+  border-radius: 3px;
+  line-height: 0;
+  overflow: hidden;
+  color: transparent;
+  font-size: 0;
+}
+.task-card.sortable-fallback .label-strip--named.label-strip--sm {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 56px;
+  height: 16px;
+  min-width: 56px;
+  max-width: 56px;
+  min-height: 16px;
+  max-height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+}
+.task-card.sortable-fallback .label-strip__text {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+.task-card.sortable-fallback .task-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4.2px;
+}
+.task-card.sortable-fallback .task-card-members {
+  display: flex;
+  align-items: center;
+}
+.task-card.sortable-fallback .task-card-member {
+  width: 17.5px;
+  height: 17.5px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #e2e8f0;
+  background: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.task-card.sortable-fallback .task-card-member + .task-card-member {
+  margin-left: -4.9px;
+}
+.task-card.sortable-fallback .task-card-member-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.task-card.sortable-fallback .task-card-member-initial {
+  font-size: 7.84px;
+  font-weight: 700;
+  color: mixin.$text-sub;
+  line-height: 1;
+}
+.task-card.sortable-fallback.drag-active {
+  opacity: 1 !important;
+  visibility: visible !important;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
+  z-index: 100000 !important;
+}
+.task-card.sortable-fallback,
+.task-card.sortable-fallback * {
+  visibility: visible !important;
+}

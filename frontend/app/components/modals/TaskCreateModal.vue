@@ -57,14 +57,14 @@
                 </p>
               </div>
               <div
-                v-if="!createAsParent"
-                ref="parentPickerRootRef"
+                ref="metaPickerRootRef"
                 class="parent-picker-block"
               >
                 <div class="parent-select-wrap">
                   <button
+                    v-if="!createAsParent"
                     type="button"
-                    class="action-btn"
+                    class="action-btn action-btn--parent"
                     :class="{ 'action-btn--active': parentPickerOpen }"
                     :disabled="submitting || parentTasksLoading || parentTaskDefaultsLoading"
                     :aria-expanded="parentPickerOpen"
@@ -77,21 +77,55 @@
                     </span>
                     親タスク
                   </button>
+                  <button
+                    type="button"
+                    class="action-btn action-btn--list"
+                    :class="{ 'action-btn--active': listPickerOpen }"
+                    :disabled="submitting"
+                    :aria-expanded="listPickerOpen"
+                    aria-haspopup="dialog"
+                    aria-label="リスト"
+                    @click.stop="toggleListPicker($event)"
+                  >
+                    <span class="action-btn-icon" aria-hidden="true">
+                      <List :size="16" :stroke-width="2.25" />
+                    </span>
+                    リスト
+                  </button>
                 </div>
                 <div
-                  v-if="parentTaskId !== null"
+                  v-if="showDetailMetaRow"
                   class="detail-meta-row"
                 >
-                  <section class="detail-item detail-item--parent">
+                  <section
+                    v-if="!createAsParent && parentTaskId !== null"
+                    class="detail-item detail-item--parent"
+                  >
                     <span class="detail-item-label">親タスク</span>
                     <button
                       type="button"
-                      class="detail-value-btn"
+                      class="detail-value-btn detail-value-btn--parent"
                       :class="{ 'detail-value-btn--editing': parentPickerOpen }"
                       :disabled="submitting || parentTasksLoading || parentTaskDefaultsLoading"
                       @click.stop="toggleParentPicker($event)"
                     >
                       {{ selectedParentTaskTitle }}
+                    </button>
+                  </section>
+                  <section
+                    v-if="selectedListId !== null"
+                    class="detail-item detail-item--list"
+                  >
+                    <span class="detail-item-label">リスト</span>
+                    <button
+                      type="button"
+                      class="detail-value-btn detail-value-btn--list"
+                      :class="{ 'detail-value-btn--editing': listPickerOpen }"
+                      :style="selectedListValueStyle"
+                      :disabled="submitting"
+                      @click.stop="toggleListPicker($event)"
+                    >
+                      {{ selectedListName }}
                     </button>
                   </section>
                 </div>
@@ -161,9 +195,55 @@
       </div>
     </Transition>
   </Teleport>
+  <Teleport to="body">
+    <Transition name="popover-fade" @after-enter="updateListPickerPosition">
+      <div
+        v-if="modelValue && listPickerOpen"
+        class="popover-layer popover-layer--portal"
+      >
+        <PopoverShell
+          ref="listPickerPopoverRef"
+          shell-class="popover popover--list"
+          :style="listPickerStyle"
+          title="リストを選択"
+          aria-label="リストを選択"
+          :close-disabled="submitting"
+          @close="closeListPicker"
+        >
+          <div class="popover-scroll">
+            <ul class="list-picker-list">
+              <li
+                v-for="list in workspaceLists"
+                :key="list.id"
+              >
+                <button
+                  type="button"
+                  class="list-picker-row"
+                  :class="{ 'list-picker-row--selected': selectedListId === list.id }"
+                  :disabled="submitting"
+                  @click.stop="selectList(list.id)"
+                >
+                  <span
+                    class="list-picker-radio"
+                    :class="{ 'list-picker-radio--checked': selectedListId === list.id }"
+                    aria-hidden="true"
+                  />
+                  <span class="list-picker-label">{{ list.name }}</span>
+                </button>
+              </li>
+            </ul>
+            <p v-if="!workspaceLists.length" class="empty-text list-picker-empty">
+              リストがありません。
+            </p>
+            <p v-if="listPickerError" class="err">{{ listPickerError }}</p>
+          </div>
+        </PopoverShell>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 <script setup lang="ts">
-import { ListTree } from 'lucide-vue-next'
+import { List, ListTree } from 'lucide-vue-next'
 import ParentTaskPickerPanel from '../task/ParentTaskPickerPanel.vue'
 import TaskFormPane from '../task/TaskFormPane.vue'
 import PopoverShell from '../ui/PopoverShell.vue'
@@ -178,7 +258,10 @@ import {
   type TaskFormMember,
 } from '../../composables/useTaskFormHelpers'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
-import { useOrgEffortSettings } from '../../composables/useOrgEffortSettings'
+import {
+  resolveListColor,
+  type WorkspaceListOption,
+} from '../../composables/useTaskPopoverEditor'
 import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
 import { taskTitleFieldError } from '../../utils/formValidation'
 type ParentTaskOption = {
@@ -221,26 +304,26 @@ type TaskFormPaneExpose = {
   activePopover?: TaskFormPopoverType | null
   closePopover?: () => void | Promise<void>
 }
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean
   orgSlug: string
   workspaceId: string
   listId: number | null
   orgLabels: TaskFormLabel[]
   workspaceMembers: TaskFormMember[]
-}>()
+  workspaceLists?: WorkspaceListOption[]
+}>(), {
+  workspaceLists: () => [],
+})
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   created: [CreatedTask]
 }>()
 const { api } = useApi()
-const {
-  ensureOrgEffortSettings,
-  getOrgEffortUnit,
-} = useOrgEffortSettings()
 const draft = ref<TaskFormDraft>(createEmptyTaskFormDraft())
 const createAsParent = ref(false)
 const parentTaskId = ref<number | null>(null)
+const selectedListId = ref<number | null>(null)
 const parentTasks = ref<ParentTaskOption[]>([])
 const parentTasksFetched = ref(false)
 const parentTasksLoading = ref(false)
@@ -249,15 +332,21 @@ const submitting = ref(false)
 const submitError = ref<string | null>(null)
 const titleError = ref<string | null>(null)
 const parentPickerOpen = ref(false)
-const parentPickerRootRef = ref<HTMLElement | null>(null)
+const listPickerOpen = ref(false)
+const metaPickerRootRef = ref<HTMLElement | null>(null)
 const parentPickerAnchorEl = ref<HTMLElement | null>(null)
+const listPickerAnchorEl = ref<HTMLElement | null>(null)
 const parentPickerPopoverRef = ref<{ rootRef: HTMLElement | null } | null>(null)
+const listPickerPopoverRef = ref<{ rootRef: HTMLElement | null } | null>(null)
 const parentPickerStyle = ref<Record<string, string>>({})
+const listPickerStyle = ref<Record<string, string>>({})
 const parentPickerError = ref<string | null>(null)
+const listPickerError = ref<string | null>(null)
 const taskFormPaneRef = ref<TaskFormPaneExpose | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
 let parentDefaultsRequestId = 0
 let removeParentPickerResizeListener: (() => void) | null = null
+let removeListPickerResizeListener: (() => void) | null = null
 const POPOVER_VIEWPORT_PAD = 12
 const POPOVER_ANCHOR_GAP = 6
 const POPOVER_MIN_HEIGHT = 120
@@ -267,8 +356,22 @@ const selectedParentTaskTitle = computed(() => {
   const parent = parentTasks.value.find(item => item.id === parentTaskId.value)
   return parent?.title ?? ''
 })
+const selectedListOption = computed((): WorkspaceListOption | null => {
+  const listId = selectedListId.value
+  if (listId == null) return null
+  return props.workspaceLists.find(list => list.id === listId) ?? null
+})
+const selectedListName = computed(() => selectedListOption.value?.name ?? 'リストを選択')
+const selectedListValueStyle = computed(() => {
+  const color = resolveListColor(selectedListId.value, props.workspaceLists)
+  return color ? { color } : undefined
+})
+const showDetailMetaRow = computed(() => {
+  const showParent = !createAsParent.value && parentTaskId.value !== null
+  return showParent || selectedListId.value !== null
+})
 const panePopoverOpen = computed(() => taskFormPaneRef.value?.activePopover != null)
-const anyPopoverOpen = computed(() => panePopoverOpen.value || parentPickerOpen.value)
+const anyPopoverOpen = computed(() => panePopoverOpen.value || parentPickerOpen.value || listPickerOpen.value)
 function toggleCreateAsParent () {
   if (submitting.value) return
   createAsParent.value = !createAsParent.value
@@ -280,10 +383,13 @@ function close () {
 function resolveParentPickerPopoverElement (): HTMLElement | null {
   return parentPickerPopoverRef.value?.rootRef ?? null
 }
-function captureParentPickerAnchor (event?: Event): HTMLElement | null {
+function resolveListPickerPopoverElement (): HTMLElement | null {
+  return listPickerPopoverRef.value?.rootRef ?? null
+}
+function captureMetaPickerAnchor (event: Event | undefined, selector: string): HTMLElement | null {
   const fromEvent = event?.currentTarget
   if (fromEvent instanceof HTMLElement) return fromEvent
-  return parentPickerRootRef.value?.querySelector('.action-btn') ?? null
+  return metaPickerRootRef.value?.querySelector(selector) ?? null
 }
 function updateParentPickerPosition () {
   nextTick(() => {
@@ -295,10 +401,21 @@ function updateParentPickerPosition () {
     })
   })
 }
-function positionParentPicker () {
-  const anchor = parentPickerAnchorEl.value
-  const popover = resolveParentPickerPopoverElement()
-  if (!anchor || !popover) return
+function updateListPickerPosition () {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      positionListPicker()
+      if (!listPickerPopoverRef.value) {
+        requestAnimationFrame(() => positionListPicker())
+      }
+    })
+  })
+}
+function positionAnchoredPopover (
+  anchor: HTMLElement | null,
+  popover: HTMLElement | null,
+): Record<string, string> | null {
+  if (!anchor || !popover) return null
   const pad = POPOVER_VIEWPORT_PAD
   const gap = POPOVER_ANCHOR_GAP
   const anchorRect = anchor.getBoundingClientRect()
@@ -319,7 +436,7 @@ function positionParentPicker () {
     maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceAbove - gap))
     top = Math.max(pad, anchorRect.top - gap - maxHeight)
   }
-  parentPickerStyle.value = {
+  return {
     position: 'fixed',
     top: `${Math.round(top)}px`,
     left: `${Math.round(left)}px`,
@@ -327,13 +444,28 @@ function positionParentPicker () {
     zIndex: '80',
   }
 }
+function positionParentPicker () {
+  const style = positionAnchoredPopover(
+    parentPickerAnchorEl.value,
+    resolveParentPickerPopoverElement(),
+  )
+  if (style) parentPickerStyle.value = style
+}
+function positionListPicker () {
+  const style = positionAnchoredPopover(
+    listPickerAnchorEl.value,
+    resolveListPickerPopoverElement(),
+  )
+  if (style) listPickerStyle.value = style
+}
 async function toggleParentPicker (event?: Event) {
   if (submitting.value || parentTasksLoading.value || parentTaskDefaultsLoading.value) return
   if (parentPickerOpen.value) {
     closeParentPicker()
     return
   }
-  parentPickerAnchorEl.value = captureParentPickerAnchor(event)
+  closeListPicker()
+  parentPickerAnchorEl.value = captureMetaPickerAnchor(event, '.action-btn--parent')
   parentPickerError.value = null
   parentPickerOpen.value = true
   updateParentPickerPosition()
@@ -342,10 +474,27 @@ async function toggleParentPicker (event?: Event) {
     updateParentPickerPosition()
   }
 }
+async function toggleListPicker (event?: Event) {
+  if (submitting.value) return
+  if (listPickerOpen.value) {
+    closeListPicker()
+    return
+  }
+  closeParentPicker()
+  listPickerAnchorEl.value = captureMetaPickerAnchor(event, '.action-btn--list')
+  listPickerError.value = null
+  listPickerOpen.value = true
+  updateListPickerPosition()
+}
 function closeParentPicker () {
   parentPickerOpen.value = false
   parentPickerError.value = null
   parentPickerStyle.value = {}
+}
+function closeListPicker () {
+  listPickerOpen.value = false
+  listPickerError.value = null
+  listPickerStyle.value = {}
 }
 function selectParentTask (id: number) {
   if (parentTaskId.value === id) return
@@ -355,32 +504,48 @@ function clearParentTask () {
   if (parentTaskId.value === null) return
   parentTaskId.value = null
 }
-function shouldIgnoreParentPickerOutsideClose (target: Node): boolean {
+function selectList (listId: number) {
+  if (selectedListId.value === listId) {
+    closeListPicker()
+    return
+  }
+  selectedListId.value = listId
+  closeListPicker()
+}
+function shouldIgnoreMetaPickerOutsideClose (target: Node, selectors: string[]): boolean {
   if (!(target instanceof Element)) return false
-  const root = parentPickerRootRef.value
+  const root = metaPickerRootRef.value
   if (!root) return false
-  const actionBtn = root.querySelector('.action-btn')
-  if (actionBtn instanceof HTMLElement && actionBtn.contains(target)) {
-    return true
-  }
-  const detailBtn = root.querySelector('.detail-value-btn')
-  if (detailBtn instanceof HTMLElement && detailBtn.contains(target)) {
-    return true
-  }
-  return false
+  return selectors.some((selector) => {
+    const el = root.querySelector(selector)
+    return el instanceof HTMLElement && el.contains(target)
+  })
 }
 function onParentPickerOutsidePointerUp (event: MouseEvent) {
   if (!parentPickerOpen.value || event.button !== 0) return
   const target = event.target
   if (!(target instanceof Node)) return
   if (resolveParentPickerPopoverElement()?.contains(target)) return
-  if (shouldIgnoreParentPickerOutsideClose(target)) return
+  if (shouldIgnoreMetaPickerOutsideClose(target, ['.action-btn--parent', '.detail-value-btn--parent'])) return
   dismissPopoverFromOutsidePointer(target, closeParentPicker)
+}
+function onListPickerOutsidePointerUp (event: MouseEvent) {
+  if (!listPickerOpen.value || event.button !== 0) return
+  const target = event.target
+  if (!(target instanceof Node)) return
+  if (resolveListPickerPopoverElement()?.contains(target)) return
+  if (shouldIgnoreMetaPickerOutsideClose(target, ['.action-btn--list', '.detail-value-btn--list'])) return
+  dismissPopoverFromOutsidePointer(target, closeListPicker)
 }
 function onParentPickerEscape (event: KeyboardEvent) {
   if (!parentPickerOpen.value || event.key !== 'Escape') return
   event.stopPropagation()
   closeParentPicker()
+}
+function onListPickerEscape (event: KeyboardEvent) {
+  if (!listPickerOpen.value || event.key !== 'Escape') return
+  event.stopPropagation()
+  closeListPicker()
 }
 function bindParentPickerListeners () {
   document.addEventListener('mouseup', onParentPickerOutsidePointerUp, true)
@@ -390,10 +555,22 @@ function unbindParentPickerListeners () {
   document.removeEventListener('mouseup', onParentPickerOutsidePointerUp, true)
   document.removeEventListener('keydown', onParentPickerEscape, true)
 }
+function bindListPickerListeners () {
+  document.addEventListener('mouseup', onListPickerOutsidePointerUp, true)
+  document.addEventListener('keydown', onListPickerEscape, true)
+}
+function unbindListPickerListeners () {
+  document.removeEventListener('mouseup', onListPickerOutsidePointerUp, true)
+  document.removeEventListener('keydown', onListPickerEscape, true)
+}
 function onBackdropClose () {
   if (submitting.value) return
   if (parentPickerOpen.value) {
     closeParentPicker()
+    return
+  }
+  if (listPickerOpen.value) {
+    closeListPicker()
     return
   }
   if (panePopoverOpen.value) {
@@ -446,13 +623,16 @@ function resetForm () {
   draft.value = createEmptyTaskFormDraft()
   createAsParent.value = false
   parentTaskId.value = null
+  selectedListId.value = props.listId
   parentTasks.value = []
   parentTasksFetched.value = false
   parentTaskDefaultsLoading.value = false
   submitError.value = null
   titleError.value = null
   parentPickerError.value = null
+  listPickerError.value = null
   closeParentPicker()
+  closeListPicker()
 }
 async function applyParentTaskDefaults (parentId: number | null) {
   if (createAsParent.value) return
@@ -491,7 +671,7 @@ async function submit () {
     titleError.value = validationError
     return
   }
-  if (props.listId === null) {
+  if (selectedListId.value === null) {
     submitError.value = 'リストが選択されていません'
     return
   }
@@ -499,12 +679,10 @@ async function submit () {
   submitting.value = true
   submitError.value = null
   try {
-    await ensureOrgEffortSettings(props.orgSlug)
     const body = buildTaskCreateBody(draft.value, {
-      listId: props.listId,
+      listId: selectedListId.value,
       createAsParent: createAsParent.value,
       parentTaskId: parentTaskId.value,
-      orgEffortUnit: getOrgEffortUnit(props.orgSlug),
     })
     const created = await api<CreatedTask>(
       `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks`,
@@ -543,6 +721,18 @@ watch(parentPickerOpen, (open) => {
   removeParentPickerResizeListener?.()
   removeParentPickerResizeListener = null
 })
+watch(listPickerOpen, (open) => {
+  if (open) {
+    bindListPickerListeners()
+    const onResize = () => updateListPickerPosition()
+    window.addEventListener('resize', onResize)
+    removeListPickerResizeListener = () => window.removeEventListener('resize', onResize)
+    return
+  }
+  unbindListPickerListeners()
+  removeListPickerResizeListener?.()
+  removeListPickerResizeListener = null
+})
 watch(
   () => draft.value.title,
   () => {
@@ -566,298 +756,16 @@ watch(
     document.removeEventListener('keydown', onDocumentKeydown, true)
     resetOverlayBackdropClose()
     closeParentPicker()
+    closeListPicker()
   },
 )
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocumentKeydown, true)
   resetOverlayBackdropClose()
   unbindParentPickerListeners()
+  unbindListPickerListeners()
   removeParentPickerResizeListener?.()
+  removeListPickerResizeListener?.()
 })
 </script>
-<style lang="scss" scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  justify-content: center;
-  padding: 14px;
-  z-index: 70;
-  overflow-y: auto;
-}
-.modal-overlay--popover-open {
-  overflow: hidden;
-}
-.modal-card {
-  position: relative;
-  width: min(560px, 100%);
-  margin: auto;
-  flex-shrink: 0;
-  border-radius: 12px;
-  overflow: visible;
-  background: #fff;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-}
-.modal-header {
-  @include mixin.modal-header-bar;
-  border-radius: 12px 12px 0 0;
-}
-.modal-header h3 {
-  margin: 0;
-  font-size: 14.7px;
-  line-height: 1;
-}
-.icon-close {
-  @include mixin.modal-close-hit-area;
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 19.6px;
-  line-height: 1;
-  cursor: pointer;
-}
-.modal-body {
-  position: relative;
-  padding: 16.8px 18.9px 18.9px;
-  display: flex;
-  flex-direction: column;
-  gap: 15.4px;
-  overflow: visible;
-  border-radius: 0 0 12px 12px;
-}
-.parent-section {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.parent-toggle-card {
-  border: 1.6px solid mixin.$main;
-  border-radius: 10px;
-  background: mixin.$main-aqua-surface;
-  padding: 11.9px 13.3px;
-}
-.parent-toggle-card__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10.5px;
-}
-.parent-toggle-card__label-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 6.3px;
-  min-width: 0;
-}
-.parent-toggle-card__icon {
-  flex-shrink: 0;
-  color: mixin.$text;
-}
-.parent-toggle-card__label {
-  font-size: 12.88px;
-  font-weight: 700;
-  color: mixin.$text;
-  line-height: 1.3;
-}
-.parent-toggle-card__hint {
-  margin: 6.3px 0 0;
-  padding-left: 23.1px;
-  font-size: 10.92px;
-  line-height: 1.45;
-  color: mixin.$text;
-}
-.task-form-section {
-  overflow: visible;
-  min-width: 0;
-}
-.toggle-switch {
-  border: none;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.toggle-switch__track {
-  display: inline-flex;
-  align-items: center;
-  width: 36.4px;
-  height: 20.3px;
-  border-radius: 999px;
-  background: #cbd5e1;
-  padding: 2.1px;
-  box-sizing: border-box;
-  transition: background 0.15s ease;
-}
-.toggle-switch[aria-checked='true'] .toggle-switch__track {
-  background: mixin.$main;
-}
-.toggle-switch__thumb {
-  width: 16.1px;
-  height: 16.1px;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
-  transform: translateX(0);
-  transition: transform 0.15s ease;
-}
-.toggle-switch[aria-checked='true'] .toggle-switch__thumb {
-  transform: translateX(16.1px);
-}
-.parent-picker-block {
-  display: flex;
-  flex-direction: column;
-  gap: 10.5px;
-}
-.parent-select-wrap {
-  position: relative;
-  align-self: flex-start;
-}
-.popover-layer--portal {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  pointer-events: none;
-}
-.popover-layer--portal .popover {
-  position: fixed;
-  margin: 0;
-  pointer-events: auto;
-}
-.popover {
-  position: absolute;
-  z-index: 10;
-  width: min(259px, calc(100vw - 21px));
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.2);
-  border: 1px solid #e2e8f0;
-  padding: 10.5px;
-  display: flex;
-  flex-direction: column;
-  gap: 9.1px;
-}
-.popover--parent-task {
-  width: min(273px, calc(100vw - 21px));
-  padding: 0;
-  gap: 0;
-}
-.popover-fade-enter-active,
-.popover-fade-leave-active {
-  transition: opacity 0.12s ease;
-}
-.popover-fade-enter-from,
-.popover-fade-leave-to {
-  opacity: 0;
-}
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4.9px;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 5.32px 9.8px;
-  font-size: 11.76px;
-  font-weight: 600;
-  color: #334155;
-  background: #f8fafc;
-  cursor: pointer;
-}
-.action-btn:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-}
-.action-btn--active,
-.action-btn--active:hover:not(:disabled) {
-  background: color-mix(in srgb, mixin.$main 12%, mixin.$white);
-  border-color: mixin.$main;
-  color: mixin.$main-hover;
-}
-.action-btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  line-height: 0;
-}
-.detail-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 14px 17.5px;
-}
-.detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4.9px;
-}
-.detail-item--parent {
-  min-width: 0;
-  flex: 1 1 0;
-}
-.detail-item-label {
-  font-size: 10.92px;
-  font-weight: 700;
-  color: #64748b;
-}
-.detail-value-btn {
-  align-self: flex-start;
-  border: none;
-  border-radius: 6px;
-  padding: 4.9px 7.7px;
-  font-size: 12.88px;
-  font-weight: 700;
-  color: #0f172a;
-  background: #fff;
-  cursor: pointer;
-  text-align: left;
-}
-.detail-item--parent .detail-value-btn {
-  font-size: 16.8px;
-  padding: 6.3px 9.8px;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.detail-item--parent .detail-value-btn:disabled {
-  opacity: 1;
-  color: #0f172a;
-  cursor: default;
-}
-.detail-value-btn--editing {
-  cursor: pointer;
-}
-.modal-footer {
-  display: flex;
-  justify-content: center;
-  gap: 7px;
-  padding-top: 3.5px;
-}
-.primary-btn,
-.ghost-btn {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  padding: 7px 15.4px;
-  font-weight: 800;
-  cursor: pointer;
-  font-size: 16px;
-}
-.primary-btn {
-  background: mixin.$main;
-  color: mixin.$white;
-}
-.ghost-btn {
-  border-color: #cbd5e1;
-  color: mixin.$text-sub;
-  background: #f1f5f9;
-}
-.err {
-  margin: 0;
-  color: mixin.$danger;
-  font-weight: 700;
-  font-size: 12.04px;
-}
-button:disabled:not(.parent-task-picker-row):not(.detail-value-btn) {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/components/modals/TaskCreateModal.scss"></style>

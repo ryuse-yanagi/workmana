@@ -20,25 +20,16 @@ abstract class ApiController extends Controller
 
     protected function ensureWorkspaceMember(User $user, Workspace $workspace): void
     {
-        if (! $user->isMemberOfWorkspace($workspace)) {
-            abort(403, 'Not a member of this workspace.');
+        if (! $user->canAccessWorkspace($workspace)) {
+            abort(403, 'Not a member of this organization.');
         }
     }
 
-    protected function denyIfWorkspaceViewer(User $user, Workspace $workspace): void
-    {
-        $role = $user->workspacePivot($workspace)?->role ?? '';
-        if ($role === 'viewer') {
-            abort(403, 'Viewer role is read-only.');
-        }
-    }
-
-    protected function assertCanManageWorkspacesInOrganization(Request $request): void
+    protected function assertOrganizationAdmin(Request $request): void
     {
         $pivot = $request->attributes->get('organization_membership');
-        $role = $pivot->role ?? '';
-        if ($role !== 'admin') {
-            abort(403, 'Insufficient organization role to manage workspaces.');
+        if (($pivot->role ?? '') !== 'admin') {
+            abort(403, 'Only organization admins can manage organization settings.');
         }
     }
 

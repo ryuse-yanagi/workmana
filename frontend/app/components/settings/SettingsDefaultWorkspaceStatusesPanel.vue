@@ -2,6 +2,7 @@
   <SettingsDefaultNamedColorItemsPanel
     :org-slug="orgSlug"
     :initial-items="initialItems"
+    :can-manage="canManage"
     title="ステータス設定"
     note="スペースに設定できるステータスの選択肢と色を定義します。上から順に表示されます。新規スペースには先頭のステータスが自動で設定されます。"
     settings-field="default_workspace_status_names"
@@ -23,5 +24,6 @@ import { DEFAULT_WORKSPACE_STATUS_ITEMS, type DefaultNamedColorItem } from './ty
 defineProps<{
   orgSlug: string
   initialItems: DefaultNamedColorItem[]
+  canManage: boolean
 }>()
 </script>

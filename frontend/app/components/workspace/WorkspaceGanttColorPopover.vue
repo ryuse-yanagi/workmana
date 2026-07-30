@@ -32,7 +32,7 @@ import PopoverShell from '../ui/PopoverShell.vue'
 const props = defineProps<{
   open: boolean
   modelValue: string
-  anchor: { top: number; left: number } | null
+  anchor: { top: number; left: number; right?: number } | null
   saving?: boolean
 }>()
 const emit = defineEmits<{
@@ -46,19 +46,30 @@ const positionStyle = computed(() => {
       visibility: 'hidden',
     } as Record<string, string>
   }
-  const pad = 8
+  const pad = 12
+  const topPad = 200
+  const gap = 6
   const width = 240
-  let left = props.anchor.left
-  let top = props.anchor.top + 8
+  const anchorRight = props.anchor.right ?? props.anchor.left
+  const anchorLeft = props.anchor.left
+  let left = anchorRight + gap
+  let top = Math.max(topPad, Math.round(props.anchor.top))
   if (import.meta.client) {
+    if (left + width > window.innerWidth - pad) {
+      left = anchorLeft - gap - width
+    }
     left = Math.max(pad, Math.min(left, window.innerWidth - width - pad))
-    top = Math.max(pad, Math.min(top, window.innerHeight - 280))
+    top = Math.max(topPad, Math.min(top, window.innerHeight - pad - 40))
   }
+  const maxHeight = import.meta.client
+    ? Math.max(120, Math.floor(window.innerHeight - top - pad))
+    : 280
   return {
     position: 'fixed',
     top: `${top}px`,
-    left: `${left}px`,
+    left: `${Math.round(left)}px`,
     width: `${width}px`,
+    maxHeight: `${maxHeight}px`,
     zIndex: '1',
     visibility: 'visible',
   }
@@ -99,22 +110,5 @@ defineExpose({
   shellRef,
 })
 </script>
-<style lang="scss" scoped>
-.gantt-color-popover-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 119;
-}
-.gantt-color-popover-backdrop {
-  position: absolute;
-  inset: 0;
-}
-.gantt-color-popover-layer :deep(.popover-shell) {
-  pointer-events: auto;
-}
-</style>
-<style lang="scss">
-.popover.popover--gantt-color {
-  padding: 10.5px 11.9px 12.6px;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/components/workspace/WorkspaceGanttColorPopover.scss"></style>
+<style lang="scss" src="~/assets/styles/components/workspace/WorkspaceGanttColorPopover.global.scss"></style>

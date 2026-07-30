@@ -148,24 +148,109 @@
               @select="updateDocumentCategory"
             />
           </div>
-          <div class="document-sidebar__labels">
-            <span
-              v-if="!documentLabels.length"
-              class="document-sidebar__label-unset"
-            >ラベル未設定</span>
-            <LabelStrip
-              v-for="label in documentLabels"
-              :key="label.id"
-              :label="label"
-              size="md"
-            />
-            <DocumentLabelSelect
-              :selected-ids="selectedLabelIds"
-              :labels="orgDocumentLabels"
-              :pending="labelSaving"
-              @toggle="toggleDocumentLabel"
-            />
-          </div>
+          <section class="document-sidebar__field-section">
+            <h2 class="document-sidebar__section-heading">ラベル</h2>
+            <div class="document-sidebar__labels">
+              <LabelStrip
+                v-for="label in documentLabels"
+                :key="label.id"
+                :label="label"
+                size="md"
+              />
+              <DocumentLabelSelect
+                :selected-ids="selectedLabelIds"
+                :labels="orgDocumentLabels"
+                :pending="labelSaving"
+                @toggle="toggleDocumentLabel"
+              />
+            </div>
+          </section>
+          <section class="document-sidebar__field-section">
+            <h2 class="document-sidebar__section-heading">関連スペース</h2>
+            <ul
+              v-if="relatedWorkspaces.length"
+              class="document-sidebar__related-list"
+            >
+              <li
+                v-for="item in relatedWorkspaces"
+                :key="`workspace-${item.id}`"
+                class="document-sidebar__related-item"
+              >
+                <NuxtLink
+                  :to="`/org/${slug}/workspaces/${item.id}`"
+                  class="document-sidebar__related-link"
+                >
+                  <span class="document-sidebar__related-link-text">{{ item.name }}</span>
+                </NuxtLink>
+                <button
+                  type="button"
+                  class="document-sidebar__related-menu-btn"
+                  data-related-menu-trigger
+                  aria-label="関連スペースのメニュー"
+                  :aria-expanded="isRelatedMenuOpen('workspace', item.id)"
+                  :disabled="relatedDetachPending"
+                  @click.stop="toggleRelatedMenu('workspace', item.id, $event)"
+                >
+                  <EllipsisVertical
+                    :size="18"
+                    :stroke-width="2.25"
+                    aria-hidden="true"
+                  />
+                </button>
+              </li>
+            </ul>
+            <button
+              type="button"
+              class="document-sidebar__related-edit-btn"
+              :disabled="relatedWorkspaceSaving"
+              @click="openRelatedWorkspaceModal"
+            >
+              編集
+            </button>
+          </section>
+          <section class="document-sidebar__field-section">
+            <h2 class="document-sidebar__section-heading">関連資料</h2>
+            <ul
+              v-if="relatedDocuments.length"
+              class="document-sidebar__related-list"
+            >
+              <li
+                v-for="item in relatedDocuments"
+                :key="`document-${item.id}`"
+                class="document-sidebar__related-item"
+              >
+                <NuxtLink
+                  :to="`/org/${slug}/documents/${item.id}`"
+                  class="document-sidebar__related-link"
+                >
+                  <span class="document-sidebar__related-link-text">{{ item.name }}</span>
+                </NuxtLink>
+                <button
+                  type="button"
+                  class="document-sidebar__related-menu-btn"
+                  data-related-menu-trigger
+                  aria-label="関連資料のメニュー"
+                  :aria-expanded="isRelatedMenuOpen('document', item.id)"
+                  :disabled="relatedDetachPending"
+                  @click.stop="toggleRelatedMenu('document', item.id, $event)"
+                >
+                  <EllipsisVertical
+                    :size="18"
+                    :stroke-width="2.25"
+                    aria-hidden="true"
+                  />
+                </button>
+              </li>
+            </ul>
+            <button
+              type="button"
+              class="document-sidebar__related-edit-btn"
+              :disabled="relatedDocumentSaving"
+              @click="openRelatedDocumentModal"
+            >
+              編集
+            </button>
+          </section>
         </aside>
         <section class="document-viewer">
           <div
@@ -232,48 +317,19 @@
           </div>
         </section>
       </div>
-      <Teleport to="body">
-        <div
-          v-if="documentMenuOpen && documentMenuPosition"
-          class="document-header-menu-dropdown"
-          :class="{ 'document-header-menu-dropdown--share': documentMenuMode === 'share' }"
-          role="menu"
-          :style="documentMenuStyle"
-          @pointerdown.stop
-          @click.stop
-        >
-          <template v-if="documentMenuMode === 'actions'">
-            <button
-              type="button"
-              class="document-header-menu-item"
-              role="menuitem"
-              :disabled="documentMetaPending"
-              @click="openDocumentEditModal"
-            >
-              編集
-            </button>
-            <button
-              type="button"
-              class="document-header-menu-item"
-              role="menuitem"
-              @click="switchDocumentMenuToShare"
-            >
-              共有
-            </button>
-            <button
-              type="button"
-              class="document-header-menu-item document-header-menu-item--danger"
-              role="menuitem"
-              :disabled="documentMetaPending || deletePending"
-              @click="openDocumentDeleteModal"
-            >
-              削除
-            </button>
-          </template>
-          <div
-            v-else
-            class="document-header-share-panel"
-          >
+      <FloatingMenu
+        :open="Boolean(documentMenuOpen && documentMenuPosition && documentMenuMode === 'actions')"
+        :style="documentMenuStyle"
+        :items="documentHeaderMenuItems"
+        @select="onDocumentHeaderMenuSelect"
+      />
+      <FloatingMenu
+        :open="Boolean(documentMenuOpen && documentMenuPosition && documentMenuMode === 'share')"
+        :style="documentMenuStyle"
+        root-class="document-header-menu--share"
+      >
+        <li role="none" class="document-header-share-panel-wrap">
+          <div class="document-header-share-panel">
             <p class="document-header-share-panel__label">共有リンク</p>
             <input
               ref="shareUrlInputRef"
@@ -286,8 +342,8 @@
               @focus="onShareUrlFocus"
             />
           </div>
-        </div>
-      </Teleport>
+        </li>
+      </FloatingMenu>
       <DocumentCreateModal
         v-model="documentFormModalOpen"
         mode="edit"
@@ -306,6 +362,41 @@
         :loading="deletePending"
         @confirm="confirmDocumentDelete"
       />
+      <FloatingMenu
+        :open="Boolean(relatedMenuOpen && relatedMenuPosition)"
+        density="compact"
+        :style="relatedMenuStyle"
+        :disabled="relatedDetachPending"
+        :items="relatedMenuItems"
+        @select="onRelatedMenuSelect"
+      />
+      <RelatedItemPickerModal
+        ref="relatedWorkspaceModalRef"
+        v-model="relatedWorkspaceModalOpen"
+        title="関連スペースの編集"
+        search-placeholder="スペース名で検索"
+        empty-message="該当するスペースがありません。"
+        :items="workspacePickerItems"
+        :initial-selected-ids="relatedWorkspaceSelectedIds"
+        :candidates-loading="workspaceCandidatesLoading"
+        :candidates-error="workspaceCandidatesError"
+        :loading="relatedWorkspaceSaving"
+        @submit="onRelatedWorkspacesSubmit"
+      />
+      <RelatedItemPickerModal
+        ref="relatedDocumentModalRef"
+        v-model="relatedDocumentModalOpen"
+        title="関連資料の編集"
+        search-placeholder="資料名で検索"
+        empty-message="該当する資料がありません。"
+        :items="documentPickerItems"
+        :initial-selected-ids="relatedDocumentSelectedIds"
+        :hidden-ids="relatedDocumentHiddenIds"
+        :candidates-loading="documentCandidatesLoading"
+        :candidates-error="documentCandidatesError"
+        :loading="relatedDocumentSaving"
+        @submit="onRelatedDocumentsSubmit"
+      />
     </template>
   </main>
 </template>
@@ -316,7 +407,12 @@ import {
   useOrgDocumentsPageData,
   type OrgDocument,
   type OrgDocumentCategory,
+  type OrgDocumentRelatedItem,
 } from '../../../../composables/useOrgDocumentsPageData'
+import {
+  useOrgWorkspaceIndexPageData,
+  type OrgWorkspaceRelatedItem,
+} from '../../../../composables/useOrgWorkspaceIndexPageData'
 import { useApi } from '../../../../composables/useApi'
 import type { TaskFormCategory, TaskFormLabel } from '../../../../composables/useTaskFormHelpers'
 import {
@@ -330,13 +426,19 @@ import {
   resolveStandardColors,
 } from '../../../../utils/colorPresetResolution'
 import LabelStrip from '../../../../components/ui/LabelStrip.vue'
+import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
 import DocumentCategorySelect from '../../../../components/documents/DocumentCategorySelect.vue'
 import DocumentLabelSelect from '../../../../components/documents/DocumentLabelSelect.vue'
 import { renderMarkdownToSafeHtml } from '../../../../utils/renderMarkdown'
-import { Pencil, Save, Ellipsis } from 'lucide-vue-next'
+import { Pencil, Save, Ellipsis, EllipsisVertical } from 'lucide-vue-next'
 import DocumentCreateModal from '../../../../components/modals/DocumentCreateModal.vue'
 import DocumentDeleteModal from '../../../../components/modals/DocumentDeleteModal.vue'
+import RelatedItemPickerModal from '../../../../components/modals/RelatedItemPickerModal.vue'
 import { useDropdownEscapeClose } from '../../../../composables/useDropdownEscapeClose'
+import {
+  syncPeerCachesAfterDocumentRelatedDocumentsChange,
+  syncPeerCachesAfterDocumentRelatedWorkspacesChange,
+} from '../../../../composables/syncRelatedRelationCaches'
 
 /** 資料本文用紙の最小縦幅（入力に応じて下方向へ伸びる） */
 const DOCUMENT_PAGE_MIN_HEIGHT_PX = 767
@@ -398,6 +500,29 @@ const documentDeleteModalOpen = ref(false)
 const documentDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const documentMetaPending = ref(false)
 const deletePending = ref(false)
+const relatedWorkspaceModalOpen = ref(false)
+const relatedDocumentModalOpen = ref(false)
+const relatedWorkspaceSaving = ref(false)
+const relatedDocumentSaving = ref(false)
+const relatedDetachPending = ref(false)
+const relatedWorkspaceModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const relatedDocumentModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const workspaceCandidates = ref<OrgWorkspaceRelatedItem[]>([])
+const documentCandidates = ref<OrgDocumentRelatedItem[]>([])
+const workspaceCandidatesLoading = ref(false)
+const documentCandidatesLoading = ref(false)
+const workspaceCandidatesError = ref<string | null>(null)
+const documentCandidatesError = ref<string | null>(null)
+type RelatedMenuKind = 'workspace' | 'document'
+const relatedMenuOpen = ref(false)
+const relatedMenuKind = ref<RelatedMenuKind | null>(null)
+const relatedMenuItemId = ref<number | null>(null)
+const relatedMenuPosition = ref<{ top: number; left: number } | null>(null)
+const RELATED_MENU_WIDTH = 160
+const {
+  getCached: getWorkspaceIndexCached,
+  fetchSnapshot: fetchWorkspaceIndexSnapshot,
+} = useOrgWorkspaceIndexPageData()
 const DOCUMENT_MENU_ACTIONS_WIDTH = 160
 const DOCUMENT_MENU_SHARE_WIDTH = 320
 const pageCssVars = computed(() => ({
@@ -468,6 +593,303 @@ const documentLabels = computed(() => {
   return resolveLabelColors(labels)
 })
 const selectedLabelIds = computed(() => documentLabels.value.map(label => label.id))
+const relatedWorkspaces = computed(() => currentDocument.value?.related_workspaces ?? [])
+const relatedDocuments = computed(() => currentDocument.value?.related_documents ?? [])
+const relatedWorkspaceSelectedIds = computed(() => relatedWorkspaces.value.map(item => item.id))
+const relatedDocumentSelectedIds = computed(() => relatedDocuments.value.map(item => item.id))
+const relatedDocumentHiddenIds = computed(() => {
+  const currentId = Number(documentId.value)
+  return Number.isFinite(currentId) ? [currentId] : []
+})
+const relatedMenuStyle = computed(() => {
+  if (!relatedMenuPosition.value) {
+    return undefined
+  }
+  const { top, left } = relatedMenuPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    width: `${RELATED_MENU_WIDTH}px`,
+    zIndex: 90,
+  }
+})
+function mergePickerItems<T extends { id: number }> (candidates: T[], related: T[]): T[] {
+  const map = new Map<number, T>()
+  for (const item of candidates) {
+    map.set(item.id, item)
+  }
+  for (const item of related) {
+    if (!map.has(item.id)) {
+      map.set(item.id, item)
+    }
+  }
+  return [...map.values()]
+}
+const workspacePickerItems = computed(() => mergePickerItems(
+  workspaceCandidates.value,
+  relatedWorkspaces.value,
+))
+const documentPickerItems = computed(() => mergePickerItems(
+  documentCandidates.value,
+  relatedDocuments.value,
+))
+function isRelatedMenuOpen (kind: RelatedMenuKind, id: number) {
+  return relatedMenuOpen.value
+    && relatedMenuKind.value === kind
+    && relatedMenuItemId.value === id
+}
+function closeRelatedMenu () {
+  relatedMenuOpen.value = false
+  relatedMenuKind.value = null
+  relatedMenuItemId.value = null
+  relatedMenuPosition.value = null
+}
+function positionRelatedMenu (anchor: HTMLElement) {
+  if (!import.meta.client) {
+    relatedMenuPosition.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const pad = 8
+  const gap = 4
+  let left = rect.right - RELATED_MENU_WIDTH
+  left = Math.min(left, window.innerWidth - pad - RELATED_MENU_WIDTH)
+  left = Math.max(pad, left)
+  relatedMenuPosition.value = {
+    top: rect.bottom + gap,
+    left,
+  }
+}
+function toggleRelatedMenu (kind: RelatedMenuKind, id: number, event: MouseEvent) {
+  if (relatedDetachPending.value) {
+    return
+  }
+  if (isRelatedMenuOpen(kind, id)) {
+    closeRelatedMenu()
+    return
+  }
+  const anchor = event.currentTarget
+  if (!(anchor instanceof HTMLElement)) {
+    return
+  }
+  relatedMenuKind.value = kind
+  relatedMenuItemId.value = id
+  positionRelatedMenu(anchor)
+  relatedMenuOpen.value = true
+}
+function onRelatedMenuGlobalPointerDown (event: Event) {
+  if (!relatedMenuOpen.value) {
+    return
+  }
+  const target = event.target
+  if (!(target instanceof Node)) {
+    closeRelatedMenu()
+    return
+  }
+  const el = target instanceof Element ? target : target.parentElement
+  if (el?.closest('[data-related-menu-trigger]')) {
+    return
+  }
+  if (el?.closest('[data-floating-menu]')) {
+    return
+  }
+  closeRelatedMenu()
+}
+function onRelatedMenuWindowResize () {
+  if (!relatedMenuOpen.value) {
+    return
+  }
+  closeRelatedMenu()
+}
+useDropdownEscapeClose(relatedMenuOpen, closeRelatedMenu)
+watch(relatedMenuOpen, (open) => {
+  if (!import.meta.client) {
+    return
+  }
+  if (open) {
+    document.addEventListener('pointerdown', onRelatedMenuGlobalPointerDown, true)
+    window.addEventListener('resize', onRelatedMenuWindowResize)
+    return
+  }
+  document.removeEventListener('pointerdown', onRelatedMenuGlobalPointerDown, true)
+  window.removeEventListener('resize', onRelatedMenuWindowResize)
+})
+async function loadWorkspaceCandidates () {
+  workspaceCandidatesLoading.value = true
+  workspaceCandidatesError.value = null
+  try {
+    const cached = getWorkspaceIndexCached(slug.value)
+    const snapshot = cached ?? await fetchWorkspaceIndexSnapshot(slug.value)
+    workspaceCandidates.value = snapshot.workspaces.map(item => ({
+      id: item.id,
+      name: item.name,
+      description: item.description ?? null,
+    }))
+  } catch (e: unknown) {
+    workspaceCandidates.value = []
+    workspaceCandidatesError.value = e instanceof Error ? e.message : 'スペース一覧の取得に失敗しました'
+  } finally {
+    workspaceCandidatesLoading.value = false
+  }
+}
+async function loadDocumentCandidates () {
+  documentCandidatesLoading.value = true
+  documentCandidatesError.value = null
+  try {
+    const cached = getCached(slug.value)
+    const snapshot = cached ?? await fetchSnapshot(slug.value)
+    documentCandidates.value = snapshot.documents.map(item => ({
+      id: item.id,
+      name: item.name,
+      description: item.description ?? null,
+    }))
+  } catch (e: unknown) {
+    documentCandidates.value = []
+    documentCandidatesError.value = e instanceof Error ? e.message : '資料一覧の取得に失敗しました'
+  } finally {
+    documentCandidatesLoading.value = false
+  }
+}
+async function openRelatedWorkspaceModal () {
+  relatedWorkspaceModalOpen.value = true
+  await loadWorkspaceCandidates()
+}
+async function openRelatedDocumentModal () {
+  relatedDocumentModalOpen.value = true
+  await loadDocumentCandidates()
+}
+async function onRelatedWorkspacesSubmit (ids: number[]) {
+  const current = currentDocument.value
+  if (!current || relatedWorkspaceSaving.value) {
+    return
+  }
+  relatedWorkspaceSaving.value = true
+  try {
+    const previous = current.related_workspaces ?? []
+    const res = await api<{ data: OrgDocumentRelatedItem[] }>(
+      `/orgs/${slug.value}/documents/${current.id}/related-workspaces`,
+      { method: 'PUT', body: { workspace_ids: ids } },
+    )
+    const nextDocument = {
+      ...current,
+      related_workspaces: res.data,
+    }
+    applyDocument(nextDocument)
+    upsertDocumentCached(slug.value, nextDocument)
+    syncPeerCachesAfterDocumentRelatedWorkspacesChange(
+      slug.value,
+      current,
+      previous,
+      res.data,
+    )
+    relatedWorkspaceModalOpen.value = false
+  } catch (e: unknown) {
+    relatedWorkspaceModalRef.value?.setSubmitError(
+      e instanceof Error ? e.message : '関連スペースの保存に失敗しました',
+    )
+  } finally {
+    relatedWorkspaceSaving.value = false
+  }
+}
+async function onRelatedDocumentsSubmit (ids: number[]) {
+  const current = currentDocument.value
+  if (!current || relatedDocumentSaving.value) {
+    return
+  }
+  relatedDocumentSaving.value = true
+  try {
+    const previous = current.related_documents ?? []
+    const res = await api<{ data: OrgDocumentRelatedItem[] }>(
+      `/orgs/${slug.value}/documents/${current.id}/related-documents`,
+      { method: 'PUT', body: { document_ids: ids } },
+    )
+    const nextDocument = {
+      ...current,
+      related_documents: res.data,
+    }
+    applyDocument(nextDocument)
+    upsertDocumentCached(slug.value, nextDocument)
+    syncPeerCachesAfterDocumentRelatedDocumentsChange(
+      slug.value,
+      current,
+      previous,
+      res.data,
+    )
+    relatedDocumentModalOpen.value = false
+  } catch (e: unknown) {
+    relatedDocumentModalRef.value?.setSubmitError(
+      e instanceof Error ? e.message : '関連資料の保存に失敗しました',
+    )
+  } finally {
+    relatedDocumentSaving.value = false
+  }
+}
+const relatedMenuItems: FloatingMenuItem[] = [
+  { key: 'detach', label: '関連から除外', danger: true },
+]
+function onRelatedMenuSelect (item: FloatingMenuItem) {
+  if (item.key === 'detach') {
+    void detachRelatedItem()
+  }
+}
+async function detachRelatedItem () {
+  const current = currentDocument.value
+  const kind = relatedMenuKind.value
+  const itemId = relatedMenuItemId.value
+  if (!current || !kind || itemId == null || relatedDetachPending.value) {
+    return
+  }
+  relatedDetachPending.value = true
+  fieldSaveError.value = null
+  try {
+    if (kind === 'workspace') {
+      const previous = current.related_workspaces ?? []
+      const res = await api<{ data: OrgDocumentRelatedItem[] }>(
+        `/orgs/${slug.value}/documents/${current.id}/related-workspaces/${itemId}`,
+        { method: 'DELETE' },
+      )
+      const nextDocument = {
+        ...current,
+        related_workspaces: res.data,
+      }
+      applyDocument(nextDocument)
+      upsertDocumentCached(slug.value, nextDocument)
+      syncPeerCachesAfterDocumentRelatedWorkspacesChange(
+        slug.value,
+        current,
+        previous,
+        res.data,
+      )
+    } else {
+      const previous = current.related_documents ?? []
+      const res = await api<{ data: OrgDocumentRelatedItem[] }>(
+        `/orgs/${slug.value}/documents/${current.id}/related-documents/${itemId}`,
+        { method: 'DELETE' },
+      )
+      const nextDocument = {
+        ...current,
+        related_documents: res.data,
+      }
+      applyDocument(nextDocument)
+      upsertDocumentCached(slug.value, nextDocument)
+      syncPeerCachesAfterDocumentRelatedDocumentsChange(
+        slug.value,
+        current,
+        previous,
+        res.data,
+      )
+    }
+    closeRelatedMenu()
+  } catch (e: unknown) {
+    fieldSaveError.value = e instanceof Error
+      ? e.message
+      : (kind === 'workspace' ? '関連スペースの除外に失敗しました' : '関連資料の除外に失敗しました')
+    closeRelatedMenu()
+  } finally {
+    relatedDetachPending.value = false
+  }
+}
 const selectedCategoryOption = computed((): TaskFormCategory | null => {
   return resolveDocumentCategoryOption(currentDocument.value?.category ?? null)
 })
@@ -659,6 +1081,29 @@ function onShareUrlFocus (event: FocusEvent) {
     el.select()
   }
 }
+const documentHeaderMenuItems = computed<FloatingMenuItem[]>(() => [
+  { key: 'edit', label: '編集', disabled: documentMetaPending.value },
+  { key: 'share', label: '共有' },
+  {
+    key: 'delete',
+    label: '削除',
+    danger: true,
+    disabled: documentMetaPending.value || deletePending.value,
+  },
+])
+function onDocumentHeaderMenuSelect (item: FloatingMenuItem) {
+  if (item.key === 'edit') {
+    openDocumentEditModal()
+    return
+  }
+  if (item.key === 'share') {
+    void switchDocumentMenuToShare()
+    return
+  }
+  if (item.key === 'delete') {
+    openDocumentDeleteModal()
+  }
+}
 function openDocumentEditModal () {
   closeDocumentMenu()
   documentFormModalOpen.value = true
@@ -739,7 +1184,7 @@ function onDocumentMenuGlobalClick (event: Event) {
   if (el?.closest('[data-document-header-menu-root]')) {
     return
   }
-  if (el?.closest('.document-header-menu-dropdown')) {
+  if (el?.closest('[data-floating-menu]')) {
     return
   }
   closeDocumentMenu()
@@ -1133,11 +1578,21 @@ async function confirmBodyEdit () {
 async function load () {
   fatalLoadError.value = null
   void ensureCategoriesLoaded()
-  const cached = getDocumentCached(slug.value, documentId.value)
-    ?? getDocumentFromListCache(slug.value, documentId.value)
+  const detailCached = getDocumentCached(slug.value, documentId.value)
+  const listCached = getDocumentFromListCache(slug.value, documentId.value)
+  const cached = detailCached ?? listCached
   if (cached) {
     applyDocument(cached)
     pageReady.value = true
+    if (!detailCached || cached.related_workspaces === undefined || cached.related_documents === undefined) {
+      void fetchDocument(slug.value, documentId.value)
+        .then((document) => {
+          applyDocument(document)
+        })
+        .catch(() => {
+          // 関連情報の再取得失敗時はキャッシュ表示のままにする
+        })
+    }
     return
   }
   try {
@@ -1198,8 +1653,11 @@ onDeactivated(() => {
   discardBodyEditOnLeave()
   editingField.value = null
   closeDocumentMenu()
+  closeRelatedMenu()
   documentFormModalOpen.value = false
   documentDeleteModalOpen.value = false
+  relatedWorkspaceModalOpen.value = false
+  relatedDocumentModalOpen.value = false
 })
 onMounted(() => {
   if (!pageReady.value) {
@@ -1231,752 +1689,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', updateStickyOffsets)
   document.removeEventListener('click', onDocumentMenuGlobalClick)
   window.removeEventListener('resize', onDocumentMenuWindowResize)
+  document.removeEventListener('pointerdown', onRelatedMenuGlobalPointerDown, true)
+  window.removeEventListener('resize', onRelatedMenuWindowResize)
   globalHeaderObserver?.disconnect()
   globalHeaderObserver = null
 })
 </script>
-<style lang="scss" scoped>
-.document-show-page {
-  display: flex;
-  flex-direction: column;
-  min-height: calc(100dvh - var(--global-header-offset, 56px));
-  height: calc(100dvh - var(--global-header-offset, 56px));
-  max-height: calc(100dvh - var(--global-header-offset, 56px));
-  padding: 0 14px 0;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
-  padding-top: 0;
-  box-sizing: border-box;
-  overflow: hidden;
-}
-.page-header {
-  position: relative;
-  z-index: 40;
-  flex-shrink: 0;
-  width: calc(100% + 28px);
-  margin-left: -14px;
-  margin-right: -14px;
-  @include mixin.page-header-shell;
-  padding: 0 14px;
-}
-.page-header > * {
-  width: 100%;
-  height: 100%;
-}
-.subheader {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 100%;
-  min-width: 0;
-}
-.subheader-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.subheader-editing-badge {
-  margin: 0;
-  margin-right: 8px;
-  font-size: 16px;
-  line-height: 1;
-  white-space: nowrap;
-  user-select: none;
-}
-.document-header-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  box-sizing: border-box;
-  margin: 0;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid mixin.$main;
-  border-radius: 6px;
-  background: #fff;
-  color: mixin.$main;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  line-height: 1;
-  cursor: pointer;
-  white-space: nowrap;
-  :deep(svg) {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-  }
-}
-.document-header-action-btn:not(.document-header-action-btn--muted) {
-  width: 96px;
-}
-.document-header-action-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.document-header-action-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
-.document-header-action-btn--muted {
-  border-color: transparent;
-  background: #e5e7eb;
-  color: #475569;
-}
-.document-header-action-btn--primary {
-  background: mixin.$main;
-  color: #fff;
-}
-.document-header-menu {
-  position: relative;
-  flex-shrink: 0;
-}
-.document-header-menu-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: 32px;
-  height: 32px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: #f0f0f0;
-  color: #64748b;
-  cursor: pointer;
-}
-.document-header-menu-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
-.document-header-menu-btn :deep(svg) {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-.subheader-title {
-  @include mixin.page-header-title;
-}
-.subheader-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4.2px;
-  padding: 8px 0;
-  margin: -8px 0;
-  text-decoration: none;
-  color: mixin.$main;
-  letter-spacing: 0.05em;
-  line-height: 1.1;
-  transition: opacity 0.16s ease;
-  flex-shrink: 0;
-  &::before {
-    content: '';
-    flex-shrink: 0;
-    display: block;
-    width: 0.65em;
-    height: 0.85em;
-    background-color: currentColor;
-    -webkit-mask-image: url('~/assets/images/chevron-left.svg');
-    mask-image: url('~/assets/images/chevron-left.svg');
-    -webkit-mask-size: contain;
-    mask-size: contain;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
-  }
-}
-.subheader-doc-name {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
-  font-weight: 500;
-  color: #64748b;
-  letter-spacing: 0.02em;
-}
-.document-show-body {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  width: calc(100% + 28px);
-  margin-left: -14px;
-  margin-right: -14px;
-  overflow: hidden;
-}
-.document-sidebar {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 400px;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  padding: 20px;
-  background: #fff;
-  box-shadow: 2px 0 10px rgba(15, 23, 42, 0.08);
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #0f172a1a transparent;
-}
-.document-sidebar::-webkit-scrollbar {
-  width: 3px;
-}
-.document-sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.document-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.08);
-  border-radius: 999px;
-}
-.document-sidebar__category {
-  align-self: flex-start;
-  max-width: 100%;
-  min-width: 0;
-}
-.document-sidebar__title-field {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-}
-.document-sidebar__title,
-.document-sidebar__title-input {
-  margin: 0;
-  width: 100%;
-  box-sizing: border-box;
-  font-size: 22px;
-  font-weight: 700;
-  font-family: inherit;
-  line-height: 1.35;
-  color: #0f172a;
-  padding: 8px 12px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.document-sidebar__title {
-  display: block;
-}
-.document-sidebar__title--clickable {
-  cursor: pointer;
-}
-.document-sidebar__title--clickable:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
-.document-sidebar__title--measure {
-  visibility: hidden;
-}
-.document-sidebar__title-field--editing .document-sidebar__title {
-  pointer-events: none;
-}
-.document-sidebar__title-input {
-  position: absolute;
-  inset: 0;
-  display: block;
-  background: transparent;
-  caret-color: #0f172a;
-  appearance: none;
-  -webkit-appearance: none;
-  resize: none;
-  overflow: hidden;
-  white-space: pre-wrap;
-}
-.document-sidebar__title-input:focus {
-  outline: none;
-  border-color: mixin.$main;
-}
-.document-sidebar__title-field--editing {
-  cursor: auto;
-  user-select: text;
-}
-.document-sidebar__labels {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.document-sidebar__label-unset,
-.document-sidebar__labels :deep(.label-strip) {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  max-width: 100%;
-  height: 28px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-}
-.document-sidebar__label-unset {
-  color: mixin.$text-muted;
-  background: mixin.$surface-muted;
-}
-.document-sidebar__labels :deep(.label-strip__text) {
-  width: auto;
-}
-.document-sidebar__description-field {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-  margin: 0 0 8px;
-}
-.document-sidebar__description,
-.document-sidebar__description-input {
-  display: block;
-  margin: 0;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: mixin.$surface-canvas;
-  font-size: 16px;
-  font-family: inherit;
-  font-weight: 400;
-  /* 小数 line-height だと Chromium の選択ハイライトに隙間が出るため整数 px にする */
-  line-height: 28px;
-  color: #334155;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.document-sidebar__description--clickable {
-  cursor: pointer;
-}
-.document-sidebar__description--clickable:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
-.document-sidebar__description--measure {
-  visibility: hidden;
-  pointer-events: none;
-}
-.document-sidebar__description--placeholder {
-  color: #94a3b8;
-}
-.document-sidebar__description-field--editing .document-sidebar__description {
-  pointer-events: none;
-}
-/* app.vue の textarea / :focus 共通スタイルを上書きし、表示⇔編集で寸法が変わらないようにする */
-.document-sidebar textarea.document-sidebar__description-input {
-  position: absolute;
-  inset: 0;
-  height: 100%;
-  caret-color: #334155;
-  appearance: none;
-  -webkit-appearance: none;
-  resize: none;
-  overflow: hidden;
-  text-decoration: none;
-  border: 1px solid transparent;
-  box-shadow: none;
-  outline: none;
-}
-.document-sidebar textarea.document-sidebar__description-input:focus,
-.document-sidebar textarea.document-sidebar__description-input:focus-visible {
-  outline: none;
-  border: 1px solid mixin.$main;
-  box-shadow: none;
-}
-.document-sidebar__description-field--editing {
-  cursor: auto;
-  user-select: text;
-}
-.document-sidebar__save-error {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.4;
-  color: mixin.$danger;
-}
-.document-viewer {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 20px;
-  box-sizing: border-box;
-  background: mixin.$surface-canvas;
-  overflow: auto;
-  overflow-anchor: none;
-}
-.document-viewer__page {
-  position: relative;
-  width: min(100%, 1000px);
-  min-height: var(--document-page-min-height, 767px);
-  box-sizing: border-box;
-  padding: 56px 48px 56px;
-  border: 1px solid transparent;
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
-}
-.document-viewer__page--editing {
-  border-color: mixin.$edit-border;
-}
-.document-viewer__mode-tabs {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.document-viewer__mode-tab {
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: mixin.$text-muted;
-  font-size: 16px;
-  font-weight: 700;
-  font-family: inherit;
-  line-height: 1.2;
-  cursor: pointer;
-}
-.document-viewer__mode-tab--active {
-  color: mixin.$main;
-}
-.document-viewer__mode-tab:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-.document-viewer__body {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.8;
-  color: #1e293b;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.document-viewer__body--preview {
-  white-space: normal;
-  font-size: 14px;
-  /* 斜体フォントが無い場合でも browser 合成で italic を表示する */
-  font-synthesis: style weight;
-  :deep(> :first-child) {
-    margin-top: 0;
-  }
-  :deep(> :last-child) {
-    margin-bottom: 0;
-  }
-  :deep(h1),
-  :deep(h2),
-  :deep(h3),
-  :deep(h4),
-  :deep(h5),
-  :deep(h6) {
-    margin: 1.2em 0 0.5em;
-    font-weight: 700;
-    line-height: 1.35;
-    color: #0f172a;
-  }
-  :deep(h1) { font-size: 24px; }
-  :deep(h2) { font-size: 22px; }
-  :deep(h3) { font-size: 20px; }
-  :deep(h4) { font-size: 18px; }
-  :deep(h5) { font-size: 16px; }
-  :deep(h6) { font-size: 14px; }
-  :deep(p),
-  :deep(ul),
-  :deep(ol),
-  :deep(li),
-  :deep(blockquote),
-  :deep(td),
-  :deep(th),
-  :deep(a) {
-    font-size: 14px;
-  }
-  :deep(em),
-  :deep(i) {
-    font-style: italic;
-  }
-  :deep(strong),
-  :deep(b) {
-    font-weight: 700;
-  }
-  :deep(em strong),
-  :deep(strong em),
-  :deep(i b),
-  :deep(b i) {
-    font-style: italic;
-    font-weight: 700;
-  }
-  :deep(p) {
-    margin: 0 0 0.9em;
-  }
-  :deep(ul),
-  :deep(ol) {
-    margin: 0 0 0.9em;
-    padding-left: 1.5em;
-  }
-  :deep(li + li) {
-    margin-top: 0.25em;
-  }
-  :deep(ul.contains-task-list) {
-    list-style: none;
-    padding-left: 0;
-  }
-  :deep(li.task-list-item) {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    list-style: none;
-  }
-  :deep(li.task-list-item > p) {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin: 0;
-    flex: 1;
-    min-width: 0;
-  }
-  :deep(input.task-list-item-checkbox) {
-    flex-shrink: 0;
-    box-sizing: border-box;
-    width: 14px;
-    height: 14px;
-    margin: 0.35em 0 0;
-    padding: 0;
-    appearance: none;
-    -webkit-appearance: none;
-    border: 1.5px solid #94a3b8;
-    border-radius: 3px;
-    background: #fff;
-    color: #fff;
-    cursor: default;
-    pointer-events: none;
-    vertical-align: middle;
-  }
-  :deep(input.task-list-item-checkbox:checked) {
-    border-color: mixin.$main;
-    background-color: mixin.$main;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: 12px 12px;
-  }
-  :deep(input.task-list-item-checkbox:disabled) {
-    opacity: 1;
-  }
-  :deep(blockquote) {
-    margin: 0 0 0.9em;
-    padding: 0.2em 0 0.2em 0.9em;
-    border-left: 3px solid #cbd5e1;
-    color: #475569;
-  }
-  :deep(blockquote > :first-child) {
-    margin-top: 0;
-  }
-  :deep(blockquote > :last-child) {
-    margin-bottom: 0;
-  }
-  :deep(blockquote p) {
-    margin: 0;
-  }
-  :deep(pre) {
-    margin: 0 0 0.9em;
-    padding: 12px 14px;
-    overflow-x: auto;
-    border-radius: 8px;
-    background: #f1f5f9;
-    font-size: 14px;
-    line-height: 1.55;
-  }
-  :deep(code) {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 14px;
-  }
-  :deep(:not(pre) > code) {
-    padding: 0.1em 0.35em;
-    border-radius: 4px;
-    background: #f1f5f9;
-  }
-  :deep(a) {
-    color: mixin.$main;
-    text-decoration: underline;
-  }
-  :deep(hr) {
-    margin: 1.4em 0;
-    border: none;
-    border-top: 1px solid #e2e8f0;
-  }
-  :deep(table) {
-    width: 100%;
-    margin: 0 0 0.9em;
-    border-collapse: collapse;
-  }
-  :deep(th),
-  :deep(td) {
-    padding: 6px 10px;
-    border: 1px solid #e2e8f0;
-  }
-  :deep(th[align='left']),
-  :deep(td[align='left']) {
-    text-align: left;
-  }
-  :deep(th[align='center']),
-  :deep(td[align='center']) {
-    text-align: center;
-  }
-  :deep(th[align='right']),
-  :deep(td[align='right']) {
-    text-align: right;
-  }
-  :deep(th:not([align])),
-  :deep(td:not([align])) {
-    text-align: left;
-  }
-  :deep(th) {
-    background: #f8fafc;
-    font-weight: 700;
-  }
-}
-.document-viewer__body--empty {
-  color: #94a3b8;
-}
-.document-viewer textarea.document-viewer__body-input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: #1e293b;
-  font-size: 14px;
-  font-family: inherit;
-  font-weight: 400;
-  line-height: 1.8;
-  resize: none;
-  overflow: hidden;
-  appearance: none;
-  -webkit-appearance: none;
-  box-shadow: none;
-  outline: none;
-}
-.document-viewer textarea.document-viewer__body-input:focus,
-.document-viewer textarea.document-viewer__body-input:focus-visible {
-  outline: none;
-  border: none;
-  box-shadow: none;
-}
-.document-viewer__save-error {
-  margin: 12px 0 0;
-  font-size: 13px;
-  line-height: 1.4;
-  color: mixin.$danger;
-}
-@media (max-width: 768px) {
-  .document-show-page {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-    padding-bottom: 14px;
-  }
-  .document-show-body {
-    flex-direction: column;
-    overflow: visible;
-  }
-  .document-sidebar {
-    width: 100%;
-    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
-  }
-  .document-viewer {
-    min-height: 50vh;
-  }
-  .document-viewer__page {
-    width: 100%;
-    padding: 48px 20px 52px;
-  }
-  .document-viewer__mode-tabs {
-    top: 12px;
-    right: 12px;
-    gap: 12px;
-  }
-}
-.document-header-menu-dropdown {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 4.9px 0;
-  list-style: none;
-  background: #fff;
-  border: 1px solid mixin.$border;
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
-  display: flex;
-  flex-direction: column;
-}
-.document-header-menu-dropdown--share {
-  padding: 10px 12px;
-}
-.document-header-menu-item {
-  display: block;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 7.7px 11.9px;
-  text-align: left;
-  font-size: 14px;
-  font-weight: 600;
-  color: mixin.$text;
-  cursor: pointer;
-}
-.document-header-menu-item:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-.document-header-menu-item--danger {
-  color: mixin.$danger;
-}
-.document-header-share-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.document-header-share-panel__label {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: mixin.$text-muted;
-  line-height: 1.2;
-}
-.document-header-share-panel__input {
-  box-sizing: border-box;
-  width: 100%;
-  margin: 0;
-  padding: 8px 10px;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  background: #f8fafc;
-  color: mixin.$text;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.35;
-  cursor: text;
-}
-.document-header-share-panel__input:focus {
-  outline: none;
-  border-color: mixin.$main;
-  box-shadow: 0 0 0 1px mixin.$main;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/pages/org/slug/documents/id.scss"></style>
+
+<style lang="scss" src="~/assets/styles/pages/org/slug/documents/id.global.scss"></style>

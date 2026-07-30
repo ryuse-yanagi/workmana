@@ -32,7 +32,6 @@
 | `admin` | 組織管理者 |
 | `project_leader` | プロジェクトリーダー |
 | `member` | メンバー |
-| `viewer` | 閲覧者 |
 
 ## project_membership.role（`project_memberships.role`）
 

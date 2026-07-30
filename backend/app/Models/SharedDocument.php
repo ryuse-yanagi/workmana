@@ -31,4 +31,24 @@ class SharedDocument extends Model
     {
         return $this->belongsToMany(DocumentLabel::class, 'document_document_label')->withTimestamps();
     }
+
+    public function relatedWorkspaces(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Workspace::class,
+            'workspace_related_document',
+            'shared_document_id',
+            'workspace_id',
+        )->withTimestamps();
+    }
+
+    public function relatedDocuments(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SharedDocument::class,
+            'document_related_document',
+            'document_id',
+            'related_document_id',
+        )->withTimestamps();
+    }
 }

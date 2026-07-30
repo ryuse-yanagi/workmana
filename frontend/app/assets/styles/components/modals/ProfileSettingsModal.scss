@@ -1,0 +1,93 @@
+.profile-settings-modal-body {
+  padding: 14px 16.1px 16.8px;
+}
+.profile-settings-modal-note {
+  margin: 0 0 14px;
+  color: #64748b;
+  font-size: 12.6px;
+}
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4.9px;
+  color: #1e293b;
+  font-size: 12.6px;
+  font-weight: 700;
+}
+.profile-input {
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  padding: 7.7px 9.8px;
+  font-size: 13.3px;
+  background: #fff;
+  &:focus {
+    @include mixin.input-focus-ring;
+  }
+}
+.profile-button-row {
+  margin-top: 7.7px;
+  display: flex;
+  gap: 7px;
+}
+.profile-primary-btn,
+.profile-ghost-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 7px 11.2px;
+  font-size: 12.04px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.profile-primary-btn {
+  background: mixin.$main;
+  color: mixin.$white;
+}
+.profile-ghost-btn {
+  background: #fff;
+  color: #334155;
+  border-color: #94a3b8;
+}
+.profile-primary-btn:disabled,
+.profile-ghost-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.profile-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-top: 14px;
+}
+.profile-name-form {
+  max-width: 476px;
+}
+.avatar-image,
+.avatar-placeholder {
+  width: 84px;
+  height: 84px;
+  border-radius: 9999px;
+  border: 1px solid #cbd5e1;
+}
+.avatar-image {
+  object-fit: cover;
+  background: #fff;
+}
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 11.2px;
+}
+.profile-actions {
+  flex: 1;
+}
+.profile-msg {
+  margin: 11.9px 0 0;
+  color: #0f766e;
+  font-weight: 700;
+}
+.profile-msg--err {
+  color: mixin.$danger;
+}

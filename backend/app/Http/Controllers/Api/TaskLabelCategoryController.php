@@ -34,8 +34,7 @@ class TaskLabelCategoryController extends ApiController
 
     public function store(Request $request, Organization $organization): JsonResponse
     {
-        $this->ensureAdmin($request);
-
+        $this->assertOrganizationAdmin($request);
         $validated = $request->validate([
             'name' => [
                 'required',
@@ -66,7 +65,7 @@ class TaskLabelCategoryController extends ApiController
 
     public function update(Request $request, Organization $organization, TaskLabelCategory $category): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->assertOrganizationAdmin($request);
         $this->ensureCategoryBelongsToOrganization($category, $organization);
 
         $validated = $request->validate([
@@ -100,8 +99,7 @@ class TaskLabelCategoryController extends ApiController
 
     public function reorder(Request $request, Organization $organization): JsonResponse
     {
-        $this->ensureAdmin($request);
-
+        $this->assertOrganizationAdmin($request);
         $validated = $request->validate([
             'category_ids' => ['present', 'array'],
             'category_ids.*' => ['integer', 'distinct'],
@@ -134,7 +132,7 @@ class TaskLabelCategoryController extends ApiController
 
     public function destroy(Request $request, Organization $organization, TaskLabelCategory $category): JsonResponse
     {
-        $this->ensureAdmin($request);
+        $this->assertOrganizationAdmin($request);
         $this->ensureCategoryBelongsToOrganization($category, $organization);
 
         $category->delete();
@@ -142,13 +140,6 @@ class TaskLabelCategoryController extends ApiController
         return response()->json(null, 204);
     }
 
-    private function ensureAdmin(Request $request): void
-    {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can manage task label categories.');
-        }
-    }
 
     private function ensureCategoryBelongsToOrganization(TaskLabelCategory $category, Organization $organization): void
     {

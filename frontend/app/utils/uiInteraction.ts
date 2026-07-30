@@ -19,6 +19,14 @@ const DRAG_SCROLL_SKIP_SELECTOR = [
   '.sortable-fallback',
   '.sortable-chosen',
   '.workspace-table__drag-handle',
+  '.workspace-table__title-cell',
+  '.workspace-table__title-field',
+  // テーブルヘッダー（ドラッグスクロール対象外）
+  '.workspace-table__header-cell',
+  '.workspace-table__day-header',
+  '.popover-layer',
+  '.popover',
+  '.popover-shell',
   '.settings-sidebar',
   '[data-no-drag-scroll]',
 ].join(', ')
@@ -100,11 +108,36 @@ export function findScrollableAncestor (target: Element): Element | null {
 function isBoardDragScrollBackground (target: Element): boolean {
   return !target.closest(DRAG_SCROLL_SKIP_SELECTOR)
 }
+/**
+ * 通常モードのテーブル本文では、ボタンや文字上を含む全領域を
+ * テーブルの縦横ドラッグスクロール対象にする。
+ */
+function resolveWorkspaceTableDragScrollContainer (target: Element): {
+  container: Element
+  axes: ScrollAxes
+} | null {
+  const table = target.closest('.workspace-table')
+  const viewport = target.closest('.workspace-table-board__viewport')
+  if (
+    !(table instanceof Element)
+    || !(viewport instanceof Element)
+    || table.classList.contains('workspace-table--edit')
+    || target.closest('thead')
+  ) {
+    return null
+  }
+  const axes = getScrollAxes(viewport)
+  return axes.x || axes.y ? { container: viewport, axes } : null
+}
 /** ボード背景ドラッグは横スクロールのみ。それ以外は最寄りのスクロール容器を使う。 */
 export function resolveDragScrollContainer (target: Element): {
   container: Element
   axes: ScrollAxes
 } | null {
+  const tableContainer = resolveWorkspaceTableDragScrollContainer(target)
+  if (tableContainer) {
+    return tableContainer
+  }
   const board = target.closest('.board')
   if (board instanceof Element && isBoardDragScrollBackground(target)) {
     const boardAxes = getScrollAxes(board)
@@ -121,6 +154,9 @@ export function resolveDragScrollContainer (target: Element): {
 export function shouldEnableDragScroll (target: EventTarget | null): boolean {
   if (!(target instanceof Element)) {
     return false
+  }
+  if (resolveWorkspaceTableDragScrollContainer(target)) {
+    return true
   }
   if (isInsideSelectableText(target)) {
     return false

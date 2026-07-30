@@ -28,26 +28,10 @@ export type TableTask = {
   is_parent_task?: boolean
   parent_task_id?: number | null
 }
-export const ORPHAN_PARENT_TASK_ID = -1
-export const ORPHAN_PARENT_DEFAULT_LABEL = '親タスクなし'
 export type TableDisplayRow =
   | { kind: 'parent'; task: TableTask; childCount: number }
   | { kind: 'child'; task: TableTask }
   | { kind: 'task'; task: TableTask }
-export function isTableOrphanParentTask (task: Pick<TableTask, 'id'>): boolean {
-  return task.id === ORPHAN_PARENT_TASK_ID
-}
-export function createTableOrphanParentTask (
-  label: string = ORPHAN_PARENT_DEFAULT_LABEL,
-): TableTask {
-  const title = label.trim() || ORPHAN_PARENT_DEFAULT_LABEL
-  return {
-    id: ORPHAN_PARENT_TASK_ID,
-    title,
-    list_id: null,
-    is_parent_task: true,
-  }
-}
 export function sortTableTasks (tasks: TableTask[]): TableTask[] {
   return [...tasks].sort((a, b) => (
     (a.sort_order ?? 0) - (b.sort_order ?? 0)
@@ -59,12 +43,8 @@ export type TableReorderItem = {
   sort_order: number
   parent_task_id: number | null
 }
-export function buildFullTableDisplayRows (
-  tasks: TableTask[],
-  orphanParentLabel: string = ORPHAN_PARENT_DEFAULT_LABEL,
-  orphanParentSortOrder: number | null = null,
-): TableDisplayRow[] {
-  return buildTableDisplayRows(tasks, new Set(), orphanParentLabel, orphanParentSortOrder)
+export function buildFullTableDisplayRows (tasks: TableTask[]): TableDisplayRow[] {
+  return buildTableDisplayRows(tasks, new Set())
 }
 export function isTopLevelDropIndex (rows: TableDisplayRow[], index: number): boolean {
   if (index <= 0 || index >= rows.length) {
@@ -72,8 +52,8 @@ export function isTopLevelDropIndex (rows: TableDisplayRow[], index: number): bo
   }
   return rows[index]!.kind !== 'child'
 }
-function getFirstRealParentRowIndex (rows: TableDisplayRow[]): number {
-  return rows.findIndex(row => row.kind === 'parent' && !isTableOrphanParentTask(row.task))
+function getFirstParentRowIndex (rows: TableDisplayRow[]): number {
+  return rows.findIndex(row => row.kind === 'parent')
 }
 function clampChildInsertIndex (
   rows: TableDisplayRow[],
@@ -84,7 +64,7 @@ function clampChildInsertIndex (
   if (draggedKind !== 'child') {
     return insertAt
   }
-  const firstParentIndex = getFirstRealParentRowIndex(rows)
+  const firstParentIndex = getFirstParentRowIndex(rows)
   if (firstParentIndex < 0) {
     return insertAt
   }
@@ -115,22 +95,6 @@ export function getTableDragBlock (
   if (row.kind === 'child' || row.kind === 'task') {
     const index = rows.findIndex(item => item.task.id === row.task.id)
     return { block: [row], indices: index >= 0 ? [index] : [] }
-  }
-  if (isTableOrphanParentTask(row.task)) {
-    const sorted = sortTableTasks(tasks)
-    const taskById = new Map(sorted.map(task => [task.id, task]))
-    const orphanTasks = collectOrphanTasks(sorted, taskById)
-    const isCollapsed = collapsedParentIds.has(row.task.id)
-    const block: TableDisplayRow[] = isCollapsed
-      ? [row]
-      : [
-          row,
-          ...orphanTasks.map(task => ({ kind: 'child' as const, task })),
-        ]
-    const indices = block
-      .map(item => rows.findIndex(existing => existing.task.id === item.task.id))
-      .filter(index => index >= 0)
-    return { block, indices }
   }
   const childTasks = sortTableTasks(tasks.filter(task => task.parent_task_id === row.task.id))
   const isCollapsed = collapsedParentIds.has(row.task.id)
@@ -315,7 +279,7 @@ export function resolveParentIdForChildAt (
   for (let index = childIndex - 1; index >= 0; index--) {
     const row = rows[index]!
     if (row.kind === 'parent') {
-      return isTableOrphanParentTask(row.task) ? null : row.task.id
+      return row.task.id
     }
     if (row.kind === 'child') {
       return row.task.parent_task_id ?? null
@@ -334,15 +298,17 @@ export function applyTableRowOrder (
   const taskById = new Map(tasks.map(task => [task.id, { ...task }]))
   let sortOrder = 0
   rows.forEach((row, index) => {
-    if (isTableOrphanParentTask(row.task)) {
-      return
-    }
     const task = taskById.get(row.task.id)
     if (!task) {
       return
     }
     task.sort_order = sortOrder
     sortOrder += 1
+    if (row.kind === 'task') {
+      // 親なしテーブルの行は、参照先が壊れた親IDを持っていても常に親なしへ揃える
+      task.parent_task_id = null
+      return
+    }
     if (reparentedChildIds?.has(row.task.id)) {
       task.is_parent_task = false
       task.parent_task_id = resolveParentIdForChildAt(rows, index)
@@ -351,31 +317,31 @@ export function applyTableRowOrder (
   return Array.from(taskById.values())
 }
 export function buildTableReorderPayload (tasks: TableTask[]): TableReorderItem[] {
-  return sortTableTasks(tasks.filter(task => !isTableOrphanParentTask(task))).map((task, index) => ({
+  return sortTableTasks(tasks).map((task, index) => ({
     id: task.id,
     sort_order: task.sort_order ?? index,
     parent_task_id: task.parent_task_id ?? null,
   }))
 }
-function isOrphanChild (task: TableTask, taskById: Map<number, TableTask>): boolean {
+function isDanglingChild (task: TableTask, taskById: Map<number, TableTask>): boolean {
   if (task.parent_task_id == null) {
     return false
   }
   const parent = taskById.get(task.parent_task_id)
   return !parent || !parent.is_parent_task
 }
-function collectOrphanTasks (tasks: TableTask[], taskById: Map<number, TableTask>): TableTask[] {
-  const orphanTasks: TableTask[] = []
+function collectStandaloneTasks (tasks: TableTask[], taskById: Map<number, TableTask>): TableTask[] {
+  const standaloneTasks: TableTask[] = []
   for (const task of sortTableTasks(tasks)) {
-    if (task.parent_task_id != null && !isOrphanChild(task, taskById)) {
+    if (task.parent_task_id != null && !isDanglingChild(task, taskById)) {
       continue
     }
     if (task.is_parent_task) {
       continue
     }
-    orphanTasks.push(task)
+    standaloneTasks.push(task)
   }
-  return orphanTasks
+  return standaloneTasks
 }
 function buildParentSegmentRows (
   parentTask: TableTask,
@@ -394,131 +360,47 @@ function buildParentSegmentRows (
   }
   return rows
 }
-function resolveOrphanSegmentAnchor (
-  orphanTasks: TableTask[],
-  orphanParentSortOrder: number | null | undefined,
-): number {
-  if (orphanTasks.length > 0) {
-    return Math.min(...orphanTasks.map(task => task.sort_order ?? 0))
-  }
-  if (orphanParentSortOrder == null) {
-    return Number.MAX_SAFE_INTEGER
-  }
-  return orphanParentSortOrder
-}
-export function resolveOrphanParentSortOrderFromRows (
-  rows: TableDisplayRow[],
-  tasks: TableTask[],
-): number | null {
-  const orphanIndex = rows.findIndex(
-    row => row.kind === 'parent' && isTableOrphanParentTask(row.task),
-  )
-  if (orphanIndex < 0) {
-    return null
-  }
-  let precedingMaxSort = -1
-  for (let index = 0; index < orphanIndex; index++) {
-    const row = rows[index]!
-    if (isTableOrphanParentTask(row.task)) {
-      continue
-    }
-    const task = tasks.find(item => item.id === row.task.id)
-    if (task) {
-      precedingMaxSort = Math.max(precedingMaxSort, task.sort_order ?? 0)
-    }
-  }
-  let hasFollowingSegment = false
-  for (let index = orphanIndex + 1; index < rows.length; index++) {
-    const row = rows[index]!
-    if (row.kind === 'parent' && !isTableOrphanParentTask(row.task)) {
-      hasFollowingSegment = true
-      break
-    }
-    if (row.kind === 'child' || row.kind === 'task') {
-      hasFollowingSegment = true
-      break
-    }
-  }
-  if (!hasFollowingSegment) {
-    return null
-  }
-  return precedingMaxSort + 1
-}
-export function hasTableOrphanChildTasks (tasks: TableTask[]): boolean {
-  const sorted = sortTableTasks(tasks)
-  const taskById = new Map(sorted.map(task => [task.id, task]))
-  return collectOrphanTasks(sorted, taskById).length > 0
-}
+/** 親タスクとその子タスクだけで構成される、上段テーブルの行 */
 export function buildTableDisplayRows (
   tasks: TableTask[],
   collapsedParentIds: ReadonlySet<number>,
-  orphanParentLabel: string = ORPHAN_PARENT_DEFAULT_LABEL,
-  orphanParentSortOrder: number | null = null,
 ): TableDisplayRow[] {
   const sorted = sortTableTasks(tasks)
   const taskById = new Map(sorted.map((task) => [task.id, task]))
   const childrenByParent = new Map<number, TableTask[]>()
   for (const task of sorted) {
-    if (task.parent_task_id == null || isOrphanChild(task, taskById)) {
+    if (task.parent_task_id == null || isDanglingChild(task, taskById)) {
       continue
     }
     const siblings = childrenByParent.get(task.parent_task_id) ?? []
     siblings.push(task)
     childrenByParent.set(task.parent_task_id, siblings)
   }
-  const segments: Array<{ anchorSortOrder: number; rows: TableDisplayRow[] }> = []
+  const rows: TableDisplayRow[] = []
   for (const task of sorted) {
-    if (task.parent_task_id != null && !isOrphanChild(task, taskById)) {
+    if (!task.is_parent_task) {
       continue
     }
-    if (task.is_parent_task) {
-      const children = childrenByParent.get(task.id) ?? []
-      segments.push({
-        anchorSortOrder: task.sort_order ?? 0,
-        rows: buildParentSegmentRows(task, children, collapsedParentIds),
-      })
+    // 他の親タスクの子として既に描画される親タスクは、見出し行を重複させない
+    if (task.parent_task_id != null && !isDanglingChild(task, taskById)) {
+      continue
     }
+    const children = childrenByParent.get(task.id) ?? []
+    rows.push(...buildParentSegmentRows(task, children, collapsedParentIds))
   }
-  const orphanTasks = collectOrphanTasks(sorted, taskById)
-  const orphanParent = createTableOrphanParentTask(orphanParentLabel)
-  const orphanRows: TableDisplayRow[] = [{
-    kind: 'parent',
-    task: orphanParent,
-    childCount: orphanTasks.length,
-  }]
-  if (!collapsedParentIds.has(orphanParent.id) && orphanTasks.length > 0) {
-    for (const task of orphanTasks) {
-      orphanRows.push({ kind: 'child', task })
-    }
-  }
-  segments.push({
-    anchorSortOrder: resolveOrphanSegmentAnchor(orphanTasks, orphanParentSortOrder),
-    rows: orphanRows,
-  })
-  segments.sort((a, b) => {
-    if (a.anchorSortOrder !== b.anchorSortOrder) {
-      return a.anchorSortOrder - b.anchorSortOrder
-    }
-    const aIsOrphan = a.rows[0]?.kind === 'parent' && isTableOrphanParentTask(a.rows[0].task)
-    const bIsOrphan = b.rows[0]?.kind === 'parent' && isTableOrphanParentTask(b.rows[0].task)
-    if (aIsOrphan && !bIsOrphan) {
-      return -1
-    }
-    if (!aIsOrphan && bIsOrphan) {
-      return 1
-    }
-    return 0
-  })
-  return segments.flatMap(segment => segment.rows)
+  return rows
+}
+/** 親を持たないタスクだけで構成される、下段テーブルの行 */
+export function buildStandaloneTableDisplayRows (tasks: TableTask[]): TableDisplayRow[] {
+  const sorted = sortTableTasks(tasks)
+  const taskById = new Map(sorted.map((task) => [task.id, task]))
+  return collectStandaloneTasks(sorted, taskById).map(task => ({ kind: 'task' as const, task }))
 }
 export function formatTableDate (value: string | null | undefined): string {
   return formatTaskCardSingleDate(value) ?? ''
 }
-export function formatTableEffort (
-  task: TableTask,
-  orgUnit?: 'minute' | 'hour' | 'day' | string | null,
-): string {
-  return formatTaskCardEffort(task, orgUnit) ?? ''
+export function formatTableEffort (task: TableTask): string {
+  return formatTaskCardEffort(task) ?? ''
 }
 export function formatTableDescription (value: string | null | undefined): string {
   if (!value?.trim()) {

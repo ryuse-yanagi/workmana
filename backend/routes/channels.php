@@ -10,5 +10,5 @@ Broadcast::channel('workspaces.{workspaceId}', function (User $user, int $worksp
         return false;
     }
 
-    return $user->isMemberOfWorkspace($workspace);
+    return $user->canAccessWorkspace($workspace);
 });

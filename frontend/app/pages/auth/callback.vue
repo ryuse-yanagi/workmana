@@ -16,6 +16,7 @@ onMounted(async () => {
     message.value = 'ID トークンを受け取れませんでした。もう一度ログインしてください。'
     return
   }
+  clearSessionScopedCaches()
   setToken(token)
   message.value = 'ログインに成功しました。組織ページへ移動します…'
   const next = readStateFromHash()
@@ -23,8 +24,4 @@ onMounted(async () => {
   await navigateTo(target)
 })
 </script>
-<style lang="scss" scoped>
-.page { max-width: 448px; margin: 28px auto; padding: 0 14px; }
-.muted { color: mixin.$text-sub; }
-.link { display: inline-block; margin-top: 10.5px; color: #1d4ed8; }
-</style>
+<style lang="scss" scoped src="~/assets/styles/pages/auth/callback.scss"></style>

@@ -31,10 +31,7 @@ class TaskLabelController extends ApiController
 
     public function store(Request $request, Organization $organization): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can create task labels.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         $validated = $request->validate([
             'category_id' => ['required', 'integer', 'exists:task_label_categories,id'],
@@ -83,10 +80,7 @@ class TaskLabelController extends ApiController
 
     public function update(Request $request, Organization $organization, TaskLabel $taskLabel): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can update task labels.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         if ((int) $taskLabel->organization_id !== (int) $organization->id) {
             abort(404);
@@ -133,10 +127,7 @@ class TaskLabelController extends ApiController
 
     public function reorder(Request $request, Organization $organization): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can reorder task labels.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         $validated = $request->validate([
             'category_id' => ['required', 'integer', 'exists:task_label_categories,id'],
@@ -176,10 +167,7 @@ class TaskLabelController extends ApiController
 
     public function destroy(Request $request, Organization $organization, TaskLabel $taskLabel): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can delete task labels.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         if ((int) $taskLabel->organization_id !== (int) $organization->id) {
             abort(404);

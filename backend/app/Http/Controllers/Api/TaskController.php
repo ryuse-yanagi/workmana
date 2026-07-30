@@ -30,8 +30,6 @@ use Illuminate\Validation\Rule;
 
 class TaskController extends ApiController
 {
-    private const ORPHAN_PARENT_DEFAULT_LABEL = '親タスクなし';
-
     public function index(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
@@ -120,35 +118,6 @@ class TaskController extends ApiController
 
         return response()->json([
             'data' => $tasks->map(fn (Task $task) => $this->taskTablePayload($task)),
-            'meta' => [
-                'orphan_parent_label' => $this->orphanParentLabelForWorkspace($workspace),
-                'orphan_parent_sort_order' => $workspace->orphan_parent_sort_order,
-            ],
-        ]);
-    }
-
-    public function tableUpdateOrphanParentLabel(Request $request, Organization $organization, Workspace $workspace): JsonResponse
-    {
-        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
-        $this->assertWorkspaceNotArchived($workspace);
-
-        $validated = $request->validate([
-            'label' => ['required', 'string', 'max:255'],
-        ]);
-
-        $label = trim($validated['label']);
-        if ($label === '') {
-            return response()->json(['message' => 'Label cannot be empty.'], 422);
-        }
-
-        $workspace->update(['orphan_parent_label' => $label]);
-
-        return response()->json([
-            'data' => [
-                'orphan_parent_label' => $label,
-            ],
         ]);
     }
 
@@ -156,7 +125,6 @@ class TaskController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
@@ -164,7 +132,6 @@ class TaskController extends ApiController
             'tasks.*.id' => ['required', 'integer', 'distinct'],
             'tasks.*.sort_order' => ['required', 'integer', 'min:0'],
             'tasks.*.parent_task_id' => ['nullable', 'integer'],
-            'orphan_parent_sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
         /** @var array<int, array{id: int, sort_order: int, parent_task_id: int|null}> $items */
@@ -223,7 +190,7 @@ class TaskController extends ApiController
             }
         }
 
-        DB::transaction(function () use ($items, $workspace, $validated) {
+        DB::transaction(function () use ($items, $workspace) {
             foreach ($items as $item) {
                 Task::query()
                     ->where('id', $item['id'])
@@ -232,12 +199,6 @@ class TaskController extends ApiController
                         'sort_order' => $item['sort_order'],
                         'parent_task_id' => $item['parent_task_id'],
                     ]);
-            }
-
-            if (array_key_exists('orphan_parent_sort_order', $validated)) {
-                $workspace->update([
-                    'orphan_parent_sort_order' => $validated['orphan_parent_sort_order'],
-                ]);
             }
         });
 
@@ -312,7 +273,6 @@ class TaskController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
@@ -411,7 +371,6 @@ class TaskController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -468,6 +427,7 @@ class TaskController extends ApiController
             if ($list === null || (int) $list->workspace_id !== (int) $workspace->id) {
                 return response()->json(['message' => 'Invalid list for this workspace.'], 422);
             }
+            // 並び順はドラッグ操作でのみ変更する。リスト変更では sort_order を維持する。
             $task->list_id = $list->id;
         }
         if (array_key_exists('status', $validated)) {
@@ -524,7 +484,6 @@ class TaskController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -560,7 +519,6 @@ class TaskController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -588,7 +546,6 @@ class TaskController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -680,13 +637,6 @@ class TaskController extends ApiController
             'labels' => $task->labels,
             'checklist' => $this->formatChecklist($task->checklist),
         ];
-    }
-
-    private function orphanParentLabelForWorkspace(Workspace $workspace): string
-    {
-        $label = trim((string) ($workspace->orphan_parent_label ?? ''));
-
-        return $label !== '' ? $label : self::ORPHAN_PARENT_DEFAULT_LABEL;
     }
 
     /**
@@ -883,11 +833,10 @@ class TaskController extends ApiController
                 return;
             }
 
-            $value = round((float) $validated['effort_value'], 4);
-            $unit = $this->resolveEffortUnit($value, $validated['effort_unit'] ?? $task->effort_unit);
-            $task->effort_value = $value;
-            $task->effort_unit = $unit;
-            $task->effort_hours = $this->effortValueToHours($value, $unit);
+            $hours = round((float) $validated['effort_value'], 6);
+            $task->effort_value = round($hours, 4);
+            $task->effort_unit = TaskEffortUnit::Hour->value;
+            $task->effort_hours = $hours;
 
             return;
         }
@@ -905,42 +854,9 @@ class TaskController extends ApiController
         }
 
         $hours = round((float) $validated['effort_hours'], 6);
-        $unit = $this->resolveEffortUnit($hours, $validated['effort_unit'] ?? $task->effort_unit);
         $task->effort_hours = $hours;
-        $task->effort_unit = $unit;
-        $task->effort_value = $this->effortHoursToValue($hours, $unit);
-    }
-
-    private function effortValueToHours(float $value, string $unit): float
-    {
-        return match ($unit) {
-            TaskEffortUnit::Minute->value => round($value / 60, 6),
-            TaskEffortUnit::Day->value => round($value * 24, 6),
-            default => round($value, 6),
-        };
-    }
-
-    private function effortHoursToValue(float $hours, string $unit): float
-    {
-        return match ($unit) {
-            TaskEffortUnit::Minute->value => round($hours * 60, 4),
-            TaskEffortUnit::Day->value => round($hours / 24, 4),
-            default => round($hours, 4),
-        };
-    }
-
-    private function resolveEffortUnit(mixed $effortAmount, mixed $effortUnit): ?string
-    {
-        if ($effortAmount === null || $effortAmount === '') {
-            return null;
-        }
-
-        $unit = is_string($effortUnit) ? $effortUnit : null;
-        if ($unit !== null && in_array($unit, TaskEffortUnit::values(), true)) {
-            return $unit;
-        }
-
-        return TaskEffortUnit::Hour->value;
+        $task->effort_unit = TaskEffortUnit::Hour->value;
+        $task->effort_value = round($hours, 4);
     }
 
     /**

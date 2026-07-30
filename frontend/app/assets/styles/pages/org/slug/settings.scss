@@ -1,0 +1,31 @@
+.settings-page {
+  min-height: 100vh;
+  padding: 14px;
+}
+
+.settings-layout {
+  width: calc(320px + 880px + 14px);
+  max-width: 100%;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 320px 880px;
+  gap: 14px;
+  align-items: start;
+}
+
+.settings-content {
+  width: 880px;
+  max-width: 100%;
+  min-height: 308px;
+}
+
+@media (max-width: 1240px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .settings-content {
+    width: 100%;
+  }
+}

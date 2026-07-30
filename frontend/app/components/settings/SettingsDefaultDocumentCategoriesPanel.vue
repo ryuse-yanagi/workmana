@@ -2,6 +2,7 @@
   <SettingsDefaultNamedColorItemsPanel
     :org-slug="orgSlug"
     :initial-items="initialItems"
+    :can-manage="canManage"
     title="資料カテゴリ設定"
     note="資料に設定できるカテゴリの選択肢と色を定義します。上から順に表示されます。各資料は1つのカテゴリのみ選択できます。"
     settings-field="default_document_category_names"
@@ -23,5 +24,6 @@ import { DEFAULT_DOCUMENT_CATEGORY_ITEMS, type DefaultNamedColorItem } from './t
 defineProps<{
   orgSlug: string
   initialItems: DefaultNamedColorItem[]
+  canManage: boolean
 }>()
 </script>

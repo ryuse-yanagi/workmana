@@ -3,10 +3,10 @@ import { dismissPopoverFromOutsidePointer } from '../utils/uiInteraction'
 import {
   type TaskFormCategory,
   type TaskFormDraft,
-  type TaskFormEffortUnit,
   type TaskFormLabel,
   type TaskFormMember,
-  effortUnitLabel,
+  EFFORT_UNIT_LABEL,
+  FIXED_EFFORT_UNIT,
   effortValueToDraft,
   formatDateDisplay,
   formatEffortAmount,
@@ -15,11 +15,9 @@ import {
   memberEmailLine,
   normalizeEffortValue,
   parseEffortDraft,
-  resolveEffortUnit,
   resolveStoredEffortValue,
   sanitizeEffortDraftInput,
   toDateInputValue,
-  unitValueToHours,
 } from './useTaskFormHelpers'
 export type TaskFormPopoverType =
   | 'start-date'
@@ -41,7 +39,6 @@ type UseTaskFormPaneOptions = {
   draft: Ref<TaskFormDraft>
   orgLabels: Ref<TaskFormLabel[]>
   workspaceMembers: Ref<TaskFormMember[]>
-  orgEffortUnit: Ref<TaskFormEffortUnit>
   disabled: Ref<boolean>
   documentCategories?: Ref<TaskFormCategory[]>
   workspaceStatuses?: Ref<TaskFormCategory[]>
@@ -97,9 +94,9 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     if (activePopover.value === 'effort') {
       const parsed = parseEffortDraft(effortDraft.value)
       if (parsed === null || parsed === 'invalid') return ''
-      return `${formatEffortAmount(parsed)} ${effortUnitLabel(options.orgEffortUnit.value)}`
+      return `${formatEffortAmount(parsed)} ${EFFORT_UNIT_LABEL}`
     }
-    return formatEffortDisplay(options.draft.value, options.orgEffortUnit.value)
+    return formatEffortDisplay(options.draft.value)
   })
   const calendarMonthLabel = computed(() => {
     const y = calendarCursor.value.getFullYear()
@@ -208,13 +205,12 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     popoverError.value = null
     if (parsed !== null) {
-      const unit = options.orgEffortUnit.value
       const effortValue = normalizeEffortValue(parsed)
       options.draft.value = {
         ...options.draft.value,
         effort_value: effortValue,
-        effort_hours: effortValue === null ? null : unitValueToHours(effortValue, unit),
-        effort_unit: unit,
+        effort_hours: effortValue,
+        effort_unit: effortValue === null ? null : FIXED_EFFORT_UNIT,
       }
     } else {
       options.draft.value = {

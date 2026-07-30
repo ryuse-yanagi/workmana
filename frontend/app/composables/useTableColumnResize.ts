@@ -7,10 +7,15 @@ export type TableColumnKey =
   | 'dueDate'
   | 'effort'
   | 'notes'
+export type TableDisplayItemKey = TableColumnKey | 'gantt'
 export type TableColumnDef = {
   key: TableColumnKey
   label: string
   defaultRatio: number
+}
+export type TableDisplayItemDef = {
+  key: TableDisplayItemKey
+  label: string
 }
 /** ドラッグハンドル列の幅（テーブル先頭の固定列） */
 export const TABLE_DRAG_COL_WIDTH = 36
@@ -28,6 +33,58 @@ export const TABLE_COLUMNS: readonly TableColumnDef[] = [
   { key: 'effort', label: '工数', defaultRatio: 0.07 },
   { key: 'notes', label: '説明', defaultRatio: 0.24 },
 ] as const
+/** 表示項目モーダル用。順序固定（ガントチャートは末尾）。 */
+export const TABLE_DISPLAY_ITEMS: readonly TableDisplayItemDef[] = [
+  ...TABLE_COLUMNS.map(column => ({ key: column.key as TableDisplayItemKey, label: column.label })),
+  { key: 'gantt', label: 'ガントチャート' },
+]
+const TABLE_DISPLAY_ITEM_KEY_SET = new Set<TableDisplayItemKey>(
+  TABLE_DISPLAY_ITEMS.map(item => item.key),
+)
+export function defaultVisibleColumnKeys (): TableDisplayItemKey[] {
+  return TABLE_DISPLAY_ITEMS.map(item => item.key)
+}
+/** 保存済みの表示項目を読み込み。順序は TABLE_DISPLAY_ITEMS 固定。タスク列は常に含める。 */
+export function parseStoredVisibleColumns (raw: string | null): TableDisplayItemKey[] | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    let keys: unknown[]
+    let legacyArray = false
+    if (Array.isArray(parsed)) {
+      keys = parsed
+      legacyArray = true
+    } else if (
+      parsed
+      && typeof parsed === 'object'
+      && Array.isArray((parsed as { keys?: unknown }).keys)
+    ) {
+      keys = (parsed as { keys: unknown[] }).keys
+    } else {
+      return null
+    }
+    const selected = new Set<TableDisplayItemKey>(['title'])
+    for (const item of keys) {
+      if (typeof item === 'string' && TABLE_DISPLAY_ITEM_KEY_SET.has(item as TableDisplayItemKey)) {
+        selected.add(item as TableDisplayItemKey)
+      }
+    }
+    // 旧形式（配列のみ）にはガント未対応だったため、移行時は表示ONにする
+    if (legacyArray) {
+      selected.add('gantt')
+    }
+    const ordered = TABLE_DISPLAY_ITEMS.map(item => item.key).filter(key => selected.has(key))
+    return ordered.length ? ordered : null
+  } catch {
+    return null
+  }
+}
+export function serializeVisibleColumns (keys: TableDisplayItemKey[]): string {
+  const selected = new Set(keys)
+  selected.add('title')
+  const ordered = TABLE_DISPLAY_ITEMS.map(item => item.key).filter(key => selected.has(key))
+  return JSON.stringify({ v: 1, keys: ordered })
+}
 type TableColumnWidths = Record<TableColumnKey, number>
 type ResizeSession = {
   columnKey: TableColumnKey

@@ -32,10 +32,7 @@ class WorkspaceLabelController extends ApiController
 
     public function store(Request $request, Organization $organization): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can create workspace labels.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         $validated = $request->validate([
             'category_id' => ['required', 'integer', 'exists:workspace_label_categories,id'],
@@ -84,10 +81,7 @@ class WorkspaceLabelController extends ApiController
 
     public function update(Request $request, Organization $organization, WorkspaceLabel $workspaceLabel): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can update workspace labels.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         if ((int) $workspaceLabel->organization_id !== (int) $organization->id) {
             abort(404);
@@ -134,10 +128,7 @@ class WorkspaceLabelController extends ApiController
 
     public function reorder(Request $request, Organization $organization): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can reorder workspace labels.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         $validated = $request->validate([
             'category_id' => ['required', 'integer', 'exists:workspace_label_categories,id'],
@@ -177,10 +168,7 @@ class WorkspaceLabelController extends ApiController
 
     public function destroy(Request $request, Organization $organization, WorkspaceLabel $workspaceLabel): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can delete workspace labels.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         if ((int) $workspaceLabel->organization_id !== (int) $organization->id) {
             abort(404);

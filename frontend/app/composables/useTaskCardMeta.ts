@@ -1,16 +1,11 @@
-export type EffortUnit = 'minute' | 'hour' | 'day'
 export type TaskCardScheduleFields = {
   start_date?: string | null
   due_date?: string | null
   effort_value?: number | string | null
-  effort_unit?: EffortUnit | string | null
+  effort_unit?: string | null
   effort_hours?: number | string | null
 }
-const EFFORT_UNIT_LABELS: Record<EffortUnit, string> = {
-  minute: '分',
-  hour: '時間',
-  day: '日',
-}
+const EFFORT_UNIT_LABEL = '時間'
 type DateParts = { year: number; month: number; day: number }
 function normalizeDateIso (value: string | null | undefined): string | null {
   if (!value) {
@@ -76,21 +71,6 @@ export function formatTaskCardSingleDate (
   const currentYear = referenceDate.getFullYear()
   return `${formatMonthDay(parts)}${yearSuffix(parts.year, currentYear)}`
 }
-function normalizeEffortUnit (value: EffortUnit | string | null | undefined): EffortUnit {
-  if (value === 'minute' || value === 'hour' || value === 'day') {
-    return value
-  }
-  return 'hour'
-}
-function resolveEffortUnit (
-  taskUnit: EffortUnit | string | null | undefined,
-  orgUnit?: EffortUnit | string | null | undefined,
-): EffortUnit {
-  if (taskUnit === 'minute' || taskUnit === 'hour' || taskUnit === 'day') {
-    return taskUnit
-  }
-  return normalizeEffortUnit(orgUnit)
-}
 function normalizeEffortValue (value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === '') {
     return null
@@ -111,46 +91,24 @@ function normalizeEffortHours (value: number | string | null | undefined): numbe
   }
   return Math.round(num * 1000000) / 1000000
 }
-function hoursToUnitValue (hours: number, unit: EffortUnit): number {
-  if (unit === 'minute') {
-    return hours * 60
-  }
-  if (unit === 'day') {
-    return hours / 24
-  }
-  return hours
-}
 function formatEffortAmount (value: number): string {
   return Number.isInteger(value)
     ? String(value)
     : value.toFixed(2).replace(/\.?0+$/, '')
 }
-function resolveStoredEffortValue (
-  task: TaskCardScheduleFields,
-  orgUnit?: EffortUnit | string | null,
-): number | null {
-  const stored = normalizeEffortValue(task.effort_value)
-  if (stored !== null) {
-    return stored
-  }
+function resolveStoredEffortValue (task: TaskCardScheduleFields): number | null {
   const hours = normalizeEffortHours(task.effort_hours)
-  if (hours === null) {
-    return null
+  if (hours !== null) {
+    return normalizeEffortValue(hours)
   }
-  return normalizeEffortValue(
-    hoursToUnitValue(hours, resolveEffortUnit(task.effort_unit, orgUnit)),
-  )
+  return normalizeEffortValue(task.effort_value)
 }
-export function formatTaskCardEffort (
-  task: TaskCardScheduleFields,
-  orgUnit?: EffortUnit | string | null,
-): string | null {
-  const value = resolveStoredEffortValue(task, orgUnit)
+export function formatTaskCardEffort (task: TaskCardScheduleFields): string | null {
+  const value = resolveStoredEffortValue(task)
   if (value === null) {
     return null
   }
-  const unit = resolveEffortUnit(task.effort_unit, orgUnit)
-  return `${formatEffortAmount(value)}${EFFORT_UNIT_LABELS[unit]}`
+  return `${formatEffortAmount(value)}${EFFORT_UNIT_LABEL}`
 }
 export function hasTaskCardScheduleMeta (task: TaskCardScheduleFields): boolean {
   return !!formatTaskCardDateRange(task.start_date, task.due_date)

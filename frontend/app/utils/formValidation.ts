@@ -6,14 +6,7 @@ export function requiredTextFieldError (value: string, emptyMessage: string): st
 }
 
 export function workspaceNameFieldError (value: string): string | null {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return 'スペース名を入力してください'
-  }
-  if (trimmed.length < 2) {
-    return 'スペース名は2文字以上で入力してください'
-  }
-  return null
+  return requiredTextFieldError(value, 'スペース名を入力してください')
 }
 
 export function taskTitleFieldError (value: string): string | null {
@@ -21,12 +14,5 @@ export function taskTitleFieldError (value: string): string | null {
 }
 
 export function documentNameFieldError (value: string): string | null {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return '資料名を入力してください'
-  }
-  if (trimmed.length < 2) {
-    return '資料名は2文字以上で入力してください'
-  }
-  return null
+  return requiredTextFieldError(value, '資料名を入力してください')
 }

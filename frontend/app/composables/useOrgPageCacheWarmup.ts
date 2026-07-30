@@ -1,7 +1,13 @@
 import { useOrgDocumentsPageData } from './useOrgDocumentsPageData'
-import { useOrgWorkspaceIndexPageData } from './useOrgWorkspaceIndexPageData'
 import { useOrgSettingsPageData } from './useOrgSettingsPageData'
+import { useOrgWorkspaceIndexPageData } from './useOrgWorkspaceIndexPageData'
+
 const inflightBySlug = new Map<string, Promise<void>>()
+
+export function clearAllOrgPageCacheWarmup (): void {
+  inflightBySlug.clear()
+}
+
 export function useOrgPageCacheWarmup () {
   const { fetchSnapshot: fetchOrgWorkspaceIndexSnapshot } = useOrgWorkspaceIndexPageData()
   const { fetchSnapshot: fetchOrgDocumentsSnapshot } = useOrgDocumentsPageData()
@@ -30,5 +36,6 @@ export function useOrgPageCacheWarmup () {
   }
   return {
     warmOrgPageCaches,
+    clearAllCached: clearAllOrgPageCacheWarmup,
   }
 }

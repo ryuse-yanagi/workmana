@@ -38,7 +38,7 @@
                 @click="openWorkspaceCreateModal"
               >
                 <FolderPlus :size="20" :stroke-width="2.25" aria-hidden="true" />
-                新規作成
+                スペース作成
               </button>
             </div>
       </header>
@@ -146,37 +146,13 @@
             </div>
           </section>
       </div>
-      <Teleport to="body">
-        <ul
-          v-if="openMenuWorkspace && workspaceMenuPosition"
-          class="workspace-card-menu-dropdown"
-          role="menu"
-          :style="workspaceMenuStyle"
-        >
-          <li role="none">
-            <button
-              type="button"
-              class="workspace-card-menu-item"
-              role="menuitem"
-              :disabled="pending"
-              @click="openWorkspaceEditModal(openMenuWorkspace)"
-            >
-              編集
-            </button>
-          </li>
-          <li role="none">
-            <button
-              type="button"
-              class="workspace-card-menu-item workspace-card-menu-item--danger"
-              role="menuitem"
-              :disabled="pending"
-              @click="openWorkspaceDeleteModal(openMenuWorkspace)"
-            >
-              削除
-            </button>
-          </li>
-        </ul>
-      </Teleport>
+      <FloatingMenu
+        :open="Boolean(openMenuWorkspace && workspaceMenuPosition)"
+        :style="workspaceMenuStyle"
+        :disabled="pending"
+        :items="workspaceMenuItems"
+        @select="onWorkspaceMenuSelect"
+      />
       <!-- 作成・編集モーダル（オーバーレイのためフェード対象外） -->
       <WorkspaceCreateModal
         v-model="workspaceFormModalOpen"
@@ -212,6 +188,7 @@ import {
 } from '../../../../composables/useOrgWorkspaceIndexPageData'
 import type { TaskFormMember } from '../../../../composables/useTaskFormHelpers'
 import { useWorkspaceBoardPageData } from '../../../../composables/useWorkspaceBoardPageData'
+import { prefetchWorkspaceDetail, warmWorkspaceDetailCache } from '../../../../composables/useWorkspaceDetailMeta'
 import { DEFAULT_WORKSPACE_STATUS_ITEMS } from '../../../../components/settings/types'
 import { resolveStandardColors } from '../../../../utils/colorPresetResolution'
 import {
@@ -222,6 +199,7 @@ import WorkspaceCreateModal from '../../../../components/modals/WorkspaceCreateM
 import WorkspaceDeleteModal from '../../../../components/modals/WorkspaceDeleteModal.vue'
 import WorkspaceAssigneeSelect from '../../../../components/workspace/WorkspaceAssigneeSelect.vue'
 import WorkspaceStatusSelect from '../../../../components/workspace/WorkspaceStatusSelect.vue'
+import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
 definePageMeta({
   name: 'org-slug-workspaces',
   key: route => route.fullPath,
@@ -455,6 +433,21 @@ function openWorkspaceDeleteModal (workspace: Workspace) {
   workspaceDeleteTarget.value = workspace
   workspaceDeleteModalOpen.value = true
 }
+const workspaceMenuItems: FloatingMenuItem[] = [
+  { key: 'edit', label: '編集' },
+  { key: 'delete', label: '削除', danger: true },
+]
+function onWorkspaceMenuSelect (item: FloatingMenuItem) {
+  const workspace = openMenuWorkspace.value
+  if (!workspace) return
+  if (item.key === 'edit') {
+    openWorkspaceEditModal(workspace)
+    return
+  }
+  if (item.key === 'delete') {
+    openWorkspaceDeleteModal(workspace)
+  }
+}
 function onGlobalClick (ev: Event) {
   const t = ev.target
   if (t instanceof Node) {
@@ -462,7 +455,7 @@ function onGlobalClick (ev: Event) {
     if (el?.closest('.workspace-card__menu-btn')) {
       return
     }
-    if (el?.closest('.workspace-card-menu-dropdown')) {
+    if (el?.closest('[data-floating-menu]')) {
       return
     }
   }
@@ -712,6 +705,7 @@ async function confirmWorkspaceDelete () {
 }
 function warmWorkspaceBoard (workspaceId: number) {
   void warmWorkspaceBoardCache(slug.value, String(workspaceId))
+  warmWorkspaceDetailCache(slug.value, workspaceId)
 }
 function onWorkspacePointerDown (event: PointerEvent, workspaceId: number) {
   if (event.button !== 0 || loadingWorkspaceId.value !== null) {
@@ -758,7 +752,10 @@ async function goToWorkspace (workspaceId: number) {
   }
   loadingWorkspaceId.value = workspaceId
   try {
-    await prefetch(slug.value, String(workspaceId))
+    await Promise.all([
+      prefetch(slug.value, String(workspaceId)),
+      prefetchWorkspaceDetail(slug.value, workspaceId),
+    ])
     await navigateTo(`/org/${slug.value}/workspaces/${workspaceId}`)
   } finally {
     if (loadingWorkspaceId.value === workspaceId) {
@@ -856,396 +853,4 @@ onBeforeUnmount(() => {
   closeWorkspaceMenu()
 })
 </script>
-<style lang="scss" scoped>
-.list-page {
-  min-height: calc(100dvh - var(--global-header-offset, 56px));
-  padding: 0 14px 14px;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
-  padding-top: 0;
-  box-sizing: border-box;
-}
-.table-card,
-.err {
-  max-width: 1304px;
-  margin-left: auto;
-  margin-right: auto;
-}
-.page-header {
-  position: sticky;
-  top: var(--global-header-offset, 56px);
-  z-index: 40;
-  width: calc(100% + 28px);
-  margin-left: -14px;
-  margin-right: -14px;
-  @include mixin.page-header-shell;
-  padding: 0 14px;
-}
-.page-header > * {
-  width: 100%;
-  height: 100%;
-}
-.subheader {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-.subheader::-webkit-scrollbar {
-  display: none;
-}
-.subheader-title {
-  @include mixin.page-header-title;
-  letter-spacing: 0.05em;
-}
-.subheader-filters {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-}
-.header-search,
-.header-sort {
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 0 8px;
-  font-size: 11.48px;
-  background: #fff;
-  color: #0f172a;
-  box-sizing: border-box;
-  height: 32px;
-  line-height: 32px;
-}
-.header-search {
-  flex: 1;
-  min-width: 84px;
-  max-width: 252px;
-}
-.header-search::placeholder {
-  color: #94a3b8;
-}
-.header-search:focus,
-.header-sort:focus {
-  @include mixin.input-focus-ring;
-}
-.header-sort {
-  flex-shrink: 0;
-  width: 94.5px;
-  padding-right: 21px;
-  cursor: pointer;
-}
-.subheader-count {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.table-card {
-  background: transparent;
-  border: none;
-  border-radius: 10px;
-  overflow: visible;
-  margin-top: 8px;
-}
-.table-wrap {
-  overflow-x: auto;
-  background: transparent;
-}
-.workspace-table {
-  --col-name-width: 536px;
-  --col-assignees-width: 112px;
-  --col-description-width: 476px;
-  --col-status-width: 128px;
-  --col-actions-width: 52px;
-  width: 1304px;
-  max-width: 1304px;
-  table-layout: fixed;
-  border-collapse: separate;
-  border-spacing: 0 8px;
-}
-.workspace-table th,
-.workspace-table td {
-  text-align: left;
-  padding: 0;
-  color: #1e293b;
-}
-.workspace-table tbody tr {
-  height: 80px;
-}
-.workspace-table th {
-  height: 24px;
-  box-sizing: border-box;
-  background: none;
-  color: #64748b;
-  font-size: 14px;
-  letter-spacing: 0.02em;
-  vertical-align: middle;
-  text-align: left;
-  padding: 0 16px;
-}
-.workspace-table th:nth-child(1) {
-  width: var(--col-name-width);
-  max-width: var(--col-name-width);
-  padding: 0 16px 0 32px;
-}
-.workspace-table th:nth-child(2) {
-  width: var(--col-description-width);
-  max-width: var(--col-description-width);
-}
-.workspace-table th:nth-child(3) {
-  width: var(--col-assignees-width);
-  max-width: var(--col-assignees-width);
-  text-align: center;
-}
-.workspace-table th:nth-child(4) {
-  width: var(--col-status-width);
-  max-width: var(--col-status-width);
-  text-align: center;
-}
-.workspace-table th:nth-child(5) {
-  width: var(--col-actions-width);
-  max-width: var(--col-actions-width);
-  padding: 0 16px 0 0;
-}
-.workspace-card-cell {
-  height: 80px;
-  box-sizing: border-box;
-  vertical-align: middle;
-  padding: 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-.workspace-card {
-  position: relative;
-  height: 80px;
-  box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #edf2f7;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-}
-.workspace-card__labels {
-  position: absolute;
-  top: 6px;
-  left: 0;
-  z-index: 1;
-  box-sizing: border-box;
-  width: var(--col-name-width);
-  max-width: var(--col-name-width);
-  padding: 0 16px 0 32px;
-  min-width: 0;
-  pointer-events: none;
-}
-.workspace-card__body {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  min-width: 1304px;
-}
-.workspace-card__name {
-  width: var(--col-name-width);
-  max-width: var(--col-name-width);
-  box-sizing: border-box;
-  padding: 0 16px 0 32px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 0;
-  flex-shrink: 0;
-  font-weight: 600;
-  font-size: 16px;
-}
-.workspace-card__assignees {
-  width: var(--col-assignees-width);
-  max-width: var(--col-assignees-width);
-  box-sizing: border-box;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.workspace-card__description {
-  width: var(--col-description-width);
-  max-width: var(--col-description-width);
-  box-sizing: border-box;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 0;
-  flex-shrink: 0;
-  font-size: 14px;
-}
-.workspace-card__status {
-  width: var(--col-status-width);
-  max-width: var(--col-status-width);
-  box-sizing: border-box;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 0;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-.workspace-card__actions {
-  width: var(--col-actions-width);
-  max-width: var(--col-actions-width);
-  box-sizing: border-box;
-  padding: 0 16px 0 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.workspace-card__menu-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: #64748b;
-  cursor: pointer;
-}
-.workspace-card__menu-btn:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
-}
-.workspace-card-menu-dropdown {
-  margin: 0;
-  padding: 4.9px 0;
-  list-style: none;
-  background: #fff;
-  border: 1px solid mixin.$border;
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
-}
-.workspace-card-menu-item {
-  display: block;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 7.7px 11.9px;
-  text-align: left;
-  font-size: 14px;
-  font-weight: 600;
-  color: mixin.$text;
-  cursor: pointer;
-  &:disabled {
-    opacity: 0.55;
-    cursor: default;
-  }
-}
-.workspace-card-menu-item--danger {
-  color: mixin.$danger;
-}
-.clickable-row {
-  cursor: pointer;
-}
-.clickable-row:hover:not(.workspace-row--loading) {
-  opacity: 0.8;
-}
-.workspace-row--loading,
-.workspace-row--loading:hover {
-  opacity: 0.6;
-  cursor: wait;
-}
-.workspace-row--fade-in {
-  animation: projectRowFadeIn 220ms ease-out;
-}
-@keyframes projectRowFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.clickable-row:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: -2px;
-}
-.name-text {
-  margin: 0;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.description-text {
-  margin: 0;
-  width: 100%;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.4;
-  max-height: calc(1.4em * 2);
-  color: #475569;
-  word-break: break-word;
-}
-.empty {
-  text-align: center;
-  color: #64748b;
-  padding: 14px;
-}
-.primary-btn,
-.ghost-btn {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 4px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  letter-spacing: 0.1em;
-}
-.primary-btn {
-  background: mixin.$main;
-  color: mixin.$white;
-  border-radius: 999px;
-  padding: 6px 28px;
-  font-size: 14px;
-  font-weight: bold;
-  white-space: nowrap;
-  flex-shrink: 0;
-  gap: 6px;
-}
-.ghost-btn {
-  background: #fff;
-  color: #334155;
-  border-color: #94a3b8;
-}
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.err {
-  margin-top: 0;
-  margin-bottom: 12px;
-  color: mixin.$danger;
-  font-weight: 700;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/pages/org/slug/workspaces/index.scss"></style>

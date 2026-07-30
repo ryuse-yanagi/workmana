@@ -88,39 +88,4 @@ onBeforeUnmount(() => {
   deactivate()
 })
 </script>
-<style lang="scss">
-body.app-loading-cursor-active,
-body.app-loading-cursor-active * {
-  cursor: none !important;
-}
-.app-loading-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483647;
-  pointer-events: auto;
-  touch-action: none;
-}
-.app-loading-overlay__blocker {
-  position: absolute;
-  inset: 0;
-}
-.app-loading-cursor {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 20px;
-  height: 20px;
-  margin: -1px 0 0 -1px;
-  pointer-events: none;
-  color: mixin.$main-aqua;
-}
-.app-loading-cursor__ring {
-  display: block;
-  animation: app-loading-cursor-spin 0.75s linear infinite;
-}
-@keyframes app-loading-cursor-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-</style>
+<style lang="scss" src="~/assets/styles/components/app/AppLoadingCursor.scss"></style>

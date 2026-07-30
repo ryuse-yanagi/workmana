@@ -1,0 +1,9 @@
+.page { max-width: 448px; margin: 28px auto; padding: 0 14px; }
+.muted { color: #64748b; }
+.card { margin-top: 14px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; }
+.err { color: mixin.$danger; margin-bottom: 10.5px; }
+button {
+  padding: 7px 14px; border-radius: 6px; border: none; background: #0f172a; color: white;
+  cursor: pointer; font-size: 12.6px;
+}
+button:disabled { opacity: 0.5; cursor: not-allowed; }

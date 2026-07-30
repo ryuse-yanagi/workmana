@@ -32,7 +32,6 @@ class ListController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
@@ -71,7 +70,6 @@ class ListController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $boardList->workspace_id !== (int) $workspace->id) {
@@ -117,7 +115,6 @@ class ListController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $boardList->workspace_id !== (int) $workspace->id) {
@@ -169,7 +166,6 @@ class ListController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
@@ -211,7 +207,6 @@ class ListController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $boardList->workspace_id !== (int) $workspace->id) {

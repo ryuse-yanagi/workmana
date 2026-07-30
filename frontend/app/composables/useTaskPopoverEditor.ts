@@ -3,22 +3,19 @@ import { dismissPopoverFromOutsidePointer } from '../utils/uiInteraction'
 import { useApi } from './useApi'
 import {
   type TaskFormDraft,
-  type TaskFormEffortUnit,
   type TaskFormLabel,
   type TaskFormMember,
+  FIXED_EFFORT_UNIT,
   effortUnitLabel,
   effortValueToDraft,
   labelBarTextColor,
   memberEmailLine,
   normalizeEffortValue,
   parseEffortDraft,
-  resolveEffortUnit,
   resolveStoredEffortValue,
   sanitizeEffortDraftInput,
   toDateInputValue,
-  unitValueToHours,
 } from './useTaskFormHelpers'
-import { useOrgEffortSettings } from './useOrgEffortSettings'
 import { resolveLabelColors } from '../utils/colorPresetResolution'
 export type WorkspaceListOption = { id: number; name: string; color: string; sort_order?: number }
 export type TaskPopoverEditable = {
@@ -75,24 +72,27 @@ type UseTaskPopoverEditorOptions = {
   task: Ref<TaskPopoverEditable | null>
   onUpdated: (task: TaskPopoverEditable) => void
   disabled?: Ref<boolean>
+  /** true のとき説明ポップオーバーは閲覧専用（閉じても保存しない） */
+  readonlyDescription?: Ref<boolean>
   zIndex?: number
 }
 const POPOVER_VIEWPORT_PAD = 12
+const POPOVER_VIEWPORT_TOP_PAD = 200
 const POPOVER_ANCHOR_GAP = 6
 const POPOVER_MIN_HEIGHT = 120
 const POPOVER_DEFAULT_WIDTH_PX = 312
+const DESCRIPTION_POPOVER_MAX_WIDTH = 600
 function effortSource (
   task: TaskPopoverEditable,
-  orgEffortUnit: TaskFormEffortUnit,
 ): Pick<TaskFormDraft, 'effort_value' | 'effort_hours' | 'effort_unit'> {
   const effortValue = task.effort_value ?? null
   return {
     effort_value: effortValue,
     effort_hours: task.effort_hours ?? null,
-    effort_unit: effortValue === null ? null : resolveEffortUnit(task.effort_unit, orgEffortUnit),
+    effort_unit: effortValue === null ? null : FIXED_EFFORT_UNIT,
   }
 }
-function resolveListName (
+export function resolveListName (
   listId: number | null | undefined,
   lists: WorkspaceListOption[],
 ): string | null {
@@ -133,9 +133,7 @@ function patchToEditable (
 }
 export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   const { api } = useApi()
-  const { getOrgEffortUnit, ensureOrgEffortSettings } = useOrgEffortSettings()
   const popoverZIndex = options.zIndex ?? 80
-  const orgEffortUnit = computed(() => getOrgEffortUnit(options.orgSlug))
   const activePopover = ref<PopoverType | null>(null)
   const selectedMember = ref<TaskFormMember | null>(null)
   const popoverError = ref<string | null>(null)
@@ -181,7 +179,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (!task) {
       return false
     }
-    return resolveStoredEffortValue(effortSource(task, orgEffortUnit.value)) !== null
+    return resolveStoredEffortValue(effortSource(task)) !== null
   })
   const calendarMonthLabel = computed(() => {
     const y = calendarCursor.value.getFullYear()
@@ -218,7 +216,13 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const target = popoverElRef.value
     if (!target) return null
     if (target instanceof HTMLElement) return target
-    return target.rootRef
+    const root = target.rootRef
+    if (root instanceof HTMLElement) return root
+    if (root && typeof root === 'object' && 'value' in root) {
+      const el = (root as { value: unknown }).value
+      return el instanceof HTMLElement ? el : null
+    }
+    return null
   }
   function capturePopoverAnchor (event?: Event): HTMLElement | null {
     const fromEvent = event?.currentTarget
@@ -230,43 +234,172 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     }
     return null
   }
+  function resolveDescriptionPopoverWidth (): number {
+    const viewportMax = import.meta.client
+      ? Math.max(0, window.innerWidth - 21)
+      : DESCRIPTION_POPOVER_MAX_WIDTH
+    return Math.min(DESCRIPTION_POPOVER_MAX_WIDTH, viewportMax || DESCRIPTION_POPOVER_MAX_WIDTH)
+  }
+  function resolveTableTop (anchor: HTMLElement): number | null {
+    const table = anchor.closest('table.workspace-table')
+      ?? anchor.closest('.workspace-table-board__frame')
+    if (!(table instanceof HTMLElement)) {
+      return null
+    }
+    return table.getBoundingClientRect().top
+  }
+  /** ボード内の先頭テーブル（見出し）上端。セクション分割された親なしテーブルでも共通の上限にする */
+  function resolveBoardTableTop (anchor: HTMLElement): number | null {
+    const board = anchor.closest('.workspace-table-board')
+    if (board instanceof HTMLElement) {
+      const headerCell = board.querySelector(
+        '.workspace-table thead th, .workspace-table__header-cell',
+      )
+      if (headerCell instanceof HTMLElement) {
+        return headerCell.getBoundingClientRect().top
+      }
+      const firstFrame = board.querySelector('.workspace-table-board__frame')
+      if (firstFrame instanceof HTMLElement) {
+        return firstFrame.getBoundingClientRect().top
+      }
+    }
+    return resolveTableTop(anchor)
+  }
+  function measurePopoverContentHeight (popover: HTMLElement): number {
+    const style = popover.style
+    const prevMaxHeight = style.maxHeight
+    const prevHeight = style.height
+    style.maxHeight = 'none'
+    style.height = 'auto'
+    const height = Math.ceil(
+      popover.scrollHeight
+      || popover.offsetHeight
+      || popover.getBoundingClientRect().height
+      || 0,
+    )
+    style.maxHeight = prevMaxHeight
+    style.height = prevHeight
+    return Math.max(POPOVER_MIN_HEIGHT, height)
+  }
+  function resolveSideLeft (
+    anchorRect: DOMRect,
+    popoverWidth: number,
+    pad: number,
+    gap: number,
+  ): number {
+    let left = anchorRect.right + gap
+    if (left + popoverWidth > window.innerWidth - pad) {
+      left = anchorRect.left - gap - popoverWidth
+    }
+    return Math.max(pad, Math.min(left, window.innerWidth - pad - popoverWidth))
+  }
   function positionPopover () {
     const anchor = popoverAnchorEl.value
     const popover = resolvePopoverElement()
     if (!anchor || !popover) return
     const pad = POPOVER_VIEWPORT_PAD
+    const topPad = POPOVER_VIEWPORT_TOP_PAD
     const gap = POPOVER_ANCHOR_GAP
     const anchorRect = anchor.getBoundingClientRect()
-    const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
+    const type = activePopover.value
+    const isDescription = type === 'description'
+    const isDescriptionEdit = isDescription && !options.readonlyDescription?.value
+    const descriptionWidth = isDescription
+      ? resolveDescriptionPopoverWidth()
+      : null
+    const measuredWidth = descriptionWidth
+      ?? (popover.offsetWidth || popover.getBoundingClientRect().width)
     const popoverWidth = measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX
-    let left = anchorRect.left
-    if (left + popoverWidth > window.innerWidth - pad) {
-      left = anchorRect.right - popoverWidth
-    }
-    const spaceBelow = window.innerHeight - anchorRect.bottom - pad
-    const spaceAbove = anchorRect.top - pad
+    const left = resolveSideLeft(anchorRect, popoverWidth, pad, gap)
+    const bottomLimit = window.innerHeight - pad
     let top: number
     let maxHeight: number
-    if (spaceBelow >= POPOVER_MIN_HEIGHT) {
-      top = anchorRect.bottom + gap
-      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceBelow - gap))
+    let forceHeight = false
+
+    if (isDescription) {
+      // 説明: ボード先頭テーブル上端から（親なし独立テーブルも同じ位置）
+      const tableTop = resolveBoardTableTop(anchor)
+      top = Math.max(topPad, Math.round(tableTop ?? anchorRect.top))
+      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
+      forceHeight = isDescriptionEdit
+    } else if (type === 'start-date' || type === 'due-date' || type === 'effort') {
+      // カレンダー・工数: 選択枠の高さから。下に収まらなければ上へずらす
+      const popoverHeight = measurePopoverContentHeight(popover)
+      top = Math.round(anchorRect.top)
+      if (top + popoverHeight > bottomLimit) {
+        top = bottomLimit - popoverHeight
+      }
+      top = Math.max(topPad, top)
+      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
+      if (popoverHeight > maxHeight) {
+        forceHeight = true
+      }
+    } else if (
+      type === 'members'
+      || type === 'member-detail'
+      || type === 'labels'
+      || type === 'list'
+    ) {
+      // 担当・ラベル・リスト（親なし独立テーブル含む）:
+      // 1) 枠上端から伸ばして収まる → そこから
+      // 2) 収まらない → 下寄せ
+      // 3) 下寄せしてもボード先頭テーブル上端に届く → そこで高さ固定しスクロール
+      const popoverHeight = measurePopoverContentHeight(popover)
+      const cellTop = Math.max(topPad, Math.round(anchorRect.top))
+      const boardTableTop = Math.max(
+        topPad,
+        Math.round(resolveBoardTableTop(anchor) ?? cellTop),
+      )
+      if (cellTop + popoverHeight <= bottomLimit) {
+        top = cellTop
+      } else {
+        const bottomAlignedTop = bottomLimit - popoverHeight
+        if (bottomAlignedTop <= boardTableTop) {
+          top = boardTableTop
+          forceHeight = true
+        } else {
+          top = Math.max(topPad, Math.round(bottomAlignedTop))
+        }
+      }
+      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
+      if (popoverHeight > maxHeight) {
+        forceHeight = true
+      }
     } else {
-      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceAbove - gap))
-      top = Math.max(pad, anchorRect.top - gap - maxHeight)
+      const tableTop = resolveBoardTableTop(anchor)
+      top = Math.max(topPad, Math.round(tableTop ?? anchorRect.top))
+      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
     }
+
+    // 最終ガード: 画面下にはみ出さない
+    if (top + maxHeight > bottomLimit) {
+      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
+      forceHeight = true
+    }
+    if (top > bottomLimit - POPOVER_MIN_HEIGHT) {
+      top = Math.max(topPad, bottomLimit - Math.max(maxHeight, POPOVER_MIN_HEIGHT))
+      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
+      forceHeight = true
+    }
+
     popoverStyle.value = {
       position: 'fixed',
       top: `${Math.round(top)}px`,
       left: `${Math.round(left)}px`,
       maxHeight: `${maxHeight}px`,
+      ...(forceHeight || isDescriptionEdit ? { height: `${maxHeight}px` } : {}),
       zIndex: String(popoverZIndex),
+      ...(descriptionWidth != null ? { width: `${descriptionWidth}px` } : {}),
     }
   }
   function updatePopoverPosition () {
     nextTick(() => {
       requestAnimationFrame(() => {
         positionPopover()
-        if (!popoverElRef.value) {
+        if (!resolvePopoverElement()) {
+          requestAnimationFrame(() => positionPopover())
+        } else {
+          // 初回計測後に中身が伸びるケース向けにもう一度合わせる
           requestAnimationFrame(() => positionPopover())
         }
       })
@@ -278,6 +411,19 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     popoverError.value = null
     pendingDate.value = null
     popoverStyle.value = {}
+    // 途中で失敗した更新フラグが残ると、開いても変更できなくなる
+    listSaving.value = false
+    pickerMutationPending.value = false
+    dateSaving.value = false
+    effortSaving.value = false
+    descriptionSaving.value = false
+  }
+  function resetTransientMutationLocks () {
+    listSaving.value = false
+    pickerMutationPending.value = false
+    dateSaving.value = false
+    effortSaving.value = false
+    descriptionSaving.value = false
   }
   function patchLocalTask (patch: Partial<TaskPopoverEditable>) {
     const task = options.task.value
@@ -287,6 +433,8 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     options.onUpdated(merged)
   }
   function previewDescriptionInTable () {
+    // 閲覧専用では下書きの同期プレビューを行わない
+    if (options.readonlyDescription?.value) return
     if (activePopover.value !== 'description') return
     const task = options.task.value
     if (!task) return
@@ -302,13 +450,12 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (!task) return
     const parsed = parseEffortDraft(effortDraft.value)
     if (parsed === 'invalid') return
-    const unit = orgEffortUnit.value
     const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
     options.onUpdated({
       ...task,
       effort_value: effortValue,
-      effort_hours: effortValue === null ? null : unitValueToHours(effortValue, unit),
-      effort_unit: effortValue === null ? null : unit,
+      effort_hours: effortValue,
+      effort_unit: effortValue === null ? null : FIXED_EFFORT_UNIT,
     })
   }
   async function applyPatchResponse (updated: TaskPatchResponse) {
@@ -325,15 +472,13 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const parsed = parseEffortDraft(effortDraft.value)
     if (parsed === 'invalid') {
       popoverError.value = '工数は0以上の数値で入力してください'
-      effortDraft.value = effortValueToDraft(effortSource(task, orgEffortUnit.value))
+      effortDraft.value = effortValueToDraft(effortSource(task))
       return
     }
-    const unit = orgEffortUnit.value
     const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
-    const effortUnit = effortValue === null ? null : unit
-    const currentValue = resolveStoredEffortValue(effortSource(task, orgEffortUnit.value))
-    const currentUnit = currentValue === null ? null : resolveEffortUnit(task.effort_unit, orgEffortUnit.value)
-    if (effortValue === currentValue && effortUnit === currentUnit) {
+    const effortUnit = effortValue === null ? null : FIXED_EFFORT_UNIT
+    const currentValue = resolveStoredEffortValue(effortSource(task))
+    if (effortValue === currentValue) {
       popoverError.value = null
       return
     }
@@ -342,7 +487,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const previousUnit = task.effort_unit ?? null
     patchLocalTask({
       effort_value: effortValue,
-      effort_hours: effortValue === null ? null : unitValueToHours(effortValue, unit),
+      effort_hours: effortValue,
       effort_unit: effortUnit,
     })
     effortSaving.value = true
@@ -353,14 +498,14 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
         body: { effort_value: effortValue, effort_unit: effortUnit },
       })
       await applyPatchResponse(updated)
-      effortDraft.value = effortValueToDraft(effortSource(options.task.value ?? task, orgEffortUnit.value))
+      effortDraft.value = effortValueToDraft(effortSource(options.task.value ?? task))
     } catch (e: unknown) {
       patchLocalTask({
         effort_value: previousValue,
         effort_hours: previousHours,
         effort_unit: previousUnit,
       })
-      effortDraft.value = effortValueToDraft(effortSource(task, orgEffortUnit.value))
+      effortDraft.value = effortValueToDraft(effortSource(task))
       popoverError.value = e instanceof Error ? e.message : '工数の更新に失敗しました'
     } finally {
       effortSaving.value = false
@@ -386,7 +531,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     effortDraft.value = ''
     const task = options.task.value
     const currentValue = task
-      ? resolveStoredEffortValue(effortSource(task, orgEffortUnit.value))
+      ? resolveStoredEffortValue(effortSource(task))
       : null
     if (currentValue === null) {
       dismissPopover()
@@ -423,27 +568,36 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       return
     }
     if (activePopover.value === 'description') {
-      await saveDescription()
+      // 閲覧専用表示では保存しない（編集ボタン押下などと競合させない）
+      if (!options.readonlyDescription?.value) {
+        await saveDescription()
+      }
       dismissPopover()
       return
     }
     dismissPopover()
   }
   function shouldIgnorePopoverOutsideClose (target: Node): boolean {
-    if (!(target instanceof Element)) {
+    const el = target instanceof Element ? target : target.parentElement
+    if (!el) {
       return false
     }
-    if (target.closest('.popover-layer, .popover')) {
+    if (el.closest('.popover-layer, .popover, .popover-shell')) {
       return true
     }
-    if (target.closest('[data-workspace-view-switcher-root], .workspace-view-switcher-menu')) {
+    if (el.closest('[data-workspace-view-switcher-root], .workspace-view-switcher-menu')) {
       return true
     }
-    if (target.closest('.workspace-table__cell-btn')) {
+    // テーブルヘッダーの編集／キャンセル／完了などは外側クローズ対象外にする。
+    // mouseup で非同期 close が走ると click / pointerdown による編集モード遷移と競合しうるため。
+    if (el.closest('.subheader-actions, .document-header-action-btn, .page-header')) {
+      return true
+    }
+    if (el.closest('.workspace-table__cell-btn, .workspace-table__avatar-btn, .workspace-table__members-cell')) {
       return true
     }
     const anchor = popoverAnchorEl.value
-    if (anchor?.contains(target)) {
+    if (anchor?.contains(el)) {
       return true
     }
     return false
@@ -453,7 +607,20 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const target = event.target
     if (!(target instanceof Node)) return
     if (resolvePopoverElement()?.contains(target)) return
+    // 説明はテーブル内の別セルを含め、プルダウン外のクリックで閉じる。
+    // 通常モードは保存不要、編集モードは変更を保存してから閉じる。
+    if (activePopover.value === 'description') {
+      dismissPopoverFromOutsidePointer(
+        target,
+        options.readonlyDescription?.value ? dismissPopover : closePopover,
+      )
+      return
+    }
     if (shouldIgnorePopoverOutsideClose(target)) return
+    if (activePopover.value === 'member-detail') {
+      dismissPopoverFromOutsidePointer(target, dismissPopover)
+      return
+    }
     dismissPopoverFromOutsidePointer(target, closePopover)
   }
   function onPopoverEscape (event: KeyboardEvent) {
@@ -492,6 +659,9 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   })
   watch(descriptionDraft, () => {
     previewDescriptionInTable()
+    if (activePopover.value === 'description') {
+      updatePopoverPosition()
+    }
   })
   watch(effortDraft, () => {
     previewEffortInTable()
@@ -502,6 +672,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   function openDatePicker (target: 'start' | 'due', event?: Event) {
     const task = options.task.value
     if (!task || isDisabled()) return
+    resetTransientMutationLocks()
     const next: PopoverType = target === 'start' ? 'start-date' : 'due-date'
     if (activePopover.value === next) {
       void closePopover()
@@ -586,17 +757,17 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   }
   async function openEffortPicker (event?: Event) {
     const task = options.task.value
-    if (!task || isDisabled() || effortSaving.value) return
+    if (!task || isDisabled()) return
     if (activePopover.value === 'effort') {
       void closePopover()
       return
     }
+    resetTransientMutationLocks()
     const anchor = capturePopoverAnchor(event)
-    await ensureOrgEffortSettings(options.orgSlug)
     popoverAnchorEl.value = anchor
     activePopover.value = 'effort'
     popoverError.value = null
-    effortDraft.value = effortValueToDraft(effortSource(task, orgEffortUnit.value))
+    effortDraft.value = effortValueToDraft(effortSource(task))
     updatePopoverPosition()
     nextTick(() => {
       effortInputRef.value?.focus()
@@ -618,6 +789,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       void closePopover()
       return
     }
+    resetTransientMutationLocks()
     selectedMember.value = null
     popoverAnchorEl.value = capturePopoverAnchor(event)
     activePopover.value = 'members'
@@ -631,6 +803,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       void closePopover()
       return
     }
+    resetTransientMutationLocks()
     selectedMember.value = member
     popoverAnchorEl.value = event.currentTarget as HTMLElement
     activePopover.value = 'member-detail'
@@ -644,6 +817,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       void closePopover()
       return
     }
+    resetTransientMutationLocks()
     labelSearchQuery.value = ''
     popoverAnchorEl.value = capturePopoverAnchor(event)
     activePopover.value = 'labels'
@@ -654,14 +828,20 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const task = options.task.value
     if (!task || isDisabled()) return
     if (activePopover.value === 'description') {
-      void closePopover()
+      if (options.readonlyDescription?.value) {
+        dismissPopover()
+      } else {
+        void closePopover()
+      }
       return
     }
+    resetTransientMutationLocks()
     descriptionDraft.value = task.description ?? ''
     popoverAnchorEl.value = capturePopoverAnchor(event)
     activePopover.value = 'description'
     popoverError.value = null
     updatePopoverPosition()
+    if (options.readonlyDescription?.value) return
     nextTick(() => {
       const el = descriptionInputRef.value
       if (!el) return
@@ -677,6 +857,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       void closePopover()
       return
     }
+    resetTransientMutationLocks()
     popoverAnchorEl.value = capturePopoverAnchor(event)
     activePopover.value = 'list'
     popoverError.value = null
@@ -785,7 +966,6 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     }
   }
   return {
-    orgEffortUnit,
     effortUnitLabel,
     activePopover,
     selectedMember,

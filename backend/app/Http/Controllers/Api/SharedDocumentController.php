@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Models\DocumentLabel;
 use App\Models\Organization;
 use App\Models\SharedDocument;
+use App\Models\Workspace;
+use App\Support\BidirectionalRelationSync;
 use App\Support\DefaultDocumentCategories;
 use App\Support\FieldLengthLimits;
 use Illuminate\Http\JsonResponse;
@@ -32,16 +34,13 @@ class SharedDocumentController extends ApiController
 
     public function show(Request $request, Organization $organization, SharedDocument $document): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (! $pivot) {
-            abort(403);
-        }
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
 
-        if ($document->organization_id !== $organization->id) {
-            abort(404);
-        }
-
-        $document->load(['labels']);
+        $document->load([
+            'labels',
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+            'relatedDocuments:id,name,description,organization_id',
+        ]);
 
         return response()->json($this->documentPayload($document, $organization));
     }
@@ -87,7 +86,11 @@ class SharedDocumentController extends ApiController
             $document->labels()->sync($labelIds);
         }
 
-        $document->load(['labels']);
+        $document->load([
+            'labels',
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+            'relatedDocuments:id,name,description,organization_id',
+        ]);
 
         return response()->json(
             $this->documentPayload($document, $organization),
@@ -97,14 +100,7 @@ class SharedDocumentController extends ApiController
 
     public function update(Request $request, Organization $organization, SharedDocument $document): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (! $pivot) {
-            abort(403);
-        }
-
-        if ($document->organization_id !== $organization->id) {
-            abort(404);
-        }
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::DOCUMENT_NAME],
@@ -141,14 +137,121 @@ class SharedDocumentController extends ApiController
             $document->labels()->sync($labelIds);
         }
 
-        $document->load(['labels']);
+        $document->load([
+            'labels',
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+            'relatedDocuments:id,name,description,organization_id',
+        ]);
 
         return response()->json($this->documentPayload($document, $organization));
     }
 
+    public function syncRelatedWorkspaces(Request $request, Organization $organization, SharedDocument $document): JsonResponse
+    {
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
+
+        $validated = $request->validate([
+            'workspace_ids' => ['present', 'array'],
+            'workspace_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $workspaceIds = $this->validateRelatedWorkspaceIds(
+            $request,
+            $organization,
+            $validated['workspace_ids'] ?? [],
+        );
+        $document->relatedWorkspaces()->sync($workspaceIds);
+        $document->load([
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+        ]);
+
+        return response()->json([
+            'data' => $document->relatedWorkspaces
+                ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
+                ->values(),
+        ]);
+    }
+
+    public function syncRelatedDocuments(Request $request, Organization $organization, SharedDocument $document): JsonResponse
+    {
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
+
+        $validated = $request->validate([
+            'document_ids' => ['present', 'array'],
+            'document_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $documentIds = $this->validateRelatedDocumentIds(
+            $organization,
+            $document,
+            $validated['document_ids'] ?? [],
+        );
+        BidirectionalRelationSync::syncRelatedDocuments($document, $documentIds);
+        $document->load([
+            'relatedDocuments:id,name,description,organization_id',
+        ]);
+
+        return response()->json([
+            'data' => $document->relatedDocuments
+                ->map(fn (SharedDocument $item) => $this->relatedDocumentPayload($item))
+                ->values(),
+        ]);
+    }
+
+    public function detachRelatedWorkspace(
+        Request $request,
+        Organization $organization,
+        SharedDocument $document,
+        Workspace $workspace,
+    ): JsonResponse {
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+
+        $document->relatedWorkspaces()->detach($workspace->id);
+        $document->load([
+            'relatedWorkspaces:id,name,description,organization_id,archived_at',
+        ]);
+
+        return response()->json([
+            'data' => $document->relatedWorkspaces
+                ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
+                ->values(),
+        ]);
+    }
+
+    public function detachRelatedDocument(
+        Request $request,
+        Organization $organization,
+        SharedDocument $document,
+        SharedDocument $relatedDocument,
+    ): JsonResponse {
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->ensureDocumentBelongsToOrganization($relatedDocument, $organization);
+
+        BidirectionalRelationSync::detachRelatedDocument($document, $relatedDocument);
+        $document->load([
+            'relatedDocuments:id,name,description,organization_id',
+        ]);
+
+        return response()->json([
+            'data' => $document->relatedDocuments
+                ->map(fn (SharedDocument $item) => $this->relatedDocumentPayload($item))
+                ->values(),
+        ]);
+    }
+
     public function destroy(Request $request, Organization $organization, SharedDocument $document): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
+
+        $document->delete();
+
+        return response()->json(null, 204);
+    }
+
+    private function ensureDocumentBelongsToOrganization(SharedDocument $document, Organization $organization): void
+    {
+        $pivot = request()->attributes->get('organization_membership');
         if (! $pivot) {
             abort(403);
         }
@@ -156,10 +259,6 @@ class SharedDocumentController extends ApiController
         if ($document->organization_id !== $organization->id) {
             abort(404);
         }
-
-        $document->delete();
-
-        return response()->json(null, 204);
     }
 
     /**
@@ -185,6 +284,82 @@ class SharedDocumentController extends ApiController
     }
 
     /**
+     * @param array<int, mixed> $workspaceIds
+     * @return array<int, int>
+     */
+    private function validateRelatedWorkspaceIds(
+        Request $request,
+        Organization $organization,
+        array $workspaceIds,
+    ): array {
+        $ids = array_values(array_unique(array_map('intval', $workspaceIds)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $count = Workspace::query()
+            ->where('organization_id', $organization->id)
+            ->whereNull('archived_at')
+            ->whereIn('id', $ids)
+            ->count();
+        if ($count !== count($ids)) {
+            abort(422, 'One or more workspaces are invalid for this organization.');
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param array<int, mixed> $documentIds
+     * @return array<int, int>
+     */
+    private function validateRelatedDocumentIds(
+        Organization $organization,
+        SharedDocument $document,
+        array $documentIds,
+    ): array {
+        $ids = array_values(array_unique(array_map('intval', $documentIds)));
+        $ids = array_values(array_filter($ids, fn (int $id) => $id !== (int) $document->id));
+        if ($ids === []) {
+            return [];
+        }
+
+        $count = SharedDocument::query()
+            ->where('organization_id', $organization->id)
+            ->whereIn('id', $ids)
+            ->count();
+        if ($count !== count($ids)) {
+            abort(422, 'One or more documents are invalid for this organization.');
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function relatedWorkspacePayload(Workspace $workspace): array
+    {
+        return [
+            'id' => $workspace->id,
+            'name' => $workspace->name,
+            'description' => $workspace->description,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function relatedDocumentPayload(SharedDocument $document): array
+    {
+        return [
+            'id' => $document->id,
+            'name' => $document->name,
+            'description' => $document->description,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function documentPayload(SharedDocument $document, Organization $organization): array
@@ -201,6 +376,16 @@ class SharedDocumentController extends ApiController
                 'name' => $label->name,
                 'color_index' => $label->color_index,
             ])->values()->all(),
+            'related_workspaces' => $document->relationLoaded('relatedWorkspaces')
+                ? $document->relatedWorkspaces
+                    ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
+                    ->values()
+                : [],
+            'related_documents' => $document->relationLoaded('relatedDocuments')
+                ? $document->relatedDocuments
+                    ->map(fn (SharedDocument $item) => $this->relatedDocumentPayload($item))
+                    ->values()
+                : [],
             'created_at' => $document->created_at,
         ];
     }

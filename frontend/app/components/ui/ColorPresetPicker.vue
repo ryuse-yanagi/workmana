@@ -57,34 +57,4 @@ function selectColor (colorItem: string) {
   emit('update:modelValue', colorItem)
 }
 </script>
-<style lang="scss" scoped>
-.color-preset-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 6.3px;
-  color: #1e293b;
-  font-weight: 700;
-}
-.color-preset-picker__list {
-  display: grid;
-  gap: 4.9px;
-}
-.color-preset-picker__btn {
-  @include mixin.picker-checkbox-row;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  aspect-ratio: 1.55;
-  min-height: 23.1px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  padding: 0;
-}
-.color-preset-picker__btn--active {
-  box-shadow: none;
-}
-.color-preset-picker__check {
-  flex-shrink: 0;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/components/ui/ColorPresetPicker.scss"></style>

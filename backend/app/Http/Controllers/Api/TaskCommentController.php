@@ -59,7 +59,6 @@ class TaskCommentController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
         $this->assertTaskInWorkspace($task, $workspace);
 
@@ -107,7 +106,6 @@ class TaskCommentController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
         $this->assertTaskInWorkspace($task, $workspace);
         $this->assertCommentInTask($comment, $task);
@@ -151,7 +149,6 @@ class TaskCommentController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
         $this->assertTaskInWorkspace($task, $workspace);
         $this->assertCommentInTask($comment, $task);
@@ -182,7 +179,6 @@ class TaskCommentController extends ApiController
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
-        $this->denyIfWorkspaceViewer($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
         $this->assertTaskInWorkspace($task, $workspace);
         $this->assertCommentInTask($comment, $task);

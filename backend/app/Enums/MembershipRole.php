@@ -6,7 +6,6 @@ enum MembershipRole: string
 {
     case Admin = 'admin';
     case Member = 'member';
-    case Viewer = 'viewer';
 
     public static function values(): array
     {

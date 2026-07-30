@@ -1,6 +1,6 @@
 <template>
   <div class="label-category-panel">
-    <div class="label-category-panel__toolbar">
+    <div v-if="canManage" class="label-category-panel__toolbar">
       <button
         type="button"
         class="label-category-panel__add-category-btn"
@@ -15,7 +15,12 @@
       {{ message }}
     </p>
     <p v-if="!loading && !categories.length" class="label-category-panel__empty">
-      まだカテゴリがありません。「カテゴリ追加」から作成してください。
+      <template v-if="canManage">
+        まだカテゴリがありません。「カテゴリ追加」から作成してください。
+      </template>
+      <template v-else>
+        まだカテゴリがありません。
+      </template>
     </p>
     <draggable
       v-model="categories"
@@ -23,7 +28,7 @@
       class="label-category-list"
       handle=".label-category-row__drag-handle"
       :animation="150"
-      :disabled="loading || reordering"
+      :disabled="!canManage || loading || reordering"
       ghost-class="label-settings-row--ghost"
       chosen-class="label-settings-row--chosen"
       @end="onCategoryDragEnd"
@@ -32,6 +37,7 @@
         <div class="label-category-block">
           <div class="label-category-row">
             <button
+              v-if="canManage"
               type="button"
               class="label-category-row__drag-handle"
               aria-label="ドラッグしてカテゴリの並び順を変更"
@@ -40,7 +46,7 @@
               <Equal :size="24" :stroke-width="2.25" aria-hidden="true" />
             </button>
             <span class="label-category-row__name">{{ category.name }}</span>
-            <div class="label-category-row__actions">
+            <div v-if="canManage" class="label-category-row__actions">
               <button type="button" class="label-action-btn label-action-btn--edit" @click="openEditCategory(category)">
                 編集
               </button>
@@ -60,7 +66,7 @@
             class="label-row-list"
             handle=".label-row__drag-handle"
             :animation="150"
-            :disabled="loading || reordering"
+            :disabled="!canManage || loading || reordering"
             ghost-class="label-settings-row--ghost"
             chosen-class="label-settings-row--chosen"
             @change="onLabelListChange(category.id, $event)"
@@ -68,6 +74,7 @@
             <template #item="{ element: label }">
               <div class="label-row">
                 <button
+                  v-if="canManage"
                   type="button"
                   class="label-row__drag-handle"
                   aria-label="ドラッグしてラベルの並び順を変更"
@@ -77,7 +84,7 @@
                 </button>
                 <span class="label-row__dot" :style="{ backgroundColor: label.color }" aria-hidden="true" />
                 <span class="label-row__name">{{ label.name }}</span>
-                <div class="label-row__actions">
+                <div v-if="canManage" class="label-row__actions">
                   <button type="button" class="label-action-btn label-action-btn--edit" @click="openEditLabel(label)">
                     編集
                   </button>
@@ -130,6 +137,7 @@ import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData
 const props = defineProps<{
   orgSlug: string
   labelKind: SettingsLabelTabKey
+  canManage: boolean
 }>()
 const { api } = useApi()
 const { getCachedLabelCategories, patchLabelCategoriesCache } = useOrgSettingsPageData()
@@ -231,12 +239,14 @@ async function persistLabelOrder (categoryId: number) {
   }
 }
 function onCategoryDragEnd (evt: LabelDragEndEvent) {
+  if (!props.canManage) return
   if (evt.oldIndex === undefined || evt.newIndex === undefined || evt.oldIndex === evt.newIndex) {
     return
   }
   void persistCategoryOrder()
 }
 function onLabelListChange (categoryId: number, evt: LabelListChangeEvent) {
+  if (!props.canManage) return
   const moved = evt.moved
   if (!moved || moved.oldIndex === moved.newIndex) {
     return
@@ -396,162 +406,5 @@ onMounted(() => {
 })
 defineExpose({ load })
 </script>
-<style lang="scss">
-@use './shared';
-</style>
-<style lang="scss" scoped>
-.label-category-panel__toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 11.9px;
-}
-.label-category-panel__add-category-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5.6px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 6.3px 18.9px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: mixin.$white;
-  background: mixin.$main;
-  cursor: pointer;
-}
-.label-category-panel__add-category-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.label-category-panel__empty {
-  margin: 0;
-  color: #64748b;
-  font-size: 12.6px;
-}
-.label-category-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10.5px;
-}
-.label-category-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6.3px;
-}
-.label-row-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6.3px;
-}
-.label-category-row,
-.label-row {
-  display: flex;
-  align-items: center;
-  gap: 7.7px;
-  box-sizing: border-box;
-  width: 100%;
-  padding: 0 10.5px;
-  border-radius: 10px;
-}
-.label-category-row {
-  height: 40px;
-  background: mixin.$gray;
-}
-.label-row {
-  height: 54px;
-  background: #f5f6fa;
-}
-.label-category-row__drag-handle,
-.label-row__drag-handle {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  color: #a2abb6;
-  cursor: pointer;
-  touch-action: none;
-}
-.label-category-row__drag-handle {
-  background: mixin.$gray;
-}
-.label-row__drag-handle {
-  background: #f5f6fa;
-}
-.label-category-row__drag-handle:active,
-.label-row__drag-handle:active {
-  cursor: default;
-}
-.label-settings-row--ghost {
-  opacity: 0.45;
-}
-.label-settings-row--chosen {
-  opacity: 0.85;
-}
-.label-category-row__name,
-.label-row__name {
-  flex: 1;
-  min-width: 0;
-  font-size: 12.25px;
-  font-weight: 700;
-  color: #0f172a;
-}
-.label-row__dot {
-  flex-shrink: 0;
-  width: 11.9px;
-  height: 11.9px;
-  border-radius: 999px;
-}
-.label-category-row__actions,
-.label-row__actions {
-  display: flex;
-  align-items: center;
-  gap: 4.9px;
-  flex-shrink: 0;
-}
-.label-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  height: 24px;
-  border: none;
-  border-radius: 999px;
-  padding: 0;
-  font-size: 12.25px;
-  font-weight: 600;
-  background: #fff;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.label-action-btn--edit,
-.label-action-btn--delete {
-  width: 64px;
-}
-.label-action-btn--edit {
-  color: mixin.$main;
-}
-.label-action-btn--delete {
-  color: mixin.$danger;
-}
-.label-action-btn--primary {
-  width: 120px;
-  height: 24px;
-  gap: 4px;
-  padding: 0 8px;
-  font-size: 12px;
-  line-height: 1;
-  color: mixin.$white;
-  background: mixin.$main;
-  align-self: center;
-}
-.label-action-btn--primary :deep(svg) {
-  display: block;
-  flex-shrink: 0;
-}
-</style>
+<style lang="scss" src="~/assets/styles/components/settings/SettingsLabelCategoryPanel.global.scss"></style>
+<style lang="scss" scoped src="~/assets/styles/components/settings/SettingsLabelCategoryPanel.scss"></style>

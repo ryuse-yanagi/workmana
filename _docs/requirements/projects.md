@@ -107,7 +107,7 @@
 
 ## 役割・権限・認可
 
-admin / project_leader / member / viewer 等の**ロールごとの操作可否の網羅**は **`docs/permissions`** に記載する（「機能要件」冒頭の認可方針および `docs/requirements/auth.md` のデータモデルと整合）。他 organization のプロジェクトは参照・操作不可とする。
+admin / project_leader / member 等の**ロールごとの操作可否の網羅**は **`docs/permissions`** に記載する（「機能要件」冒頭の認可方針および `docs/requirements/auth.md` のデータモデルと整合）。他 organization のプロジェクトは参照・操作不可とする。
 
 ## 組織・プロジェクトコンテキスト
 

@@ -47,6 +47,13 @@ class User extends Authenticatable
         return $this->workspaces()->where('workspaces.id', $workspace->id)->exists();
     }
 
+    public function canAccessWorkspace(Workspace $workspace): bool
+    {
+        return $this->organizations()
+            ->where('organizations.id', $workspace->organization_id)
+            ->exists();
+    }
+
     public function workspaces(): BelongsToMany
     {
         return $this->belongsToMany(Workspace::class, 'workspace_memberships')

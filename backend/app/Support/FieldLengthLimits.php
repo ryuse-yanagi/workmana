@@ -10,8 +10,6 @@ final class FieldLengthLimits
 
     public const LABEL_NAME = 30;
 
-    public const MEMBER_GROUP_NAME = 30;
-
     public const LABEL_CATEGORY_NAME = 40;
 
     public const WORKSPACE_NAME = 30;

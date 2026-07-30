@@ -15,6 +15,10 @@
           >
             Workspaces
           </NuxtLink>
+          <p
+            v-if="workspaceMetaName"
+            class="subheader-workspace-name"
+          >{{ workspaceMetaName }}</p>
           <WorkspaceViewSwitcher :org-slug="slug" :workspace-id="workspaceId" />
           <div class="subheader-filters">
             <p class="subheader-count" aria-live="polite">{{ visibleTaskCount }} 件</p>
@@ -52,7 +56,12 @@
           </div>
         </div>
       </header>
-      <div class="page-shell-fade">
+      <div class="workspace-show-body">
+        <WorkspaceDetailSidebar
+          :org-slug="slug"
+          :workspace-id="workspaceId"
+        />
+        <div class="page-shell-fade">
           <p v-if="error" class="err">{{ error }}</p>
           <section
             class="board"
@@ -326,6 +335,7 @@
             </draggable>
             </div>
           </section>
+        </div>
       </div>
       <ArchivedTasksModal
         ref="archivedModalRef"
@@ -364,6 +374,7 @@
         :list-id="taskCreateListId"
         :org-labels="orgLabels"
         :workspace-members="workspaceMembers"
+        :workspace-lists="detailWorkspaceLists"
         @created="onTaskCreatedFromModal"
       />
       <TaskDetailModal
@@ -374,6 +385,7 @@
         :task-id="detailTaskId"
         :org-labels="orgLabels"
         :workspace-members="workspaceMembers"
+        :workspace-lists="detailWorkspaceLists"
         :initial-task-detail="detailInitialTask"
         :initial-parent-tasks="boardParentTasks"
         :hierarchy-tasks="detailHierarchyTasks"
@@ -382,6 +394,7 @@
         :remote-update-rev="detailModalRemoteRev"
         @updated="onTaskDetailUpdated"
         @comments-updated="onTaskCommentsUpdated"
+        @navigate="onTaskDetailNavigate"
       />
       <div
         v-if="undoToastTask"
@@ -467,88 +480,30 @@
           </ul>
         </section>
       </div>
-      <div
-        v-if="subheaderMenuOpen && subheaderMenuPosition"
-        class="subheader-menu-dropdown"
-        role="menu"
+      <FloatingMenu
+        :open="Boolean(subheaderMenuOpen && subheaderMenuPosition)"
+        density="compact"
+        :flush="false"
         :style="subheaderMenuStyle"
-      >
-        <button
-          type="button"
-          class="subheader-menu-item"
-          role="menuitem"
-          :disabled="pending"
-          @click="openListCreateModal"
-        >
-          <ListPlus :size="18" :stroke-width="2.25" aria-hidden="true" />
-          リスト追加
-        </button>
-        <button
-          type="button"
-          class="subheader-menu-item subheader-menu-item--danger"
-          role="menuitem"
-          @click="openArchivedModal"
-        >
-          <Trash2 :size="18" :stroke-width="2.25" aria-hidden="true" />
-          アーカイブ済みタスク一覧
-        </button>
-      </div>
-      <ul
-        v-if="openMenuTask && cardMenuPosition"
-        class="card-menu"
-        role="menu"
+        :disabled="pending"
+        :items="subheaderMenuItems"
+        @select="onSubheaderMenuSelect"
+      />
+      <FloatingMenu
+        :open="Boolean(openMenuTask && cardMenuPosition)"
+        density="compact"
         :style="cardMenuStyle"
-      >
-        <li role="none">
-          <button
-            type="button"
-            class="card-menu-item"
-            role="menuitem"
-            @click="openTaskDetail(openMenuTask)"
-          >
-            詳細
-          </button>
-        </li>
-        <li role="none">
-          <button
-            type="button"
-            class="card-menu-item"
-            role="menuitem"
-            @click="openArchiveConfirm(openMenuTask)"
-          >
-            アーカイブ
-          </button>
-        </li>
-      </ul>
-      <ul
-        v-if="openListMenuList && listMenuPosition"
-        class="list-header-menu-dropdown"
-        role="menu"
+        :items="cardMenuItems"
+        @select="onCardMenuSelect"
+      />
+      <FloatingMenu
+        :open="Boolean(openListMenuList && listMenuPosition)"
+        density="compact"
         :style="listMenuStyle"
-      >
-        <li role="none">
-          <button
-            type="button"
-            class="list-header-menu-item"
-            role="menuitem"
-            :disabled="pending"
-            @click="openListEditModal(openListMenuList)"
-          >
-            リストの編集
-          </button>
-        </li>
-        <li role="none">
-          <button
-            type="button"
-            class="list-header-menu-item list-header-menu-item--danger"
-            role="menuitem"
-            :disabled="pending"
-            @click="openListDeleteModal(openListMenuList)"
-          >
-            リストの削除
-          </button>
-        </li>
-      </ul>
+        :disabled="pending"
+        :items="listMenuItems"
+        @select="onListMenuSelect"
+      />
     </Teleport>
   </div>
 </template>
@@ -558,8 +513,11 @@ import draggable from 'vuedraggable'
 import ArchivedTasksModal from '../modals/ArchivedTasksModal.vue'
 import ListCreateModal from '../modals/ListCreateModal.vue'
 import ListDeleteModal from '../modals/ListDeleteModal.vue'
+import FloatingMenu, { type FloatingMenuItem } from '../ui/FloatingMenu.vue'
 import WorkspaceViewSwitcher from './WorkspaceViewSwitcher.vue'
+import WorkspaceDetailSidebar from './WorkspaceDetailSidebar.vue'
 import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../modals/TaskDetailModal.vue'
+import type { WorkspaceListOption } from '../../composables/useTaskPopoverEditor'
 import type { TaskChecklist } from '../task/TaskDetailChecklistBlock.vue'
 import type { TaskCommentsByTaskId, TaskDetailComment } from '../task/taskCommentTypes'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../composables/raceWithTimeout'
@@ -573,7 +531,6 @@ import {
   type WorkspaceBoardTask,
 } from '../../composables/useWorkspaceBoardPageData'
 import { enrichTaskDetailHierarchy } from '../../composables/useTaskHierarchy'
-import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { memberDisplayName } from '../../composables/useMemberDisplay'
 import {
@@ -584,6 +541,7 @@ import {
 } from '../../composables/useTaskCardMeta'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 import { useWorkspaceRealtimeChannel } from '../../composables/useWorkspaceRealtimeChannel'
+import { useWorkspaceDetailMeta } from '../../composables/useWorkspaceDetailMeta'
 import { resolveLabelColors, withResolvedListColor } from '../../utils/colorPresetResolution'
 import {
   getTopmostModalOverlay,
@@ -592,8 +550,9 @@ import {
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const workspaceId = computed(() => route.params.id as string)
+const { workspace: workspaceMeta } = useWorkspaceDetailMeta(slug, workspaceId)
+const workspaceMetaName = computed(() => workspaceMeta.value?.name ?? '')
 const { api } = useApi()
-const { orgEffortUnit } = useOrgEffortUnit(() => slug.value)
 const {
   fetchSnapshot: fetchBoardSnapshot,
   getCached: getBoardCached,
@@ -778,7 +737,15 @@ const detailHierarchyTasks = computed(() => {
     due_date: task.due_date ?? null,
     list_id: task.list_id,
     list_name: lists.value.find(list => list.listId === task.list_id)?.title ?? null,
+    list_color: lists.value.find(list => list.listId === task.list_id)?.color ?? null,
     sort_order: task.sort_order,
+  }))
+})
+const detailWorkspaceLists = computed((): WorkspaceListOption[] => {
+  return lists.value.map(list => ({
+    id: list.listId,
+    name: list.title,
+    color: list.color,
   }))
 })
 const detailInitialComments = computed((): TaskDetailComment[] | null => {
@@ -805,6 +772,7 @@ const cardMenuStyle = computed(() => {
     position: 'fixed' as const,
     top: `${top}px`,
     left: `${left}px`,
+    minWidth: `${CARD_MENU_MIN_WIDTH}px`,
     zIndex: 1000,
   }
 })
@@ -824,6 +792,7 @@ const subheaderMenuStyle = computed(() => {
     position: 'fixed' as const,
     top: `${top}px`,
     left: `${left}px`,
+    minWidth: `${SUBHEADER_MENU_MIN_WIDTH}px`,
     zIndex: 1000,
   }
 })
@@ -1113,7 +1082,7 @@ function taskCardDateRange (task: Task): string | null {
   return formatTaskCardDateRange(task.start_date, task.due_date)
 }
 function taskCardEffortText (task: Task): string | null {
-  return formatTaskCardEffort(task, orgEffortUnit.value)
+  return formatTaskCardEffort(task)
 }
 function openListCreateModal () {
   closeSubheaderMenu()
@@ -1132,6 +1101,49 @@ function openListDeleteModal (list: ListDef) {
   closeListMenu()
   listDeleteTarget.value = list
   listDeleteOpen.value = true
+}
+const subheaderMenuItems: FloatingMenuItem[] = [
+  { key: 'add-list', label: 'リスト追加', icon: ListPlus },
+  { key: 'archived', label: 'アーカイブ済みタスク一覧', icon: Trash2, danger: true },
+]
+const cardMenuItems: FloatingMenuItem[] = [
+  { key: 'detail', label: '詳細' },
+  { key: 'archive', label: 'アーカイブ' },
+]
+const listMenuItems: FloatingMenuItem[] = [
+  { key: 'edit', label: 'リストの編集' },
+  { key: 'delete', label: 'リストの削除', danger: true },
+]
+function onSubheaderMenuSelect (item: FloatingMenuItem) {
+  if (item.key === 'add-list') {
+    openListCreateModal()
+    return
+  }
+  if (item.key === 'archived') {
+    openArchivedModal()
+  }
+}
+function onCardMenuSelect (item: FloatingMenuItem) {
+  const task = openMenuTask.value
+  if (!task) return
+  if (item.key === 'detail') {
+    openTaskDetail(task)
+    return
+  }
+  if (item.key === 'archive') {
+    openArchiveConfirm(task)
+  }
+}
+function onListMenuSelect (item: FloatingMenuItem) {
+  const list = openListMenuList.value
+  if (!list) return
+  if (item.key === 'edit') {
+    openListEditModal(list)
+    return
+  }
+  if (item.key === 'delete') {
+    openListDeleteModal(list)
+  }
 }
 function closeListMenu () {
   openListMenuKey.value = null
@@ -1294,7 +1306,7 @@ function onGlobalClick (ev: Event) {
     if (el && el.closest('.card-menu-wrap')) {
       return
     }
-    if (el && el.closest('.card-menu')) {
+    if (el && el.closest('[data-floating-menu]')) {
       return
     }
     if (el && el.closest('[data-subheader-actions-root]')) {
@@ -1312,16 +1324,10 @@ function onGlobalClick (ev: Event) {
     if (el && el.closest('.popover-layer, .popover')) {
       return
     }
-    if (el && el.closest('.subheader-menu-dropdown')) {
-      return
-    }
     if (el && el.closest('.board-filter-dropdown')) {
       return
     }
     if (el && el.closest('.list-header-menu-host')) {
-      return
-    }
-    if (el && el.closest('.list-header-menu-dropdown')) {
       return
     }
   }
@@ -1390,6 +1396,16 @@ function openTaskDetail (task: Task) {
   closeCardMenu()
   detailTaskId.value = task.id
 }
+function onTaskDetailNavigate (taskId: number) {
+  if (detailTaskId.value === taskId) {
+    return
+  }
+  const target = tasks.value?.find(task => task.id === taskId)
+  if (!target) {
+    return
+  }
+  detailTaskId.value = taskId
+}
 function pushDetailModalRemote (detail: TaskDetail) {
   if (detailTaskId.value !== detail.id) {
     return
@@ -1415,7 +1431,7 @@ function onTaskDetailUpdated (detail: TaskDetail) {
     description: detail.description ?? null,
     status: detail.status,
     list_id: detail.list_id,
-    sort_order: (detail as Task).sort_order ?? existing.sort_order,
+    sort_order: detail.sort_order ?? existing.sort_order,
     start_date: 'start_date' in detail ? detail.start_date : existing.start_date,
     due_date: 'due_date' in detail ? detail.due_date : existing.due_date,
     effort_hours: 'effort_hours' in detail ? detail.effort_hours : existing.effort_hours,
@@ -2897,1148 +2913,6 @@ onBeforeUnmount(() => {
   clearUndoTimer()
 })
 </script>
-<style lang="scss" scoped>
-.board-page {
-  height: calc(100dvh - var(--global-header-offset, 56px));
-  padding: 0 14px 0;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
-  padding-top: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.page-shell-fade {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.page-header {
-  position: relative;
-  z-index: 40;
-  flex-shrink: 0;
-  width: calc(100% + 28px);
-  margin-left: -14px;
-  margin-right: -14px;
-  @include mixin.page-header-shell;
-  padding: 0 19.6px 0 12.6px;
-}
-.page-header > * {
-  width: 100%;
-  height: 100%;
-}
-.subheader {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-.subheader::-webkit-scrollbar {
-  display: none;
-}
-.subheader-title {
-  @include mixin.page-header-title;
-}
-.subheader-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4.2px;
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  cursor: pointer;
-  padding: 8px 0;
-  margin: -8px 0;
-  text-decoration: none;
-  color: mixin.$main;
-  letter-spacing: 0.05em;
-  line-height: 1.1;
-  transition: opacity 0.16s ease;
-  &::before {
-    content: '';
-    flex-shrink: 0;
-    display: block;
-    width: 0.65em;
-    height: 0.85em;
-    background-color: currentColor;
-    -webkit-mask-image: url('~/assets/images/chevron-left.svg');
-    mask-image: url('~/assets/images/chevron-left.svg');
-    -webkit-mask-size: contain;
-    mask-size: contain;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
-  }
-}
-.subheader-filters {
-  display: flex;
-  align-items: center;
-  gap: 6.3px;
-  flex: 1;
-  min-width: 0;
-}
-.header-search {
-  flex: 1;
-  min-width: 84px;
-  max-width: 252px;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 0 7.7px;
-  font-size: 11.48px;
-  background: #fff;
-  color: #0f172a;
-  box-sizing: border-box;
-  height: 32px;
-  line-height: 32px;
-}
-.header-search::placeholder {
-  color: #94a3b8;
-}
-.header-search:focus {
-  @include mixin.input-focus-ring;
-}
-.subheader-count {
-  margin: 0;
-  font-size: 11.48px;
-  font-weight: 600;
-  color: #64748b;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.subheader-actions {
-  display: flex;
-  align-items: center;
-  gap: 2.8px;
-  flex-shrink: 0;
-}
-.subheader-menu-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: #334155;
-  cursor: pointer;
-  padding: 0;
-  line-height: 0;
-}
-.subheader-menu-dropdown {
-  min-width: 175px;
-  box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  padding: 4.9px;
-}
-.subheader-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 6.3px;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 7.7px 9.1px;
-  border: none;
-  background: transparent;
-  border-radius: 8px;
-  font: inherit;
-  font-weight: 700;
-  font-size: 12.04px;
-  text-decoration: none;
-  text-align: left;
-  cursor: pointer;
-}
-.board-filter-dropdown {
-  overflow-y: auto;
-  box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  padding: 10px 0 12px;
-}
-.board-filter-section + .board-filter-section {
-  margin-top: 14px;
-}
-.board-filter-section-title {
-  margin: 0;
-  padding: 4px 14px 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  letter-spacing: 0.04em;
-}
-.board-filter-options {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.board-filter-option {
-  display: flex;
-  align-items: center;
-  gap: 7.7px;
-  margin: 0 8px;
-  padding: 6px 6px;
-  border-radius: 8px;
-  font-size: 12.04px;
-  color: #0f172a;
-  cursor: pointer;
-}
-.board-filter-option input[type='checkbox'] {
-  margin: 0;
-  flex-shrink: 0;
-}
-.subheader-menu-item:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.subheader-menu-item--danger {
-  color: mixin.$danger;
-}
-.page-shell-fade > .board {
-  flex: 1;
-  min-height: 0;
-}
-.board {
-  width: calc(100% + 28px);
-  max-width: none;
-  margin: 7.7px -14px 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding-bottom: 28px;
-  margin-bottom: 0;
-  flex: 1;
-  min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(15, 23, 42, 0.1) transparent;
-}
-.board::-webkit-scrollbar {
-  height: 3px;
-}
-.board::-webkit-scrollbar-track {
-  background: transparent;
-}
-.board::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.08);
-  border-radius: 999px;
-}
-.board::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.14);
-}
-.board-columns {
-  display: flex;
-  flex-direction: row;
-  align-items: start;
-  gap: 12.6px;
-  width: max-content;
-  margin-inline: auto;
-  padding-inline: 14px;
-  box-sizing: border-box;
-}
-.board-lists-sortable {
-  --task-card-width: 246px;
-  --list-column-width: calc(var(--task-card-width) + 21px);
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: var(--list-column-width);
-  gap: 12.6px;
-  align-items: start;
-}
-.board-lists-sortable .list-column {
-  box-sizing: border-box;
-  width: var(--list-column-width);
-  max-width: var(--list-column-width);
-  min-width: 0;
-}
-.board-lists-sortable .list-column.drag-ghost {
-  border: 1px dashed #94a3b8;
-  min-height: 49px;
-  opacity: 1;
-}
-.board-lists-sortable .list-column.drag-active {
-  transform: none;
-  opacity: 1 !important;
-}
-.board-list-dragging .list-column.sortable-fallback {
-  cursor: default !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  z-index: 10000 !important;
-  pointer-events: none;
-  box-shadow:
-    0 10px 24px rgba(15, 23, 42, 0.18),
-    0 4px 8px rgba(15, 23, 42, 0.1);
-}
-.board-list-dragging .list-drop-zone,
-.board-list-dragging .composer {
-  pointer-events: none;
-}
-.list-column {
-  border-radius: 14px;
-  display: flex;
-  flex-direction: column;
-  align-self: start;
-  height: auto;
-  max-height: calc(100dvh - var(--tm-global-header-height, 56px) - var(--tm-page-header-height, 48px) - 42px);
-  box-sizing: border-box;
-  position: relative;
-  background: mixin.$list-column-bg;
-  overflow: hidden;
-  box-shadow:
-    0 4px 8px rgba(15, 23, 42, 0.09),
-    0 2px 4px rgba(15, 23, 42, 0.05);
-}
-.list-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 7px;
-  padding: 11.2px;
-  flex-shrink: 0;
-  cursor: pointer;
-  touch-action: none;
-  border-radius: 14px 14px 0 0;
-}
-.board-list-dragging .list-header {
-  cursor: default;
-}
-.list-title-field {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  cursor: inherit;
-  touch-action: none;
-}
-.list-title-text--measure {
-  visibility: hidden;
-}
-.list-title-field--editing .list-title-text {
-  pointer-events: none;
-}
-.list-title-text,
-.list-title-input {
-  margin: 0;
-  width: 100%;
-  box-sizing: border-box;
-  font-size: 15.4px;
-  line-height: 1.35;
-  font-weight: 700;
-  font-family: inherit;
-  color: #fff;
-  padding: 1.4px 8.4px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.list-title-text {
-  display: block;
-}
-.list-title-clickable {
-  cursor: pointer;
-}
-.list-title-clickable:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.85);
-  outline-offset: 2px;
-}
-.list-title-input {
-  position: absolute;
-  inset: 0;
-  display: block;
-  color: mixin.$text;
-  background: mixin.$white;
-  border-color: mixin.$border;
-  caret-color: mixin.$text;
-  appearance: none;
-  -webkit-appearance: none;
-  resize: none;
-  overflow: hidden;
-}
-.list-title-input:focus {
-  outline: none;
-  border-color: mixin.$main;
-}
-.list-header--editing .list-title-field,
-.list-header--editing .list-title-field * {
-  cursor: auto;
-  touch-action: auto;
-  user-select: text;
-}
-.list-header-right {
-  display: flex;
-  align-items: center;
-  gap: 2.1px;
-  flex-shrink: 0;
-}
-.edit-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5.6px;
-}
-.ghost-btn.small {
-  padding: 4.9px 7.7px;
-  font-size: 10.92px;
-  border-radius: 8px;
-}
-.card-edit-form {
-  display: flex;
-  flex-direction: column;
-  gap: 6.3px;
-  touch-action: auto;
-  user-select: text;
-  -webkit-user-select: text;
-}
-.card-title-input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 6px;
-  padding: 2.8px 4.9px;
-  font: inherit;
-  font-size: 12.25px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: #0f172a;
-  background: #fff;
-  resize: none;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  display: block;
-}
-.card-title-input:focus {
-  @include mixin.input-focus-ring;
-}
-.list-count {
-  border-radius: 999px;
-  font-size: 14px;
-  padding: 1.68px 7.7px;
-  color: #fff;
-  font-weight: 600;
-  margin-right: 1.4px;
-}
-.list-header-menu-host {
-  display: inline-flex;
-  align-items: center;
-}
-.list-header-menu-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 25.9px;
-  height: 25.9px;
-  border: none;
-  border-radius: 999px;
-  padding: 0;
-  margin: -2.1px -1.4px -2.1px 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-  cursor: pointer;
-  &:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.85);
-    outline-offset: 1px;
-  }
-}
-.list-header-menu-dropdown {
-  margin: 0;
-  padding: 4.9px 0;
-  list-style: none;
-  background: #fff;
-  border: 1px solid mixin.$border;
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
-}
-.list-header-menu-item {
-  display: block;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 7.7px 11.9px;
-  text-align: left;
-  font-size: 12.04px;
-  font-weight: 600;
-  color: mixin.$text;
-  cursor: pointer;
-  &:disabled {
-    opacity: 0.55;
-    cursor: default;
-  }
-}
-.list-header-menu-item--danger {
-  color: mixin.$danger;
-}
-.list-drop-zone {
-  padding: 9.1px 10.5px 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6.3px;
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: calc(100dvh - var(--tm-global-header-height, 56px) - var(--tm-page-header-height, 48px) - 119px);
-  position: relative;
-  scrollbar-width: none;
-}
-.list-drop-zone::-webkit-scrollbar {
-  width: 0;
-}
-.list-drop-zone::-webkit-scrollbar-track {
-  background: transparent;
-}
-.list-drop-zone--scrollable {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(15, 23, 42, 0.1) transparent;
-}
-.list-drop-zone--scrollable::-webkit-scrollbar {
-  width: 3px;
-}
-.list-drop-zone--scrollable::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.08);
-  border-radius: 999px;
-}
-.list-drop-zone--scrollable::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.14);
-}
-.list-column--empty .list-drop-zone {
-  padding-top: 0;
-  padding-bottom: 1.4px;
-  gap: 0;
-}
-/* 他リストへ移動中はソース列にプレースホルダを出さない */
-.board-drag-cross-list .list-column--drag-source .sortable-ghost,
-.board-drag-cross-list .list-column--drag-source .drag-ghost {
-  display: none !important;
-}
-/* 空リスト: empty-insert-threshold の奪い合いでゴーストが隣列に出ないよう抑止 */
-.board-dragging .list-drop-zone--empty > .sortable-ghost,
-.board-dragging .list-drop-zone--empty > .drag-ghost:not(.drag-ghost--tail-preview) {
-  display: none !important;
-}
-/* 末尾帯: Sortable ゴーストは全非表示、末尾スロットのみ */
-.board-dragging--tail-zone .list-drop-zone .sortable-ghost,
-.board-dragging--tail-zone .list-drop-zone > .drag-ghost:not(.drag-ghost--tail-preview) {
-  display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  overflow: hidden !important;
-}
-.list-column--tail-target .list-drop-zone {
-  min-height: 38.5px;
-}
-.drag-ghost--tail-preview {
-  flex-shrink: 0;
-  position: relative;
-  z-index: 3;
-  pointer-events: none;
-  display: block !important;
-  min-height: 0;
-  box-sizing: border-box;
-}
-.board-dragging:not(.board-dragging--tail-zone) .list-drop-zone .sortable-ghost,
-.board-dragging:not(.board-dragging--tail-zone) .list-drop-zone .drag-ghost:not(.drag-ghost--tail-preview) {
-  position: relative;
-  z-index: 3;
-  box-sizing: border-box;
-}
-/* リスト内の元カードのみ非表示（body 上の sortable-fallback は表示） */
-.board-dragging .list-drop-zone > .task-card.sortable-chosen,
-.board-dragging .list-drop-zone > .task-card.drag-active {
-  opacity: 0 !important;
-}
-.board-dragging,
-.board-dragging *,
-.board-list-dragging,
-.board-list-dragging *,
-.task-card.sortable-fallback,
-.task-card.sortable-fallback * {
-  cursor: default !important;
-  user-select: none !important;
-  -webkit-user-select: none !important;
-}
-.board-dragging .list-column {
-  overflow: visible;
-}
-.board-dragging .list-drop-zone {
-  /* ドラッグ中もスクロール位置を維持し、composer 領域へのはみ出し描画を防ぐ */
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-.board-dragging .list-drop-zone > .task-card {
-  position: relative;
-  z-index: 2;
-}
-.board-dragging .list-header {
-  position: relative;
-  z-index: 2;
-  pointer-events: none;
-}
-.board-dragging .list-column > .composer {
-  position: relative;
-  z-index: 2;
-  pointer-events: none;
-}
-.task-card {
-  position: relative;
-  width: var(--task-card-width, 246px);
-  max-width: var(--task-card-width, 246px);
-  min-width: var(--task-card-width, 246px);
-  box-sizing: border-box;
-  flex-shrink: 0;
-  background: #fff;
-  border: 1px solid mixin.$border;
-  border-radius: 10px;
-  padding: 6.3px 7.7px;
-  cursor: pointer;
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: none;
-}
-.task-card:hover {
-  border-color: #2563eb;
-}
-.task-card--parent .task-title {
-  color: mixin.$main;
-}
-.task-card--fade-in {
-  animation: cardFadeIn 220ms ease-out;
-}
-@keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.drag-chosen {
-  cursor: default;
-}
-/* リスト内の挿入位置プレースホルダ */
-.drag-ghost {
-  opacity: 1 !important;
-  background: #091e420f;
-  border: none;
-  border-radius: 10px;
-  box-shadow: none;
-  min-height: 0;
-  margin: 0;
-  pointer-events: none;
-  box-sizing: border-box;
-}
-.drag-ghost * {
-  visibility: hidden;
-}
-/* カーソル追従のドラッグ中カード（マウスについてくる浮遊カード） */
-.task-card.sortable-fallback.drag-active {
-  cursor: default !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
-  z-index: 10000 !important;
-  pointer-events: none;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  background: #fff !important;
-  border: 1px solid mixin.$border;
-  border-radius: 10px;
-}
-.task-card.sortable-fallback.drag-active * {
-  visibility: visible !important;
-}
-.task-parent-title {
-  margin: 0 0 2.8px;
-  max-width: 100%;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: mixin.$main;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.task-title-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 4.2px;
-  margin: 0;
-  min-width: 0;
-}
-.task-title-row__icon {
-  flex-shrink: 0;
-  margin-top: 1.68px;
-  color: mixin.$main;
-}
-.task-title {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  max-width: 100%;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.25;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.task-card-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2.52px;
-  margin-top: 4.9px;
-}
-.task-card-meta__row {
-  display: inline-flex;
-  align-items: center;
-  gap: 3.92px;
-  margin: 0;
-  font-size: 10.08px;
-  font-weight: 600;
-  line-height: 1.25;
-  color: #64748b;
-}
-.task-card-meta__row span {
-  min-width: 0;
-}
-.task-card-body {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-}
-.task-card-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 4.2px;
-}
-.task-card-members {
-  display: flex;
-  align-items: center;
-}
-.task-card-member {
-  width: 17.5px;
-  height: 17.5px;
-  border-radius: 999px;
-  overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 1px #e2e8f0;
-  background: #e2e8f0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.task-card-member + .task-card-member {
-  margin-left: -4.9px;
-}
-.task-card-member-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.task-card-member-initial {
-  font-size: 7.84px;
-  font-weight: 700;
-  color: mixin.$text-sub;
-  line-height: 1;
-}
-.task-card:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
-}
-.card-menu-wrap {
-  position: absolute;
-  top: 3.5px;
-  right: 3.5px;
-  z-index: 2;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
-}
-.task-card:hover .card-menu-wrap,
-.card-menu-wrap--open {
-  opacity: 1;
-  pointer-events: auto;
-}
-.card-menu-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: #fff;
-  color: #64748b;
-  line-height: 1;
-  padding: 2.8px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-.card-menu-trigger:focus-visible {
-  outline: 2px solid #2563eb;
-  outline-offset: 2px;
-}
-.card-menu {
-  margin: 0;
-  padding: 3.5px 0;
-  list-style: none;
-  min-width: 126px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-}
-.card-menu-item {
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  padding: 6.3px 10.5px;
-  font-size: 12.32px;
-  font-weight: 600;
-  cursor: pointer;
-  color: #0f172a;
-}
-.undo-toast {
-  position: fixed;
-  bottom: 42px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 55;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 336px;
-  max-width: min(588px, calc(100vw - 21px));
-  gap: 9.8px;
-  padding: 9.8px 15.4px;
-  background: mixin.$main;
-  color: mixin.$white;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.55;
-  white-space: nowrap;
-  box-shadow: 0 10px 22px color-mix(in srgb, mixin.$main 28%, transparent);
-}
-.undo-toast-message {
-  text-align: left;
-  flex: 1;
-  min-width: 0;
-}
-.undo-toast-close {
-  border: none;
-  background: transparent;
-  color: #ffffff;
-  font-size: 18.9px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 1.4px;
-  flex-shrink: 0;
-}
-.composer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 6.3px 10.5px 7px;
-  flex-shrink: 0;
-}
-.composer-form {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.composer-input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 7.7px 9.1px;
-  font: inherit;
-  font-size: 12.25px;
-  line-height: 1.4;
-  background: #fff;
-  box-shadow: none;
-  resize: none;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  display: block;
-}
-.composer-input:focus {
-  @include mixin.input-focus-ring;
-}
-.composer-actions {
-  display: flex;
-  align-items: center;
-  gap: 3.5px;
-}
-.composer-submit-btn {
-  border: none;
-  border-radius: 8px;
-  padding: 5.88px 10.08px;
-  background: mixin.$main;
-  color: mixin.$white;
-  font-size: 12.25px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.composer-submit-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.composer-close-btn {
-  border: none;
-  background: transparent;
-  color: #626f86;
-  font-size: 16.8px;
-  line-height: 1;
-  padding: 4.9px 6.3px;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-left: auto;
-}
-.primary-btn {
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 5.6px 28px;
-  font-size: 14px;
-  font-weight: bold;
-  letter-spacing: 0.1em;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-  flex-shrink: 0;
-  gap: 6px;
-  background: mixin.$main;
-  color: mixin.$white;
-}
-.primary-btn--compact {
-  padding: 4.9px 14px;
-  font-size: 11.48px;
-}
-.ghost-btn {
-  background: transparent;
-  color: #0f172a;
-  border: 1px solid #94a3b8;
-  font-weight: 600;
-  border-radius: 10px;
-  padding: 9.1px 11.9px;
-  cursor: pointer;
-}
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.err {
-  max-width: 1008px;
-  margin: 0 auto 11.2px;
-  color: mixin.$danger;
-  font-weight: 700;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/components/workspace/WorkspaceBoard.scss"></style>
 <!-- body へ移動する sortable-fallback は scoped の継承外になるため、typography をグローバルで固定 -->
-<style lang="scss">
-.list-column.sortable-fallback {
-  --task-card-width: 246px;
-  --list-column-width: calc(var(--task-card-width) + 21px);
-  font-family: mixin.$font-family;
-  width: var(--list-column-width) !important;
-  max-width: var(--list-column-width) !important;
-  min-width: var(--list-column-width) !important;
-  box-sizing: border-box;
-  border-radius: 14px;
-  cursor: default;
-  pointer-events: none;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-.task-card.sortable-fallback {
-  --task-card-width: 246px;
-  font-family: mixin.$font-family;
-  width: var(--task-card-width);
-  max-width: var(--task-card-width);
-  min-width: var(--task-card-width);
-  box-sizing: border-box;
-  flex-shrink: 0;
-  background: #fff;
-  border: 1px solid mixin.$border;
-  border-radius: 10px;
-  padding: 6.3px 7.7px;
-  cursor: default;
-  pointer-events: none;
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-.task-card.sortable-fallback .task-card-body {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-}
-.task-card.sortable-fallback .task-parent-title {
-  margin: 0 0 2.8px;
-  max-width: 100%;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: mixin.$main;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.task-card.sortable-fallback .task-title-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 4.2px;
-  margin: 0;
-  min-width: 0;
-}
-.task-card.sortable-fallback .task-title-row__icon {
-  flex-shrink: 0;
-  margin-top: 1.68px;
-  color: mixin.$main;
-}
-.task-card.sortable-fallback .task-title {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  max-width: 100%;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.25;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-.task-card--parent.sortable-fallback .task-title {
-  color: mixin.$main;
-}
-.task-card.sortable-fallback .task-card-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2.52px;
-  margin-top: 4.9px;
-}
-.task-card.sortable-fallback .task-card-meta__row {
-  display: inline-flex;
-  align-items: center;
-  gap: 3.92px;
-  margin: 0;
-  font-size: 10.08px;
-  font-weight: 600;
-  line-height: 1.25;
-  color: #64748b;
-}
-.task-card.sortable-fallback .task-label-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2.8px;
-  margin-bottom: 3.5px;
-}
-.task-card.sortable-fallback .task-label-list__strip {
-  flex: 0 0 auto;
-}
-.task-card.sortable-fallback .label-strip--bar {
-  display: block;
-  flex-shrink: 0;
-  width: 40px;
-  height: 8px;
-  padding: 0;
-  border-radius: 3px;
-  line-height: 0;
-  overflow: hidden;
-  color: transparent;
-  font-size: 0;
-}
-.task-card.sortable-fallback .label-strip--named.label-strip--sm {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  width: 56px;
-  height: 16px;
-  min-width: 56px;
-  max-width: 56px;
-  min-height: 16px;
-  max-height: 16px;
-  padding: 0 4px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-  overflow: hidden;
-}
-.task-card.sortable-fallback .label-strip__text {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
-}
-.task-card.sortable-fallback .task-card-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 4.2px;
-}
-.task-card.sortable-fallback .task-card-members {
-  display: flex;
-  align-items: center;
-}
-.task-card.sortable-fallback .task-card-member {
-  width: 17.5px;
-  height: 17.5px;
-  border-radius: 999px;
-  overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 1px #e2e8f0;
-  background: #e2e8f0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.task-card.sortable-fallback .task-card-member + .task-card-member {
-  margin-left: -4.9px;
-}
-.task-card.sortable-fallback .task-card-member-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.task-card.sortable-fallback .task-card-member-initial {
-  font-size: 7.84px;
-  font-weight: 700;
-  color: mixin.$text-sub;
-  line-height: 1;
-}
-.task-card.sortable-fallback.drag-active {
-  opacity: 1 !important;
-  visibility: visible !important;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
-  z-index: 100000 !important;
-}
-.task-card.sortable-fallback,
-.task-card.sortable-fallback * {
-  visibility: visible !important;
-}
-</style>
+<style lang="scss" src="~/assets/styles/components/workspace/WorkspaceBoard.global.scss"></style>

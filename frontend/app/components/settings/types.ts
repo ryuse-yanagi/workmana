@@ -1,8 +1,6 @@
 export type SettingsTabKey =
   | 'default_board_lists'
   | 'workspace_statuses'
-  | 'member_groups'
-  | 'effort_settings'
   | 'document_categories'
   | 'labels'
 
@@ -15,21 +13,6 @@ export type SettingsLabelItem = {
   color: string
   color_index?: number
   sort_order?: number
-}
-
-export type SettingsMemberGroupMember = {
-  id: number
-  name: string | null
-  email?: string | null
-  avatar_url?: string | null
-}
-
-export type SettingsMemberGroup = {
-  id: number
-  name: string
-  color_index: number
-  sort_order: number
-  members: SettingsMemberGroupMember[]
 }
 
 export type SettingsLabelCategory = {
@@ -45,10 +28,10 @@ export type DefaultNamedColorItem = {
 }
 
 export type OrgSettingsResponse = {
+  role?: string | null
   default_board_list_names?: Array<DefaultNamedColorItem | string> | null
   default_workspace_status_names?: Array<DefaultNamedColorItem | string> | null
   default_document_category_names?: Array<DefaultNamedColorItem | string> | null
-  effort_unit?: string | null
 }
 
 export type SettingsPageSnapshot = {

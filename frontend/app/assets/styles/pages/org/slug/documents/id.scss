@@ -1,0 +1,641 @@
+.document-show-page {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--global-header-offset, 56px));
+  height: calc(100dvh - var(--global-header-offset, 56px));
+  max-height: calc(100dvh - var(--global-header-offset, 56px));
+  padding: 0 14px 0;
+  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
+  padding-top: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.page-header {
+  position: relative;
+  z-index: 40;
+  flex-shrink: 0;
+  width: calc(100% + 28px);
+  margin-left: -14px;
+  margin-right: -14px;
+  @include mixin.page-header-shell;
+  padding: 0 14px;
+}
+.page-header > * {
+  width: 100%;
+  height: 100%;
+}
+.subheader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  min-width: 0;
+}
+.subheader-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.subheader-editing-badge {
+  margin: 0;
+  margin-right: 8px;
+  font-size: 16px;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+.document-header-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid mixin.$main;
+  border-radius: 6px;
+  background: #fff;
+  color: mixin.$main;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  :deep(svg) {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+}
+.document-header-action-btn:not(.document-header-action-btn--muted) {
+  width: 96px;
+}
+.document-header-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.document-header-action-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-header-action-btn--muted {
+  border-color: transparent;
+  background: #e5e7eb;
+  color: #475569;
+}
+.document-header-action-btn--primary {
+  background: mixin.$main;
+  color: #fff;
+}
+.document-header-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+.document-header-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: #f0f0f0;
+  color: #64748b;
+  cursor: pointer;
+}
+.document-header-menu-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-header-menu-btn :deep(svg) {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.subheader-title {
+  @include mixin.page-header-title;
+}
+.subheader-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4.2px;
+  padding: 8px 0;
+  margin: -8px 0;
+  text-decoration: none;
+  color: mixin.$main;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  transition: opacity 0.16s ease;
+  flex-shrink: 0;
+  &::before {
+    content: '';
+    flex-shrink: 0;
+    display: block;
+    width: 0.65em;
+    height: 0.85em;
+    background-color: currentColor;
+    -webkit-mask-image: url('~/assets/images/chevron-left.svg');
+    mask-image: url('~/assets/images/chevron-left.svg');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+}
+.subheader-doc-name {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+.document-show-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: calc(100% + 28px);
+  margin-left: -14px;
+  margin-right: -14px;
+  overflow: hidden;
+}
+.document-sidebar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 400px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 20px;
+  background: #fff;
+  box-shadow: 2px 0 10px rgba(15, 23, 42, 0.08);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #0f172a1a transparent;
+}
+.document-sidebar::-webkit-scrollbar {
+  width: 3px;
+}
+.document-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.document-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+}
+.document-sidebar__category {
+  align-self: flex-start;
+  max-width: 100%;
+  min-width: 0;
+}
+.document-sidebar__title-field {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.document-sidebar__title,
+.document-sidebar__title-input {
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 22px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1.35;
+  color: #0f172a;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.document-sidebar__title {
+  display: block;
+}
+.document-sidebar__title--clickable {
+  cursor: pointer;
+}
+.document-sidebar__title--clickable:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-sidebar__title--measure {
+  visibility: hidden;
+}
+.document-sidebar__title-field--editing .document-sidebar__title {
+  pointer-events: none;
+}
+.document-sidebar__title-input {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: transparent;
+  caret-color: #0f172a;
+  appearance: none;
+  -webkit-appearance: none;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+.document-sidebar__title-input:focus {
+  outline: none;
+  border-color: mixin.$main;
+}
+.document-sidebar__title-field--editing {
+  cursor: auto;
+  user-select: text;
+}
+.document-sidebar__labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.document-sidebar__field-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.document-sidebar__section-heading {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+.document-sidebar__labels :deep(.label-strip) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: 100%;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+.document-sidebar__labels :deep(.label-strip__text) {
+  width: auto;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+}
+.document-sidebar__related-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.document-sidebar__related-item {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  padding: 0 4px 0 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  min-width: 0;
+}
+.document-sidebar__related-link {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 8px 0 12px;
+  text-decoration: none;
+}
+.document-sidebar__related-link-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.document-sidebar__related-link:hover {
+  opacity: 0.8;
+}
+.document-sidebar__related-menu-btn {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+.document-sidebar__related-menu-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.document-sidebar__related-menu-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 1px;
+}
+.document-sidebar__related-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  box-sizing: border-box;
+  margin: 0;
+  min-width: 96px;
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid mixin.$main;
+  border-radius: 999px;
+  background: #fff;
+  color: mixin.$main;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.document-sidebar__related-edit-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.document-sidebar__related-edit-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-sidebar__description-field {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 8px;
+}
+.document-sidebar__description,
+.document-sidebar__description-input {
+  display: block;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: mixin.$surface-canvas;
+  font-size: 16px;
+  font-family: inherit;
+  font-weight: 400;
+  /* 小数 line-height だと Chromium の選択ハイライトに隙間が出るため整数 px にする */
+  line-height: 28px;
+  color: #334155;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.document-sidebar__description--clickable {
+  cursor: pointer;
+}
+.document-sidebar__description--clickable:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-sidebar__description--measure {
+  visibility: hidden;
+  pointer-events: none;
+}
+.document-sidebar__description--placeholder {
+  color: #94a3b8;
+}
+.document-sidebar__description-field--editing .document-sidebar__description {
+  pointer-events: none;
+}
+/* app.vue の textarea / :focus 共通スタイルを上書きし、表示⇔編集で寸法が変わらないようにする */
+.document-sidebar textarea.document-sidebar__description-input {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  caret-color: #334155;
+  appearance: none;
+  -webkit-appearance: none;
+  resize: none;
+  overflow: hidden;
+  text-decoration: none;
+  border: 1px solid transparent;
+  box-shadow: none;
+  outline: none;
+}
+.document-sidebar textarea.document-sidebar__description-input:focus,
+.document-sidebar textarea.document-sidebar__description-input:focus-visible {
+  outline: none;
+  border: 1px solid mixin.$main;
+  box-shadow: none;
+}
+.document-sidebar__description-field--editing {
+  cursor: auto;
+  user-select: text;
+}
+.document-sidebar__save-error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: mixin.$danger;
+}
+.document-viewer {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+  box-sizing: border-box;
+  background: mixin.$surface-canvas;
+  overflow: auto;
+  overflow-anchor: none;
+}
+.document-viewer__page {
+  position: relative;
+  width: min(100%, 1000px);
+  min-height: var(--document-page-min-height, 767px);
+  box-sizing: border-box;
+  padding: 56px 48px 56px;
+  border: 1px solid transparent;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+.document-viewer__page--editing {
+  border-color: mixin.$edit-border;
+}
+.document-viewer__mode-tabs {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.document-viewer__mode-tab {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: mixin.$text-muted;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.document-viewer__mode-tab--active {
+  color: mixin.$main;
+}
+.document-viewer__mode-tab:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.document-viewer__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #1e293b;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.document-viewer__body--preview {
+  @include mixin.markdown-preview-content;
+}
+.document-viewer__body--empty {
+  color: #94a3b8;
+}
+.document-viewer textarea.document-viewer__body-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #1e293b;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 400;
+  line-height: 1.8;
+  resize: none;
+  overflow: hidden;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+  outline: none;
+}
+.document-viewer textarea.document-viewer__body-input:focus,
+.document-viewer textarea.document-viewer__body-input:focus-visible {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+.document-viewer__save-error {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: mixin.$danger;
+}
+@media (max-width: 768px) {
+  .document-show-page {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 14px;
+  }
+  .document-show-body {
+    flex-direction: column;
+    overflow: visible;
+  }
+  .document-sidebar {
+    width: 100%;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+  }
+  .document-viewer {
+    min-height: 50vh;
+  }
+  .document-viewer__page {
+    width: 100%;
+    padding: 48px 20px 52px;
+  }
+  .document-viewer__mode-tabs {
+    top: 12px;
+    right: 12px;
+    gap: 12px;
+  }
+}
+.document-header-share-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+}
+.document-header-share-panel__label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: mixin.$text-muted;
+  line-height: 1.2;
+}
+.document-header-share-panel__input {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: mixin.$text;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  cursor: text;
+}
+.document-header-share-panel__input:focus {
+  outline: none;
+  border-color: mixin.$main;
+  box-shadow: 0 0 0 1px mixin.$main;
+}

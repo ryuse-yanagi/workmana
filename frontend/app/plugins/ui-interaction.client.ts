@@ -20,6 +20,8 @@ export default defineNuxtPlugin(() => {
     return
   }
   let dragScroll: DragScrollSession | null = null
+  let suppressNextClick = false
+  let suppressClickTimer: ReturnType<typeof setTimeout> | null = null
   const clearDragScroll = (pointerId?: number) => {
     if (!dragScroll) {
       return
@@ -30,10 +32,16 @@ export default defineNuxtPlugin(() => {
     dragScroll = null
   }
   const onPointerDown = (event: PointerEvent) => {
-    if (event.button !== 0 || isInsideSelectableText(event.target)) {
+    if (event.button !== 0) {
       return
     }
     if (!shouldEnableDragScroll(event.target)) {
+      return
+    }
+    const target = event.target
+    const isNormalTableBody = target instanceof Element
+      && Boolean(target.closest('.workspace-table:not(.workspace-table--edit) tbody'))
+    if (!isNormalTableBody && isInsideSelectableText(target)) {
       return
     }
     const resolved = resolveDragScrollContainer(event.target as Element)
@@ -77,11 +85,38 @@ export default defineNuxtPlugin(() => {
     event.preventDefault()
   }
   const onPointerEnd = (event: PointerEvent) => {
+    if (
+      dragScroll
+      && dragScroll.pointerId === event.pointerId
+      && dragScroll.active
+    ) {
+      suppressNextClick = true
+      if (suppressClickTimer) {
+        clearTimeout(suppressClickTimer)
+      }
+      suppressClickTimer = setTimeout(() => {
+        suppressNextClick = false
+        suppressClickTimer = null
+      }, 0)
+    }
     clearDragScroll(event.pointerId)
+  }
+  const onClick = (event: MouseEvent) => {
+    if (!suppressNextClick) {
+      return
+    }
+    suppressNextClick = false
+    if (suppressClickTimer) {
+      clearTimeout(suppressClickTimer)
+      suppressClickTimer = null
+    }
+    event.preventDefault()
+    event.stopImmediatePropagation()
   }
   document.addEventListener('pointerdown', onPointerDown, { capture: true })
   document.addEventListener('pointermove', onPointerMove, { capture: true, passive: false })
   document.addEventListener('pointerup', onPointerEnd, { capture: true })
   document.addEventListener('pointercancel', onPointerEnd, { capture: true })
+  document.addEventListener('click', onClick, { capture: true })
   window.addEventListener('blur', () => clearDragScroll())
 })

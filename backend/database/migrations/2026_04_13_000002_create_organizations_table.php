@@ -13,7 +13,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->json('default_board_list_names')->nullable();
-            $table->string('effort_unit', 10)->default('hour');
+            $table->json('default_workspace_status_names')->nullable();
+            $table->json('default_document_category_names')->nullable();
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->timestamps();
         });

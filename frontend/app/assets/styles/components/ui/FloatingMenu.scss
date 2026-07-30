@@ -1,0 +1,52 @@
+
+.floating-menu {
+  margin: 0;
+  padding: 4.9px 0;
+  list-style: none;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid mixin.$border;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+}
+.floating-menu--compact:not(.floating-menu--flush) {
+  padding: 4.9px;
+}
+.floating-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 6.3px;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  color: mixin.$text;
+  cursor: pointer;
+  text-decoration: none;
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+}
+.floating-menu--comfortable .floating-menu__item {
+  padding: 7.7px 11.9px;
+  font-size: 14px;
+}
+.floating-menu--compact .floating-menu__item {
+  padding: 7.7px 11.9px;
+  font-size: 12.04px;
+}
+.floating-menu--compact:not(.floating-menu--flush) .floating-menu__item {
+  padding: 7.7px 9.1px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.floating-menu__item--danger {
+  color: mixin.$danger;
+}
+.floating-menu__icon {
+  flex-shrink: 0;
+}

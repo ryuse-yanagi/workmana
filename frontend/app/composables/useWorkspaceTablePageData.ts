@@ -1,13 +1,10 @@
 import type { WorkspaceListOption } from './useTaskPopoverEditor'
 import type { TaskFormLabel, TaskFormMember } from './useTaskFormHelpers'
-import { ORPHAN_PARENT_DEFAULT_LABEL, type TableTask } from './useTableTaskGroups'
+import type { TableTask } from './useTableTaskGroups'
 import { useApi } from './useApi'
-import { useOrgEffortUnit } from './useOrgEffortSettings'
 import { resolveLabelColors, resolveListColors } from '../utils/colorPresetResolution'
 export type WorkspaceTablePageSnapshot = {
   tasks: TableTask[]
-  orphanParentLabel: string
-  orphanParentSortOrder: number | null
   orgLabels: TaskFormLabel[]
   workspaceMembers: TaskFormMember[]
   workspaceLists: WorkspaceListOption[]
@@ -17,9 +14,14 @@ function cacheKey (orgSlug: string, workspaceId: string): string {
 }
 const cacheByKey = new Map<string, WorkspaceTablePageSnapshot>()
 const inflightByKey = new Map<string, Promise<WorkspaceTablePageSnapshot>>()
+
+export function clearAllWorkspaceTablePageCaches (): void {
+  cacheByKey.clear()
+  inflightByKey.clear()
+}
+
 export function useWorkspaceTablePageData () {
   const { api } = useApi()
-  const { ensureOrgEffortUnit } = useOrgEffortUnit('')
   async function fetchSnapshot (
     orgSlug: string,
     workspaceId: string,
@@ -32,9 +34,8 @@ export function useWorkspaceTablePageData () {
       return inflight
     }
     const job = (async () => {
-      const [, tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
-        ensureOrgEffortUnit(slug),
-        api<{ data: TableTask[]; meta?: { orphan_parent_label?: string; orphan_parent_sort_order?: number | null } }>(
+      const [tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
+        api<{ data: TableTask[] }>(
           `/orgs/${slug}/workspaces/${id}/tasks/table`,
         ),
         api<{ data: TaskFormLabel[] }>(
@@ -52,9 +53,6 @@ export function useWorkspaceTablePageData () {
           ...task,
           labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
         })),
-        orphanParentLabel: tasksRes.meta?.orphan_parent_label?.trim()
-          || ORPHAN_PARENT_DEFAULT_LABEL,
-        orphanParentSortOrder: tasksRes.meta?.orphan_parent_sort_order ?? null,
         orgLabels: resolveLabelColors(labelsRes.data ?? []),
         workspaceMembers: membersRes.data ?? [],
         workspaceLists: resolveListColors([...(listsRes.data ?? [])]).sort(
@@ -97,8 +95,6 @@ export function useWorkspaceTablePageData () {
   ): void {
     cacheByKey.set(cacheKey(orgSlug, workspaceId), {
       tasks: snapshot.tasks.map(task => ({ ...task })),
-      orphanParentLabel: snapshot.orphanParentLabel,
-      orphanParentSortOrder: snapshot.orphanParentSortOrder,
       orgLabels: snapshot.orgLabels.map(label => ({ ...label })),
       workspaceMembers: snapshot.workspaceMembers.map(member => ({ ...member })),
       workspaceLists: snapshot.workspaceLists.map(list => ({ ...list })),
@@ -107,11 +103,15 @@ export function useWorkspaceTablePageData () {
   function invalidateCached (orgSlug: string, workspaceId: string): void {
     cacheByKey.delete(cacheKey(orgSlug, workspaceId))
   }
+  function clearAllCached (): void {
+    clearAllWorkspaceTablePageCaches()
+  }
   return {
     fetchSnapshot,
     warmTablePageCache,
     getCached,
     setCached,
     invalidateCached,
+    clearAllCached,
   }
 }

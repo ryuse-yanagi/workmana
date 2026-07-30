@@ -59,19 +59,18 @@ class OrganizationTaskApiTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
                 'effort_value' => 4,
-                'effort_unit' => 'minute',
             ])
             ->assertOk()
             ->assertJsonPath('effort_value', '4.0000')
-            ->assertJsonPath('effort_unit', 'minute')
-            ->assertJsonPath('effort_hours', '0.066667');
+            ->assertJsonPath('effort_unit', 'hour')
+            ->assertJsonPath('effort_hours', '4.000000');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks")
             ->assertOk()
             ->assertJsonPath('data.0.effort_value', '4.0000')
-            ->assertJsonPath('data.0.effort_unit', 'minute')
-            ->assertJsonPath('data.0.effort_hours', '0.066667');
+            ->assertJsonPath('data.0.effort_unit', 'hour')
+            ->assertJsonPath('data.0.effort_hours', '4.000000');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
@@ -287,46 +286,6 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('title', 'Child task')
             ->assertJsonPath('is_parent_task', false)
             ->assertJsonPath('parent_task_id', 1);
-    }
-
-    public function test_user_can_update_orphan_parent_label(): void
-    {
-        $user = User::factory()->create();
-
-        $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
-
-        $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->postJson('/api/orgs/acme/workspaces', [
-                'name' => 'Sprint 1',
-            ])
-            ->assertCreated();
-
-        $workspace = Workspace::query()->first();
-        $this->assertNotNull($workspace);
-
-        $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
-            ->assertOk()
-            ->assertJsonPath('meta.orphan_parent_label', '親タスクなし');
-
-        $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table/orphan-parent-label", [
-                'label' => '未分類タスク',
-            ])
-            ->assertOk()
-            ->assertJsonPath('data.orphan_parent_label', '未分類タスク');
-
-        $this->assertSame('未分類タスク', $workspace->fresh()?->orphan_parent_label);
-
-        $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
-            ->assertOk()
-            ->assertJsonPath('meta.orphan_parent_label', '未分類タスク');
     }
 
     public function test_user_can_manage_task_checklist(): void

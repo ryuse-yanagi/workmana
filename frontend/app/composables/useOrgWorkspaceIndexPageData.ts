@@ -23,6 +23,12 @@ export type OrgWorkspaceStatus = {
   color: string
 }
 
+export type OrgWorkspaceRelatedItem = {
+  id: number
+  name: string
+  description?: string | null
+}
+
 export type OrgWorkspaceItem = {
   id: number
   name: string
@@ -30,6 +36,8 @@ export type OrgWorkspaceItem = {
   status?: OrgWorkspaceStatus | null
   labels?: OrgWorkspaceLabel[]
   assignees?: OrgWorkspaceAssignee[]
+  related_workspaces?: OrgWorkspaceRelatedItem[]
+  related_documents?: OrgWorkspaceRelatedItem[]
 }
 
 export type OrgWorkspaceIndexPageSnapshot = {
@@ -41,6 +49,11 @@ export type OrgWorkspaceIndexPageSnapshot = {
 
 const cacheBySlug = new Map<string, OrgWorkspaceIndexPageSnapshot>()
 const inflightBySlug = new Map<string, Promise<OrgWorkspaceIndexPageSnapshot>>()
+
+export function clearAllOrgWorkspaceIndexPageCaches (): void {
+  cacheBySlug.clear()
+  inflightBySlug.clear()
+}
 
 function resolveWorkspaceStatuses (
   raw: OrgSettingsResponse['default_workspace_status_names'],
@@ -110,6 +123,10 @@ export function useOrgWorkspaceIndexPageData () {
     cacheBySlug.delete(orgSlug.trim())
   }
 
+  function clearAllCached (): void {
+    clearAllOrgWorkspaceIndexPageCaches()
+  }
+
   function patchCachedWorkspaceStatus (
     orgSlug: string,
     workspaceId: number,
@@ -148,12 +165,48 @@ export function useOrgWorkspaceIndexPageData () {
     })
   }
 
+  function upsertCachedWorkspace (orgSlug: string, workspace: OrgWorkspaceItem): void {
+    const cached = cacheBySlug.get(orgSlug.trim())
+    if (!cached) {
+      return
+    }
+    const normalized: OrgWorkspaceItem = {
+      ...workspace,
+      labels: workspace.labels ? resolveLabelColors(workspace.labels) : workspace.labels,
+      status: workspace.status
+        ? resolveStandardColors([workspace.status])[0] ?? workspace.status
+        : workspace.status,
+    }
+    const exists = cached.workspaces.some(item => item.id === normalized.id)
+    cacheBySlug.set(orgSlug.trim(), {
+      ...cached,
+      workspaces: exists
+        ? cached.workspaces.map(item => (item.id === normalized.id ? { ...item, ...normalized } : item))
+        : [normalized, ...cached.workspaces],
+    })
+  }
+
+  function getWorkspaceFromListCache (
+    orgSlug: string,
+    workspaceId: number | string,
+  ): OrgWorkspaceItem | null {
+    const cached = getCached(orgSlug)
+    if (!cached) {
+      return null
+    }
+    const id = Number(workspaceId)
+    return cached.workspaces.find(workspace => workspace.id === id) ?? null
+  }
+
   return {
     fetchSnapshot,
     prefetch,
     getCached,
+    getWorkspaceFromListCache,
     invalidateCached,
+    clearAllCached,
     patchCachedWorkspaceStatus,
     patchCachedWorkspaceAssignees,
+    upsertCachedWorkspace,
   }
 }

@@ -153,40 +153,4 @@ async function deleteAvatar () {
   }
 }
 </script>
-<style lang="scss" scoped>
-.page { max-width: 560px; margin: 28px auto; padding: 0 14px; }
-.muted { color: #64748b; font-size: 12.6px; }
-.card { margin-top: 21px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; }
-label { display: block; margin-bottom: 4.9px; font-weight: 600; }
-input { width: 100%; padding: 7px; margin-bottom: 7px; box-sizing: border-box; }
-.row { display: flex; gap: 7px; align-items: center; }
-.row input { flex: 1; margin-bottom: 0; }
-.actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
-button, .btn {
-  padding: 7px 14px; border-radius: 6px; border: none; background: #0f172a; color: white;
-  cursor: pointer; text-decoration: none; display: inline-block; font-size: 12.6px;
-}
-button.secondary { background: #334155; }
-.status { margin-top: 10.5px; font-size: 12.6px; }
-.status.ok { color: #15803d; }
-.status.err { color: mixin.$danger; }
-.small { margin-bottom: 7px; }
-code { background: #f1f5f9; padding: 1.4px 4.9px; border-radius: 4px; }
-.avatar-row { display: flex; gap: 14px; align-items: center; }
-.avatar-image, .avatar-placeholder {
-  width: 72px;
-  height: 72px;
-  border-radius: 9999px;
-  border: 1px solid #cbd5e1;
-}
-.avatar-image { object-fit: cover; background: #fff; }
-.avatar-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748b;
-  background: #f8fafc;
-  font-size: 11.2px;
-}
-.avatar-controls { flex: 1; }
-</style>
+<style lang="scss" scoped src="~/assets/styles/pages/index.scss"></style>

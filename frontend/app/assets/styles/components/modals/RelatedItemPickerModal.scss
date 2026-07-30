@@ -1,0 +1,114 @@
+
+.related-item-picker-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px 18px;
+  box-sizing: border-box;
+}
+.related-item-picker-modal__search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #172b4d;
+  background: #fff;
+}
+.related-item-picker-modal__search:focus {
+  @include mixin.input-focus-ring;
+}
+.related-item-picker-modal__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  scrollbar-width: thin;
+}
+.related-item-picker-modal__item {
+  border-bottom: 1px solid #f1f5f9;
+}
+.related-item-picker-modal__item:last-child {
+  border-bottom: none;
+}
+.related-item-picker-modal__option {
+  @include mixin.picker-checkbox-row;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.related-item-picker-modal__option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.related-item-picker-modal__checkbox {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 2px solid #8590a2;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: #fff;
+  box-sizing: border-box;
+}
+.related-item-picker-modal__checkbox--checked {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+.related-item-picker-modal__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.related-item-picker-modal__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.related-item-picker-modal__description {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #64748b;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.related-item-picker-modal__empty-row {
+  padding: 16px 12px;
+}
+.related-item-picker-modal__empty,
+.related-item-picker-modal__error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.related-item-picker-modal__empty {
+  color: #94a3b8;
+  text-align: center;
+}
+.related-item-picker-modal__error {
+  color: mixin.$danger;
+}

@@ -18,8 +18,6 @@ class Workspace extends Model
         'name',
         'description',
         'status',
-        'orphan_parent_label',
-        'orphan_parent_sort_order',
         'archived_at',
     ];
 
@@ -66,6 +64,26 @@ class Workspace extends Model
     public function assignees(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'workspace_assignees')->withTimestamps();
+    }
+
+    public function relatedWorkspaces(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Workspace::class,
+            'workspace_related_workspace',
+            'workspace_id',
+            'related_workspace_id',
+        )->withTimestamps();
+    }
+
+    public function relatedDocuments(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            SharedDocument::class,
+            'workspace_related_document',
+            'workspace_id',
+            'shared_document_id',
+        )->withTimestamps();
     }
 
     public function scopeActive(Builder $query): Builder

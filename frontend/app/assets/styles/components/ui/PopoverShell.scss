@@ -1,0 +1,40 @@
+.popover-shell {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+.popover-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 9.1px 10.5px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.popover-shell__title {
+  margin: 0;
+  min-width: 0;
+  font-size: 12.88px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.popover-shell__header-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.popover-shell__close {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 15.4px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.popover-shell__close:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

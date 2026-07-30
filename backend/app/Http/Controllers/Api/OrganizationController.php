@@ -6,7 +6,6 @@ use App\Models\Organization;
 use App\Support\DefaultBoardLists;
 use App\Support\DefaultDocumentCategories;
 use App\Support\DefaultWorkspaceStatuses;
-use App\Enums\TaskEffortUnit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -52,7 +51,6 @@ class OrganizationController extends ApiController
         $org = Organization::query()->create([
             'name' => $name,
             'slug' => Str::lower($validated['slug']),
-            'effort_unit' => TaskEffortUnit::Hour->value,
             'created_by' => $user->id,
         ]);
 
@@ -86,29 +84,27 @@ class OrganizationController extends ApiController
 
     public function settings(Request $request, Organization $organization): JsonResponse
     {
+        $pivot = $request->attributes->get('organization_membership');
+
         return response()->json([
             'id' => $organization->id,
             'name' => $organization->name,
             'slug' => $organization->slug,
+            'role' => $pivot->role ?? null,
             'default_board_list_names' => DefaultBoardLists::itemsForOrganization($organization),
             'default_workspace_status_names' => DefaultWorkspaceStatuses::itemsForOrganization($organization),
             'default_document_category_names' => DefaultDocumentCategories::itemsForOrganization($organization),
-            'effort_unit' => $organization->effort_unit ?? TaskEffortUnit::Hour->value,
         ]);
     }
 
     public function updateSettings(Request $request, Organization $organization): JsonResponse
     {
-        $pivot = $request->attributes->get('organization_membership');
-        if (($pivot->role ?? '') !== 'admin') {
-            abort(403, 'Only organization admins can update organization settings.');
-        }
+        $this->assertOrganizationAdmin($request);
 
         $validated = $request->validate([
             'default_board_list_names' => ['sometimes', 'array', 'max:20'],
             'default_workspace_status_names' => ['sometimes', 'array', 'max:20'],
             'default_document_category_names' => ['sometimes', 'array', 'max:20'],
-            'effort_unit' => ['sometimes', 'string', Rule::in(TaskEffortUnit::values())],
         ]);
 
         if ($request->has('default_board_list_names')) {
@@ -129,10 +125,6 @@ class OrganizationController extends ApiController
             );
         }
 
-        if (array_key_exists('effort_unit', $validated)) {
-            $organization->effort_unit = $validated['effort_unit'];
-        }
-
         $organization->save();
 
         return response()->json([
@@ -141,7 +133,6 @@ class OrganizationController extends ApiController
             'default_board_list_names' => DefaultBoardLists::itemsForOrganization($organization),
             'default_workspace_status_names' => DefaultWorkspaceStatuses::itemsForOrganization($organization),
             'default_document_category_names' => DefaultDocumentCategories::itemsForOrganization($organization),
-            'effort_unit' => $organization->effort_unit ?? TaskEffortUnit::Hour->value,
         ]);
     }
 }

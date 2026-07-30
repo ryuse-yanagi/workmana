@@ -1,6 +1,9 @@
 <template>
   <div class="workspace-table-board">
-    <div class="workspace-table-board__toolbar">
+    <div
+      v-if="showGantt"
+      class="workspace-table-board__toolbar"
+    >
       <div class="workspace-table-board__month-nav">
         <button
           type="button"
@@ -32,7 +35,7 @@
       読み込み中...
     </div>
     <p v-else-if="error" class="workspace-table-board__error">{{ error }}</p>
-    <p v-else-if="!displayRows.length" class="workspace-table-board__state">
+    <p v-else-if="!hasDisplayRows" class="workspace-table-board__state">
       表示できるタスクがありません。
     </p>
     <div
@@ -45,16 +48,22 @@
       }"
     >
       <div
+        v-if="showGantt"
         class="workspace-table-board__month-strip"
         :style="{ width: `${fullTableWidth}px` }"
       >
         <div
           class="workspace-table-board__month-strip-spacer"
-          :style="{ width: `${tableWidth}px` }"
+          :style="{ width: `${visibleTableWidth}px` }"
         />
         <span class="workspace-table-board__month-strip-label">{{ monthLabel }}</span>
       </div>
-      <div class="workspace-table-board__frame">
+      <div
+        v-for="(section, sectionIndex) in tableSections"
+        :key="section.key"
+        class="workspace-table-board__frame"
+        :class="{ 'workspace-table-board__frame--stacked': sectionIndex > 0 }"
+      >
         <div
           class="workspace-table-wrap"
           :class="{
@@ -72,27 +81,27 @@
         >
         <colgroup>
           <col
-            v-for="column in TABLE_COLUMNS"
+            v-for="column in visibleColumns"
             :key="column.key"
             :style="{ width: `${columnWidths[column.key]}px` }"
           >
           <col
-            v-for="day in monthDays"
+            v-for="day in ganttDays"
             :key="`col-${day.iso}`"
             class="workspace-table__day-col"
           >
         </colgroup>
-        <thead>
+        <thead v-if="sectionIndex === 0">
           <tr>
             <th
-              v-for="(column, columnIndex) in TABLE_COLUMNS"
+              v-for="(column, columnIndex) in visibleColumns"
               :key="column.key"
               scope="col"
               class="workspace-table__header-cell workspace-table__header-cell--sticky"
               :class="{
-                'workspace-table__header-cell--sticky-edge': columnIndex === TABLE_COLUMNS.length - 1,
+                'workspace-table__header-cell--sticky-edge': columnIndex === visibleColumns.length - 1,
               }"
-              :style="stickyDescStyle(columnIndex, true)"
+              :style="stickyDescStyleForKey(column.key, true)"
             >
               <span class="workspace-table__header-label">{{ column.label }}</span>
               <span
@@ -105,7 +114,7 @@
               />
             </th>
             <th
-              v-for="day in monthDays"
+              v-for="day in ganttDays"
               :key="`head-${day.iso}`"
               scope="col"
               class="workspace-table__day-header"
@@ -119,9 +128,9 @@
             </th>
           </tr>
         </thead>
-        <tbody ref="tableBodyEl">
+        <tbody :ref="el => registerSectionBody(section.key, el)">
           <tr
-            v-for="(row, rowIndex) in displayRows"
+            v-for="(row, rowIndex) in section.rows"
             :key="`${row.kind}-${row.task.id}`"
             class="workspace-table__task-row"
             :class="{
@@ -133,17 +142,20 @@
             :data-table-task-id="row.task.id"
           >
             <td
+              v-if="isColumnVisible('title')"
               class="workspace-table__task-title workspace-table__desc-cell"
-              :style="stickyDescStyle(0)"
+              :class="{ 'workspace-table__desc-cell--edge': isLastVisibleColumn('title') }"
+              :style="stickyDescStyleForKey('title')"
             >
               <div
                 class="workspace-table__title-cell"
                 :class="{
-                  'workspace-table__title-cell--child': row.kind === 'child' && !editMode,
+                  'workspace-table__title-cell--child': row.kind !== 'parent' && !editMode,
                   'workspace-table__title-cell--editable': editMode && editingTitleTaskId !== row.task.id,
                 }"
                 :tabindex="editMode && editingTitleTaskId !== row.task.id ? 0 : undefined"
-                @click="onTitleFieldActivate(row.task, $event)"
+                data-no-drag-scroll
+                @pointerdown="onTitleFieldActivate(row.task, $event)"
                 @mousedown="onTitleCellMouseDown(row.task, $event)"
                 @keydown.enter.prevent="onTitleFieldActivate(row.task)"
               >
@@ -173,7 +185,7 @@
                   type="button"
                   class="workspace-table__drag-handle"
                   aria-label="ドラッグしてタスクの並び順を変更"
-                  @pointerdown="onDragHandlePointerDown(row.task.id, $event)"
+                  @pointerdown="onDragHandlePointerDown(section.key, row.task.id, $event)"
                   @click.prevent="onDragHandleClick"
                 >
                   <Equal
@@ -184,7 +196,6 @@
                 </button>
                 <div
                   class="workspace-table__title-field"
-                  :class="{ 'workspace-table__title-field--after-toggle': row.kind === 'parent' }"
                 >
                   <span
                     v-if="editingTitleTaskId !== row.task.id"
@@ -193,12 +204,14 @@
                   >{{ row.task.title }}</span>
                   <input
                     v-else
-                    ref="titleInputEl"
+                    :ref="(el) => setTitleInputEl(row.task.id, el)"
                     v-model="titleDraft"
                     type="text"
                     class="workspace-table__title-input"
+                    :data-task-id="row.task.id"
                     :maxlength="TASK_TITLE_MAX_LENGTH"
                     :disabled="titleSaving"
+                    @pointerdown.stop
                     @click.stop
                     @blur="confirmTitleEdit(row.task)"
                     @keydown.enter.prevent="confirmTitleEdit(row.task)"
@@ -207,15 +220,15 @@
               </div>
             </td>
             <td
+              v-if="isColumnVisible('assignees')"
               class="workspace-table__desc-cell"
-              :style="stickyDescStyle(1)"
+              :class="{ 'workspace-table__desc-cell--edge': isLastVisibleColumn('assignees') }"
+              :style="stickyDescStyleForKey('assignees')"
             >
               <div
-                v-if="!isTableOrphanParentTask(row.task)"
                 class="workspace-table__members-cell"
                 :class="{
                   'workspace-table__members-cell--edit': editMode,
-                  'workspace-table__members-cell--picker-open': isAssigneePickerActive(row.task.id),
                 }"
                 @click="onMembersCellClick(row.task, $event)"
               >
@@ -254,14 +267,15 @@
                   class="workspace-table__placeholder"
                 />
               </div>
-              <span v-else class="workspace-table__placeholder" />
             </td>
             <td
+              v-if="isColumnVisible('labels')"
               class="workspace-table__desc-cell"
-              :style="stickyDescStyle(2)"
+              :class="{ 'workspace-table__desc-cell--edge': isLastVisibleColumn('labels') }"
+              :style="stickyDescStyleForKey('labels')"
             >
               <div
-                v-if="row.task.labels?.length && !isTableOrphanParentTask(row.task) && !editMode"
+                v-if="row.task.labels?.length && !editMode"
                 class="workspace-table__labels-wrap"
               >
                 <div class="workspace-table__labels workspace-table__labels--readonly">
@@ -274,35 +288,26 @@
                 </div>
               </div>
               <button
-                v-else-if="row.task.labels?.length && !isTableOrphanParentTask(row.task)"
+                v-else-if="editMode"
                 type="button"
                 class="workspace-table__cell-btn"
-                :class="{
-                  'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'labels'),
-                }"
-                @click="openLabels(row.task, $event)"
-              >
-                <div class="workspace-table__labels">
-                  <LabelStrip
-                    v-for="label in row.task.labels"
-                    :key="label.id"
-                    :label="label"
-                    size="sm"
-                  />
-                </div>
-              </button>
-              <button
-                v-else-if="editMode && !isTableOrphanParentTask(row.task)"
-                type="button"
-                class="workspace-table__cell-btn"
-                :class="{
-                  'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'labels'),
-                }"
                 aria-label="ラベルを追加"
                 @click="openLabels(row.task, $event)"
               >
                 <div class="workspace-table__labels">
-                  <span class="workspace-table__label-add-chip" aria-hidden="true">
+                  <LabelStrip
+                    v-for="label in row.task.labels ?? []"
+                    :key="label.id"
+                    :label="label"
+                    size="sm"
+                  />
+                  <span
+                    class="workspace-table__label-add-chip"
+                    :class="{
+                      'workspace-table__label-add-chip--active': isPopoverCellActive(row.task.id, 'labels'),
+                    }"
+                    aria-hidden="true"
+                  >
                     <span class="workspace-table__label-add-plus" aria-hidden="true">+</span>
                   </span>
                 </div>
@@ -310,11 +315,12 @@
               <span v-else class="workspace-table__placeholder" />
             </td>
             <td
+              v-if="isColumnVisible('list')"
               class="workspace-table__desc-cell"
-              :style="stickyDescStyle(3)"
+              :class="{ 'workspace-table__desc-cell--edge': isLastVisibleColumn('list') }"
+              :style="stickyDescStyleForKey('list')"
             >
               <button
-                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
                 class="workspace-table__cell-btn workspace-table__cell-btn--text"
                 :class="{
@@ -332,14 +338,14 @@
                 >{{ row.task.list_name }}</span>
                 <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="workspace-table__placeholder" />
             </td>
             <td
+              v-if="isColumnVisible('startDate')"
               class="workspace-table__desc-cell"
-              :style="stickyDescStyle(4)"
+              :class="{ 'workspace-table__desc-cell--edge': isLastVisibleColumn('startDate') }"
+              :style="stickyDescStyleForKey('startDate')"
             >
               <button
-                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
                 class="workspace-table__cell-btn workspace-table__cell-btn--text"
                 :class="{
@@ -352,14 +358,14 @@
                 <span v-if="formatTableDate(row.task.start_date)">{{ formatTableDate(row.task.start_date) }}</span>
                 <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="workspace-table__placeholder" />
             </td>
             <td
+              v-if="isColumnVisible('dueDate')"
               class="workspace-table__desc-cell"
-              :style="stickyDescStyle(5)"
+              :class="{ 'workspace-table__desc-cell--edge': isLastVisibleColumn('dueDate') }"
+              :style="stickyDescStyleForKey('dueDate')"
             >
               <button
-                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
                 class="workspace-table__cell-btn workspace-table__cell-btn--text"
                 :class="{
@@ -372,14 +378,14 @@
                 <span v-if="formatTableDate(row.task.due_date)">{{ formatTableDate(row.task.due_date) }}</span>
                 <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="workspace-table__placeholder" />
             </td>
             <td
+              v-if="isColumnVisible('effort')"
               class="workspace-table__desc-cell"
-              :style="stickyDescStyle(6)"
+              :class="{ 'workspace-table__desc-cell--edge': isLastVisibleColumn('effort') }"
+              :style="stickyDescStyleForKey('effort')"
             >
               <button
-                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
                 class="workspace-table__cell-btn workspace-table__cell-btn--text"
                 :class="{
@@ -389,24 +395,24 @@
                 :tabindex="editMode ? undefined : -1"
                 @click="openEffort(row.task, $event)"
               >
-                <span v-if="formatTableEffort(row.task, orgEffortUnit)">{{ formatTableEffort(row.task, orgEffortUnit) }}</span>
+                <span v-if="formatTableEffort(row.task)">{{ formatTableEffort(row.task) }}</span>
                 <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="workspace-table__placeholder" />
             </td>
             <td
-              class="workspace-table__desc-cell workspace-table__desc-cell--edge"
-              :style="stickyDescStyle(7)"
+              v-if="isColumnVisible('notes')"
+              class="workspace-table__desc-cell"
+              :class="{ 'workspace-table__desc-cell--edge': isLastVisibleColumn('notes') }"
+              :style="stickyDescStyleForKey('notes')"
             >
               <button
-                v-if="!isTableOrphanParentTask(row.task)"
                 type="button"
                 class="workspace-table__cell-btn workspace-table__cell-btn--text workspace-table__cell-btn--notes"
                 :class="{
                   'workspace-table__cell-btn--popover-open': isPopoverCellActive(row.task.id, 'notes'),
-                  'workspace-table__cell-btn--readonly': !editMode,
+                  'workspace-table__cell-btn--readonly': !editMode && !row.task.description?.trim(),
                 }"
-                :tabindex="editMode ? undefined : -1"
+                :aria-disabled="!editMode && !row.task.description?.trim()"
                 @click="openDescription(row.task, $event)"
               >
                 <span
@@ -416,10 +422,9 @@
                 >{{ formatTableDescription(row.task.description) }}</span>
                 <span v-else class="workspace-table__placeholder" />
               </button>
-              <span v-else class="workspace-table__placeholder" />
             </td>
             <td
-              v-for="day in monthDays"
+              v-for="day in ganttDays"
               :key="`${row.task.id}-${day.iso}`"
               class="workspace-table__day-cell"
               :class="{
@@ -430,7 +435,7 @@
                 'workspace-table__day-cell--create-preview': isDaySelectionOutlined(row.task, day.iso),
                 'workspace-table__day-cell--create-preview-start': isSelectionStartDay(row.task, day.iso),
                 'workspace-table__day-cell--create-preview-end': isSelectionEndDay(row.task, day.iso),
-                'workspace-table__day-cell--interactive': editMode && !isTableOrphanParentTask(row.task),
+                'workspace-table__day-cell--interactive': editMode,
                 'workspace-table__day-cell--dragging': ganttDragging,
               }"
               :style="dayCellStyle(row.task, day.iso)"
@@ -438,14 +443,14 @@
               @contextmenu.prevent
             >
               <button
-                v-if="editMode && !isTableOrphanParentTask(row.task) && isBarStartDay(row.task, day.iso)"
+                v-if="editMode && isBarStartDay(row.task, day.iso)"
                 type="button"
                 class="workspace-table__gantt-edge workspace-table__gantt-edge--start"
                 aria-label="開始日を変更"
                 @pointerdown.stop="onDayCellPointerDown(row.task.id, day.iso, $event, 'start-edge')"
               />
               <button
-                v-if="editMode && !isTableOrphanParentTask(row.task) && isBarEndDay(row.task, day.iso)"
+                v-if="editMode && isBarEndDay(row.task, day.iso)"
                 type="button"
                 class="workspace-table__gantt-edge workspace-table__gantt-edge--end"
                 aria-label="終了日を変更"
@@ -460,10 +465,10 @@
           aria-hidden="true"
         >
           <span
-            v-for="(boundary, boundaryIndex) in columnResizeBoundaries"
+            v-for="(boundary, boundaryIndex) in visibleColumnResizeBoundaries"
             :key="`guide-${boundary.columnKey}`"
             class="workspace-table__resize-guide"
-            :class="{ 'workspace-table__resize-guide--no-line': boundaryIndex === columnResizeBoundaries.length - 1 }"
+            :class="{ 'workspace-table__resize-guide--no-line': boundaryIndex === visibleColumnResizeBoundaries.length - 1 }"
             :style="{ left: `${boundary.offset}px` }"
           />
         </div>
@@ -486,22 +491,38 @@
       :workspace-members="workspaceMembers"
       :workspace-lists="workspaceLists"
       :allow-member-remove="editMode"
+      :readonly-description="!editMode"
       @updated="syncTaskUpdate"
       @popover-active-change="onPopoverActiveChange"
+    />
+    <TaskCreateModal
+      v-model="taskCreateOpen"
+      :org-slug="orgSlug"
+      :workspace-id="workspaceId"
+      :list-id="taskCreateListId"
+      :org-labels="orgLabels"
+      :workspace-members="workspaceMembers"
+      :workspace-lists="workspaceLists"
+      @created="onTaskCreatedFromModal"
+    />
+    <TableDisplayItemsModal
+      v-model="displayItemsModalOpen"
+      :selected-keys="visibleColumnKeys"
+      @save="onDisplayItemsSave"
     />
   </div>
 </template>
 <script setup lang="ts">
 import { ChevronDown, ChevronRight, Equal } from 'lucide-vue-next'
 import {
+  buildFullTableDisplayRows,
+  buildStandaloneTableDisplayRows,
   buildTableDisplayRows,
   buildTableReorderPayload,
   formatTableDate,
   formatTableDescription,
   formatTableEffort,
-  hasTableOrphanChildTasks,
-  isTableOrphanParentTask,
-  ORPHAN_PARENT_DEFAULT_LABEL,
+  type TableDisplayRow,
   type TableTask,
 } from '../../composables/useTableTaskGroups'
 import {
@@ -510,7 +531,12 @@ import {
 } from '../../composables/useTableTaskDragReorder'
 import {
   TABLE_COLUMNS,
+  defaultVisibleColumnKeys,
+  parseStoredVisibleColumns,
+  serializeVisibleColumns,
   useTableColumnResize,
+  type TableColumnKey,
+  type TableDisplayItemKey,
 } from '../../composables/useTableColumnResize'
 import {
   buildMonthDays,
@@ -532,13 +558,17 @@ import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFor
 import { memberDisplayName } from '../../composables/useMemberDisplay'
 import { useApi } from '../../composables/useApi'
 import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
-import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
-import { useWorkspaceBoardPageData } from '../../composables/useWorkspaceBoardPageData'
+import {
+  useWorkspaceBoardPageData,
+  type WorkspaceBoardTask,
+} from '../../composables/useWorkspaceBoardPageData'
 import { useWorkspaceTablePageData, type WorkspaceTablePageSnapshot } from '../../composables/useWorkspaceTablePageData'
 import { resolveLabelColors, resolveListColors } from '../../utils/colorPresetResolution'
 import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import WorkspaceGanttColorPopover from './WorkspaceGanttColorPopover.vue'
 import TaskEditPopoverLayer from '../task/TaskEditPopoverLayer.vue'
+import TaskCreateModal, { type CreatedTask } from '../modals/TaskCreateModal.vue'
+import TableDisplayItemsModal from '../modals/TableDisplayItemsModal.vue'
 
 const GANTT_DAY_COL_WIDTH = 34
 
@@ -547,45 +577,68 @@ const props = defineProps<{
   workspaceId: string
 }>()
 const emit = defineEmits<{
-  'edit-mode-change': [active: boolean]
   'edit-saving-change': [saving: boolean]
 }>()
+/** 親ヘッダーと双方向同期。ボタン操作は親が直接 true/false にする */
+const editMode = defineModel<boolean>('editMode', { default: false })
 const { api } = useApi()
-const { patchCachedTasks } = useWorkspaceBoardPageData()
+const {
+  patchCachedTasks,
+  getCached: getBoardCached,
+  replaceCachedBoardState,
+} = useWorkspaceBoardPageData()
 const { getCached: getTableCached, setCached: setTableCached } = useWorkspaceTablePageData()
-const { orgEffortUnit, ensureOrgEffortUnit } = useOrgEffortUnit(() => props.orgSlug)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const tasks = ref<TableTask[]>([])
-const orphanParentLabel = ref(ORPHAN_PARENT_DEFAULT_LABEL)
-const orphanParentSortOrder = ref<number | null>(null)
 const orgLabels = ref<TaskFormLabel[]>([])
 const workspaceMembers = ref<TaskFormMember[]>([])
 const workspaceLists = ref<WorkspaceListOption[]>([])
 const collapsedParentIds = ref<Set<number>>(new Set())
-const editMode = ref(false)
 const editSaving = ref(false)
+const taskCreateOpen = ref(false)
+const taskCreateListId = ref<number | null>(null)
 const initialMonth = currentYearMonth()
 const visibleYear = ref(initialMonth.year)
 const visibleMonth = ref(initialMonth.month)
 const colorPopoverOpen = ref(false)
-const colorPopoverAnchor = ref<{ top: number; left: number } | null>(null)
+const colorPopoverAnchor = ref<{ top: number; left: number; right: number } | null>(null)
 const colorPopoverValue = ref('')
 const colorPopoverTaskId = ref<number | null>(null)
 const colorSaving = ref(false)
 const ganttDateSaving = ref(false)
 type TableReorderSnapshot = {
   tasks: TableTask[]
-  orphanParentSortOrder: number | null
   collapsedParentIds: Set<number>
 }
 const reorderSnapshot = ref<TableReorderSnapshot | null>(null)
-watch(editMode, (active) => {
-  emit('edit-mode-change', active)
-}, { immediate: true })
+/** 進行中の table 取得を無効化するための世代番号（作成直後の古い応答で上書きしない） */
+let tableLoadGeneration = 0
+/** 非サイレント load のネスト数（世代無効化でも loading を確実に戻す） */
+let tableLoadingDepth = 0
 watch(editSaving, (saving) => {
   emit('edit-saving-change', saving)
 }, { immediate: true })
+watch(editMode, (active, wasActive) => {
+  if (active && !wasActive) {
+    // 親が true にしただけで startEdit を経由しない場合でもセッションを張る
+    if (tasks.value.length === 0) {
+      editMode.value = false
+      return
+    }
+    if (!reorderSnapshot.value) {
+      beginEditSession()
+    }
+    return
+  }
+  if (!active && wasActive) {
+    // 親から false に戻された場合（モード切替など）はスナップショットを破棄
+    if (reorderSnapshot.value && !editSaving.value) {
+      reorderSnapshot.value = null
+    }
+    dismissEditInteractions()
+  }
+})
 const editLayerRef = ref<InstanceType<typeof TaskEditPopoverLayer> | null>(null)
 type TablePopoverCellField = 'assignees' | 'labels' | 'list' | 'startDate' | 'dueDate' | 'effort' | 'notes'
 const popoverActiveTaskId = ref<number | null>(null)
@@ -630,18 +683,27 @@ function isAssigneePickerActive (taskId: number): boolean {
 const editingTitleTaskId = ref<number | null>(null)
 const titleDraft = ref('')
 const titleSaving = ref(false)
+/** blur が focus 直後に走って入力モードが即座に閉じるのを防ぐ */
+let titleEditOpening = false
+const titleInputEls = new Map<number, HTMLInputElement>()
 const tableBusy = computed(() => (
   loading.value || titleSaving.value || editSaving.value || colorSaving.value || ganttDateSaving.value
 ))
 syncAppLoadingCursor(tableBusy)
-const titleInputEl = ref<HTMLInputElement | HTMLInputElement[] | null>(null)
+function setTitleInputEl (taskId: number, el: unknown) {
+  if (el instanceof HTMLInputElement) {
+    titleInputEls.set(taskId, el)
+    return
+  }
+  titleInputEls.delete(taskId)
+}
 const tableScrollEl = ref<HTMLElement | null>(null)
-const tableBodyEl = ref<HTMLTableSectionElement | null>(null)
+const groupedBodyEl = ref<HTMLTableSectionElement | null>(null)
+const standaloneBodyEl = ref<HTMLTableSectionElement | null>(null)
 const columnStorageKey = computed(() => `table-column-widths:${props.orgSlug}:${props.workspaceId}`)
+const visibleColumnsStorageKey = computed(() => `table-visible-columns:${props.orgSlug}:${props.workspaceId}`)
 const {
   columnWidths,
-  tableWidth,
-  columnResizeBoundaries,
   isResizing,
   loadWidths,
   onResizePointerDown,
@@ -649,67 +711,153 @@ const {
   onResizePointerUp,
   onResizePointerCancel,
 } = useTableColumnResize(columnStorageKey, { leadingColWidth: 0 })
+const visibleColumnKeys = ref<TableDisplayItemKey[]>(defaultVisibleColumnKeys())
+const displayItemsModalOpen = ref(false)
+const visibleColumnKeySet = computed(() => new Set(visibleColumnKeys.value))
+const visibleColumns = computed(() => (
+  TABLE_COLUMNS.filter(column => visibleColumnKeySet.value.has(column.key))
+))
+const showGantt = computed(() => visibleColumnKeySet.value.has('gantt'))
+const lastVisibleColumnKey = computed(() => (
+  visibleColumns.value[visibleColumns.value.length - 1]?.key ?? null
+))
+const visibleTableWidth = computed(() => (
+  visibleColumns.value.reduce((sum, column) => sum + columnWidths.value[column.key], 0)
+))
+const visibleColumnResizeBoundaries = computed(() => {
+  let offset = 0
+  return visibleColumns.value.map((column) => {
+    offset += columnWidths.value[column.key]
+    return {
+      columnKey: column.key,
+      offset,
+    }
+  })
+})
+function loadVisibleColumns () {
+  if (!import.meta.client) {
+    visibleColumnKeys.value = defaultVisibleColumnKeys()
+    return
+  }
+  visibleColumnKeys.value = (
+    parseStoredVisibleColumns(localStorage.getItem(visibleColumnsStorageKey.value))
+    ?? defaultVisibleColumnKeys()
+  )
+}
+function persistVisibleColumns () {
+  if (!import.meta.client) return
+  localStorage.setItem(visibleColumnsStorageKey.value, serializeVisibleColumns(visibleColumnKeys.value))
+}
+function isColumnVisible (key: TableColumnKey) {
+  return visibleColumnKeySet.value.has(key)
+}
+function isLastVisibleColumn (key: TableColumnKey) {
+  return lastVisibleColumnKey.value === key
+}
+function openDisplayItems () {
+  displayItemsModalOpen.value = true
+}
+function onDisplayItemsSave (keys: TableDisplayItemKey[]) {
+  const selected = new Set(keys)
+  selected.add('title')
+  const ordered = defaultVisibleColumnKeys().filter(key => selected.has(key))
+  if (!ordered.length) return
+  visibleColumnKeys.value = ordered
+  persistVisibleColumns()
+}
+watch(visibleColumnsStorageKey, () => {
+  loadVisibleColumns()
+}, { immediate: true })
 const monthDays = computed(() => buildMonthDays(visibleYear.value, visibleMonth.value))
+const ganttDays = computed(() => (showGantt.value ? monthDays.value : []))
 const monthDayIsos = computed(() => monthDays.value.map(day => day.iso))
 const monthLabel = computed(() => formatGanttMonthLabel(visibleYear.value, visibleMonth.value))
 const fullTableWidth = computed(() => (
-  tableWidth.value + monthDays.value.length * GANTT_DAY_COL_WIDTH
+  visibleTableWidth.value + ganttDays.value.length * GANTT_DAY_COL_WIDTH
 ))
 const isCurrentMonth = computed(() => {
   const now = currentYearMonth()
   return visibleYear.value === now.year && visibleMonth.value === now.month
 })
-const stickyLeftOffsets = computed(() => {
-  const offsets: number[] = []
+const stickyLeftOffsetsByKey = computed(() => {
+  const offsets = {} as Record<TableColumnKey, number>
   let left = 0
-  for (const column of TABLE_COLUMNS) {
-    offsets.push(left)
+  for (const column of visibleColumns.value) {
+    offsets[column.key] = left
     left += columnWidths.value[column.key]
   }
   return offsets
 })
-function stickyDescStyle (columnIndex: number, isHeader = false) {
-  const left = stickyLeftOffsets.value[columnIndex] ?? 0
-  const stack = TABLE_COLUMNS.length - columnIndex
+function stickyDescStyleForKey (key: TableColumnKey, isHeader = false) {
+  const index = visibleColumns.value.findIndex(column => column.key === key)
+  const left = stickyLeftOffsetsByKey.value[key] ?? 0
+  const stack = Math.max(0, visibleColumns.value.length - index)
   return {
     left: `${left}px`,
     zIndex: (isHeader ? 20 : 5) + stack,
   }
 }
-const {
-  dragging,
-  activeRows,
-  draggingTaskIds,
-  onDragHandlePointerDown: onDragHandlePointerDownInner,
-  shouldSuppressClick,
-} = useTableTaskDragReorder({
+type TableSectionKey = 'grouped' | 'standalone'
+const groupedDrag = useTableTaskDragReorder({
   tasks,
-  tableBodyEl,
+  tableBodyEl: groupedBodyEl,
   collapsedParentIds,
-  orphanParentLabel,
-  orphanParentSortOrder,
+  buildRows: () => buildTableDisplayRows(tasks.value, collapsedParentIds.value),
+  buildExpandedRows: () => buildFullTableDisplayRows(tasks.value),
+  composeOrderedRows: rows => [...rows, ...buildStandaloneTableDisplayRows(tasks.value)],
   surface: TABLE_LIST_DRAG_SURFACE,
   onCommit: commitTableOrderFromDrag,
 })
-const displayRows = computed(() => {
-  if (dragging.value) {
-    return activeRows.value
-  }
-  return buildTableDisplayRows(
-    tasks.value,
-    collapsedParentIds.value,
-    orphanParentLabel.value,
-    orphanParentSortOrder.value,
-  )
+const standaloneDrag = useTableTaskDragReorder({
+  tasks,
+  tableBodyEl: standaloneBodyEl,
+  collapsedParentIds,
+  buildRows: () => buildStandaloneTableDisplayRows(tasks.value),
+  buildExpandedRows: () => buildStandaloneTableDisplayRows(tasks.value),
+  composeOrderedRows: rows => [...buildFullTableDisplayRows(tasks.value), ...rows],
+  surface: TABLE_LIST_DRAG_SURFACE,
+  onCommit: commitTableOrderFromDrag,
 })
+const dragging = computed(() => groupedDrag.dragging.value || standaloneDrag.dragging.value)
+const draggingTaskIds = computed(() => new Set<number>([
+  ...groupedDrag.draggingTaskIds.value,
+  ...standaloneDrag.draggingTaskIds.value,
+]))
+const tableSections = computed(() => {
+  const sections: Array<{ key: TableSectionKey; rows: TableDisplayRow[] }> = []
+  if (groupedDrag.activeRows.value.length) {
+    sections.push({ key: 'grouped', rows: groupedDrag.activeRows.value })
+  }
+  if (standaloneDrag.activeRows.value.length) {
+    sections.push({ key: 'standalone', rows: standaloneDrag.activeRows.value })
+  }
+  return sections
+})
+const hasDisplayRows = computed(() => tableSections.value.length > 0)
+function registerSectionBody (key: TableSectionKey, el: unknown) {
+  const body = el instanceof HTMLTableSectionElement ? el : null
+  if (key === 'grouped') {
+    groupedBodyEl.value = body
+  } else {
+    standaloneBodyEl.value = body
+  }
+}
+function shouldSuppressClick (): boolean {
+  return groupedDrag.shouldSuppressClick() || standaloneDrag.shouldSuppressClick()
+}
+function onDragHandlePointerDownInner (
+  sectionKey: TableSectionKey,
+  taskId: number,
+  event: PointerEvent,
+) {
+  const drag = sectionKey === 'grouped' ? groupedDrag : standaloneDrag
+  drag.onDragHandlePointerDown(taskId, event)
+}
 /** 既存バー数から、次に自動割当する色を決める（作成時・未保存プレビュー用） */
 function nextAutoGanttBarColor (excludeTaskId?: number): string {
   let barCount = 0
   for (const task of tasks.value) {
     if (excludeTaskId != null && task.id === excludeTaskId) {
-      continue
-    }
-    if (isTableOrphanParentTask(task)) {
       continue
     }
     if (!resolveTaskDateRange(task)) {
@@ -728,7 +876,7 @@ function resolveTaskGanttBarColor (task: TableTask): string {
 }
 async function commitGanttDateRange (taskId: number, start: string | null, end: string | null) {
   const idx = tasks.value.findIndex(task => task.id === taskId)
-  if (idx < 0 || isTableOrphanParentTask(tasks.value[idx]!)) {
+  if (idx < 0) {
     return
   }
   const current = tasks.value[idx]!
@@ -820,7 +968,6 @@ const {
     return Boolean(
       editMode.value
       && task
-      && !isTableOrphanParentTask(task)
       && !ganttDateSaving.value
       && !colorSaving.value,
     )
@@ -840,72 +987,52 @@ watch(ganttClickSelection, (selection) => {
   }
 })
 function cloneTableTasks (source: TableTask[]): TableTask[] {
-  return structuredClone(toRaw(source))
+  try {
+    return structuredClone(toRaw(source)) as TableTask[]
+  } catch {
+    // Proxy などが混ざると structuredClone が失敗することがある
+    return JSON.parse(JSON.stringify(toRaw(source))) as TableTask[]
+  }
 }
-function onDragHandlePointerDown (taskId: number, event: PointerEvent) {
+function onDragHandlePointerDown (
+  sectionKey: TableSectionKey,
+  taskId: number,
+  event: PointerEvent,
+) {
   if (!editMode.value || editSaving.value) {
     return
   }
-  onDragHandlePointerDownInner(taskId, event)
+  onDragHandlePointerDownInner(sectionKey, taskId, event)
 }
 function onDragHandleClick () {
   if (shouldSuppressClick()) {
     return
   }
 }
-function applyLocalTableOrder (
-  updatedTasks: TableTask[],
-  nextOrphanParentSortOrder: number | null,
-) {
-  if (!hasTableOrphanChildTasks(updatedTasks)) {
-    orphanParentSortOrder.value = nextOrphanParentSortOrder
-  }
-}
-async function commitTableOrderFromDrag (
-  updatedTasks: TableTask[],
-  nextOrphanParentSortOrder: number | null,
-) {
-  applyLocalTableOrder(updatedTasks, nextOrphanParentSortOrder)
+async function commitTableOrderFromDrag (updatedTasks: TableTask[]) {
   if (!editMode.value) {
-    await saveTableOrder(updatedTasks, nextOrphanParentSortOrder)
+    await saveTableOrder(updatedTasks)
   }
 }
-async function saveTableOrder (
-  updatedTasks: TableTask[],
-  nextOrphanParentSortOrder: number | null,
-): Promise<boolean> {
+async function saveTableOrder (updatedTasks: TableTask[]): Promise<boolean> {
   try {
-    const body: {
-      tasks: ReturnType<typeof buildTableReorderPayload>
-      orphan_parent_sort_order?: number | null
-    } = {
-      tasks: buildTableReorderPayload(updatedTasks),
-    }
-    if (!hasTableOrphanChildTasks(updatedTasks)) {
-      body.orphan_parent_sort_order = nextOrphanParentSortOrder
-    }
     await api<{ data: { ok: boolean } }>(
       `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/table/reorder`,
       {
         method: 'PATCH',
-        body,
+        body: { tasks: buildTableReorderPayload(updatedTasks) },
       },
     )
-    if (!hasTableOrphanChildTasks(updatedTasks)) {
-      orphanParentSortOrder.value = nextOrphanParentSortOrder
-    }
     persistTableCache()
     patchCachedTasks(
       props.orgSlug,
       props.workspaceId,
-      updatedTasks
-        .filter(task => !isTableOrphanParentTask(task))
-        .map(task => ({
-          id: task.id,
-          sort_order: task.sort_order,
-          parent_task_id: task.parent_task_id ?? null,
-          is_parent_task: task.is_parent_task,
-        })),
+      updatedTasks.map(task => ({
+        id: task.id,
+        sort_order: task.sort_order,
+        parent_task_id: task.parent_task_id ?? null,
+        is_parent_task: task.is_parent_task,
+      })),
     )
     return true
   } catch (e: unknown) {
@@ -916,20 +1043,129 @@ async function saveTableOrder (
 }
 function dismissEditInteractions () {
   cancelTitleEdit()
-  editLayerRef.value?.closePopover()
+  // 保存待ちの非同期 close ではなく、同期で閉じる（編集モード遷移を阻害しない）
+  editLayerRef.value?.dismissPopover()
   closeColorPopover()
 }
-function startEdit () {
-  if (editMode.value || loading.value || !displayRows.value.length) {
+function defaultTaskCreateListId (): number | null {
+  return workspaceLists.value[0]?.id ?? null
+}
+function openTaskCreate () {
+  if (loading.value || editSaving.value) {
     return
   }
-  reorderSnapshot.value = {
-    tasks: cloneTableTasks(tasks.value),
-    orphanParentSortOrder: orphanParentSortOrder.value,
-    collapsedParentIds: new Set(collapsedParentIds.value),
+  dismissEditInteractions()
+  taskCreateListId.value = defaultTaskCreateListId()
+  taskCreateOpen.value = true
+}
+function createdTaskToTableTask (created: CreatedTask): TableTask {
+  const listId = created.list_id ?? null
+  return {
+    id: created.id,
+    title: created.title,
+    description: created.description ?? null,
+    created_at: created.created_at ?? null,
+    status: created.status,
+    list_id: listId,
+    list_name: workspaceLists.value.find(list => list.id === listId)?.name ?? null,
+    start_date: created.start_date ?? null,
+    due_date: created.due_date ?? null,
+    effort_hours: created.effort_hours ?? null,
+    effort_value: created.effort_value ?? null,
+    effort_unit: created.effort_unit ?? null,
+    labels: created.labels ? resolveLabelColors(created.labels) : [],
+    assignees: created.assignees ?? [],
+    sort_order: created.sort_order,
+    is_parent_task: created.is_parent_task,
+    parent_task_id: created.parent_task_id ?? null,
+  }
+}
+function createdTaskToBoardTask (created: CreatedTask): WorkspaceBoardTask {
+  return {
+    id: created.id,
+    title: created.title,
+    description: created.description ?? null,
+    status: created.status,
+    list_id: created.list_id ?? null,
+    is_parent_task: created.is_parent_task,
+    parent_task_id: created.parent_task_id ?? null,
+    sort_order: created.sort_order,
+    start_date: created.start_date ?? null,
+    due_date: created.due_date ?? null,
+    effort_hours: created.effort_hours ?? null,
+    effort_value: created.effort_value ?? null,
+    effort_unit: created.effort_unit ?? null,
+    labels: created.labels ? resolveLabelColors(created.labels) : [],
+    assignees: created.assignees ?? [],
+  }
+}
+function syncBoardCacheAfterCreate (created: CreatedTask) {
+  const cached = getBoardCached(props.orgSlug, props.workspaceId)
+  if (!cached) {
+    return
+  }
+  const boardTask = createdTaskToBoardTask(created)
+  replaceCachedBoardState(props.orgSlug, props.workspaceId, {
+    tasks: [...cached.tasks, boardTask],
+    parentTasks: created.is_parent_task
+      ? [...cached.parentTasks, { id: created.id, title: created.title }]
+      : cached.parentTasks,
+  })
+}
+function onTaskCreatedFromModal (created: CreatedTask) {
+  // 作成前に開始した silent reload が古い一覧で上書きしないように無効化する
+  tableLoadGeneration += 1
+  const tableTask = createdTaskToTableTask(created)
+  const exists = tasks.value.some(task => task.id === tableTask.id)
+  if (!exists) {
+    tasks.value = [...tasks.value, tableTask]
+  }
+  if (reorderSnapshot.value) {
+    const snapExists = reorderSnapshot.value.tasks.some(task => task.id === tableTask.id)
+    if (!snapExists) {
+      reorderSnapshot.value = {
+        ...reorderSnapshot.value,
+        tasks: [...reorderSnapshot.value.tasks, cloneTableTasks([tableTask])[0]!],
+      }
+    }
+  }
+  persistTableCache()
+  syncBoardCacheAfterCreate(created)
+}
+async function persistAndDismissEditInteractions () {
+  cancelTitleEdit()
+  await editLayerRef.value?.closePopover()
+  closeColorPopover()
+}
+function beginEditSession () {
+  dismissEditInteractions()
+  if (!reorderSnapshot.value) {
+    try {
+      reorderSnapshot.value = {
+        tasks: cloneTableTasks(tasks.value),
+        collapsedParentIds: new Set(collapsedParentIds.value),
+      }
+    } catch (e: unknown) {
+      error.value = e instanceof Error ? e.message : '編集の開始に失敗しました'
+      reorderSnapshot.value = {
+        tasks: tasks.value.map(task => ({ ...task })),
+        collapsedParentIds: new Set(collapsedParentIds.value),
+      }
+    }
   }
   collapsedParentIds.value = new Set()
+}
+function startEdit (): boolean {
+  if (tasks.value.length === 0) {
+    editMode.value = false
+    return false
+  }
+  // ヘッダー表示と実編集状態を同時に立てる（watch だけに依存しない）
+  if (!editMode.value || !reorderSnapshot.value) {
+    beginEditSession()
+  }
   editMode.value = true
+  return true
 }
 function cancelEdit () {
   if (!editMode.value || editSaving.value) {
@@ -939,7 +1175,6 @@ function cancelEdit () {
   const snapshot = reorderSnapshot.value
   if (snapshot) {
     tasks.value = cloneTableTasks(snapshot.tasks)
-    orphanParentSortOrder.value = snapshot.orphanParentSortOrder
     collapsedParentIds.value = new Set(snapshot.collapsedParentIds)
   }
   reorderSnapshot.value = null
@@ -949,11 +1184,11 @@ async function confirmEdit () {
   if (!editMode.value || editSaving.value) {
     return
   }
-  dismissEditInteractions()
+  await persistAndDismissEditInteractions()
   editSaving.value = true
   error.value = null
   try {
-    const ok = await saveTableOrder(tasks.value, orphanParentSortOrder.value)
+    const ok = await saveTableOrder(tasks.value)
     if (!ok) {
       reorderSnapshot.value = null
       editMode.value = false
@@ -985,14 +1220,15 @@ function syncTaskUpdate (updated: TaskPopoverEditable) {
   const idx = tasks.value.findIndex(task => task.id === updated.id)
   if (idx < 0) return
   const current = tasks.value[idx]!
-  const listChanged = updated.list_id !== undefined && updated.list_id !== current.list_id
+  // 並び順はドラッグ操作のみで変更する
+  const nextSortOrder = current.sort_order
   tasks.value[idx] = {
     ...current,
     title: updated.title,
     description: updated.description,
     list_id: updated.list_id ?? current.list_id,
     list_name: updated.list_name ?? current.list_name,
-    sort_order: listChanged ? current.sort_order : (updated.sort_order ?? current.sort_order),
+    sort_order: nextSortOrder,
     start_date: updated.start_date,
     due_date: updated.due_date,
     effort_value: updated.effort_value,
@@ -1006,7 +1242,7 @@ function syncTaskUpdate (updated: TaskPopoverEditable) {
     title: updated.title,
     description: updated.description,
     list_id: updated.list_id ?? current.list_id,
-    sort_order: listChanged ? current.sort_order : (updated.sort_order ?? current.sort_order),
+    sort_order: nextSortOrder,
     start_date: updated.start_date,
     due_date: updated.due_date,
     effort_value: updated.effort_value,
@@ -1044,18 +1280,28 @@ function goCurrentMonth () {
 }
 function openGanttColorPopover (taskId: number, clientX: number, clientY: number) {
   const task = tasks.value.find(row => row.id === taskId)
-  if (!task || isTableOrphanParentTask(task) || !resolveTaskDateRange(task)) {
+  if (!task || !resolveTaskDateRange(task)) {
     return
   }
   if (colorPopoverOpen.value && colorPopoverTaskId.value === taskId) {
     closeColorPopover()
     return
   }
+  const hit = import.meta.client
+    ? document.elementFromPoint(clientX, clientY)
+    : null
+  const table = hit instanceof Element
+    ? hit.closest('table.workspace-table') ?? hit.closest('.workspace-table-board__frame')
+    : null
+  const tableTop = table instanceof HTMLElement
+    ? table.getBoundingClientRect().top
+    : clientY
   colorPopoverTaskId.value = taskId
   colorPopoverValue.value = resolveTaskGanttBarColor(task)
   colorPopoverAnchor.value = {
-    top: clientY,
+    top: tableTop,
     left: clientX,
+    right: clientX,
   }
   colorPopoverOpen.value = true
 }
@@ -1105,8 +1351,6 @@ async function saveGanttBarColor (color: string) {
 }
 function applyTableSnapshot (snapshot: WorkspaceTablePageSnapshot) {
   tasks.value = snapshot.tasks
-  orphanParentLabel.value = snapshot.orphanParentLabel
-  orphanParentSortOrder.value = snapshot.orphanParentSortOrder
   orgLabels.value = snapshot.orgLabels
   workspaceMembers.value = snapshot.workspaceMembers
   workspaceLists.value = snapshot.workspaceLists
@@ -1114,8 +1358,6 @@ function applyTableSnapshot (snapshot: WorkspaceTablePageSnapshot) {
 function buildTableSnapshot (): WorkspaceTablePageSnapshot {
   return {
     tasks: tasks.value,
-    orphanParentLabel: orphanParentLabel.value,
-    orphanParentSortOrder: orphanParentSortOrder.value,
     orgLabels: orgLabels.value,
     workspaceMembers: workspaceMembers.value,
     workspaceLists: workspaceLists.value,
@@ -1164,7 +1406,11 @@ function openLabels (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openLabelPicker(e), event)
 }
 function openDescription (task: TableTask, event: Event) {
-  bindAndOpen(task, (e) => editLayerRef.value?.openDescriptionPicker(e), event)
+  if (!editMode.value && !task.description?.trim()) {
+    return
+  }
+  editLayerRef.value?.bindTask(task)
+  editLayerRef.value?.openDescriptionPicker(event)
 }
 function openList (task: TableTask, event: Event) {
   bindAndOpen(task, (e) => editLayerRef.value?.openListPicker(e), event)
@@ -1174,21 +1420,30 @@ function listNameStyle (listId: number | null | undefined) {
   return color ? { color } : undefined
 }
 async function startTitleEdit (task: TableTask) {
+  titleEditOpening = true
   editingTitleTaskId.value = task.id
   titleDraft.value = task.title
   await nextTick()
-  const el = Array.isArray(titleInputEl.value)
-    ? titleInputEl.value[0]
-    : titleInputEl.value
+  const el = titleInputEls.get(task.id)
   el?.focus()
   el?.select()
+  requestAnimationFrame(() => {
+    titleEditOpening = false
+  })
 }
 function onTitleFieldActivate (task: TableTask, event?: Event) {
   if (!editMode.value || editingTitleTaskId.value === task.id) {
     return
   }
+  if (event instanceof PointerEvent && event.button !== 0) {
+    return
+  }
   if (event?.target instanceof Element && event.target.closest('.workspace-table__toggle, .workspace-table__drag-handle')) {
     return
+  }
+  // pointerdown で入力へ切替え、後続の click/focus 競合を避ける
+  if (event?.type === 'pointerdown') {
+    event.preventDefault()
   }
   void startTitleEdit(task)
 }
@@ -1201,11 +1456,12 @@ function onTitleCellMouseDown (task: TableTask, event: MouseEvent) {
   event.preventDefault()
 }
 function cancelTitleEdit () {
+  titleEditOpening = false
   editingTitleTaskId.value = null
   titleDraft.value = ''
 }
 async function confirmTitleEdit (task: TableTask) {
-  if (titleSaving.value || editingTitleTaskId.value !== task.id) return
+  if (titleEditOpening || titleSaving.value || editingTitleTaskId.value !== task.id) return
   const title = titleDraft.value.trim()
   if (!title || title === task.title) {
     cancelTitleEdit()
@@ -1213,20 +1469,11 @@ async function confirmTitleEdit (task: TableTask) {
   }
   titleSaving.value = true
   try {
-    if (isTableOrphanParentTask(task)) {
-      const res = await api<{ data: { orphan_parent_label: string } }>(
-        `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/table/orphan-parent-label`,
-        { method: 'PATCH', body: { label: title } },
-      )
-      orphanParentLabel.value = res.data.orphan_parent_label
-      persistTableCache()
-    } else {
-      await api<{ title: string }>(
-        `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.id}`,
-        { method: 'PATCH', body: { title } },
-      )
-      syncTaskUpdate({ ...task, title })
-    }
+    await api<{ title: string }>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.id}`,
+      { method: 'PATCH', body: { title } },
+    )
+    syncTaskUpdate({ ...task, title })
     cancelTitleEdit()
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'タスク名の更新に失敗しました'
@@ -1235,14 +1482,16 @@ async function confirmTitleEdit (task: TableTask) {
   }
 }
 async function loadTableTasks (opts?: { silent?: boolean }) {
-  if (!opts?.silent) {
+  const generation = ++tableLoadGeneration
+  const showLoading = !opts?.silent
+  if (showLoading) {
+    tableLoadingDepth += 1
     loading.value = true
   }
   error.value = null
   try {
-    const [, tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
-      ensureOrgEffortUnit(),
-      api<{ data: TableTask[]; meta?: { orphan_parent_label?: string; orphan_parent_sort_order?: number | null } }>(
+    const [tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
+      api<{ data: TableTask[] }>(
         `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/table`,
       ),
       api<{ data: TaskFormLabel[] }>(
@@ -1255,13 +1504,13 @@ async function loadTableTasks (opts?: { silent?: boolean }) {
         `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/lists`,
       ),
     ])
+    if (generation !== tableLoadGeneration) {
+      return
+    }
     tasks.value = (tasksRes.data ?? []).map(task => ({
       ...task,
       labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
     }))
-    orphanParentLabel.value = tasksRes.meta?.orphan_parent_label?.trim()
-      || ORPHAN_PARENT_DEFAULT_LABEL
-    orphanParentSortOrder.value = tasksRes.meta?.orphan_parent_sort_order ?? null
     orgLabels.value = resolveLabelColors(labelsRes.data ?? [])
     workspaceMembers.value = membersRes.data ?? []
     workspaceLists.value = resolveListColors([...(listsRes.data ?? [])]).sort(
@@ -1269,18 +1518,22 @@ async function loadTableTasks (opts?: { silent?: boolean }) {
     )
     persistTableCache()
   } catch (e: unknown) {
+    if (generation !== tableLoadGeneration) {
+      return
+    }
     if (!opts?.silent) {
       error.value = e instanceof Error ? e.message : 'Tableの読み込みに失敗しました'
       tasks.value = []
-      orphanParentLabel.value = ORPHAN_PARENT_DEFAULT_LABEL
-      orphanParentSortOrder.value = null
       orgLabels.value = []
       workspaceMembers.value = []
       workspaceLists.value = []
     }
   } finally {
-    if (!opts?.silent) {
-      loading.value = false
+    if (showLoading) {
+      tableLoadingDepth = Math.max(0, tableLoadingDepth - 1)
+      if (tableLoadingDepth === 0) {
+        loading.value = false
+      }
     }
   }
 }
@@ -1316,6 +1569,8 @@ defineExpose({
   startEdit,
   cancelEdit,
   confirmEdit,
+  openTaskCreate,
+  openDisplayItems,
 })
 watch(loading, async (isLoading) => {
   if (isLoading) return
@@ -1328,710 +1583,5 @@ watch(loading, async (isLoading) => {
   }
 })
 </script>
-<style lang="scss" scoped>
-.workspace-table-board {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-.workspace-table-board__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10.5px;
-  margin-bottom: 6.3px;
-  flex-shrink: 0;
-}
-.workspace-table-board__month-nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 4.9px;
-}
-.workspace-table-board__nav-btn,
-.workspace-table-board__today-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid mixin.$border-light;
-  border-radius: 6px;
-  background: #fff;
-  color: mixin.$text;
-  cursor: pointer;
-  font: inherit;
-}
-.workspace-table-board__nav-btn {
-  width: 24.5px;
-  height: 24.5px;
-  padding: 0;
-  font-size: 14px;
-  line-height: 1;
-}
-.workspace-table-board__today-btn {
-  height: 24.5px;
-  padding: 0 9.1px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.workspace-table-board__today-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.workspace-table-board__month-strip {
-  display: flex;
-  align-items: flex-end;
-  width: fit-content;
-  min-width: 100%;
-  margin-bottom: 2.8px;
-  flex-shrink: 0;
-}
-.workspace-table-board__month-strip-spacer {
-  flex-shrink: 0;
-}
-.workspace-table-board__month-strip-label {
-  flex: 1;
-  min-width: 0;
-  padding-left: 4.9px;
-  font-size: 14px;
-  font-weight: 700;
-  color: mixin.$text;
-  line-height: 1.2;
-}
-.workspace-table-board__viewport {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  width: 100%;
-  overflow: auto;
-}
-.workspace-table-board__viewport--dragging {
-  cursor: default;
-  user-select: none;
-}
-.workspace-table-board__viewport--gantt-interacting {
-  overflow: hidden;
-  overscroll-behavior: none;
-  touch-action: none;
-}
-.workspace-table-board__frame {
-  display: block;
-  width: fit-content;
-  border: 1px solid mixin.$border-light;
-  border-radius: 12px;
-  background: #fff;
-  overflow: hidden;
-}
-.workspace-table-wrap {
-  position: relative;
-  width: fit-content;
-}
-.workspace-table-wrap--dragging {
-  cursor: default;
-}
-.workspace-table-wrap--dragging .workspace-table__drag-handle {
-  cursor: default;
-}
-.workspace-table-wrap--dragging .workspace-table__task-row--drag-preview {
-  pointer-events: none;
-}
-.workspace-table-wrap--dragging .workspace-table__task-row--drag-preview .workspace-table__drag-handle {
-  visibility: hidden;
-}
-.workspace-table-wrap--resizing {
-  cursor: default;
-  user-select: none;
-}
-.workspace-table__resize-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 3;
-}
-.workspace-table-board__state,
-.workspace-table-board__error {
-  margin: 0;
-  padding: 14px 3.5px;
-  font-size: 14px;
-}
-.workspace-table-board__error {
-  color: mixin.$danger;
-  font-weight: 600;
-}
-.workspace-table {
-  --table-row-height: 36px;
-  --table-parent-row-height: 40px;
-  --table-chip-height: 24px;
-  --table-label-chip-width: 32px;
-  --table-leading-control-width: 18.9px;
-  --table-width: auto;
-  --gantt-day-col-width: 34px;
-  width: var(--table-width);
-  border-collapse: collapse;
-  table-layout: fixed;
-  font-size: 14px;
-}
-.workspace-table__day-col {
-  width: var(--gantt-day-col-width);
-}
-.workspace-table__drag-handle {
-  flex-shrink: 0;
-  align-self: stretch;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: content-box;
-  width: var(--table-leading-control-width);
-  height: auto;
-  margin: 0;
-  padding: 0 8px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: mixin.$text-sub;
-  cursor: pointer;
-  touch-action: none;
-}
-.workspace-table__drag-handle:active {
-  cursor: default;
-}
-.workspace-table-wrap--resizing .workspace-table__resize-handle {
-  cursor: default;
-}
-.workspace-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  min-width: 0;
-  padding: 7.7px 9.1px;
-  background: mixin.$table-header-bg;
-  border-bottom: 1px solid mixin.$table-header-bg;
-  text-align: left;
-  font-size: 14px;
-  font-weight: 700;
-  color: mixin.$white;
-  white-space: nowrap;
-  overflow: hidden;
-  isolation: isolate;
-}
-.workspace-table__header-cell--sticky {
-  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.12);
-}
-.workspace-table__header-cell--sticky-edge {
-  box-shadow: 2px 0 0 rgba(15, 23, 42, 0.12);
-}
-.workspace-table__header-label {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding-right: 4.9px;
-}
-.workspace-table__day-header {
-  width: var(--gantt-day-col-width);
-  min-width: var(--gantt-day-col-width);
-  max-width: var(--gantt-day-col-width);
-  padding: 4.2px 0;
-  text-align: center;
-  line-height: 1.05;
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.12);
-}
-.workspace-table__day-header--weekend {
-  background: rgba(255, 255, 255, 0.08);
-}
-.workspace-table__day-header--today {
-  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.95);
-}
-.workspace-table__day-date {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.05;
-}
-.workspace-table__day-weekday {
-  display: block;
-  margin-top: 0.28px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.05;
-  opacity: 0.92;
-}
-.workspace-table__resize-guide {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  pointer-events: none;
-}
-.workspace-table__resize-guide::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  margin-left: -0.5px;
-  background: rgba(148, 163, 184, 0.45);
-}
-.workspace-table__resize-guide--no-line::after {
-  display: none;
-}
-.workspace-table__resize-handle {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 10px;
-  transform: translateX(50%);
-  touch-action: none;
-  cursor: col-resize;
-  z-index: 1;
-}
-.workspace-table thead th:first-child {
-  border-top-left-radius: 12px;
-}
-.workspace-table thead th:last-child {
-  border-top-right-radius: 12px;
-}
-.workspace-table__task-row:last-child td:first-child {
-  border-bottom-left-radius: 12px;
-}
-.workspace-table__task-row:last-child td:last-child {
-  border-bottom-right-radius: 12px;
-}
-.workspace-table__task-row td {
-  height: var(--table-row-height);
-  max-height: var(--table-row-height);
-  min-width: 0;
-  padding: 0;
-  border-bottom: 1px solid mixin.$border-light;
-  vertical-align: middle;
-  color: mixin.$text;
-  line-height: 1.2;
-  overflow: hidden;
-}
-.workspace-table__desc-cell {
-  position: sticky;
-  background: #fff;
-  box-shadow: 1px 0 0 mixin.$border-light;
-}
-.workspace-table__desc-cell--edge {
-  box-shadow: 2px 0 0 rgba(15, 23, 42, 0.12);
-}
-.workspace-table__task-row--parent .workspace-table__desc-cell {
-  background: mixin.$table-parent-bg;
-}
-.workspace-table__day-cell {
-  width: var(--gantt-day-col-width);
-  min-width: var(--gantt-day-col-width);
-  max-width: var(--gantt-day-col-width);
-  padding: 0;
-  background: #fff;
-  position: relative;
-  touch-action: none;
-  user-select: none;
-}
-.workspace-table__task-row td.workspace-table__day-cell {
-  border-left: none;
-  overflow: visible;
-  box-shadow: inset 1px 0 0 mixin.$border-light;
-}
-.workspace-table__day-cell--interactive {
-  cursor: cell;
-}
-.workspace-table__day-cell--interactive.workspace-table__day-cell--filled {
-  cursor: grab;
-  transition: opacity 180ms ease;
-}
-.workspace-table__task-row td.workspace-table__day-cell--selected.workspace-table__day-cell--filled {
-  opacity: 0.8;
-}
-.workspace-table__task-row td.workspace-table__day-cell--create-preview {
-  z-index: 2;
-}
-.workspace-table__task-row td.workspace-table__day-cell--create-preview::after {
-  content: '';
-  position: absolute;
-  top: -1px;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  box-sizing: border-box;
-  border-top: 1px solid var(--gantt-selection-color, #{mixin.$main});
-  border-bottom: 1px solid var(--gantt-selection-color, #{mixin.$main});
-  pointer-events: none;
-  z-index: 3;
-}
-.workspace-table__task-row td.workspace-table__day-cell--create-preview.workspace-table__day-cell--create-preview-start::after {
-  border-left: 1px solid var(--gantt-selection-color, #{mixin.$main});
-}
-.workspace-table__task-row td.workspace-table__day-cell--create-preview.workspace-table__day-cell--create-preview-end::after {
-  right: -1px;
-  border-right: 1px solid var(--gantt-selection-color, #{mixin.$main});
-}
-.workspace-table__day-cell--dragging {
-  cursor: grabbing;
-}
-.workspace-table__gantt-edge {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: ew-resize;
-  z-index: 2;
-}
-.workspace-table__gantt-edge--start {
-  left: 0;
-}
-.workspace-table__gantt-edge--end {
-  right: 0;
-}
-.workspace-table__gantt-edge:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: -2px;
-}
-.workspace-table--edit .workspace-table__task-row td:has(.workspace-table__cell-btn:not(.workspace-table__cell-btn--readonly)),
-.workspace-table--edit .workspace-table__task-row td:has(.workspace-table__title-cell--editable) {
-  cursor: pointer;
-}
-.workspace-table__task-row td > .workspace-table__placeholder {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  min-height: var(--table-row-height);
-  padding: 0 9.1px;
-}
-.workspace-table__task-row:last-child td {
-  border-bottom: none;
-}
-.workspace-table__task-row--parent td {
-  height: var(--table-parent-row-height);
-  max-height: var(--table-parent-row-height);
-  background: mixin.$table-parent-bg;
-}
-.workspace-table__task-row--parent td > .workspace-table__placeholder {
-  min-height: var(--table-parent-row-height);
-}
-.workspace-table__task-row--parent .workspace-table__cell-btn {
-  min-height: var(--table-parent-row-height);
-}
-.workspace-table__task-title {
-  font-weight: 700;
-  padding-left: 0 !important;
-}
-.workspace-table__title-cell {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  box-sizing: border-box;
-  min-width: 0;
-  width: 100%;
-  height: var(--table-row-height);
-  padding-right: 9.1px;
-}
-.workspace-table__title-cell--editable {
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.12s ease;
-}
-.workspace-table__title-cell--editable:hover {
-  background: mixin.$main-aqua-surface-light;
-}
-.workspace-table__title-cell--editable:focus-visible {
-  @include mixin.input-focus-ring;
-  border-radius: 4px;
-}
-.workspace-table__task-row--parent .workspace-table__title-cell {
-  height: var(--table-parent-row-height);
-}
-.workspace-table__title-cell--child {
-  padding-left: var(--table-leading-control-width);
-}
-.workspace-table__title-field {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  align-self: stretch;
-  box-sizing: border-box;
-  min-height: 100%;
-}
-.workspace-table__title-field--after-toggle {
-  padding-left: 4.9px;
-}
-.workspace-table__title-text,
-.workspace-table__title-input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  padding: 0 4.9px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: inherit;
-  font-family: inherit;
-  line-height: 1;
-  color: inherit;
-}
-.workspace-table__title-text {
-  display: flex;
-  align-items: center;
-  align-self: stretch;
-  min-height: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  border: 1px solid transparent;
-}
-.workspace-table__title-input {
-  height: 24px;
-  min-height: 24px;
-  margin: auto 0;
-  border: 1px solid mixin.$border;
-  background: #fff;
-  line-height: calc(24px - 2px);
-}
-.workspace-table__title-input:focus {
-  @include mixin.input-focus-ring;
-}
-.workspace-table__toggle {
-  flex-shrink: 0;
-  align-self: stretch;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--table-leading-control-width);
-  height: auto;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: mixin.$text-sub;
-  cursor: pointer;
-}
-.workspace-table__ellipsis {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.workspace-table__cell-btn {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  min-height: var(--table-row-height);
-  margin: 0;
-  padding: 0 12.6px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  overflow: hidden;
-  transition: background-color 0.12s ease;
-}
-.workspace-table__cell-btn--popover-open {
-  box-shadow: inset 0 0 0 1.4px mixin.$main;
-}
-.workspace-table__cell-btn--readonly {
-  cursor: default;
-}
-.workspace-table__cell-btn:focus-visible {
-  @include mixin.input-focus-ring;
-}
-.workspace-table__cell-btn--text {
-  height: 100%;
-  min-height: var(--table-row-height);
-}
-.workspace-table__task-row--parent .workspace-table__cell-btn--text {
-  min-height: var(--table-parent-row-height);
-}
-.workspace-table__cell-btn--text > span:not(.workspace-table__placeholder) {
-  display: block;
-  font-weight: 600;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.workspace-table__cell-btn--notes {
-  max-width: 100%;
-}
-.workspace-table__cell-btn--text .workspace-table__labels {
-  flex: 1;
-  min-width: 0;
-}
-.workspace-table__placeholder {
-  color: mixin.$text-sub;
-  font-weight: 500;
-}
-.workspace-table__members-cell {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 2.8px;
-  box-sizing: border-box;
-  min-width: 0;
-  width: 100%;
-  min-height: var(--table-row-height);
-  height: 100%;
-  overflow: hidden;
-  padding: 0 12.6px 0 14.6px;
-}
-.workspace-table__members-cell--edit {
-  cursor: pointer;
-}
-.workspace-table__members-cell--picker-open {
-  box-shadow: inset 0 0 0 1.4px mixin.$main;
-}
-.workspace-table__task-row--parent .workspace-table__members-cell {
-  min-height: var(--table-parent-row-height);
-}
-.workspace-table__avatar-btn {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: var(--table-chip-height);
-  height: var(--table-chip-height);
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  cursor: pointer;
-  overflow: hidden;
-}
-.workspace-table__avatar-btn:focus-visible {
-  @include mixin.input-focus-ring;
-}
-.workspace-table__avatar-btn--active {
-  box-shadow: 0 0 0 1.4px mixin.$main;
-}
-.workspace-table__avatar-btn--add {
-  border: 1.5px solid transparent;
-  background: #fff;
-  box-shadow: inset 0 0 0 1px mixin.$border;
-  overflow: visible;
-}
-.workspace-table__avatar-btn--add.workspace-table__avatar-btn--active {
-  box-shadow:
-    inset 0 0 0 1px mixin.$border,
-    0 0 0 1.4px mixin.$main;
-}
-.workspace-table__avatar-btn-plus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 1;
-  color: #64748b;
-}
-.workspace-table__avatar-pill {
-  display: inline-flex;
-  border-radius: 999px;
-}
-.workspace-table__avatar-pill :deep(.member-avatar) {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  border: 1.5px solid #fff;
-}
-.workspace-table__avatar-pill :deep(.member-avatar__initial) {
-  font-size: 10px;
-}
-.workspace-table__labels-wrap {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  min-height: var(--table-row-height);
-  padding: 0 12.6px;
-  overflow: hidden;
-}
-.workspace-table__task-row--parent .workspace-table__labels-wrap {
-  min-height: var(--table-parent-row-height);
-}
-.workspace-table__labels {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 2.8px;
-  min-width: 0;
-  overflow: hidden;
-}
-.workspace-table__labels--readonly :deep(.label-strip) {
-  transition: opacity 0.12s ease;
-}
-.workspace-table__labels--readonly :deep(.label-strip:hover) {
-  opacity: 0.8;
-}
-.workspace-table__labels :deep(.label-strip--sm) {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  height: var(--table-chip-height);
-  width: max-content;
-  min-width: var(--table-label-chip-width);
-  max-width: none;
-  flex-shrink: 0;
-  justify-content: center;
-  padding: 0 5.6px;
-  font-size: 14px;
-  line-height: 1;
-  overflow: visible;
-}
-.workspace-table__labels :deep(.label-strip__text) {
-  width: auto;
-  overflow: visible;
-  text-overflow: clip;
-}
-.workspace-table__label-add-chip {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--table-chip-height);
-  width: var(--table-label-chip-width);
-  min-width: var(--table-label-chip-width);
-  padding: 0;
-  border-radius: 4px;
-  border: 1px solid mixin.$border;
-  background: #fff;
-  color: #64748b;
-}
-.workspace-table__label-add-plus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1;
-  transform: translateY(-0.08em);
-}
-.workspace-table__notes {
-  color: mixin.$text-sub;
-}
-</style>
-<style lang="scss">
-.workspace-table-drag-ghost {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 10000;
-  pointer-events: none;
-  cursor: default;
-  opacity: 0.3;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/components/workspace/WorkspaceTableBoard.scss"></style>
+<style lang="scss" src="~/assets/styles/components/workspace/WorkspaceTableBoard.global.scss"></style>

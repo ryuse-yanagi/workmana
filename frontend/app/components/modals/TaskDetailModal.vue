@@ -11,6 +11,7 @@
         <section
           ref="modalCardRef"
           class="modal-card"
+          :class="{ 'modal-card--navigating': isNavigatingFade }"
           role="dialog"
           aria-modal="true"
           aria-label="タスク詳細"
@@ -37,16 +38,30 @@
           <div v-else class="modal-split">
             <div ref="modalBodyRef" class="modal-pane modal-pane--detail">
             <section class="field-block title-block">
-              <button
-                v-if="showParentTaskControl"
-                type="button"
-                class="task-detail-parent-task"
-                :class="{ 'task-detail-parent-task--placeholder': !task?.parent_task_id }"
-                :disabled="saving || parentTaskSaving"
-                @click="openParentTaskPicker($event)"
-              >
-                {{ parentTaskButtonLabel }}
-              </button>
+              <div class="title-block-meta">
+                <button
+                  v-if="showParentTaskControl"
+                  type="button"
+                  class="task-detail-parent-task"
+                  :class="{ 'task-detail-parent-task--placeholder': !task?.parent_task_id }"
+                  :disabled="saving || parentTaskSaving"
+                  @click="openParentTaskPicker($event)"
+                >
+                  {{ parentTaskButtonLabel }}
+                </button>
+                <button
+                  v-if="showListBadge"
+                  type="button"
+                  class="task-detail-list-badge"
+                  :class="{ 'task-detail-list-badge--placeholder': !currentListOption }"
+                  :style="listBadgeStyle"
+                  :disabled="saving || listSaving"
+                  :aria-label="`リスト: ${listBadgeLabel}`"
+                  @click="openListPicker($event)"
+                >
+                  {{ listBadgeLabel }}
+                </button>
+              </div>
               <div class="title-input-wrap">
                 <textarea
                   ref="titleTextareaRef"
@@ -260,8 +275,39 @@
               </section>
             </div>
             <section class="field-block description-block">
-              <span class="field-label">説明</span>
+              <div class="description-block__header">
+                <span class="field-label">説明</span>
+                <div
+                  class="description-mode-tabs"
+                  role="tablist"
+                  aria-label="説明の表示形式"
+                >
+                  <button
+                    type="button"
+                    class="description-mode-tab"
+                    :class="{ 'description-mode-tab--active': descriptionViewMode === 'preview' }"
+                    role="tab"
+                    :aria-selected="descriptionViewMode === 'preview'"
+                    :disabled="saving || descriptionSaving"
+                    @click="setDescriptionViewMode('preview')"
+                  >
+                    Preview
+                  </button>
+                  <button
+                    type="button"
+                    class="description-mode-tab"
+                    :class="{ 'description-mode-tab--active': descriptionViewMode === 'markdown' }"
+                    role="tab"
+                    :aria-selected="descriptionViewMode === 'markdown'"
+                    :disabled="saving || descriptionSaving"
+                    @click="setDescriptionViewMode('markdown')"
+                  >
+                    Markdown
+                  </button>
+                </div>
+              </div>
               <textarea
+                v-if="descriptionViewMode === 'markdown'"
                 ref="descriptionTextareaRef"
                 v-model="descriptionDraft"
                 class="description-input"
@@ -269,9 +315,19 @@
                 :maxlength="TASK_DESCRIPTION_MAX_LENGTH"
                 aria-label="説明"
                 :disabled="saving || descriptionSaving"
+                spellcheck="false"
                 @input="adjustDescriptionTextareaHeight"
                 @blur="onDescriptionBlur"
               />
+              <div
+                v-else-if="renderedDescriptionHtml"
+                class="description-preview"
+                v-html="renderedDescriptionHtml"
+              />
+              <p
+                v-else
+                class="description-preview-empty"
+              >説明がありません。</p>
             </section>
             <div
               v-if="checklist"
@@ -290,6 +346,9 @@
               v-if="showHierarchySection"
               :parent-task="hierarchyParent"
               :child-tasks="hierarchyChildTasks"
+              :current-task-id="task?.id ?? null"
+              :workspace-lists="workspaceLists"
+              @select="onHierarchyTaskSelect"
             />
             <p v-if="saveError" class="err">{{ saveError }}</p>
             <Teleport to="body">
@@ -385,7 +444,7 @@
                     @keydown.escape.prevent="void finalizeEffortPopover()"
                     @click.stop
                   />
-                  <span class="effort-unit-label">{{ effortUnitLabel(orgEffortUnit) }}</span>
+                  <span class="effort-unit-label">{{ effortUnitLabel() }}</span>
                 </div>
                 <div class="popover-field-actions">
                   <button
@@ -541,6 +600,44 @@
                 />
               </PopoverShell>
               <PopoverShell
+                v-else-if="activePopover === 'list'"
+                ref="popoverElRef"
+                shell-class="popover popover--list"
+                :style="popoverStyle"
+                title="リストを選択"
+                aria-label="リストを選択"
+                :close-disabled="listSaving"
+                @close="closePopover"
+              >
+                <div class="popover-scroll">
+                  <ul class="list-picker-list">
+                    <li
+                      v-for="list in workspaceLists"
+                      :key="list.id"
+                    >
+                      <button
+                        type="button"
+                        class="list-picker-row"
+                        :class="{ 'list-picker-row--selected': task?.list_id === list.id }"
+                        :disabled="listSaving"
+                        @click.stop="selectList(list.id)"
+                      >
+                        <span
+                          class="list-picker-radio"
+                          :class="{ 'list-picker-radio--checked': task?.list_id === list.id }"
+                          aria-hidden="true"
+                        />
+                        <span class="list-picker-label">{{ list.name }}</span>
+                      </button>
+                    </li>
+                  </ul>
+                  <p v-if="!workspaceLists.length" class="empty-text list-picker-empty">
+                    リストがありません。
+                  </p>
+                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
+                </div>
+              </PopoverShell>
+              <PopoverShell
                 v-else-if="activePopover === 'labels'"
                 ref="popoverElRef"
                 shell-class="popover popover--labels"
@@ -663,12 +760,16 @@ import TaskDetailHierarchyBlock, {
 } from '../task/TaskDetailHierarchyBlock.vue'
 import { useApi } from '../../composables/useApi'
 import {
+  EFFORT_UNIT_LABEL,
+  FIXED_EFFORT_UNIT,
   effortUnitLabel,
+  formatEffortAmount,
+  formatEffortDisplay,
+  normalizeEffortValue,
   parseEffortDraft,
-  resolveEffortUnit,
+  resolveStoredEffortValue,
   sanitizeEffortDraftInput,
 } from '../../composables/useTaskFormHelpers'
-import { useOrgEffortUnit } from '../../composables/useOrgEffortSettings'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
 import type { TaskDetailComment } from '../task/taskCommentTypes'
 import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay } from '../../utils/uiInteraction'
@@ -682,7 +783,13 @@ import {
   resolveTaskHierarchyFromTasks,
   type TaskHierarchySource,
 } from '../../composables/useTaskHierarchy'
+import {
+  resolveListColor,
+  resolveListName,
+  type WorkspaceListOption,
+} from '../../composables/useTaskPopoverEditor'
 import { resolveLabelColors } from '../../utils/colorPresetResolution'
+import { renderMarkdownToSafeHtml } from '../../utils/renderMarkdown'
 export type TaskDetailLabel = { id: number; name: string; color: string }
 export type TaskDetailMember = {
   id: number
@@ -696,11 +803,12 @@ export type TaskDetail = {
   description: string | null
   status: string
   list_id: number | null
+  sort_order?: number
   start_date: string | null
   due_date: string | null
   effort_hours: number | string | null
   effort_value?: number | string | null
-  effort_unit?: EffortUnit | string | null
+  effort_unit?: string | null
   assignees: TaskDetailMember[]
   labels: TaskDetailLabel[]
   checklist?: TaskChecklist | null
@@ -710,8 +818,7 @@ export type TaskDetail = {
   child_tasks?: TaskHierarchyChild[]
 }
 type ParentTaskOption = { id: number; title: string }
-type EffortUnit = 'minute' | 'hour' | 'day'
-type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'parent-task' | 'checklist-create'
+type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'parent-task' | 'list' | 'checklist-create'
 type DatePickerTarget = 'start' | 'due'
 type CalendarCell = {
   key: string
@@ -721,13 +828,14 @@ type CalendarCell = {
   isToday: boolean
 }
 export type TaskDetailRemotePatch = Pick<TaskDetail, 'id'> & Partial<Omit<TaskDetail, 'id'>>
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean
   orgSlug: string
   workspaceId: string
   taskId: number | null
   orgLabels: TaskDetailLabel[]
   workspaceMembers: TaskDetailMember[]
+  workspaceLists?: WorkspaceListOption[]
   /** ボード画面で取得済みのタスク詳細（あれば読み込み画面を出さない） */
   initialTaskDetail?: TaskDetail | null
   /** ボード画面で取得済みの親タスク一覧 */
@@ -739,14 +847,18 @@ const props = defineProps<{
   /** 他クライアントからの TaskUpdated など（rev が変わるたびに適用） */
   remoteUpdate?: TaskDetailRemotePatch | null
   remoteUpdateRev?: number
-}>()
+}>(), {
+  workspaceLists: () => [],
+})
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   updated: [TaskDetail]
   'comments-updated': [{ taskId: number; comments: TaskDetailComment[] }]
+  navigate: [taskId: number]
 }>()
 const { api } = useApi()
-const { orgEffortUnit, ensureOrgEffortUnit } = useOrgEffortUnit(() => props.orgSlug)
+const TASK_DETAIL_NAVIGATE_FADE_MS = 180
+const isNavigatingFade = ref(false)
 const task = ref<TaskDetail | null>(null)
 const loading = ref(false)
 const saving = ref(false)
@@ -789,6 +901,11 @@ const showTitlePlaceholder = computed(() => {
 })
 const descriptionDraft = ref('')
 const descriptionSaving = ref(false)
+type DescriptionViewMode = 'preview' | 'markdown'
+const descriptionViewMode = ref<DescriptionViewMode>('markdown')
+const renderedDescriptionHtml = computed(() => (
+  renderMarkdownToSafeHtml(descriptionDraft.value)
+))
 const labelSearchQuery = ref('')
 const memberSearchQuery = ref('')
 const checklistTitleDraft = ref('')
@@ -812,9 +929,21 @@ const effortInputRef = ref<HTMLInputElement | null>(null)
 const parentTasks = ref<ParentTaskOption[]>([])
 const parentTasksLoading = ref(false)
 const parentTaskSaving = ref(false)
+const listSaving = ref(false)
 const pickerMutationPending = ref(false)
 const showParentTaskControl = computed(() => {
   return Boolean(task.value && !task.value.is_parent_task)
+})
+const currentListOption = computed((): WorkspaceListOption | null => {
+  const listId = task.value?.list_id
+  if (listId == null) return null
+  return props.workspaceLists.find(list => list.id === listId) ?? null
+})
+const listBadgeLabel = computed(() => currentListOption.value?.name ?? 'リストを選択')
+const showListBadge = computed(() => Boolean(task.value))
+const listBadgeStyle = computed(() => {
+  const color = resolveListColor(task.value?.list_id, props.workspaceLists)
+  return color ? { color } : undefined
 })
 function toHierarchyTaskRef (detail: TaskDetail): TaskHierarchySource {
   return {
@@ -824,6 +953,44 @@ function toHierarchyTaskRef (detail: TaskDetail): TaskHierarchySource {
     parent_task_id: detail.parent_task_id ?? null,
     due_date: detail.due_date,
     list_id: detail.list_id,
+    list_name: resolveListName(detail.list_id, props.workspaceLists),
+    list_color: resolveListColor(detail.list_id, props.workspaceLists),
+  }
+}
+function enrichHierarchyParent (
+  parent: { id: number; title: string } | null | undefined,
+): TaskHierarchyParent | null {
+  if (!parent) {
+    return null
+  }
+  const source = hierarchyTaskSources.value.find(row => row.id === parent.id)
+  const listId = source?.list_id ?? null
+  return {
+    id: parent.id,
+    title: parent.title,
+    list_id: listId,
+    list_name: source?.list_name
+      ?? resolveListName(listId, props.workspaceLists)
+      ?? null,
+    list_color: source?.list_color
+      ?? resolveListColor(listId, props.workspaceLists)
+      ?? null,
+  }
+}
+function enrichHierarchyChild (child: TaskHierarchyChild): TaskHierarchyChild {
+  const source = hierarchyTaskSources.value.find(row => row.id === child.id)
+  const listId = child.list_id ?? source?.list_id ?? null
+  return {
+    ...child,
+    list_id: listId,
+    list_name: child.list_name
+      ?? source?.list_name
+      ?? resolveListName(listId, props.workspaceLists)
+      ?? null,
+    list_color: child.list_color
+      ?? source?.list_color
+      ?? resolveListColor(listId, props.workspaceLists)
+      ?? null,
   }
 }
 const hierarchyTaskSources = computed((): TaskHierarchySource[] => {
@@ -849,42 +1016,51 @@ const resolvedHierarchy = computed((): {
   if (!current || !isTaskInHierarchy(current)) {
     return { parent_task: null, child_tasks: [] }
   }
+  const resolveName = (listId: number | null) => resolveListName(listId, props.workspaceLists)
   if (hierarchyTaskSources.value.length > 0) {
     const resolved = resolveTaskHierarchyFromTasks(
       toHierarchyTaskRef(current),
       hierarchyTaskSources.value,
+      resolveName,
     )
     if (resolved.parent_task) {
-      return resolved
+      return {
+        parent_task: enrichHierarchyParent(resolved.parent_task),
+        child_tasks: resolved.child_tasks.map(enrichHierarchyChild),
+      }
     }
     if (current.parent_task_id != null) {
       const parent = parentTasks.value.find(item => item.id === current.parent_task_id)
-      if (parent) {
-        return {
-          ...resolved,
-          parent_task: { id: parent.id, title: parent.title },
-        }
+      return {
+        parent_task: enrichHierarchyParent(parent ?? null),
+        child_tasks: resolved.child_tasks.map(enrichHierarchyChild),
       }
     }
-    return resolved
+    return {
+      parent_task: null,
+      child_tasks: resolved.child_tasks.map(enrichHierarchyChild),
+    }
   }
   if (current.parent_task) {
     return {
-      parent_task: current.parent_task,
-      child_tasks: current.child_tasks ?? [],
+      parent_task: enrichHierarchyParent(current.parent_task),
+      child_tasks: (current.child_tasks ?? []).map(enrichHierarchyChild),
     }
   }
   if (current.is_parent_task) {
     return {
-      parent_task: { id: current.id, title: current.title },
-      child_tasks: current.child_tasks ?? [],
+      parent_task: enrichHierarchyParent({
+        id: current.id,
+        title: current.title,
+      }),
+      child_tasks: (current.child_tasks ?? []).map(enrichHierarchyChild),
     }
   }
   if (current.parent_task_id != null) {
     const parent = parentTasks.value.find(item => item.id === current.parent_task_id)
     return {
-      parent_task: parent ? { id: parent.id, title: parent.title } : null,
-      child_tasks: current.child_tasks ?? [],
+      parent_task: enrichHierarchyParent(parent ?? null),
+      child_tasks: (current.child_tasks ?? []).map(enrichHierarchyChild),
     }
   }
   return { parent_task: null, child_tasks: [] }
@@ -911,7 +1087,7 @@ const showEffortDetailSection = computed(() => {
     const parsed = parseEffortDraft(effortDraft.value)
     return parsed !== null && parsed !== 'invalid'
   }
-  return resolveStoredEffortValue(task.value) !== null
+  return resolveStoredEffortValueForTask(task.value) !== null
 })
 const effortDetailDisplayText = computed(() => {
   if (activePopover.value === 'effort') {
@@ -919,8 +1095,7 @@ const effortDetailDisplayText = computed(() => {
     if (parsed === null || parsed === 'invalid') {
       return ''
     }
-    const unit = resolveEffortUnit(null, orgEffortUnit.value)
-    return `${formatEffortAmount(parsed)} ${effortUnitLabel(unit)}`
+    return `${formatEffortAmount(parsed)} ${EFFORT_UNIT_LABEL}`
   }
   if (!task.value) {
     return ''
@@ -935,7 +1110,7 @@ const canClearEffort = computed(() => {
   if (!task.value) {
     return false
   }
-  return resolveStoredEffortValue(task.value) !== null
+  return resolveStoredEffortValueForTask(task.value) !== null
 })
 const filteredOrgLabels = computed(() => {
   const query = labelSearchQuery.value.trim().toLowerCase()
@@ -1048,9 +1223,11 @@ function resetInteractionState () {
   effortInputRef.value = null
   effortDetailAnchorRef.value = null
   parentTaskSaving.value = false
+  listSaving.value = false
   pickerMutationPending.value = false
   checklistAddFormOpen.value = false
   checklistSaving.value = false
+  descriptionViewMode.value = 'markdown'
 }
 function applyLoadedTask (
   detail: TaskDetail,
@@ -1103,86 +1280,33 @@ function resetState () {
   parentTasks.value = []
   parentTasksLoading.value = false
   parentTaskSaving.value = false
+  listSaving.value = false
   pickerMutationPending.value = false
   checklistAddFormOpen.value = false
   checklistSaving.value = false
+  isNavigatingFade.value = false
+  descriptionViewMode.value = 'markdown'
 }
-function normalizeEffortUnit (value: EffortUnit | string | null | undefined): EffortUnit {
-  if (value === 'minute' || value === 'hour' || value === 'day') {
-    return value
-  }
-  return 'hour'
-}
-function hoursToUnitValue (hours: number, unit: EffortUnit): number {
-  if (unit === 'minute') {
-    return hours * 60
-  }
-  if (unit === 'day') {
-    return hours / 24
-  }
-  return hours
-}
-function unitValueToHours (value: number, unit: EffortUnit): number {
-  if (unit === 'minute') {
-    return value / 60
-  }
-  if (unit === 'day') {
-    return value * 24
-  }
-  return value
-}
-function normalizeEffortHours (value: number | string | null | undefined): number | null {
-  if (value === null || value === undefined || value === '') {
-    return null
-  }
-  const num = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(num) || num < 0) {
-    return null
-  }
-  return Math.round(num * 1000000) / 1000000
-}
-function normalizeEffortValue (value: number | string | null | undefined): number | null {
-  if (value === null || value === undefined || value === '') {
-    return null
-  }
-  const num = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(num) || num < 0) {
-    return null
-  }
-  return Math.round(num * 10000) / 10000
-}
-function resolveStoredEffortValue (detail: TaskDetail): number | null {
-  const stored = normalizeEffortValue(detail.effort_value)
-  if (stored !== null) {
-    return stored
-  }
-  const hours = normalizeEffortHours(detail.effort_hours)
-  if (hours === null) {
-    return null
-  }
-  return normalizeEffortValue(
-    hoursToUnitValue(hours, resolveEffortUnit(detail.effort_unit, orgEffortUnit.value)),
-  )
-}
-function formatEffortAmount (value: number): string {
-  return Number.isInteger(value)
-    ? String(value)
-    : value.toFixed(2).replace(/\.?0+$/, '')
+function resolveStoredEffortValueForTask (detail: TaskDetail): number | null {
+  return resolveStoredEffortValue({
+    effort_value: detail.effort_value ?? null,
+    effort_hours: detail.effort_hours ?? null,
+    effort_unit: detail.effort_unit ?? null,
+  })
 }
 function effortValueToDraftFromTask (detail: TaskDetail): string {
-  const value = resolveStoredEffortValue(detail)
+  const value = resolveStoredEffortValueForTask(detail)
   if (value === null) {
     return ''
   }
   return formatEffortAmount(value)
 }
 function formatEffortDisplayForTask (detail: TaskDetail): string {
-  const value = resolveStoredEffortValue(detail)
-  if (value === null) {
-    return ''
-  }
-  const unit = resolveEffortUnit(detail.effort_unit, orgEffortUnit.value)
-  return `${formatEffortAmount(value)} ${effortUnitLabel(unit)}`
+  return formatEffortDisplay({
+    effort_value: detail.effort_value ?? null,
+    effort_hours: detail.effort_hours ?? null,
+    effort_unit: detail.effort_unit ?? null,
+  })
 }
 function resolveEffortPopoverAnchor (event?: Event): HTMLElement | null {
   const clicked = event?.currentTarget
@@ -1239,7 +1363,7 @@ async function clearEffort () {
     return
   }
   effortDraft.value = ''
-  const currentValue = task.value ? resolveStoredEffortValue(task.value) : null
+  const currentValue = task.value ? resolveStoredEffortValueForTask(task.value) : null
   if (currentValue === null) {
     dismissPopover()
     return
@@ -1284,14 +1408,10 @@ async function saveEffort () {
     effortDraft.value = effortValueToDraftFromTask(task.value)
     return
   }
-  const unit = resolveEffortUnit(null, orgEffortUnit.value)
   const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
-  const effortUnit = effortValue === null ? null : unit
-  const currentValue = resolveStoredEffortValue(task.value)
-  const currentUnit = currentValue === null
-    ? null
-    : resolveEffortUnit(task.value.effort_unit, orgEffortUnit.value)
-  if (effortValue === currentValue && effortUnit === currentUnit) {
+  const effortUnit = effortValue === null ? null : FIXED_EFFORT_UNIT
+  const currentValue = resolveStoredEffortValueForTask(task.value)
+  if (effortValue === currentValue) {
     popoverError.value = null
     return
   }
@@ -1301,7 +1421,7 @@ async function saveEffort () {
   task.value = {
     ...task.value,
     effort_value: effortValue,
-    effort_hours: effortValue === null ? null : unitValueToHours(effortValue, unit),
+    effort_hours: effortValue,
     effort_unit: effortUnit,
   }
   effortSaving.value = true
@@ -1378,7 +1498,7 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
   if (!task.value || patch.id !== task.value.id) {
     return
   }
-  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || effortSaving.value || parentTaskSaving.value || checklistSaving.value || activePopover.value === 'effort') {
+  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || effortSaving.value || parentTaskSaving.value || listSaving.value || checklistSaving.value || activePopover.value === 'effort') {
     return
   }
   const current = task.value
@@ -1393,6 +1513,7 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
     && (merged.description ?? null) === (current.description ?? null)
     && merged.status === current.status
     && merged.list_id === current.list_id
+    && (merged.sort_order ?? null) === (current.sort_order ?? null)
     && (merged.start_date ?? null) === (current.start_date ?? null)
     && (merged.due_date ?? null) === (current.due_date ?? null)
     && (merged.effort_hours ?? null) === (current.effort_hours ?? null)
@@ -1444,7 +1565,6 @@ watch(
       return
     }
     if (id === null) return
-    void ensureOrgEffortUnit()
     if (prevOpen && prevId === id) return
     const initial = props.initialTaskDetail
     if (initial && initial.id === id) {
@@ -1518,6 +1638,25 @@ async function closePopover () {
     return
   }
   dismissPopover()
+}
+async function onHierarchyTaskSelect (taskId: number) {
+  if (!task.value || task.value.id === taskId || isNavigatingFade.value) {
+    return
+  }
+  if (activePopover.value) {
+    await closePopover()
+  }
+  isNavigatingFade.value = true
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, TASK_DETAIL_NAVIGATE_FADE_MS)
+  })
+  emit('navigate', taskId)
+  await nextTick()
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      isNavigatingFade.value = false
+    })
+  })
 }
 const POPOVER_VIEWPORT_PAD = 12
 const POPOVER_ANCHOR_GAP = 6
@@ -1796,6 +1935,20 @@ function adjustDescriptionTextareaHeight () {
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
 }
+async function setDescriptionViewMode (mode: DescriptionViewMode) {
+  if (descriptionViewMode.value === mode) {
+    return
+  }
+  if (mode === 'preview' && descriptionViewMode.value === 'markdown') {
+    await saveDescription()
+  }
+  descriptionViewMode.value = mode
+  if (mode === 'markdown') {
+    await nextTick()
+    adjustDescriptionTextareaHeight()
+    descriptionTextareaRef.value?.focus()
+  }
+}
 async function onTitleBlur () {
   await saveTitle()
 }
@@ -1850,6 +2003,45 @@ async function openParentTaskPicker (event?: Event) {
     await fetchParentTasks()
   }
   updatePopoverPosition()
+}
+function openListPicker (event?: Event) {
+  if (!task.value) return
+  if (activePopover.value === 'list') {
+    closePopover()
+    return
+  }
+  popoverAnchorEl.value = capturePopoverAnchor(event)
+  activePopover.value = 'list'
+  popoverError.value = null
+  updatePopoverPosition()
+}
+async function selectList (listId: number) {
+  if (!task.value || listSaving.value || saving.value) return
+  if (task.value.list_id === listId) return
+  armOverlayCloseGuard()
+  listSaving.value = true
+  popoverError.value = null
+  const previousListId = task.value.list_id
+  const previousSortOrder = task.value.sort_order
+  task.value = { ...task.value, list_id: listId }
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
+      { method: 'PATCH', body: { list_id: listId } },
+    )
+    task.value = normalizeTaskDetail(updated)
+    emit('updated', task.value)
+    closePopover()
+  } catch (e: unknown) {
+    task.value = {
+      ...task.value,
+      list_id: previousListId,
+      sort_order: previousSortOrder,
+    }
+    popoverError.value = e instanceof Error ? e.message : 'リストの更新に失敗しました'
+  } finally {
+    listSaving.value = false
+  }
 }
 async function selectParentTask (parentTaskId: number | null) {
   if (!task.value || parentTaskSaving.value) return
@@ -2018,955 +2210,4 @@ async function saveDescription () {
   }
 }
 </script>
-<style lang="scss" scoped>
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  justify-content: center;
-  padding: 14px;
-  z-index: 70;
-  overflow-y: auto;
-}
-.modal-overlay--popover-open {
-  overflow: hidden;
-}
-.modal-card {
-  position: relative;
-  width: min(calc(560px + 308px), 100%);
-  max-height: calc(100dvh - 28px);
-  margin: auto;
-  flex-shrink: 0;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-  display: flex;
-  flex-direction: column;
-}
-.modal-header {
-  @include mixin.modal-header-bar;
-  border-radius: 12px 12px 0 0;
-}
-.modal-header h3 {
-  margin: 0;
-  font-size: 14.7px;
-  line-height: 1;
-}
-.icon-close {
-  @include mixin.modal-close-hit-area;
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 19.6px;
-  line-height: 1;
-  cursor: pointer;
-}
-.modal-body {
-  position: relative;
-  padding: 16.8px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  overflow: visible;
-}
-.modal-split {
-  display: flex;
-  align-items: stretch;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-.modal-pane--detail {
-  position: relative;
-  flex: 0 0 560px;
-  width: 560px;
-  max-width: 560px;
-  min-height: 0;
-  padding: 16.8px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  overflow-x: visible;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: #0f172a1a transparent;
-}
-.modal-pane--detail::-webkit-scrollbar {
-  width: 3px;
-}
-.modal-pane--detail::-webkit-scrollbar-track {
-  background: transparent;
-}
-.modal-pane--detail::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.08);
-  border-radius: 999px;
-}
-.modal-pane--detail::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.14);
-}
-@media (max-width: 868px) {
-  .modal-split {
-    flex-direction: column;
-  }
-  .modal-pane--detail {
-    flex: 1 1 45%;
-    width: 100%;
-    max-width: 100%;
-  }
-}
-.modal-body--state {
-  align-items: center;
-  justify-content: center;
-  min-height: 112px;
-}
-.state-message {
-  margin: 0;
-  color: mixin.$text-sub;
-  font-weight: 600;
-}
-.field-block {
-  display: flex;
-  flex-direction: column;
-  gap: 6.3px;
-}
-.field-label {
-  font-size: 11.48px;
-  font-weight: 700;
-  color: mixin.$text-sub;
-}
-.title-block {
-  margin-bottom: 1.4px;
-  gap: 2.8px;
-}
-.task-detail-parent-task {
-  align-self: flex-start;
-  max-width: 100%;
-  margin: 0 0 1.4px 8.4px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-size: 11.48px;
-  font-weight: 700;
-  line-height: 1.3;
-  color: mixin.$text;
-  text-align: left;
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.task-detail-parent-task--placeholder {
-  color: #94a3b8;
-}
-.task-detail-parent-task:disabled {
-  cursor: default;
-  opacity: 0.65;
-}
-.title-input-wrap {
-  position: relative;
-  width: 100%;
-}
-.title-input {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 7px 8.4px;
-  font-size: 24px;
-  font-weight: 800;
-  color: #0f172a;
-  background: transparent;
-  width: 100%;
-  box-sizing: border-box;
-  resize: none;
-  overflow: hidden;
-  line-height: 1.25;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  display: block;
-  outline: none;
-  box-shadow: none;
-}
-.title-input-placeholder {
-  position: absolute;
-  top: 50%;
-  left: 8.4px;
-  right: 8.4px;
-  transform: translateY(-50%);
-  font-size: 24px;
-  line-height: 1.25;
-  color: #94a3b8;
-  pointer-events: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.title-input:focus,
-.title-input:focus-visible {
-  @include mixin.input-focus-ring;
-}
-.action-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5.6px;
-}
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4.9px;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 5.32px 9.8px;
-  font-size: 11.76px;
-  font-weight: 600;
-  color: #334155;
-  background: #f8fafc;
-  cursor: pointer;
-}
-.action-btn:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-}
-.action-btn--active,
-.action-btn--active:hover:not(:disabled) {
-  background: color-mix(in srgb, mixin.$main 12%, mixin.$white);
-  border-color: mixin.$main;
-  color: mixin.$main-hover;
-}
-.popover-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-}
-.popover-layer--portal {
-  position: fixed;
-  inset: 0;
-  z-index: 75;
-  pointer-events: none;
-}
-.popover-layer--portal .popover {
-  position: fixed;
-  margin: 0;
-  pointer-events: auto;
-}
-.popover {
-  position: absolute;
-  z-index: 10;
-  width: min(259px, calc(100vw - 21px));
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.2);
-  border: 1px solid #e2e8f0;
-  padding: 10.5px;
-  display: flex;
-  flex-direction: column;
-  gap: 9.1px;
-}
-.popover--date {
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 8.4px;
-  gap: 7px;
-}
-.popover--members {
-  width: min(273px, calc(100vw - 21px));
-  min-height: 0;
-  overflow: hidden;
-  padding: 0;
-  gap: 0;
-}
-.popover--labels {
-  width: min(252px, calc(100vw - 21px));
-  min-height: 0;
-  overflow: hidden;
-  padding: 0;
-  gap: 0;
-}
-.popover--members .member-picker-list {
-  padding: 9.1px 7px 9.1px;
-}
-.popover--members .empty-text,
-.popover--members .err {
-  margin-left: 9.1px;
-  margin-right: 9.1px;
-}
-.popover-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-}
-.popover-header--labels {
-  position: relative;
-  justify-content: center;
-  padding: 9.1px 28px 7.7px;
-  border-bottom: 1px solid #dfe1e6;
-}
-.popover-header--labels .popover-close {
-  position: absolute;
-  right: 6.3px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-.popover--parent-task {
-  width: min(273px, calc(100vw - 21px));
-  padding: 0;
-  gap: 0;
-}
-.label-search-input {
-  display: block;
-  width: calc(100% - 18.2px);
-  margin: 7.7px 9.1px 6.3px;
-  box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 6px;
-  padding: 6.3px 7.7px;
-  font-size: 12.32px;
-  color: #172b4d;
-}
-.label-search-input:focus {
-  @include mixin.input-focus-ring;
-}
-.label-section-heading {
-  margin: 2.1px 9.1px 4.9px;
-  font-size: 10.92px;
-  font-weight: 700;
-  color: #5e6c84;
-}
-.label-picker-list {
-  list-style: none;
-  margin: 0;
-  padding: 0 7px 9.1px;
-  display: flex;
-  flex-direction: column;
-  gap: 2.8px;
-}
-.label-picker-row {
-  @include mixin.picker-checkbox-row;
-  display: flex;
-  align-items: center;
-  gap: 5.6px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 2.1px 0;
-  text-align: left;
-}
-.label-picker-checkbox {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #8590a2;
-  border-radius: 3px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10.08px;
-  font-weight: 800;
-  color: #fff;
-  background: #fff;
-}
-.label-picker-checkbox--checked {
-  background: #2563eb;
-  border-color: #2563eb;
-}
-.label-picker-bar {
-  flex: 1;
-  box-sizing: border-box;
-  min-height: 28px;
-  border-radius: 4px;
-  padding: 5.32px 7.7px;
-  font-size: 12.32px;
-  font-weight: 700;
-  line-height: 1.25;
-  display: flex;
-  align-items: center;
-}
-.label-picker-bar:not(.member-picker-bar) {
-  flex: 0 0 200px;
-  width: 200px;
-  height: 38px;
-  min-height: 38px;
-}
-.member-picker-bar {
-  background: #fff;
-  color: #172b4d;
-  gap: 7px;
-  transition: background 0.12s ease;
-}
-.label-picker-row.member-picker-row--workspace {
-  border-radius: 4px;
-  padding: 0 7.7px;
-  transition: background 0.12s ease;
-}
-.member-picker-row--workspace .member-picker-bar {
-  flex: 1;
-  background: transparent;
-  padding-left: 0;
-  padding-right: 0;
-}
-.member-picker-check {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 0 2.1px;
-  color: #2563eb;
-}
-.member-picker-avatar {
-  flex-shrink: 0;
-}
-.member-picker-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.label-picker-empty {
-  padding: 0 9.1px 10.5px;
-}
-.popover--member-detail {
-  padding: 0;
-  width: min(238px, calc(100% - 21px));
-  overflow: hidden;
-  gap: 0;
-}
-.member-detail-card {
-  display: flex;
-  flex-direction: column;
-}
-.member-detail-header {
-  position: relative;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  padding: 14px 11.9px 16.8px;
-  color: #fff;
-}
-.member-detail-close {
-  position: absolute;
-  top: 6.3px;
-  right: 6.3px;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2.8px 4.9px;
-  border-radius: 6px;
-}
-.member-detail-profile {
-  display: flex;
-  align-items: center;
-  gap: 9.1px;
-  padding-right: 17.5px;
-}
-.member-detail-avatar,
-.member-detail-initial {
-  width: 38.5px;
-  height: 38.5px;
-  border-radius: 999px;
-  flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  object-fit: cover;
-}
-.member-detail-initial {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #a67c52;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 800;
-}
-.member-detail-name {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.25;
-}
-.member-detail-email {
-  margin: 2.8px 0 0;
-  font-size: 11.48px;
-  color: rgba(255, 255, 255, 0.88);
-  line-height: 1.3;
-  word-break: break-all;
-}
-.member-detail-body {
-  background: #fff;
-}
-.member-detail-remove {
-  width: 100%;
-  border: none;
-  background: #fff;
-  padding: 11.2px 12.6px;
-  text-align: left;
-  font-size: 12.6px;
-  font-weight: 600;
-  color: #334155;
-  cursor: pointer;
-}
-.member-detail-error {
-  margin: 0;
-  padding: 7px 10.5px 10.5px;
-}
-.popover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 7px;
-}
-.popover-title {
-  margin: 0;
-  font-size: 12.88px;
-  font-weight: 800;
-  color: #0f172a;
-}
-.popover-close {
-  border: none;
-  background: transparent;
-  color: #64748b;
-  font-size: 15.4px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2.1px 4.9px;
-  border-radius: 6px;
-}
-.popover-fade-enter-active,
-.popover-fade-leave-active {
-  transition: opacity 0.22s ease;
-}
-.popover-fade-enter-from,
-.popover-fade-leave-to {
-  opacity: 0;
-}
-.detail-reveal-enter-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
-}
-.detail-reveal-leave-active {
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
-.detail-reveal-enter-from,
-.detail-reveal-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-.action-btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  line-height: 0;
-}
-.detail-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 14px 17.5px;
-}
-.detail-meta-row--schedule .detail-item--date,
-.detail-meta-row--schedule .detail-item--effort {
-  flex: 1 1 0;
-  min-width: 77px;
-}
-.detail-meta-row--people .detail-item--members,
-.detail-meta-row--people .detail-item--labels {
-  flex: 1 1 0;
-  min-width: min(100%, 140px);
-}
-.detail-chip-wrap {
-  align-content: flex-start;
-  box-sizing: border-box;
-  padding: 3px;
-}
-.member-avatar-list.detail-chip-wrap {
-  gap: 6.3px;
-}
-.detail-item--date {
-  min-width: 0;
-}
-.detail-item--date .detail-value-btn {
-  font-size: 16.8px;
-  padding: 6.3px 9.8px;
-}
-.detail-item--effort .detail-value-btn {
-  align-self: flex-start;
-  box-sizing: border-box;
-  font-size: 16.8px;
-  line-height: 1.3;
-  padding: 6.3px 9.8px;
-  min-height: calc(16.8px * 1.3 + 12.6px);
-}
-.detail-item--effort .detail-value-btn:disabled {
-  opacity: 1;
-  color: #0f172a;
-  cursor: default;
-}
-.detail-item--effort .detail-value-btn--editing {
-  cursor: pointer;
-}
-.popover--effort {
-  width: min(252px, calc(100vw - 21px));
-  padding: 8.4px;
-  gap: 7px;
-}
-.effort-input-row {
-  display: flex;
-  align-items: stretch;
-  gap: 6.3px;
-}
-.popover--effort .effort-input {
-  flex: 1 1 auto;
-  min-width: 0;
-  box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 6.3px 8.4px;
-  font-size: 13.16px;
-  color: #0f172a;
-  background: #fff;
-  @include mixin.hide-number-spin-buttons;
-}
-.popover--effort .effort-input:focus {
-  @include mixin.input-focus-ring;
-}
-.popover--effort .effort-unit-label {
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  padding: 6.3px 7px;
-  font-size: 12.32px;
-  font-weight: 700;
-  color: #64748b;
-  white-space: nowrap;
-}
-.popover-field-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 7.7px;
-}
-.popover-field-clear-btn {
-  min-width: 49px;
-  height: 24.5px;
-  padding: 0 9.1px;
-  border: 1px solid mixin.$border-light;
-  border-radius: 6px;
-  background: #fff;
-  color: mixin.$text-sub;
-  font: inherit;
-  font-size: 10.92px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.popover-field-clear-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.detail-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4.9px;
-}
-.detail-item-label {
-  font-size: 10.92px;
-  font-weight: 700;
-  color: #64748b;
-}
-.detail-value-btn {
-  align-self: flex-start;
-  border: none;
-  border-radius: 6px;
-  padding: 4.9px 7.7px;
-  font-size: 12.88px;
-  font-weight: 700;
-  color: #0f172a;
-  background: #fff;
-  cursor: pointer;
-}
-.popover--date .calendar {
-  padding: 7px;
-}
-.popover--date .calendar-nav {
-  margin-bottom: 5.6px;
-}
-.popover--date .calendar-nav-btn {
-  width: 24.5px;
-  height: 24.5px;
-  font-size: 14px;
-}
-.popover--date .calendar-month-label {
-  font-size: 12.32px;
-}
-.popover--date .calendar-weekdays {
-  margin-bottom: 2.1px;
-}
-.popover--date .calendar-grid {
-  gap: 1.4px;
-}
-.popover--date .calendar-day {
-  aspect-ratio: unset;
-  min-height: 23.1px;
-  padding: 1.4px 0;
-  font-size: 11.2px;
-}
-.calendar {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 10.5px;
-  background: #f8fafc;
-}
-.calendar-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 9.1px;
-}
-.calendar-nav-btn {
-  width: 28px;
-  height: 28px;
-  border: 1px solid mixin.$border;
-  border-radius: 6px;
-  background: #fff;
-  color: #334155;
-  font-size: 15.4px;
-  cursor: pointer;
-  line-height: 1;
-}
-.calendar-month-label {
-  font-size: 13.3px;
-  font-weight: 800;
-  color: #0f172a;
-}
-.calendar-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2.1px;
-  margin-bottom: 3.5px;
-}
-.calendar-weekday {
-  text-align: center;
-  font-size: 10.08px;
-  font-weight: 700;
-  color: #64748b;
-}
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2.1px;
-}
-.calendar-day {
-  aspect-ratio: 1;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: #fff;
-  color: #0f172a;
-  font-size: 12.04px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.calendar-day--outside {
-  color: #94a3b8;
-  background: transparent;
-}
-.calendar-day--today {
-  border-color: mixin.$main;
-}
-.calendar-day--selected {
-  background: mixin.$main;
-  color: mixin.$white;
-  border-color: mixin.$main;
-}
-.edit-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5.6px;
-}
-.label-chip-list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4.9px;
-}
-.label-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  box-sizing: border-box;
-  padding: 0 7.7px;
-  border: none;
-  border-radius: 6px;
-  font-size: 10.92px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-.label-chip-add {
-  width: 28px;
-  height: 28px;
-  box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 6px;
-  padding: 0;
-  background: #fff;
-  color: #64748b;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.label-chip-add-plus {
-  font-size: 16.1px;
-  font-weight: 400;
-  line-height: 1;
-}
-.empty-text {
-  margin: 0;
-  font-size: 11.76px;
-  color: #94a3b8;
-}
-.description-block {
-  flex-shrink: 0;
-}
-.task-hierarchy-wrap {
-  flex-shrink: 0;
-}
-.task-checklist-wrap {
-  flex-shrink: 0;
-}
-.popover--checklist-create {
-  width: min(252px, calc(100vw - 21px));
-}
-.checklist-create-input {
-  display: block;
-  width: 90%;
-  max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 7px 9.1px;
-  font: inherit;
-  font-size: 12.32px;
-  color: #0f172a;
-}
-.checklist-create-input:focus,
-.checklist-create-input:focus-visible {
-  @include mixin.input-focus-ring;
-}
-.checklist-create-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 7.7px;
-}
-.checklist-create-submit {
-  border: none;
-  border-radius: 8px;
-  padding: 5.88px 13.3px;
-  font: inherit;
-  font-size: 11.76px;
-  font-weight: 700;
-  color: #fff;
-  background: mixin.$main;
-  cursor: pointer;
-}
-.description-input {
-  @include mixin.description-textarea;
-  resize: none;
-  overflow: hidden;
-}
-.primary-btn,
-.ghost-btn {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  padding: 7px 15.4px;
-  font-weight: 800;
-  cursor: pointer;
-  font-size: 16px;
-}
-.primary-btn.small,
-.ghost-btn.small {
-  padding: 4.9px 10.5px;
-  font-size: 11.2px;
-  font-weight: 700;
-}
-.primary-btn {
-  background: mixin.$main;
-  color: mixin.$white;
-}
-.ghost-btn {
-  border-color: #cbd5e1;
-  color: mixin.$text-sub;
-  background: #f1f5f9;
-}
-.actions {
-  display: flex;
-  justify-content: center;
-  gap: 7px;
-  margin-top: 11.2px;
-}
-.err {
-  margin: 0;
-  color: mixin.$danger;
-  font-weight: 700;
-  font-size: 12.04px;
-}
-button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-picker-row) {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.member-avatar-list {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4.9px;
-}
-.member-avatar-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  border: none;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.member-avatar-btn--add {
-  border: 1px solid mixin.$border;
-  background: #fff;
-  color: #64748b;
-}
-.member-avatar-btn-plus {
-  font-size: 16.8px;
-  font-weight: 400;
-  line-height: 1;
-}
-.member-avatar-btn-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 999px;
-}
-.member-avatar-btn-initial {
-  width: 100%;
-  height: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #dbeafe;
-  color: #1e3a8a;
-  font-size: 10.92px;
-  font-weight: 800;
-  border-radius: 999px;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/components/modals/TaskDetailModal.scss"></style>

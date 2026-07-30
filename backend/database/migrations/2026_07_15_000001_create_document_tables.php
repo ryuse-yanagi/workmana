@@ -40,6 +40,8 @@ return new class extends Migration
             $table->foreignId('created_by')->constrained('users')->restrictOnDelete();
             $table->string('category', 255)->nullable();
             $table->string('name', 100);
+            $table->text('description')->nullable();
+            $table->longText('body')->nullable();
             $table->timestamps();
             $table->index(['organization_id', 'created_at']);
         });

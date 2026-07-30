@@ -4,10 +4,10 @@
 
 組織ロール（`memberships.role`・`invites.role`）の取りうる値は DB 上は次のとおりとする（意味は [enums.md](./enums.md) の `membership.role`）。
 
-`ENUM('admin','project_leader','member','viewer')`
+`ENUM('admin','project_leader','member')`
 
 - **MySQL / MariaDB**: 上記 `ENUM` をそのまま使用できる。
-- **PostgreSQL**: ネイティブの `ENUM` 型はリテラル一覧の ALTER が重いため、要件次第で `varchar` + CHECK、または `CREATE TYPE ... AS ENUM ('admin','project_leader','member','viewer')` を採用する。
+- **PostgreSQL**: ネイティブの `ENUM` 型はリテラル一覧の ALTER が重いため、要件次第で `varchar` + CHECK、または `CREATE TYPE ... AS ENUM ('admin','project_leader','member')` を採用する。
 
 ## users
 
@@ -46,7 +46,7 @@
 |--------|---|------|------|
 | user_id | bigint FK → users.id | NO | |
 | organization_id | bigint FK → organizations.id | NO | |
-| role | ENUM('admin','project_leader','member','viewer') | NO | [enums.md](./enums.md) の `membership.role` と同一集合 |
+| role | ENUM('admin','project_leader','member') | NO | [enums.md](./enums.md) の `membership.role` と同一集合 |
 | invited_by | bigint FK → users.id | YES | 招待者 |
 | created_at | timestamp | NO | |
 | updated_at | timestamp | NO | |
@@ -66,7 +66,7 @@
 | id | bigint PK | NO | |
 | email | varchar(255) | NO | 正規化済み |
 | organization_id | bigint FK → organizations.id | NO | |
-| role | ENUM('admin','project_leader','member','viewer') | NO | 受諾時に付与する `memberships.role` と同型・同集合 |
+| role | ENUM('admin','project_leader','member') | NO | 受諾時に付与する `memberships.role` と同型・同集合 |
 | token_hash | varchar(255) | NO | 平文トークンは保存しない（要件: ハッシュのみ） |
 | expires_at | timestamp | NO | |
 | invited_by | bigint FK → users.id | NO | |

@@ -78,47 +78,4 @@ function submit () {
   emit('submit', trimmed)
 }
 </script>
-<style lang="scss" scoped>
-.category-name-modal-body {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 11.2px;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6.3px;
-  color: #1e293b;
-  font-weight: 700;
-}
-.field input {
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 7.7px 9.8px;
-  font-size: 13.16px;
-  &:focus {
-    @include mixin.input-focus-ring;
-  }
-}
-.actions {
-  margin-top: 2.8px;
-  display: flex;
-  justify-content: center;
-  gap: 7px;
-}
-.ghost-btn,
-.primary-btn {
-  @include mixin.btn-base;
-}
-.ghost-btn--pill,
-.primary-btn--pill {
-  @include mixin.btn-pill;
-}
-.ghost-btn {
-  @include mixin.btn-ghost;
-}
-.primary-btn {
-  @include mixin.btn-primary;
-}
-</style>
+<style lang="scss" scoped src="~/assets/styles/components/modals/LabelCategoryNameModal.scss"></style>

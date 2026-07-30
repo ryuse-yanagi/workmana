@@ -16,6 +16,12 @@ export type OrgDocumentLabel = {
 export type OrgDocumentCategory = TaskFormCategory & {
   color_index: number
 }
+export type OrgDocumentRelatedItem = {
+  id: number
+  name: string
+  description?: string | null
+}
+
 export type OrgDocument = {
   id: number
   name: string
@@ -23,6 +29,8 @@ export type OrgDocument = {
   body: string | null
   category: { name: string; color_index: number; color?: string } | null
   labels: OrgDocumentLabel[]
+  related_workspaces?: OrgDocumentRelatedItem[]
+  related_documents?: OrgDocumentRelatedItem[]
   created_at?: string
 }
 export type OrgDocumentsPageSnapshot = {
@@ -34,6 +42,14 @@ const cacheBySlug = new Map<string, OrgDocumentsPageSnapshot>()
 const documentCacheByKey = new Map<string, OrgDocument>()
 const inflightBySlug = new Map<string, Promise<OrgDocumentsPageSnapshot>>()
 const documentInflightByKey = new Map<string, Promise<OrgDocument>>()
+
+export function clearAllOrgDocumentsPageCaches (): void {
+  cacheBySlug.clear()
+  documentCacheByKey.clear()
+  inflightBySlug.clear()
+  documentInflightByKey.clear()
+}
+
 function documentCacheKey (orgSlug: string, documentId: number | string): string {
   return `${orgSlug.trim()}:${documentId}`
 }
@@ -41,6 +57,49 @@ function resolveDocumentCategories (
   raw: OrgSettingsResponse['default_document_category_names'],
 ): OrgDocumentCategory[] {
   return resolveStandardColors(normalizeDefaultDocumentCategoryItems(raw))
+}
+
+export function getDocumentCached (orgSlug: string, documentId: number | string): OrgDocument | null {
+  return documentCacheByKey.get(documentCacheKey(orgSlug, documentId)) ?? null
+}
+
+export function upsertDocumentCached (orgSlug: string, document: OrgDocument): void {
+  const slug = orgSlug.trim()
+  const next: OrgDocument = {
+    ...document,
+    labels: resolveLabelColors(document.labels ?? []),
+  }
+  documentCacheByKey.set(documentCacheKey(slug, next.id), next)
+  const snapshot = cacheBySlug.get(slug)
+  if (!snapshot) {
+    return
+  }
+  const idx = snapshot.documents.findIndex(item => item.id === next.id)
+  if (idx < 0) {
+    return
+  }
+  snapshot.documents[idx] = {
+    ...snapshot.documents[idx],
+    ...next,
+  }
+}
+
+export function patchDocumentRelatedCached (
+  orgSlug: string,
+  documentId: number | string,
+  patch: {
+    related_workspaces?: OrgDocumentRelatedItem[]
+    related_documents?: OrgDocumentRelatedItem[]
+  },
+): void {
+  const existing = getDocumentCached(orgSlug, documentId)
+  if (!existing) {
+    return
+  }
+  upsertDocumentCached(orgSlug, {
+    ...existing,
+    ...patch,
+  })
 }
 
 export function useOrgDocumentsPageData () {
@@ -101,6 +160,9 @@ export function useOrgDocumentsPageData () {
       }
     }
   }
+  function clearAllCached (): void {
+    clearAllOrgDocumentsPageCaches()
+  }
   function getDocumentFromListCache (orgSlug: string, documentId: number | string): OrgDocument | null {
     const cached = getCached(orgSlug)
     if (!cached) {
@@ -109,20 +171,16 @@ export function useOrgDocumentsPageData () {
     const id = Number(documentId)
     return cached.documents.find(document => document.id === id) ?? null
   }
-  function getDocumentCached (orgSlug: string, documentId: number | string): OrgDocument | null {
-    return documentCacheByKey.get(documentCacheKey(orgSlug, documentId)) ?? null
-  }
   async function fetchDocument (orgSlug: string, documentId: number | string): Promise<OrgDocument> {
     const slug = orgSlug.trim()
     const key = documentCacheKey(slug, documentId)
     const cached = documentCacheByKey.get(key)
-    if (cached) {
+    if (
+      cached
+      && cached.related_workspaces !== undefined
+      && cached.related_documents !== undefined
+    ) {
       return cached
-    }
-    const listCached = getDocumentFromListCache(slug, documentId)
-    if (listCached && listCached.body !== undefined) {
-      documentCacheByKey.set(key, listCached)
-      return listCached
     }
     const inflight = documentInflightByKey.get(key)
     if (inflight) {
@@ -133,6 +191,8 @@ export function useOrgDocumentsPageData () {
       const document: OrgDocument = {
         ...raw,
         labels: resolveLabelColors(raw.labels ?? []),
+        related_workspaces: raw.related_workspaces ?? [],
+        related_documents: raw.related_documents ?? [],
       }
       documentCacheByKey.set(key, document)
       return document
@@ -163,26 +223,6 @@ export function useOrgDocumentsPageData () {
     }
     snapshot.documents = snapshot.documents.filter(document => document.id !== id)
   }
-  function upsertDocumentCached (orgSlug: string, document: OrgDocument): void {
-    const slug = orgSlug.trim()
-    const next: OrgDocument = {
-      ...document,
-      labels: resolveLabelColors(document.labels ?? []),
-    }
-    documentCacheByKey.set(documentCacheKey(slug, next.id), next)
-    const snapshot = cacheBySlug.get(slug)
-    if (!snapshot) {
-      return
-    }
-    const idx = snapshot.documents.findIndex(item => item.id === next.id)
-    if (idx < 0) {
-      return
-    }
-    snapshot.documents[idx] = {
-      ...snapshot.documents[idx],
-      ...next,
-    }
-  }
   return {
     fetchSnapshot,
     prefetch,
@@ -195,5 +235,6 @@ export function useOrgDocumentsPageData () {
     invalidateDocumentCached,
     removeDocumentCached,
     upsertDocumentCached,
+    clearAllCached,
   }
 }
