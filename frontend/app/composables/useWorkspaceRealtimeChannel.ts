@@ -6,8 +6,12 @@ export type RealtimeBoardTask = {
   status: string
   list_id: number | null
   sort_order?: number
+  is_parent_task?: boolean
+  parent_task_id?: number | null
+  description?: string | null
   start_date?: string | null
   due_date?: string | null
+  gantt_bar_color?: string | null
   effort_hours?: number | string | null
   effort_value?: number | string | null
   effort_unit?: string | null
@@ -27,6 +31,11 @@ export type RealtimeArchivedTask = {
   effort_unit?: string | null
   labels?: Array<{ id: number; name: string; color_index?: number; color: string }>
   assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
+}
+export type RealtimeWbsReorderItem = {
+  id: number
+  sort_order: number
+  parent_task_id: number | null
 }
 type EchoChannel = {
   listen: (event: string, cb: (payload: unknown) => void) => EchoChannel
@@ -50,6 +59,7 @@ export type ProjectRealtimeHandlers = {
   onTaskRestored?: (task: RealtimeBoardTask) => void
   onTaskDeleted?: (taskId: number) => void
   onTasksReordered?: (payload: { list_id: number; task_ids: number[] }) => void
+  onWbsTasksReordered?: (tasks: RealtimeWbsReorderItem[]) => void
   onListCreated?: () => void
   onListUpdated?: (list: { id: number; name: string; color_index: number; sort_order: number }) => void
   onListDeleted?: (listId: number) => void
@@ -131,6 +141,23 @@ export function useWorkspaceRealtimeChannel (
             list_id: data.list_id,
             task_ids: data.task_ids,
           })
+        }
+      })
+    }
+    if (handlers.onWbsTasksReordered) {
+      channel.listen('.WbsTasksReordered', (payload: unknown) => {
+        const data = payload as { tasks?: RealtimeWbsReorderItem[] }
+        if (!Array.isArray(data?.tasks)) {
+          return
+        }
+        const tasks = data.tasks.filter((item): item is RealtimeWbsReorderItem => (
+          item != null
+          && typeof item.id === 'number'
+          && typeof item.sort_order === 'number'
+          && (item.parent_task_id === null || typeof item.parent_task_id === 'number')
+        ))
+        if (tasks.length > 0) {
+          handlers.onWbsTasksReordered!(tasks)
         }
       })
     }

@@ -4,6 +4,19 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
+/**
+ * Cookie ベースの認証を成立させるため、API ルートでもセッションと CSRF 検証を有効にする。
+ * 並び順（Cookie 復号 → キュー済み Cookie → セッション開始 → CSRF 検証）は変更しないこと。
+ *
+ * @var list<class-string>
+ */
+$statefulApi = [
+    \Illuminate\Cookie\Middleware\EncryptCookies::class,
+    \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+    \Illuminate\Session\Middleware\StartSession::class,
+    \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
+];
+
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
@@ -15,10 +28,12 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../routes/channels.php',
         [
             'prefix' => 'api',
-            'middleware' => ['cognito'],
+            'middleware' => [...$statefulApi, 'cognito'],
         ],
     )
-    ->withMiddleware(function (Middleware $middleware): void {
+    ->withMiddleware(function (Middleware $middleware) use ($statefulApi): void {
+        $middleware->api(prepend: $statefulApi);
+
         $middleware->alias([
             'cognito' => \App\Http\Middleware\AuthenticateCognito::class,
             'org.member' => \App\Http\Middleware\EnsureOrganizationMember::class,

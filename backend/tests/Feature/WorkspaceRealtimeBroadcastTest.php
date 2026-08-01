@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Events\ListsReordered;
 use App\Events\TasksReordered;
+use App\Events\WbsTasksReordered;
 use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Workspace;
@@ -114,6 +115,34 @@ class WorkspaceRealtimeBroadcastTest extends TestCase
         Event::assertDispatched(ListsReordered::class, function (ListsReordered $event) use ($workspace, $listIds) {
             return $event->workspaceId === (int) $workspace->id
                 && $event->listIds === $listIds;
+        });
+    }
+
+    public function test_wbs_reorder_broadcasts_event(): void
+    {
+        Event::fake([WbsTasksReordered::class]);
+
+        [$user, $workspace, $list, $tasks] = $this->seedBoardContext();
+
+        $payload = [];
+        foreach (array_reverse($tasks) as $index => $task) {
+            $payload[] = [
+                'id' => $task->id,
+                'sort_order' => $index,
+                'parent_task_id' => null,
+            ];
+        }
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/reorder", [
+                'tasks' => $payload,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        Event::assertDispatched(WbsTasksReordered::class, function (WbsTasksReordered $event) use ($workspace, $payload) {
+            return $event->workspaceId === (int) $workspace->id
+                && $event->tasks === $payload;
         });
     }
 }

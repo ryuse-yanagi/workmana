@@ -64,7 +64,7 @@
             <p v-if="editError" class="comment-item__edit-error">{{ editError }}</p>
           </div>
           <div v-else class="comment-item__card">
-            <p class="comment-item__text">{{ comment.body }}</p>
+            <p class="comment-item__text" v-html="formatCommentBody(comment.body)" />
           </div>
           <div v-if="comment.reactions.length" class="comment-item__reactions">
             <button
@@ -133,6 +133,33 @@
       </template>
     </div>
     <footer class="chat-composer">
+      <div class="chat-composer__tools">
+        <div class="mention-picker-host">
+          <button
+            type="button"
+            class="chat-mention-btn"
+            aria-label="メンション"
+            :disabled="commentSending || commentsLoading || !!commentsLoadError || !taskId"
+            @click="toggleMentionMenu"
+          >
+            @
+          </button>
+          <ul v-if="mentionMenuOpen" class="mention-menu">
+            <li v-for="member in mentionCandidates" :key="member.id">
+              <button
+                type="button"
+                class="mention-menu__item"
+                @click="insertMention(member)"
+              >
+                {{ memberDisplayName(member) }}
+              </button>
+            </li>
+            <li v-if="!mentionCandidates.length" class="mention-menu__empty">
+              メンバーがいません
+            </li>
+          </ul>
+        </div>
+      </div>
       <textarea
         ref="commentInputRef"
         v-model.trim="commentDraft"
@@ -234,6 +261,7 @@ const openDeleteMenuCommentId = ref<number | null>(null)
 const deleteMenuAnchorEl = ref<HTMLElement | null>(null)
 const deleteMenuRef = ref<HTMLElement | null>(null)
 const deleteMenuStyle = ref<Record<string, string>>({})
+const mentionMenuOpen = ref(false)
 const openDeleteMenuComment = computed(() => {
   const commentId = openDeleteMenuCommentId.value
   if (commentId === null) {
@@ -281,11 +309,14 @@ function closeDeleteMenu () {
   deleteMenuAnchorEl.value = null
 }
 const anyCommentMenuOpen = computed(() => (
-  openDeleteMenuCommentId.value !== null || openReactionMenuCommentId.value !== null
+  openDeleteMenuCommentId.value !== null
+  || openReactionMenuCommentId.value !== null
+  || mentionMenuOpen.value
 ))
 function closeCommentMenus () {
   closeDeleteMenu()
   openReactionMenuCommentId.value = null
+  mentionMenuOpen.value = false
 }
 useDropdownEscapeClose(anyCommentMenuOpen, closeCommentMenus)
 function updateDeleteMenuPosition () {
@@ -342,6 +373,9 @@ function onDocumentClick (event: MouseEvent) {
   if (!target.closest('.comment-item__reaction-menu-host')) {
     openReactionMenuCommentId.value = null
   }
+  if (!target.closest('.mention-picker-host')) {
+    mentionMenuOpen.value = false
+  }
   if (
     openDeleteMenuCommentId.value !== null
     && deletePendingId.value === null
@@ -369,6 +403,43 @@ function resetComments () {
   openDeleteMenuCommentId.value = null
   deleteMenuAnchorEl.value = null
   unbindDeleteMenuListeners()
+  mentionMenuOpen.value = false
+}
+function formatCommentBody (body: string): string {
+  const escaped = body
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  return escaped.replace(
+    /@\[([^\]]+)\]\(user:(\d+)\)/g,
+    '<strong>$1</strong>',
+  )
+}
+const mentionCandidates = computed(() => props.workspaceMembers)
+function toggleMentionMenu () {
+  mentionMenuOpen.value = !mentionMenuOpen.value
+  if (mentionMenuOpen.value) {
+    closeDeleteMenu()
+    openReactionMenuCommentId.value = null
+  }
+}
+function insertMention (member: MemberLike) {
+  const token = `@[${memberDisplayName(member)}](user:${member.id}) `
+  const el = commentInputRef.value
+  if (el) {
+    const start = el.selectionStart ?? commentDraft.value.length
+    const end = el.selectionEnd ?? start
+    commentDraft.value = `${commentDraft.value.slice(0, start)}${token}${commentDraft.value.slice(end)}`
+    nextTick(() => {
+      el.focus()
+      const pos = start + token.length
+      el.setSelectionRange(pos, pos)
+      adjustCommentInputHeight()
+    })
+  } else {
+    commentDraft.value = `${commentDraft.value}${token}`
+  }
+  mentionMenuOpen.value = false
 }
 function commentAuthorMember (comment: TaskComment): MemberLike {
   if (comment.author) {

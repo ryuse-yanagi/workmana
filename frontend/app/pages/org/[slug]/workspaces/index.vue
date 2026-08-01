@@ -32,6 +32,15 @@
                 />
               </div>
               <button
+                class="ghost-btn"
+                type="button"
+                :disabled="pending"
+                @click="archivedWorkspacesOpen = true"
+              >
+                <Archive :size="18" :stroke-width="2.25" aria-hidden="true" />
+                アーカイブ済み
+              </button>
+              <button
                 class="primary-btn"
                 type="button"
                 :disabled="pending"
@@ -166,18 +175,28 @@
         :loading="pending"
         @submit="onWorkspaceFormSubmit"
       />
-      <WorkspaceDeleteModal
-        ref="workspaceDeleteModalRef"
-        v-model="workspaceDeleteModalOpen"
-        :workspace-name="workspaceDeleteTarget?.name ?? ''"
-        :loading="deletePending"
-        @confirm="confirmWorkspaceDelete"
+      <ConfirmModal
+        v-model="workspaceArchiveConfirmOpen"
+        title="スペースのアーカイブ確認"
+        :message="workspaceArchiveTarget ? `「${workspaceArchiveTarget.name}」をアーカイブしますか？` : ''"
+        confirm-text="アーカイブ"
+        :loading="archivePending"
+        @confirm="confirmWorkspaceArchive"
+      />
+      <ArchivedNamedItemsModal
+        v-model="archivedWorkspacesOpen"
+        :org-slug="slug"
+        resource="workspaces"
+        item-kind="スペース"
+        :can-manage-archive="isOrgAdmin"
+        @restored="onWorkspaceRestored"
+        @deleted="onWorkspacePermanentlyDeleted"
       />
     </template>
   </main>
 </template>
 <script setup lang="ts">
-import { Ellipsis, FolderPlus } from 'lucide-vue-next'
+import { Archive, Ellipsis, FolderPlus } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import { useApi } from '../../../../composables/useApi'
@@ -188,7 +207,7 @@ import {
 } from '../../../../composables/useOrgWorkspaceIndexPageData'
 import type { TaskFormMember } from '../../../../composables/useTaskFormHelpers'
 import { useWorkspaceBoardPageData } from '../../../../composables/useWorkspaceBoardPageData'
-import { prefetchWorkspaceDetail, warmWorkspaceDetailCache } from '../../../../composables/useWorkspaceDetailMeta'
+import { prefetchWorkspaceDetail, warmWorkspaceDetailCache, invalidateWorkspaceDetailMeta } from '../../../../composables/useWorkspaceDetailMeta'
 import { DEFAULT_WORKSPACE_STATUS_ITEMS } from '../../../../components/settings/types'
 import { resolveStandardColors } from '../../../../utils/colorPresetResolution'
 import {
@@ -196,10 +215,12 @@ import {
   isKeyboardShortcutBlockedTarget,
 } from '../../../../utils/uiInteraction'
 import WorkspaceCreateModal from '../../../../components/modals/WorkspaceCreateModal.vue'
-import WorkspaceDeleteModal from '../../../../components/modals/WorkspaceDeleteModal.vue'
+import ArchivedNamedItemsModal from '../../../../components/modals/ArchivedNamedItemsModal.vue'
+import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
 import WorkspaceAssigneeSelect from '../../../../components/workspace/WorkspaceAssigneeSelect.vue'
 import WorkspaceStatusSelect from '../../../../components/workspace/WorkspaceStatusSelect.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
+import { useOrgRole } from '../../../../composables/useOrgRole'
 definePageMeta({
   name: 'org-slug-workspaces',
   key: route => route.fullPath,
@@ -217,6 +238,7 @@ type Workspace = {
 }
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
+const { isOrgAdmin } = useOrgRole(slug)
 const { api } = useApi()
 const {
   fetchSnapshot: fetchOrgWorkspaceIndexSnapshot,
@@ -234,14 +256,16 @@ const fatalLoadError = ref<string | null>(null)
 const pending = ref(false)
 const error = ref<string | null>(null)
 const searchQuery = ref('')
+const debouncedSearchQuery = ref('')
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 const sortMode = ref<'newest' | 'oldest' | 'name'>('newest')
 const workspaceFormModalOpen = ref(false)
 const workspaceFormMode = ref<'create' | 'edit'>('create')
 const workspaceEditTarget = ref<Workspace | null>(null)
-const workspaceDeleteModalOpen = ref(false)
-const workspaceDeleteTarget = ref<Workspace | null>(null)
-const workspaceDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
-const deletePending = ref(false)
+const workspaceArchiveConfirmOpen = ref(false)
+const workspaceArchiveTarget = ref<Workspace | null>(null)
+const archivedWorkspacesOpen = ref(false)
+const archivePending = ref(false)
 const openMenuWorkspaceId = ref<number | null>(null)
 const workspaceMenuPosition = ref<{ top: number; left: number } | null>(null)
 const WORKSPACE_MENU_MIN_WIDTH = 160
@@ -271,20 +295,22 @@ const listPageCssVars = computed(() => {
   } as Record<string, string>
 })
 const visibleWorkspaces = computed(() => {
-  const query = searchQuery.value.toLowerCase()
+  const query = debouncedSearchQuery.value.trim().toLowerCase()
   const filtered = query
-    ? workspaces.value.filter(workspace => workspace.name.toLowerCase().includes(query))
-    : [...workspaces.value]
+    ? [...workspaces.value]
+    : searchQuery.value.trim()
+      ? workspaces.value.filter(workspace => workspace.name.toLowerCase().includes(searchQuery.value.trim().toLowerCase()))
+      : [...workspaces.value]
   const labelFiltered = labelFilterId.value
     ? filtered.filter(workspace => (workspace.labels ?? []).some(l => String(l.id) === labelFilterId.value))
     : filtered
   if (sortMode.value === 'name') {
-    return labelFiltered.sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+    return [...labelFiltered].sort((a, b) => a.name.localeCompare(b.name, 'ja'))
   }
   if (sortMode.value === 'oldest') {
-    return labelFiltered.sort((a, b) => a.id - b.id)
+    return [...labelFiltered].sort((a, b) => a.id - b.id)
   }
-  return labelFiltered.sort((a, b) => b.id - a.id)
+  return [...labelFiltered].sort((a, b) => b.id - a.id)
 })
 const openMenuWorkspace = computed(() => {
   const id = openMenuWorkspaceId.value
@@ -396,10 +422,11 @@ function canUseWorkspaceListKeyboardShortcut (): boolean {
   }
   if (
     workspaceFormModalOpen.value
-    || workspaceDeleteModalOpen.value
+    || workspaceArchiveConfirmOpen.value
+    || archivedWorkspacesOpen.value
     || openMenuWorkspaceId.value !== null
     || pending.value
-    || deletePending.value
+    || archivePending.value
   ) {
     return false
   }
@@ -428,14 +455,14 @@ function openWorkspaceEditModal (workspace: Workspace) {
   workspaceEditTarget.value = workspace
   workspaceFormModalOpen.value = true
 }
-function openWorkspaceDeleteModal (workspace: Workspace) {
+function openWorkspaceArchiveConfirm (workspace: Workspace) {
   closeWorkspaceMenu()
-  workspaceDeleteTarget.value = workspace
-  workspaceDeleteModalOpen.value = true
+  workspaceArchiveTarget.value = workspace
+  workspaceArchiveConfirmOpen.value = true
 }
 const workspaceMenuItems: FloatingMenuItem[] = [
   { key: 'edit', label: '編集' },
-  { key: 'delete', label: '削除', danger: true },
+  { key: 'archive', label: 'アーカイブ' },
 ]
 function onWorkspaceMenuSelect (item: FloatingMenuItem) {
   const workspace = openMenuWorkspace.value
@@ -444,8 +471,8 @@ function onWorkspaceMenuSelect (item: FloatingMenuItem) {
     openWorkspaceEditModal(workspace)
     return
   }
-  if (item.key === 'delete') {
-    openWorkspaceDeleteModal(workspace)
+  if (item.key === 'archive') {
+    openWorkspaceArchiveConfirm(workspace)
   }
 }
 function onGlobalClick (ev: Event) {
@@ -678,30 +705,39 @@ async function onWorkspaceFormSubmit (payload: {
   }
   await createWorkspace(payload)
 }
-async function confirmWorkspaceDelete () {
-  const target = workspaceDeleteTarget.value
-  if (!target || deletePending.value) return
-  deletePending.value = true
+async function confirmWorkspaceArchive () {
+  const target = workspaceArchiveTarget.value
+  if (!target || archivePending.value) return
+  archivePending.value = true
   error.value = null
   try {
     await withAppLoadingCursor(async () => {
-      await api(`/orgs/${slug.value}/workspaces/${target.id}`, {
-        method: 'DELETE',
+      await api(`/orgs/${slug.value}/workspaces/${target.id}/archive`, {
+        method: 'POST',
       })
-      workspaceDeleteModalOpen.value = false
-      workspaceDeleteTarget.value = null
+      workspaceArchiveConfirmOpen.value = false
+      workspaceArchiveTarget.value = null
       workspaces.value = workspaces.value.filter(workspace => workspace.id !== target.id)
       invalidateOrgWorkspaceIndexCached(slug.value)
       invalidateWorkspaceBoardCached(slug.value, String(target.id))
-      await load({ refresh: true })
+      invalidateWorkspaceDetailMeta(slug.value, target.id)
     })
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : '削除に失敗しました'
-    workspaceDeleteModalRef.value?.setSubmitError(message)
-    error.value = message
+    error.value = e instanceof Error ? e.message : 'アーカイブに失敗しました'
   } finally {
-    deletePending.value = false
+    archivePending.value = false
   }
+}
+
+function onWorkspaceRestored () {
+  invalidateOrgWorkspaceIndexCached(slug.value)
+  void load({ refresh: true })
+}
+
+function onWorkspacePermanentlyDeleted (workspaceId: number) {
+  invalidateOrgWorkspaceIndexCached(slug.value)
+  invalidateWorkspaceBoardCached(slug.value, String(workspaceId))
+  invalidateWorkspaceDetailMeta(slug.value, workspaceId)
 }
 function warmWorkspaceBoard (workspaceId: number) {
   void warmWorkspaceBoardCache(slug.value, String(workspaceId))
@@ -788,6 +824,47 @@ function updateStickyOffsets () {
   }
   globalHeaderOffsetPx.value = readGlobalHeaderHeight()
 }
+function normalizeWorkspaceListItem (workspace: Workspace): Workspace {
+  return {
+    ...workspace,
+    labels: workspace.labels ? resolveStandardColors(workspace.labels) : workspace.labels,
+    status: workspace.status ? resolveStandardColors([workspace.status])[0] ?? workspace.status : workspace.status,
+  }
+}
+
+let searchRequestSeq = 0
+
+async function fetchWorkspacesWithSearch (query: string) {
+  const requestSeq = ++searchRequestSeq
+  const q = query.trim()
+  const path = q
+    ? `/orgs/${slug.value}/workspaces?q=${encodeURIComponent(q)}`
+    : `/orgs/${slug.value}/workspaces`
+  const res = await api<{ data: Workspace[] }>(path)
+  if (requestSeq !== searchRequestSeq) {
+    return
+  }
+  workspaces.value = (res.data ?? []).map(normalizeWorkspaceListItem)
+}
+
+watch(searchQuery, (value) => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  searchDebounceTimer = setTimeout(() => {
+    debouncedSearchQuery.value = value.trim()
+  }, 300)
+})
+
+watch(debouncedSearchQuery, (query) => {
+  if (!pageReady.value) {
+    return
+  }
+  void fetchWorkspacesWithSearch(query).catch((e: unknown) => {
+    error.value = e instanceof Error ? e.message : '検索に失敗しました'
+  })
+})
+
 watch(
   () => [pageReady.value, visibleWorkspaces.value] as const,
   () => {

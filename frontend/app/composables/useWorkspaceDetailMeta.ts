@@ -31,6 +31,15 @@ export function clearAllWorkspaceDetailMetaCaches (): void {
   inflightByKey.clear()
 }
 
+export function invalidateWorkspaceDetailMeta (
+  orgSlug: string,
+  workspaceId: string | number,
+): void {
+  const key = cacheKey(orgSlug, workspaceId)
+  delete sharedByKey[key]
+  inflightByKey.delete(key)
+}
+
 function cacheKey (orgSlug: string, workspaceId: string | number): string {
   return `${orgSlug.trim()}:${String(workspaceId).trim()}`
 }

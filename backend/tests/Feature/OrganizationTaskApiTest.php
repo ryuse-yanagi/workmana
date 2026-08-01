@@ -74,14 +74,14 @@ class OrganizationTaskApiTest extends TestCase
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
-                'description' => 'Table note',
+                'description' => 'WBS note',
             ])
             ->assertOk();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
-            ->assertJsonPath('data.0.description', 'Table note')
+            ->assertJsonPath('data.0.description', 'WBS note')
             ->assertJsonPath('data.0.list_name', '未着手');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
@@ -93,7 +93,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('effort_unit', null);
     }
 
-    public function test_user_can_reorder_table_tasks(): void
+    public function test_user_can_reorder_wbs_tasks(): void
     {
         $user = User::factory()->create();
 
@@ -142,7 +142,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table/reorder", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/reorder", [
                 'tasks' => [
                     ['id' => 3, 'sort_order' => 0, 'parent_task_id' => null],
                     ['id' => 1, 'sort_order' => 1, 'parent_task_id' => null],
@@ -153,7 +153,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('data.ok', true);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
             ->assertJsonPath('data.0.id', 3)
             ->assertJsonPath('data.1.id', 1)
@@ -161,7 +161,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('data.2.parent_task_id', 1);
     }
 
-    public function test_changing_task_list_preserves_table_sort_order(): void
+    public function test_changing_task_list_preserves_wbs_sort_order(): void
     {
         $user = User::factory()->create();
 
@@ -211,7 +211,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table/reorder", [
+            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/reorder", [
                 'tasks' => [
                     ['id' => 1, 'sort_order' => 0, 'parent_task_id' => null],
                     ['id' => 2, 'sort_order' => 1, 'parent_task_id' => null],
@@ -229,7 +229,7 @@ class OrganizationTaskApiTest extends TestCase
             ->assertJsonPath('sort_order', 1);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/table")
+            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
             ->assertJsonPath('data.0.id', 1)
             ->assertJsonPath('data.1.id', 2)
@@ -317,54 +317,76 @@ class OrganizationTaskApiTest extends TestCase
             ->assertCreated();
 
         $itemId = '11111111-1111-4111-8111-111111111111';
+        $itemId2 = '22222222-2222-4222-8222-222222222222';
 
-        $this->withHeader('Authorization', 'Bearer '.$user->id)
+        $createResponse = $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
-                'checklist' => [
-                    'title' => 'Release prep',
-                    'items' => [
-                        [
-                            'id' => $itemId,
-                            'text' => 'Review PR',
-                            'checked' => false,
+                'checklists' => [
+                    [
+                        'title' => 'Release prep',
+                        'items' => [
+                            [
+                                'id' => $itemId,
+                                'text' => 'Review PR',
+                                'checked' => false,
+                            ],
                         ],
                     ],
                 ],
             ])
             ->assertOk()
-            ->assertJsonPath('checklist.title', 'Release prep')
-            ->assertJsonPath('checklist.items.0.id', $itemId)
-            ->assertJsonPath('checklist.items.0.text', 'Review PR')
-            ->assertJsonPath('checklist.items.0.checked', false);
+            ->assertJsonPath('checklists.0.title', 'Release prep')
+            ->assertJsonPath('checklists.0.items.0.id', $itemId)
+            ->assertJsonPath('checklists.0.items.0.text', 'Review PR')
+            ->assertJsonPath('checklists.0.items.0.checked', false);
+
+        $checklistId = $createResponse->json('checklists.0.id');
+        $this->assertIsInt($checklistId);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1")
             ->assertOk()
-            ->assertJsonPath('checklist.title', 'Release prep')
-            ->assertJsonPath('checklist.items.0.checked', false);
+            ->assertJsonPath('checklists.0.title', 'Release prep')
+            ->assertJsonPath('checklists.0.items.0.checked', false);
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
-                'checklist' => [
-                    'title' => 'Release prep',
-                    'items' => [
-                        [
-                            'id' => $itemId,
-                            'text' => 'Review PR',
-                            'checked' => true,
+                'checklists' => [
+                    [
+                        'id' => $checklistId,
+                        'title' => 'Release prep',
+                        'items' => [
+                            [
+                                'id' => $itemId,
+                                'text' => 'Review PR',
+                                'checked' => true,
+                            ],
+                        ],
+                    ],
+                    [
+                        'title' => 'QA',
+                        'items' => [
+                            [
+                                'id' => $itemId2,
+                                'text' => 'Smoke test',
+                                'checked' => false,
+                            ],
                         ],
                     ],
                 ],
             ])
             ->assertOk()
-            ->assertJsonPath('checklist.items.0.checked', true);
+            ->assertJsonPath('checklists.0.items.0.checked', true)
+            ->assertJsonPath('checklists.1.title', 'QA')
+            ->assertJsonPath('checklists.1.items.0.text', 'Smoke test')
+            ->assertJsonCount(2, 'checklists');
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
-                'checklist' => null,
+                'checklists' => [],
             ])
             ->assertOk()
-            ->assertJsonPath('checklist', null);
+            ->assertJsonPath('checklists', []);
     }
 
     public function test_non_member_cannot_access_org(): void

@@ -10,12 +10,19 @@ use App\Models\TaskComment;
 use App\Models\TaskCommentReaction;
 use App\Models\TaskHistory;
 use App\Models\User;
+use App\Services\NotificationService;
+use App\Support\FieldLengthLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class TaskCommentController extends ApiController
 {
+    public function __construct(
+        private readonly NotificationService $notifications,
+    ) {}
+
     public function workspaceIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
@@ -58,7 +65,7 @@ class TaskCommentController extends ApiController
     public function store(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
         $this->assertTaskInWorkspace($task, $workspace);
 
@@ -67,7 +74,7 @@ class TaskCommentController extends ApiController
         }
 
         $validated = $request->validate([
-            'body' => ['required', 'string', 'max:100'],
+            'body' => ['required', 'string', 'max:'.FieldLengthLimits::COMMENT_BODY],
         ]);
 
         $body = trim($validated['body']);
@@ -77,25 +84,31 @@ class TaskCommentController extends ApiController
 
         $user = $request->user();
 
-        $comment = TaskComment::query()->create([
-            'task_id' => $task->id,
-            'organization_id' => $organization->id,
-            'workspace_id' => $workspace->id,
-            'author_id' => $user->id,
-            'body' => $body,
-        ]);
+        $comment = DB::transaction(function () use ($task, $organization, $workspace, $user, $body) {
+            $comment = TaskComment::query()->create([
+                'task_id' => $task->id,
+                'organization_id' => $organization->id,
+                'workspace_id' => $workspace->id,
+                'author_id' => $user->id,
+                'body' => $body,
+            ]);
 
-        TaskHistory::query()->create([
-            'task_id' => $task->id,
-            'organization_id' => $organization->id,
-            'workspace_id' => $workspace->id,
-            'actor_id' => $user->id,
-            'event_type' => TaskHistoryEventType::CommentAdded->value,
-            'field_name' => null,
-            'before_value' => null,
-            'after_value' => null,
-            'created_at' => now(),
-        ]);
+            TaskHistory::query()->create([
+                'task_id' => $task->id,
+                'organization_id' => $organization->id,
+                'workspace_id' => $workspace->id,
+                'actor_id' => $user->id,
+                'event_type' => TaskHistoryEventType::CommentAdded->value,
+                'field_name' => null,
+                'before_value' => null,
+                'after_value' => null,
+                'created_at' => now(),
+            ]);
+
+            return $comment;
+        });
+
+        $this->dispatchCommentNotifications($task, $workspace, $organization, $body, $user);
 
         $comment->load(['author:id,name,email,avatar_path', 'reactions.user:id,name,email,avatar_path']);
 
@@ -116,7 +129,7 @@ class TaskCommentController extends ApiController
         }
 
         $validated = $request->validate([
-            'body' => ['required', 'string', 'max:100'],
+            'body' => ['required', 'string', 'max:'.FieldLengthLimits::COMMENT_BODY],
         ]);
 
         $body = trim($validated['body']);
@@ -124,21 +137,23 @@ class TaskCommentController extends ApiController
             return response()->json(['message' => 'Body cannot be empty.'], 422);
         }
 
-        $comment->body = $body;
-        $comment->edited_at = now();
-        $comment->save();
+        DB::transaction(function () use ($comment, $task, $organization, $workspace, $user, $body) {
+            $comment->body = $body;
+            $comment->edited_at = now();
+            $comment->save();
 
-        TaskHistory::query()->create([
-            'task_id' => $task->id,
-            'organization_id' => $organization->id,
-            'workspace_id' => $workspace->id,
-            'actor_id' => $user->id,
-            'event_type' => TaskHistoryEventType::CommentEdited->value,
-            'field_name' => null,
-            'before_value' => null,
-            'after_value' => null,
-            'created_at' => now(),
-        ]);
+            TaskHistory::query()->create([
+                'task_id' => $task->id,
+                'organization_id' => $organization->id,
+                'workspace_id' => $workspace->id,
+                'actor_id' => $user->id,
+                'event_type' => TaskHistoryEventType::CommentEdited->value,
+                'field_name' => null,
+                'before_value' => null,
+                'after_value' => null,
+                'created_at' => now(),
+            ]);
+        });
 
         $comment->load(['author:id,name,email,avatar_path', 'reactions.user:id,name,email,avatar_path']);
 
@@ -158,19 +173,21 @@ class TaskCommentController extends ApiController
             abort(403, 'Only the comment author can delete this comment.');
         }
 
-        $comment->delete();
+        DB::transaction(function () use ($comment, $task, $organization, $workspace, $user) {
+            $comment->delete();
 
-        TaskHistory::query()->create([
-            'task_id' => $task->id,
-            'organization_id' => $organization->id,
-            'workspace_id' => $workspace->id,
-            'actor_id' => $user->id,
-            'event_type' => TaskHistoryEventType::CommentDeleted->value,
-            'field_name' => null,
-            'before_value' => null,
-            'after_value' => null,
-            'created_at' => now(),
-        ]);
+            TaskHistory::query()->create([
+                'task_id' => $task->id,
+                'organization_id' => $organization->id,
+                'workspace_id' => $workspace->id,
+                'actor_id' => $user->id,
+                'event_type' => TaskHistoryEventType::CommentDeleted->value,
+                'field_name' => null,
+                'before_value' => null,
+                'after_value' => null,
+                'created_at' => now(),
+            ]);
+        });
 
         return response()->json(['message' => 'Comment deleted.']);
     }
@@ -178,7 +195,7 @@ class TaskCommentController extends ApiController
     public function toggleReaction(Request $request, Organization $organization, Workspace $workspace, Task $task, TaskComment $comment): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
         $this->assertTaskInWorkspace($task, $workspace);
         $this->assertCommentInTask($comment, $task);
@@ -280,5 +297,55 @@ class TaskCommentController extends ApiController
             })
             ->values()
             ->all();
+    }
+
+    private function dispatchCommentNotifications(
+        Task $task,
+        Workspace $workspace,
+        Organization $organization,
+        string $body,
+        User $author,
+    ): void {
+        $notificationData = [
+            'task_id' => $task->id,
+            'workspace_id' => $task->workspace_id,
+            'organization_slug' => $organization->slug,
+            'title' => $task->title,
+            'comment_author_id' => $author->id,
+        ];
+
+        preg_match_all('/@\[([^\]]+)\]\(user:(\d+)\)/', $body, $matches, PREG_SET_ORDER);
+        $mentionedUserIds = [];
+        foreach ($matches as $match) {
+            $mentionedUserIds[] = (int) $match[2];
+        }
+        $mentionedUserIds = array_values(array_unique($mentionedUserIds));
+
+        if ($mentionedUserIds !== []) {
+            $eligibleMentionIds = User::query()
+                ->whereIn('id', $mentionedUserIds)
+                ->get()
+                ->filter(fn (User $user) => $user->canAccessWorkspace($workspace))
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if ($eligibleMentionIds !== []) {
+                $this->notifications->notifyMany(
+                    $eligibleMentionIds,
+                    'task.mentioned',
+                    $notificationData,
+                    exceptUserId: (int) $author->id,
+                );
+            }
+        }
+
+        $assigneeIds = $task->assignees()->pluck('users.id')->all();
+        $this->notifications->notifyMany(
+            $assigneeIds,
+            'task.commented',
+            $notificationData,
+            exceptUserId: (int) $author->id,
+        );
     }
 }

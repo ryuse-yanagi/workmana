@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Task extends Model
@@ -92,9 +91,9 @@ class Task extends Model
         return $this->hasMany(TaskComment::class);
     }
 
-    public function checklist(): HasOne
+    public function checklists(): HasMany
     {
-        return $this->hasOne(TaskChecklist::class);
+        return $this->hasMany(TaskChecklist::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function labels(): BelongsToMany
@@ -105,6 +104,11 @@ class Task extends Model
     public function histories(): HasMany
     {
         return $this->hasMany(TaskHistory::class)->orderBy('created_at');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TaskAttachment::class);
     }
 
     public function scopeActive(Builder $query): Builder

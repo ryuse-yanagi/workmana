@@ -141,7 +141,7 @@
                     v-if="editingListKey === list.key"
                     ref="listTitleInputEl"
                     v-model="listEditDrafts[list.key]"
-                    maxlength="255"
+                    :maxlength="LIST_NAME_MAX_LENGTH"
                     class="list-title-input"
                     :disabled="listRenamePending"
                     @input="onListTitleInput"
@@ -216,7 +216,7 @@
                     @contextmenu.prevent="onTaskCardContextMenu(task, $event)"
                   >
                     <template v-if="editingTaskId === task.id">
-                      <form class="card-edit-form" @submit.prevent="saveTaskTitle(task)" @click.stop>
+                      <form class="card-edit-form" novalidate @submit.prevent="saveTaskTitle(task)" @click.stop>
                         <textarea
                           ref="cardTitleTextareaEl"
                           v-model="taskTitleDraft"
@@ -268,13 +268,6 @@
                           {{ parentTaskTitle(task) }}
                         </p>
                         <p class="task-title-row">
-                          <ListTree
-                            v-if="task.is_parent_task"
-                            :size="15"
-                            :stroke-width="2.25"
-                            class="task-title-row__icon"
-                            aria-hidden="true"
-                          />
                           <span class="task-title">{{ task.title }}</span>
                         </p>
                         <div
@@ -342,7 +335,7 @@
         v-model="archivedModalOpen"
         :org-slug="slug"
         :workspace-id="workspaceId"
-        
+        :can-manage-archive="isOrgAdmin"
         @restored="onArchivedTaskRestored"
       />
       <ConfirmModal
@@ -508,7 +501,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { CalendarDays, Clock, Ellipsis, FilePlus, ListFilter, ListPlus, ListTree, Pencil, Trash2 } from 'lucide-vue-next'
+import { CalendarDays, Clock, Ellipsis, FilePlus, ListFilter, ListPlus, Pencil, Trash2 } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import ArchivedTasksModal from '../modals/ArchivedTasksModal.vue'
 import ListCreateModal from '../modals/ListCreateModal.vue'
@@ -531,7 +524,7 @@ import {
   type WorkspaceBoardTask,
 } from '../../composables/useWorkspaceBoardPageData'
 import { enrichTaskDetailHierarchy } from '../../composables/useTaskHierarchy'
-import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
+import { LIST_NAME_MAX_LENGTH, TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { memberDisplayName } from '../../composables/useMemberDisplay'
 import {
   formatTaskCardDateRange,
@@ -540,6 +533,7 @@ import {
   resolveParentTaskTitle,
 } from '../../composables/useTaskCardMeta'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
+import { useOrgRole } from '../../composables/useOrgRole'
 import { useWorkspaceRealtimeChannel } from '../../composables/useWorkspaceRealtimeChannel'
 import { useWorkspaceDetailMeta } from '../../composables/useWorkspaceDetailMeta'
 import { resolveLabelColors, withResolvedListColor } from '../../utils/colorPresetResolution'
@@ -549,6 +543,7 @@ import {
 } from '../../utils/uiInteraction'
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
+const { isOrgAdmin } = useOrgRole(slug)
 const workspaceId = computed(() => route.params.id as string)
 const { workspace: workspaceMeta } = useWorkspaceDetailMeta(slug, workspaceId)
 const workspaceMetaName = computed(() => workspaceMeta.value?.name ?? '')
@@ -1318,7 +1313,7 @@ function onGlobalClick (ev: Event) {
     if (el && el.closest('.workspace-view-switcher-menu')) {
       return
     }
-    if (el && el.closest('.workspace-table__cell-btn')) {
+    if (el && el.closest('.workspace-wbs__cell-btn')) {
       return
     }
     if (el && el.closest('.popover-layer, .popover')) {
@@ -1439,7 +1434,7 @@ function onTaskDetailUpdated (detail: TaskDetail) {
     effort_unit: 'effort_unit' in detail ? detail.effort_unit : existing.effort_unit,
     labels: detail.labels,
     assignees: detail.assignees,
-    checklist: detail.checklist ?? null,
+    checklists: detail.checklists ?? [],
     parent_task_id: 'parent_task_id' in detail ? detail.parent_task_id ?? null : existing.parent_task_id,
     is_parent_task: 'is_parent_task' in detail ? detail.is_parent_task ?? false : existing.is_parent_task,
   }

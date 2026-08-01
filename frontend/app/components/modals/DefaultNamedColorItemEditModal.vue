@@ -14,8 +14,7 @@
         <input
           v-model.trim="name"
           type="text"
-          maxlength="255"
-          required
+          :maxlength="DEFAULT_NAMED_ITEM_NAME_MAX_LENGTH"
           :placeholder="namePlaceholder"
           :disabled="loading"
           @keydown.enter.exact.prevent
@@ -48,6 +47,7 @@ import {
   standardColorAtIndex,
   standardColorIndexFromHex,
 } from '../../constants/colorPresets'
+import { DEFAULT_NAMED_ITEM_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { isCtrlEnterKeydown } from '../../utils/uiInteraction'
 import { requiredTextFieldError } from '../../utils/formValidation'
 const props = withDefaults(defineProps<{

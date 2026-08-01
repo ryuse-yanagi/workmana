@@ -9,7 +9,7 @@
   >
     <div class="profile-settings-modal-body">
       <p class="profile-settings-modal-note">ユーザー名とアイコン画像を設定できます。</p>
-      <form class="profile-name-form" @submit.prevent="saveProfileName">
+      <form class="profile-name-form" novalidate @submit.prevent="saveProfileName">
         <label class="profile-field">
           <span>ユーザー名</span>
           <input
@@ -17,7 +17,6 @@
             class="profile-input"
             type="text"
             :maxlength="USER_NAME_MAX_LENGTH"
-            required
             placeholder="表示名を入力してください"
             :disabled="nameLoading"
           />

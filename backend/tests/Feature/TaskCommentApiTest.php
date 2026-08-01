@@ -116,7 +116,6 @@ class TaskCommentApiTest extends TestCase
         $other = User::factory()->create();
         $organization = Organization::query()->where('slug', 'acme')->firstOrFail();
         $organization->members()->attach($other->id, ['role' => 'member']);
-        $workspace->memberships()->attach($other->id, ['role' => 'member']);
 
         $this->withHeader('Authorization', 'Bearer '.$other->id)
             ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/{$task->id}/comments/{$comment->id}", [

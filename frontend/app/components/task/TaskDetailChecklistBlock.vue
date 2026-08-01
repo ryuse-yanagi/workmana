@@ -48,6 +48,7 @@
             v-model="editItemDraft"
             type="text"
             class="task-checklist__composer-input"
+            :maxlength="CHECKLIST_ITEM_TEXT_MAX_LENGTH"
             aria-label="チェックリスト項目を編集"
             @keydown.enter.prevent="submitEditItem"
             @keydown.escape.prevent="cancelEditItem"
@@ -103,6 +104,7 @@
         v-model="addItemDraft"
         type="text"
         class="task-checklist__composer-input"
+        :maxlength="CHECKLIST_ITEM_TEXT_MAX_LENGTH"
         placeholder="項目を追加"
         aria-label="チェックリスト項目"
         @keydown.enter.prevent="submitAddItem"
@@ -138,12 +140,14 @@
 </template>
 <script setup lang="ts">
 import { SquareCheck } from 'lucide-vue-next'
+import { CHECKLIST_ITEM_TEXT_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 export type TaskChecklistItem = {
   id: string
   text: string
   checked: boolean
 }
 export type TaskChecklist = {
+  id: number
   title: string
   items: TaskChecklistItem[]
 }

@@ -36,7 +36,7 @@ export type WorkspaceBoardTask = {
     email: string | null
     avatar_url: string | null
   }>
-  checklist?: TaskChecklist | null
+  checklists?: TaskChecklist[]
 }
 export type WorkspaceBoardListRow = {
   id: number
@@ -68,7 +68,7 @@ export function boardTaskToTaskDetail (task: WorkspaceBoardTask): TaskDetail {
     effort_unit: task.effort_unit ?? null,
     assignees: (task.assignees ?? []) as TaskDetailMember[],
     labels: task.labels ? resolveLabelColors(task.labels) : [],
-    checklist: task.checklist ?? null,
+    checklists: task.checklists ?? [],
     is_parent_task: task.is_parent_task,
     parent_task_id: task.parent_task_id ?? null,
   }
@@ -210,7 +210,7 @@ export function useWorkspaceBoardPageData () {
       effort_unit?: string | null
       labels?: WorkspaceBoardLabel[]
       assignees?: WorkspaceBoardTask['assignees']
-      checklist?: TaskChecklist | null
+      checklists?: TaskChecklist[]
     }>,
   ): void {
     const key = cacheKey(orgSlug, workspaceId)
@@ -240,7 +240,7 @@ export function useWorkspaceBoardPageData () {
         ...(patch.effort_unit !== undefined ? { effort_unit: patch.effort_unit } : {}),
         ...(patch.labels !== undefined ? { labels: resolveLabelColors(patch.labels) } : {}),
         ...(patch.assignees !== undefined ? { assignees: patch.assignees } : {}),
-        ...(patch.checklist !== undefined ? { checklist: patch.checklist } : {}),
+        ...(patch.checklists !== undefined ? { checklists: patch.checklists } : {}),
       }
     })
     cacheByKey.set(key, { ...cached, tasks })

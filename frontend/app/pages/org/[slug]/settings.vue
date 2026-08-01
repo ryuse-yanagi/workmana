@@ -38,6 +38,11 @@
               :initial-label-tab="initialLabelTab"
               :can-manage="canManageSettings"
             />
+            <SettingsMembersPanel
+              v-show="activeTab === 'members'"
+              :org-slug="slug"
+              :can-manage="canManageSettings"
+            />
           </section>
         </section>
       </div>
@@ -54,6 +59,7 @@ import SettingsDefaultBoardListsPanel from '../../../components/settings/Setting
 import SettingsDefaultWorkspaceStatusesPanel from '../../../components/settings/SettingsDefaultWorkspaceStatusesPanel.vue'
 import SettingsDefaultDocumentCategoriesPanel from '../../../components/settings/SettingsDefaultDocumentCategoriesPanel.vue'
 import SettingsLabelsPanel from '../../../components/settings/SettingsLabelsPanel.vue'
+import SettingsMembersPanel from '../../../components/settings/SettingsMembersPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
 import {
   normalizeDefaultBoardListItems,
@@ -85,6 +91,7 @@ const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
   { key: 'workspace_statuses', label: 'ステータス設定' },
   { key: 'document_categories', label: '資料カテゴリ設定' },
   { key: 'labels', label: 'ラベル設定' },
+  { key: 'members', label: 'ユーザー設定' },
 ]
 
 const activeTab = ref<SettingsTabKey>('default_board_lists')
@@ -193,6 +200,10 @@ function applyTabFromRoute () {
       : labelTab === 'document'
         ? 'document'
         : 'workspace'
+    return
+  }
+  if (tab === 'members' || tab === 'invites') {
+    activeTab.value = 'members'
     return
   }
   activeTab.value = 'default_board_lists'

@@ -479,18 +479,22 @@
   min-width: 0;
   min-height: 0;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   padding: 20px;
   box-sizing: border-box;
   background: mixin.$surface-canvas;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overflow-anchor: none;
 }
 .document-viewer__page {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  /* 短い本文でもビューア内いっぱいに伸ばし、はみ出さない（空でもスクロール不可） */
+  flex: 1 0 auto;
   width: min(100%, 1000px);
-  min-height: var(--document-page-min-height, 767px);
   box-sizing: border-box;
   padding: 56px 48px 56px;
   border: 1px solid transparent;
@@ -545,6 +549,7 @@
 }
 .document-viewer textarea.document-viewer__body-input {
   display: block;
+  flex: 1 0 auto;
   width: 100%;
   box-sizing: border-box;
   margin: 0;

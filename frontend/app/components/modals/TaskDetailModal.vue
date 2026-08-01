@@ -329,17 +329,57 @@
                 class="description-preview-empty"
               >説明がありません。</p>
             </section>
+            <section v-if="taskId" class="field-block attachments-block">
+              <div class="attachments-block__header">
+                <span class="field-label">添付ファイル</span>
+                <label class="attachments-upload">
+                  <input
+                    type="file"
+                    class="attachments-upload__input"
+                    :disabled="attachmentUploading || saving"
+                    @change="onAttachmentFileSelected"
+                  >
+                  追加
+                </label>
+              </div>
+              <p v-if="attachmentsLoading" class="attachments-state">読み込み中…</p>
+              <p v-else-if="attachmentsError" class="attachments-state attachments-state--error">{{ attachmentsError }}</p>
+              <p v-else-if="!attachments.length" class="attachments-state">添付ファイルはありません。</p>
+              <ul v-else class="attachments-list">
+                <li v-for="attachment in attachments" :key="attachment.id" class="attachments-item">
+                  <a
+                    :href="attachmentDownloadUrl(attachment.id)"
+                    class="attachments-item__name"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {{ attachment.original_name }}
+                  </a>
+                  <span class="attachments-item__meta">{{ formatAttachmentSize(attachment.size_bytes) }}</span>
+                  <button
+                    type="button"
+                    class="attachments-item__delete"
+                    :disabled="attachmentDeletingId === attachment.id"
+                    @click="deleteAttachment(attachment.id)"
+                  >
+                    削除
+                  </button>
+                </li>
+              </ul>
+            </section>
             <div
-              v-if="checklist"
+              v-if="checklists.length"
               ref="checklistBlockRef"
               class="task-checklist-wrap"
             >
               <TaskDetailChecklistBlock
+                v-for="checklist in checklists"
+                :key="checklist.id"
                 :checklist="checklist"
-                :show-add-form="checklistAddFormOpen"
-                @update="updateCurrentChecklist"
-                @update:show-add-form="checklistAddFormOpen = $event"
-                @delete="deleteCurrentChecklist"
+                :show-add-form="checklistAddFormOpenId === checklist.id"
+                @update="updateChecklist(checklist.id, $event)"
+                @update:show-add-form="setChecklistAddFormOpen(checklist.id, $event)"
+                @delete="deleteChecklist(checklist.id)"
               />
             </div>
             <TaskDetailHierarchyBlock
@@ -811,7 +851,7 @@ export type TaskDetail = {
   effort_unit?: string | null
   assignees: TaskDetailMember[]
   labels: TaskDetailLabel[]
-  checklist?: TaskChecklist | null
+  checklists?: TaskChecklist[]
   is_parent_task?: boolean
   parent_task_id?: number | null
   parent_task?: TaskHierarchyParent | null
@@ -856,7 +896,7 @@ const emit = defineEmits<{
   'comments-updated': [{ taskId: number; comments: TaskDetailComment[] }]
   navigate: [taskId: number]
 }>()
-const { api } = useApi()
+const { api, apiBase } = useApi()
 const TASK_DETAIL_NAVIGATE_FADE_MS = 180
 const isNavigatingFade = ref(false)
 const task = ref<TaskDetail | null>(null)
@@ -909,14 +949,28 @@ const renderedDescriptionHtml = computed(() => (
 const labelSearchQuery = ref('')
 const memberSearchQuery = ref('')
 const checklistTitleDraft = ref('')
-const checklistAddFormOpen = ref(false)
+const checklistAddFormOpenId = ref<number | null>(null)
 const checklistSaving = ref(false)
-const checklist = ref<TaskChecklist | null>(null)
+const checklists = ref<TaskChecklist[]>([])
 const checklistBlockRef = ref<HTMLElement | null>(null)
 const checklistTitleInputRef = ref<HTMLInputElement | null>(null)
+type TaskAttachmentItem = {
+  id: number
+  task_id: number
+  original_name: string
+  mime_type: string | null
+  size_bytes: number
+  uploaded_by: number
+  created_at: string
+}
+const attachments = ref<TaskAttachmentItem[]>([])
+const attachmentsLoading = ref(false)
+const attachmentsError = ref<string | null>(null)
+const attachmentUploading = ref(false)
+const attachmentDeletingId = ref<number | null>(null)
 let checklistSaveTimer: ReturnType<typeof setTimeout> | null = null
 let checklistSaveSeq = 0
-let lastPersistedChecklist: TaskChecklist | null = null
+let lastPersistedChecklists: TaskChecklist[] = []
 function clearChecklistSaveTimer () {
   if (checklistSaveTimer) {
     clearTimeout(checklistSaveTimer)
@@ -1199,7 +1253,7 @@ function normalizeTaskDetail (detail: TaskDetail): TaskDetail {
     ...detail,
     labels: detail.labels ? resolveLabelColors(detail.labels) : [],
     assignees: detail.assignees ?? [],
-    checklist: detail.checklist ?? null,
+    checklists: detail.checklists ?? [],
     parent_task: detail.parent_task ?? null,
     child_tasks: detail.child_tasks ?? [],
   }
@@ -1225,7 +1279,7 @@ function resetInteractionState () {
   parentTaskSaving.value = false
   listSaving.value = false
   pickerMutationPending.value = false
-  checklistAddFormOpen.value = false
+  checklistAddFormOpenId.value = null
   checklistSaving.value = false
   descriptionViewMode.value = 'markdown'
 }
@@ -1234,8 +1288,8 @@ function applyLoadedTask (
   parentTasksList?: ParentTaskOption[] | null,
 ) {
   task.value = normalizeTaskDetail(detail)
-  checklist.value = task.value.checklist ?? null
-  lastPersistedChecklist = checklist.value
+  checklists.value = task.value.checklists ?? []
+  lastPersistedChecklists = checklists.value
   titleDraft.value = task.value.title
   descriptionDraft.value = task.value.description ?? ''
   if (parentTasksList != null) {
@@ -1252,8 +1306,8 @@ function applyLoadedTask (
 function resetState () {
   clearChecklistSaveTimer()
   task.value = null
-  checklist.value = null
-  lastPersistedChecklist = null
+  checklists.value = []
+  lastPersistedChecklists = []
   loading.value = false
   saving.value = false
   dateSaving.value = false
@@ -1282,10 +1336,80 @@ function resetState () {
   parentTaskSaving.value = false
   listSaving.value = false
   pickerMutationPending.value = false
-  checklistAddFormOpen.value = false
+  checklistAddFormOpenId.value = null
   checklistSaving.value = false
   isNavigatingFade.value = false
   descriptionViewMode.value = 'markdown'
+  attachments.value = []
+  attachmentsLoading.value = false
+  attachmentsError.value = null
+  attachmentUploading.value = false
+  attachmentDeletingId.value = null
+}
+function attachmentDownloadUrl (attachmentId: number): string {
+  if (props.taskId === null) return '#'
+  return `${apiBase}/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${props.taskId}/attachments/${attachmentId}/download`
+}
+function formatAttachmentSize (bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+async function loadAttachments () {
+  if (props.taskId === null) {
+    attachments.value = []
+    return
+  }
+  attachmentsLoading.value = true
+  attachmentsError.value = null
+  try {
+    const res = await api<{ data: TaskAttachmentItem[] }>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${props.taskId}/attachments`,
+    )
+    attachments.value = res.data ?? []
+  } catch (e: unknown) {
+    attachmentsError.value = e instanceof Error ? e.message : '添付ファイルの読み込みに失敗しました'
+    attachments.value = []
+  } finally {
+    attachmentsLoading.value = false
+  }
+}
+async function onAttachmentFileSelected (event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || props.taskId === null || attachmentUploading.value) return
+  attachmentUploading.value = true
+  attachmentsError.value = null
+  try {
+    const body = new FormData()
+    body.append('file', file)
+    const created = await api<TaskAttachmentItem>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${props.taskId}/attachments`,
+      { method: 'POST', body },
+    )
+    attachments.value = [created, ...attachments.value]
+  } catch (e: unknown) {
+    attachmentsError.value = e instanceof Error ? e.message : 'アップロードに失敗しました'
+  } finally {
+    attachmentUploading.value = false
+  }
+}
+async function deleteAttachment (attachmentId: number) {
+  if (props.taskId === null || attachmentDeletingId.value !== null) return
+  attachmentDeletingId.value = attachmentId
+  attachmentsError.value = null
+  try {
+    await api(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${props.taskId}/attachments/${attachmentId}`,
+      { method: 'DELETE' },
+    )
+    attachments.value = attachments.value.filter(item => item.id !== attachmentId)
+  } catch (e: unknown) {
+    attachmentsError.value = e instanceof Error ? e.message : '削除に失敗しました'
+  } finally {
+    attachmentDeletingId.value = null
+  }
 }
 function resolveStoredEffortValueForTask (detail: TaskDetail): number | null {
   return resolveStoredEffortValue({
@@ -1523,7 +1647,7 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
     && Boolean(merged.is_parent_task) === Boolean(current.is_parent_task)
     && JSON.stringify(merged.labels) === JSON.stringify(current.labels)
     && JSON.stringify(merged.assignees) === JSON.stringify(current.assignees)
-    && patch.checklist === undefined
+    && patch.checklists === undefined
   )
   if (unchanged) {
     return
@@ -1531,8 +1655,8 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
   const titleDirty = titleDraft.value.trim() !== (current.title ?? '').trim()
   const descDirty = descriptionDraft.value !== (current.description ?? '')
   task.value = merged
-  if (patch.checklist !== undefined) {
-    checklist.value = patch.checklist
+  if (patch.checklists !== undefined) {
+    checklists.value = patch.checklists
   }
   if (!titleDirty) {
     titleDraft.value = task.value.title
@@ -1571,10 +1695,12 @@ watch(
       resetInteractionState()
       applyLoadedTask(initial, props.initialParentTasks)
       void refreshTaskDetailSilently()
+      void loadAttachments()
       return
     }
     resetState()
     await loadTask()
+    void loadAttachments()
   },
   { immediate: true },
 )
@@ -1893,7 +2019,7 @@ watch(activePopover, (open) => {
 watch(
   () => task.value?.id,
   () => {
-    checklistAddFormOpen.value = false
+    checklistAddFormOpenId.value = null
   },
 )
 watch(labelSearchQuery, () => {
@@ -2083,13 +2209,6 @@ function openLabelPicker (event?: Event) {
 }
 function openChecklistPicker (event?: Event) {
   if (!task.value) return
-  if (checklist.value) {
-    checklistAddFormOpen.value = true
-    nextTick(() => {
-      checklistBlockRef.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    })
-    return
-  }
   if (activePopover.value === 'checklist-create') {
     closePopover()
     return
@@ -2100,52 +2219,83 @@ function openChecklistPicker (event?: Event) {
   popoverError.value = null
   updatePopoverPosition()
 }
+function createTempChecklistId (): number {
+  return -Date.now()
+}
+function checklistPayloadForApi (list: TaskChecklist[]): Array<{
+  id?: number
+  title: string
+  items: TaskChecklist['items']
+}> {
+  return list.map(({ id, title, items }) => (
+    id > 0
+      ? { id, title, items }
+      : { title, items }
+  ))
+}
 function submitChecklistCreate () {
   if (!task.value || checklistSaving.value) return
   const title = checklistTitleDraft.value.trim() || 'チェックリスト'
-  void saveChecklist({ title, items: [] })
-  checklistAddFormOpen.value = true
+  const tempId = createTempChecklistId()
+  const next = [...checklists.value, { id: tempId, title, items: [] }]
+  checklistAddFormOpenId.value = tempId
+  void saveChecklists(next)
   dismissPopover()
   nextTick(() => {
     checklistBlockRef.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   })
 }
-function updateCurrentChecklist (next: TaskChecklist) {
-  if (!task.value || checklistSaving.value) return
-  void saveChecklist(next)
+function setChecklistAddFormOpen (checklistId: number, open: boolean) {
+  checklistAddFormOpenId.value = open ? checklistId : (
+    checklistAddFormOpenId.value === checklistId ? null : checklistAddFormOpenId.value
+  )
 }
-function deleteCurrentChecklist () {
+function updateChecklist (checklistId: number, nextChecklist: TaskChecklist) {
   if (!task.value || checklistSaving.value) return
-  void saveChecklist(null)
-  checklistAddFormOpen.value = false
+  void saveChecklists(checklists.value.map(item => (
+    item.id === checklistId ? { ...nextChecklist, id: checklistId } : item
+  )))
 }
-async function saveChecklist (next: TaskChecklist | null) {
+function deleteChecklist (checklistId: number) {
+  if (!task.value || checklistSaving.value) return
+  if (checklistAddFormOpenId.value === checklistId) {
+    checklistAddFormOpenId.value = null
+  }
+  void saveChecklists(checklists.value.filter(item => item.id !== checklistId))
+}
+async function saveChecklists (next: TaskChecklist[]) {
   if (!task.value) return
-  checklist.value = next
+  checklists.value = next
   clearChecklistSaveTimer()
   checklistSaveTimer = setTimeout(() => {
     checklistSaveTimer = null
-    void persistChecklist(checklist.value)
+    void persistChecklists(checklists.value)
   }, 300)
 }
-async function persistChecklist (next: TaskChecklist | null) {
+async function persistChecklists (next: TaskChecklist[]) {
   if (!task.value) return
-  const rollback = lastPersistedChecklist
+  const rollback = lastPersistedChecklists
+  const openTempId = checklistAddFormOpenId.value
   const seq = ++checklistSaveSeq
   checklistSaving.value = true
   saveError.value = null
   try {
     const updated = await api<TaskDetail>(
       `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
-      { method: 'PATCH', body: { checklist: next } },
+      { method: 'PATCH', body: { checklists: checklistPayloadForApi(next) } },
     )
     if (seq !== checklistSaveSeq || !task.value) return
-    checklist.value = updated.checklist ?? null
-    lastPersistedChecklist = checklist.value
-    emit('updated', { ...task.value, checklist: checklist.value })
+    checklists.value = updated.checklists ?? []
+    lastPersistedChecklists = checklists.value
+    if (openTempId != null && openTempId < 0) {
+      const openIndex = next.findIndex(item => item.id === openTempId)
+      const persisted = checklists.value[openIndex]
+      checklistAddFormOpenId.value = persisted?.id ?? null
+    }
+    emit('updated', { ...task.value, checklists: checklists.value })
   } catch (e: unknown) {
     if (seq !== checklistSaveSeq) return
-    checklist.value = rollback
+    checklists.value = rollback
     saveError.value = e instanceof Error ? e.message : 'チェックリストの保存に失敗しました'
   } finally {
     if (seq === checklistSaveSeq) {

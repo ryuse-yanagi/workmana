@@ -13,6 +13,51 @@
       </div>
 
       <div class="global-header__right">
+        <div class="notifications" data-notifications-root>
+          <button
+            type="button"
+            class="nav-btn nav-btn--icon notifications-trigger"
+            aria-label="通知"
+            title="通知"
+            :aria-expanded="notificationsOpen"
+            @click.stop="toggleNotifications"
+          >
+            <Bell :size="24" :stroke-width="2.25" aria-hidden="true" />
+            <span v-if="unreadCount > 0" class="notifications-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          </button>
+          <div v-if="notificationsOpen" class="dropdown notifications-dropdown" role="menu">
+            <div class="notifications-dropdown__header">
+              <span>通知</span>
+              <button
+                type="button"
+                class="notifications-dropdown__read-all"
+                :disabled="!unreadCount || notificationsLoading"
+                @click="markAllNotificationsRead"
+              >
+                すべて既読
+              </button>
+            </div>
+            <p v-if="notificationsLoading && !notifications.length" class="notifications-dropdown__state">
+              読み込み中…
+            </p>
+            <p v-else-if="!notifications.length" class="notifications-dropdown__state">
+              通知はありません。
+            </p>
+            <ul v-else class="notifications-list">
+              <li v-for="item in notifications" :key="item.id">
+                <button
+                  type="button"
+                  class="notifications-item"
+                  :class="{ 'notifications-item--unread': !item.read_at }"
+                  @click="onNotificationClick(item)"
+                >
+                  <span class="notifications-item__text">{{ notificationLabel(item) }}</span>
+                  <time class="notifications-item__time">{{ formatNotificationTime(item.created_at) }}</time>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
         <button
           type="button"
           class="nav-btn nav-btn--icon"
@@ -34,6 +79,19 @@
           </button>
 
           <div v-if="menuOpen" class="dropdown" role="menu">
+            <div v-if="organizations.length" class="dropdown-section">
+              <p class="dropdown-section__label">組織を切替</p>
+              <button
+                v-for="org in organizations"
+                :key="org.id"
+                type="button"
+                class="dropdown-item"
+                :class="{ 'dropdown-item--active': org.slug === orgSlug }"
+                @click="switchToOrganization(org)"
+              >
+                {{ org.name }}
+              </button>
+            </div>
             <button type="button" class="dropdown-item" :disabled="!orgSlug" @click="goProfileFromMenu">
               プロフィール設定
             </button>
@@ -50,32 +108,48 @@
 </template>
 
 <script setup lang="ts">
-import { FolderOpen, NotebookText, Settings } from 'lucide-vue-next'
+import { Bell, FolderOpen, NotebookText, Settings } from 'lucide-vue-next'
 import ProfileSettingsModal from '../modals/ProfileSettingsModal.vue'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
-import { useApi } from '../../composables/useApi'
 import { useAuth } from '../../composables/useAuth'
+import { useApi } from '../../composables/useApi'
+import { useOrganizationContext, type OrganizationSummary } from '../../composables/useOrganizationContext'
 import { useOrgPageCacheWarmup } from '../../composables/useOrgPageCacheWarmup'
 import { clearSessionScopedCaches } from '../../composables/useSessionScopedCaches'
 
-type MeResponse = {
-  name?: string | null
-  email?: string | null
-  avatar_url?: string | null
-  organizations?: Array<{ slug: string; role?: string }>
+type AppNotification = {
+  id: number
+  type: string
+  data: {
+    task_id?: number
+    workspace_id?: number
+    organization_slug?: string
+    title?: string
+  } | null
+  read_at: string | null
+  created_at: string
 }
 
 const route = useRoute()
 const router = useRouter()
+const { fetchSession, logout: endSession } = useAuth()
 const { api } = useApi()
-const { getToken, clearToken, buildLogoutUrl } = useAuth()
+const { switchOrganization, orgTopPath } = useOrganizationContext()
 const { warmOrgPageCaches } = useOrgPageCacheWarmup()
 
 const orgSlug = ref<string | null>(slugFromRoute())
+const organizations = ref<OrganizationSummary[]>([])
 const avatarUrl = ref<string | null>(null)
 const displayName = ref('')
 const menuOpen = ref(false)
 const profileModalOpen = ref(false)
+const notificationsOpen = ref(false)
+const notifications = ref<AppNotification[]>([])
+const notificationsLoading = ref(false)
+let notificationsPollTimer: ReturnType<typeof setInterval> | null = null
+const switchingOrg = ref(false)
+
+const unreadCount = computed(() => notifications.value.filter(item => !item.read_at).length)
 
 const initials = computed(() => {
   const source = (displayName.value || '').trim() || (route.path || '')
@@ -102,37 +176,44 @@ async function refreshMeContext () {
   if (!import.meta.client) {
     return
   }
-  if (!getToken()) {
-    orgSlug.value = slugFromRoute()
-    avatarUrl.value = null
-    displayName.value = ''
-    return
-  }
-
   const routeSlug = slugFromRoute()
   if (routeSlug) {
     orgSlug.value = routeSlug
   }
 
-  try {
-    const me = await api<MeResponse>('/me')
-    displayName.value = (me.name || me.email || '').trim()
-    avatarUrl.value = me.avatar_url || null
-    if (!routeSlug) {
-      const first = me.organizations?.[0]?.slug
-      orgSlug.value = first && first.trim() ? first : null
-    }
+  // 未ログインでも 200 が返るセッション API で判定する
+  const me = (await fetchSession()).user
 
-    const activeSlug = orgSlug.value
-    if (activeSlug) {
-      void warmOrgPageCaches(activeSlug)
-    }
-  } catch {
+  if (!me) {
     if (!routeSlug) {
       orgSlug.value = null
     }
+    organizations.value = []
     avatarUrl.value = null
     displayName.value = ''
+    return
+  }
+
+  displayName.value = (me.name || me.email || '').trim()
+  avatarUrl.value = me.avatar_url || null
+  organizations.value = (me.organizations ?? []).map(org => ({
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    role: org.role,
+  }))
+  if (!routeSlug) {
+    const lastId = me.last_organization_id
+    const last = lastId != null
+      ? organizations.value.find(org => org.id === lastId)
+      : null
+    const first = last ?? organizations.value[0]
+    orgSlug.value = first?.slug?.trim() ? first.slug : null
+  }
+
+  const activeSlug = orgSlug.value
+  if (activeSlug) {
+    void warmOrgPageCaches(activeSlug)
   }
 }
 
@@ -140,11 +221,99 @@ function closeMenu () {
   menuOpen.value = false
 }
 
+function closeNotifications () {
+  notificationsOpen.value = false
+}
+
+function toggleNotifications () {
+  notificationsOpen.value = !notificationsOpen.value
+  if (notificationsOpen.value) {
+    closeMenu()
+    void loadNotifications()
+  }
+}
+
+function notificationLabel (item: AppNotification): string {
+  const title = item.data?.title?.trim() || 'タスク'
+  if (item.type === 'task.assigned') {
+    return `「${title}」に担当者として追加されました`
+  }
+  if (item.type === 'task.mentioned') {
+    return `「${title}」でメンションされました`
+  }
+  if (item.type === 'task.commented') {
+    return `「${title}」にコメントがありました`
+  }
+  return title
+}
+
+function formatNotificationTime (iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString('ja-JP', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+async function loadNotifications () {
+  notificationsLoading.value = true
+  try {
+    const res = await api<{ data: AppNotification[] }>('/notifications')
+    notifications.value = res.data ?? []
+  } catch {
+    notifications.value = []
+  } finally {
+    notificationsLoading.value = false
+  }
+}
+
+async function markNotificationRead (item: AppNotification) {
+  if (item.read_at) return
+  try {
+    const updated = await api<AppNotification>(`/notifications/${item.id}/read`, {
+      method: 'PATCH',
+    })
+    notifications.value = notifications.value.map(row => (
+      row.id === item.id ? { ...row, ...updated } : row
+    ))
+  } catch {
+    // ignore
+  }
+}
+
+async function markAllNotificationsRead () {
+  if (!unreadCount.value) return
+  try {
+    await api('/notifications/read-all', { method: 'POST' })
+    const now = new Date().toISOString()
+    notifications.value = notifications.value.map(item => ({
+      ...item,
+      read_at: item.read_at ?? now,
+    }))
+  } catch {
+    // ignore
+  }
+}
+
+async function onNotificationClick (item: AppNotification) {
+  await markNotificationRead(item)
+  closeNotifications()
+  const slug = item.data?.organization_slug || orgSlug.value
+  const workspaceId = item.data?.workspace_id
+  if (slug && workspaceId) {
+    await router.push(`/org/${slug}/workspaces/${workspaceId}`)
+  }
+}
+
 function toggleMenu () {
   menuOpen.value = !menuOpen.value
 }
 
 useDropdownEscapeClose(menuOpen, closeMenu)
+useDropdownEscapeClose(notificationsOpen, closeNotifications)
 
 async function goWorkspaceList () {
   if (!orgSlug.value) return
@@ -169,16 +338,30 @@ function goProfileFromMenu () {
   profileModalOpen.value = true
 }
 
-function logout () {
-  closeMenu()
-  clearSessionScopedCaches()
-  clearToken()
-  const url = buildLogoutUrl()
-  if (url && import.meta.client) {
-    window.location.href = url
+async function switchToOrganization (org: OrganizationSummary) {
+  if (switchingOrg.value) return
+  if (org.slug === orgSlug.value) {
+    closeMenu()
     return
   }
-  void router.push('/login')
+  switchingOrg.value = true
+  closeMenu()
+  try {
+    await switchOrganization({ id: org.id, slug: org.slug })
+    orgSlug.value = org.slug
+    await router.push(orgTopPath(org.slug))
+  } catch {
+    // 切替失敗時は現在の組織のまま
+  } finally {
+    switchingOrg.value = false
+  }
+}
+
+async function logout () {
+  closeMenu()
+  clearSessionScopedCaches()
+  // セッション Cookie の破棄はバックエンドが行う
+  await endSession()
 }
 
 function onUserProfileUpdated (e: Event) {
@@ -198,11 +381,18 @@ function onUserProfileUpdated (e: Event) {
 }
 
 function onDocClick (e: MouseEvent) {
-  if (!menuOpen.value) return
   const target = e.target as Node | null
-  const root = document.querySelector('[data-profile-root]')
-  if (root && target && !root.contains(target)) {
-    closeMenu()
+  if (menuOpen.value) {
+    const root = document.querySelector('[data-profile-root]')
+    if (root && target && !root.contains(target)) {
+      closeMenu()
+    }
+  }
+  if (notificationsOpen.value) {
+    const root = document.querySelector('[data-notifications-root]')
+    if (root && target && !root.contains(target)) {
+      closeNotifications()
+    }
   }
 }
 
@@ -218,6 +408,10 @@ onMounted(() => {
   if (import.meta.client) {
     document.addEventListener('click', onDocClick)
     window.addEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
+    void loadNotifications()
+    notificationsPollTimer = setInterval(() => {
+      void loadNotifications()
+    }, 60_000)
   }
 })
 
@@ -225,6 +419,10 @@ onBeforeUnmount(() => {
   if (import.meta.client) {
     document.removeEventListener('click', onDocClick)
     window.removeEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
+    if (notificationsPollTimer) {
+      clearInterval(notificationsPollTimer)
+      notificationsPollTimer = null
+    }
   }
 })
 </script>

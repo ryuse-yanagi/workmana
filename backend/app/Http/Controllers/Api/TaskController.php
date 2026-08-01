@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\TaskEffortUnit;
+use App\Enums\TaskHistoryEventType;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Events\TaskArchived;
@@ -10,17 +11,20 @@ use App\Events\TaskCreated;
 use App\Events\TaskDeleted;
 use App\Events\TaskRestored;
 use App\Events\TaskUpdated;
+use App\Events\WbsTasksReordered;
 use App\Models\BoardList;
 use App\Models\Organization;
-use App\Models\Workspace;
 use App\Models\Task;
 use App\Models\TaskChecklist;
 use App\Models\TaskChecklistItem;
 use App\Models\TaskHistory;
 use App\Models\TaskLabel;
 use App\Models\User;
-use App\Enums\TaskHistoryEventType;
+use App\Models\Workspace;
+use App\Services\NotificationService;
 use App\Support\FieldLengthLimits;
+use App\Support\ListQuery;
+use App\Support\PermanentDeleter;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,6 +34,10 @@ use Illuminate\Validation\Rule;
 
 class TaskController extends ApiController
 {
+    public function __construct(
+        private readonly NotificationService $notifications,
+    ) {}
+
     public function index(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
@@ -46,56 +54,80 @@ class TaskController extends ApiController
             });
         }
 
-        $tasks = $query
-            ->with([
-                'labels:id,name,color_index',
-                'assignees:id,name,email,avatar_path',
-                'checklist.items',
-            ])
+        $query->with([
+            'labels:id,name,color_index',
+            'assignees:id,name,email,avatar_path',
+            'checklists.items',
+        ])
             ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get([
-                'id',
-                'list_id',
-                'sort_order',
-                'is_parent_task',
-                'parent_task_id',
-                'title',
-                'description',
-                'status',
-                'priority',
-                'start_date',
-                'due_date',
-                'gantt_bar_color',
-                'effort_hours',
-                'effort_value',
-                'effort_unit',
-                'assignee_id',
-                'reporter_id',
-                'created_at',
-            ]);
+            ->orderBy('id');
+
+        $columns = [
+            'id',
+            'list_id',
+            'sort_order',
+            'is_parent_task',
+            'parent_task_id',
+            'title',
+            'description',
+            'status',
+            'priority',
+            'start_date',
+            'due_date',
+            'gantt_bar_color',
+            'effort_hours',
+            'effort_value',
+            'effort_unit',
+            'assignee_id',
+            'reporter_id',
+            'created_at',
+        ];
+
+        if ($request->has('page') || $request->has('per_page')) {
+            $result = ListQuery::paginate(
+                $query,
+                $request,
+                fn (Task $task) => $this->taskListPayload($task),
+                ['tasks.title'],
+            );
+
+            return response()->json($result);
+        }
+
+        $q = trim((string) $request->query('q', ''));
+        if ($q !== '') {
+            ListQuery::applySearch($query, $q, ['tasks.title']);
+        }
+
+        $tasks = $query->get($columns);
 
         return response()->json([
             'data' => $tasks->map(fn (Task $task) => $this->taskListPayload($task)),
         ]);
     }
 
-    public function tableIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    public function wbsIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->ensureWorkspaceMember($request->user(), $workspace);
 
-        $tasks = $workspace->tasks()
+        $query = $workspace->tasks()
             ->notArchived()
             ->with([
                 'labels:id,name,color_index',
                 'assignees:id,name,email,avatar_path',
                 'list:id,name,workspace_id',
-                'checklist.items',
+                'checklists.items',
             ])
             ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get([
+            ->orderBy('id');
+
+        $q = trim((string) $request->query('q', ''));
+        if ($q !== '') {
+            ListQuery::applySearch($query, $q, ['tasks.title']);
+        }
+
+        $tasks = $query->get([
                 'id',
                 'list_id',
                 'sort_order',
@@ -117,14 +149,14 @@ class TaskController extends ApiController
             ]);
 
         return response()->json([
-            'data' => $tasks->map(fn (Task $task) => $this->taskTablePayload($task)),
+            'data' => $tasks->map(fn (Task $task) => $this->taskWbsPayload($task)),
         ]);
     }
 
-    public function tableReorder(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    public function wbsReorder(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
@@ -202,6 +234,8 @@ class TaskController extends ApiController
             }
         });
 
+        SafeBroadcast::toOthers(new WbsTasksReordered((int) $workspace->id, $items));
+
         return response()->json(['data' => ['ok' => true]]);
     }
 
@@ -272,7 +306,7 @@ class TaskController extends ApiController
     public function store(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
@@ -317,38 +351,58 @@ class TaskController extends ApiController
             ->max('sort_order');
         $sortOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
 
-        $task = Task::query()->create([
-            'organization_id' => $organization->id,
-            'workspace_id' => $workspace->id,
-            'list_id' => $validated['list_id'],
-            'sort_order' => $sortOrder,
-            'is_parent_task' => $isParentTask,
-            'parent_task_id' => $parentTaskId,
-            'title' => $title,
-            'description' => $validated['description'] ?? null,
-            'status' => $validated['status'] ?? TaskStatus::Todo->value,
-            'priority' => $validated['priority'] ?? TaskPriority::Medium->value,
-            'start_date' => $validated['start_date'] ?? null,
-            'due_date' => $validated['due_date'] ?? null,
-            'assignee_id' => $assigneeIds[0] ?? null,
-            'reporter_id' => $user->id,
-        ]);
-
-        $this->applyEffortFields($task, $validated);
-
-        if ($assigneeIds !== []) {
-            $task->assignees()->sync($assigneeIds);
-        }
-
         $labelIds = $this->validateTaskLabelIds(
             $organization,
             $validated['label_ids'] ?? [],
         );
-        if ($labelIds !== []) {
-            $task->labels()->sync($labelIds);
-        }
 
-        $task->save();
+        $newAssigneeIds = [];
+        $task = DB::transaction(function () use (
+            $organization,
+            $workspace,
+            $validated,
+            $sortOrder,
+            $isParentTask,
+            $parentTaskId,
+            $title,
+            $assigneeIds,
+            $user,
+            $labelIds,
+            &$newAssigneeIds,
+        ) {
+            $task = Task::query()->create([
+                'organization_id' => $organization->id,
+                'workspace_id' => $workspace->id,
+                'list_id' => $validated['list_id'],
+                'sort_order' => $sortOrder,
+                'is_parent_task' => $isParentTask,
+                'parent_task_id' => $parentTaskId,
+                'title' => $title,
+                'description' => $validated['description'] ?? null,
+                'status' => $validated['status'] ?? TaskStatus::Todo->value,
+                'priority' => $validated['priority'] ?? TaskPriority::Medium->value,
+                'start_date' => $validated['start_date'] ?? null,
+                'due_date' => $validated['due_date'] ?? null,
+                'assignee_id' => $assigneeIds[0] ?? null,
+                'reporter_id' => $user->id,
+            ]);
+
+            $this->applyEffortFields($task, $validated);
+
+            if ($assigneeIds !== []) {
+                $newAssigneeIds = $this->syncAssigneesWithHistory($task, $assigneeIds);
+            }
+
+            if ($labelIds !== []) {
+                $task->labels()->sync($labelIds);
+            }
+
+            $task->save();
+
+            return $task;
+        });
+
+        $this->notifyNewAssignees($task, $newAssigneeIds);
 
         SafeBroadcast::toOthers(new TaskCreated($task->fresh()));
 
@@ -370,7 +424,7 @@ class TaskController extends ApiController
     public function update(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -404,12 +458,13 @@ class TaskController extends ApiController
             'label_ids.*' => ['integer', 'distinct'],
             'is_parent_task' => ['sometimes', 'boolean'],
             'parent_task_id' => ['sometimes', 'nullable', 'integer'],
-            'checklist' => ['sometimes', 'nullable', 'array'],
-            'checklist.title' => ['required_with:checklist', 'string', 'max:'.FieldLengthLimits::CHECKLIST_TITLE],
-            'checklist.items' => ['sometimes', 'array'],
-            'checklist.items.*.id' => ['required', 'uuid'],
-            'checklist.items.*.text' => ['required', 'string', 'max:2000'],
-            'checklist.items.*.checked' => ['required', 'boolean'],
+            'checklists' => ['sometimes', 'array'],
+            'checklists.*.id' => ['sometimes', 'integer', 'distinct'],
+            'checklists.*.title' => ['required', 'string', 'max:'.FieldLengthLimits::CHECKLIST_TITLE],
+            'checklists.*.items' => ['sometimes', 'array'],
+            'checklists.*.items.*.id' => ['required', 'uuid'],
+            'checklists.*.items.*.text' => ['required', 'string', 'max:'.FieldLengthLimits::CHECKLIST_ITEM_TEXT],
+            'checklists.*.items.*.checked' => ['required', 'boolean'],
         ]);
 
         if (array_key_exists('title', $validated)) {
@@ -459,20 +514,34 @@ class TaskController extends ApiController
             $task->parent_task_id = $parentTaskId;
         }
 
-        $task->save();
+        $labelIds = array_key_exists('label_ids', $validated)
+            ? $this->validateTaskLabelIds($organization, $validated['label_ids'] ?? [])
+            : null;
 
-        if ($assigneeIdsToSync !== null) {
-            $this->syncAssigneesWithHistory($task, $assigneeIdsToSync);
-        }
+        $newAssigneeIds = [];
+        DB::transaction(function () use (
+            $task,
+            $assigneeIdsToSync,
+            $labelIds,
+            $validated,
+            &$newAssigneeIds,
+        ) {
+            $task->save();
 
-        if (array_key_exists('label_ids', $validated)) {
-            $labelIds = $this->validateTaskLabelIds($organization, $validated['label_ids'] ?? []);
-            $task->labels()->sync($labelIds);
-        }
+            if ($assigneeIdsToSync !== null) {
+                $newAssigneeIds = $this->syncAssigneesWithHistory($task, $assigneeIdsToSync);
+            }
 
-        if (array_key_exists('checklist', $validated)) {
-            $this->syncTaskChecklist($task, $validated['checklist']);
-        }
+            if ($labelIds !== null) {
+                $task->labels()->sync($labelIds);
+            }
+
+            if (array_key_exists('checklists', $validated)) {
+                $this->syncTaskChecklists($task, $validated['checklists']);
+            }
+        });
+
+        $this->notifyNewAssignees($task, $newAssigneeIds);
 
         $fresh = $task->fresh();
         SafeBroadcast::toOthers(new TaskUpdated($fresh));
@@ -483,7 +552,7 @@ class TaskController extends ApiController
     public function archive(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -518,7 +587,7 @@ class TaskController extends ApiController
     public function unarchive(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanRestoreOrPermanentlyDelete($request);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -545,7 +614,7 @@ class TaskController extends ApiController
     public function destroy(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanRestoreOrPermanentlyDelete($request);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -558,7 +627,7 @@ class TaskController extends ApiController
 
         $taskId = (int) $task->id;
         $workspaceId = (int) $task->workspace_id;
-        $task->forceDelete();
+        PermanentDeleter::deleteTask($task);
 
         SafeBroadcast::toOthers(new TaskDeleted($workspaceId, $taskId));
 
@@ -573,7 +642,7 @@ class TaskController extends ApiController
         $task->loadMissing([
             'labels:id,name,color_index',
             'assignees:id,name,email,avatar_path',
-            'checklist.items',
+            'checklists.items',
             'parentTask:id,title,workspace_id',
         ]);
 
@@ -602,7 +671,7 @@ class TaskController extends ApiController
             'reporter_id' => $task->reporter_id,
             'archived_at' => $task->archived_at,
             'labels' => $task->labels,
-            'checklist' => $this->formatChecklist($task->checklist),
+            'checklists' => $this->formatChecklists($task->checklists),
             'created_at' => $task->created_at,
             'updated_at' => $task->updated_at,
         ];
@@ -635,14 +704,14 @@ class TaskController extends ApiController
             'archived_at' => $task->archived_at,
             'created_at' => $task->created_at,
             'labels' => $task->labels,
-            'checklist' => $this->formatChecklist($task->checklist),
+            'checklists' => $this->formatChecklists($task->checklists),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function taskTablePayload(Task $task): array
+    private function taskWbsPayload(Task $task): array
     {
         $payload = $this->taskListPayload($task);
         $payload['description'] = $task->description;
@@ -654,7 +723,7 @@ class TaskController extends ApiController
     }
 
     /**
-     * @param array<string, mixed> $validated
+     * @param  array<string, mixed>  $validated
      * @return array{0: bool, 1: int|null}
      */
     private function resolveParentTaskFields(Workspace $workspace, array $validated, ?Task $task = null): array
@@ -699,7 +768,7 @@ class TaskController extends ApiController
     }
 
     /**
-     * @param Collection<int, User> $assignees
+     * @param  Collection<int, User>  $assignees
      * @return array<int, array<string, mixed>>
      */
     private function formatAssignees(Collection $assignees): array
@@ -713,7 +782,7 @@ class TaskController extends ApiController
     }
 
     /**
-     * @param array<string, mixed> $validated
+     * @param  array<string, mixed>  $validated
      * @return array<int, int>
      */
     private function resolveAssigneeIds(Workspace $workspace, array $validated): array
@@ -734,7 +803,7 @@ class TaskController extends ApiController
     }
 
     /**
-     * @param array<int, mixed> $assigneeIds
+     * @param  array<int, mixed>  $assigneeIds
      * @return array<int, int>
      */
     private function validateAssigneeIds(Workspace $workspace, array $assigneeIds): array
@@ -746,8 +815,8 @@ class TaskController extends ApiController
 
         foreach ($ids as $id) {
             $assignee = User::query()->find($id);
-            if ($assignee === null || ! $assignee->isMemberOfWorkspace($workspace)) {
-                abort(422, 'Assignees must be workspace members.');
+            if ($assignee === null || ! $assignee->canAccessWorkspace($workspace)) {
+                abort(422, 'Assignees must have access to this workspace.');
             }
         }
 
@@ -755,9 +824,10 @@ class TaskController extends ApiController
     }
 
     /**
-     * @param array<int, int> $assigneeIds
+     * @param  array<int, int>  $assigneeIds
+     * @return array<int, int> Newly added assignee user IDs
      */
-    private function syncAssigneesWithHistory(Task $task, array $assigneeIds): void
+    private function syncAssigneesWithHistory(Task $task, array $assigneeIds): array
     {
         $before = $task->assignees()->pluck('users.id')->sort()->values()->all();
         $task->assignees()->sync($assigneeIds);
@@ -765,7 +835,7 @@ class TaskController extends ApiController
         sort($after);
 
         if ($before === $after) {
-            return;
+            return [];
         }
 
         TaskHistory::query()->create([
@@ -779,6 +849,30 @@ class TaskController extends ApiController
             'after_value' => $after === [] ? null : json_encode($after),
             'created_at' => now(),
         ]);
+
+        return array_values(array_diff($after, $before));
+    }
+
+    /**
+     * @param  array<int, int>  $newAssigneeIds
+     */
+    private function notifyNewAssignees(Task $task, array $newAssigneeIds): void
+    {
+        if ($newAssigneeIds === []) {
+            return;
+        }
+
+        $task->loadMissing('organization:id,slug');
+        $this->notifications->notifyMany(
+            $newAssigneeIds,
+            'task.assigned',
+            [
+                'task_id' => $task->id,
+                'workspace_id' => $task->workspace_id,
+                'organization_slug' => $task->organization?->slug,
+                'title' => $task->title,
+            ],
+        );
     }
 
     /**
@@ -788,6 +882,7 @@ class TaskController extends ApiController
     {
         if (is_string($raw)) {
             $parts = array_filter(array_map('trim', explode(',', $raw)), fn ($v) => $v !== '');
+
             return array_values(array_unique(array_map('intval', $parts)));
         }
         if (is_array($raw)) {
@@ -798,7 +893,7 @@ class TaskController extends ApiController
     }
 
     /**
-     * @param array<int, mixed> $labelIds
+     * @param  array<int, mixed>  $labelIds
      * @return array<int, int>
      */
     private function validateTaskLabelIds(Organization $organization, array $labelIds): array
@@ -820,7 +915,7 @@ class TaskController extends ApiController
     }
 
     /**
-     * @param array<string, mixed> $validated
+     * @param  array<string, mixed>  $validated
      */
     private function applyEffortFields(Task $task, array $validated): void
     {
@@ -916,68 +1011,94 @@ class TaskController extends ApiController
     }
 
     /**
-     * @return array{title: string, items: list<array{id: string, text: string, checked: bool}>}|null
+     * @param  \Illuminate\Support\Collection<int, TaskChecklist>|iterable<int, TaskChecklist>|null  $checklists
+     * @return list<array{id: int, title: string, items: list<array{id: string, text: string, checked: bool}>}>
      */
-    private function formatChecklist(?TaskChecklist $checklist): ?array
+    private function formatChecklists(mixed $checklists): array
     {
-        if ($checklist === null) {
-            return null;
+        if ($checklists === null) {
+            return [];
         }
 
-        return [
+        return collect($checklists)->map(fn (TaskChecklist $checklist) => [
+            'id' => (int) $checklist->id,
             'title' => $checklist->title,
             'items' => $checklist->items->map(fn (TaskChecklistItem $item) => [
                 'id' => $item->id,
                 'text' => $item->text,
                 'checked' => (bool) $item->checked,
             ])->values()->all(),
-        ];
+        ])->values()->all();
     }
 
     /**
-     * @param array<string, mixed>|null $checklistData
+     * @param  list<array<string, mixed>>  $checklistsData
      */
-    private function syncTaskChecklist(Task $task, ?array $checklistData): void
+    private function syncTaskChecklists(Task $task, array $checklistsData): void
     {
-        if ($checklistData === null) {
-            TaskChecklist::query()->where('task_id', $task->id)->delete();
+        DB::transaction(function () use ($task, $checklistsData) {
+            $keptIds = [];
 
-            return;
-        }
+            foreach ($checklistsData as $index => $checklistData) {
+                $title = trim((string) ($checklistData['title'] ?? ''));
+                if ($title === '') {
+                    $title = 'チェックリスト';
+                }
 
-        $title = trim((string) ($checklistData['title'] ?? ''));
-        if ($title === '') {
-            $title = 'チェックリスト';
-        }
+                $checklist = null;
+                $incomingId = $checklistData['id'] ?? null;
+                if (is_numeric($incomingId) && (int) $incomingId > 0) {
+                    $checklist = TaskChecklist::query()
+                        ->where('task_id', $task->id)
+                        ->where('id', (int) $incomingId)
+                        ->first();
+                }
 
-        $checklist = TaskChecklist::query()->firstOrNew(['task_id' => $task->id]);
-        $checklist->organization_id = $task->organization_id;
-        $checklist->workspace_id = $task->workspace_id;
-        $checklist->title = $title;
-        $checklist->save();
+                if ($checklist === null) {
+                    $checklist = new TaskChecklist([
+                        'task_id' => $task->id,
+                        'organization_id' => $task->organization_id,
+                        'workspace_id' => $task->workspace_id,
+                    ]);
+                }
 
-        $items = $checklistData['items'] ?? [];
-        $incomingIds = collect($items)->pluck('id')->filter()->values()->all();
+                $checklist->organization_id = $task->organization_id;
+                $checklist->workspace_id = $task->workspace_id;
+                $checklist->title = $title;
+                $checklist->sort_order = $index;
+                $checklist->save();
+                $keptIds[] = $checklist->id;
 
-        $checklist->items()->whereNotIn('id', $incomingIds)->delete();
+                $items = $checklistData['items'] ?? [];
+                $incomingIds = collect($items)->pluck('id')->filter()->values()->all();
 
-        foreach ($items as $index => $item) {
-            $text = trim((string) ($item['text'] ?? ''));
-            if ($text === '') {
-                continue;
+                $checklist->items()->whereNotIn('id', $incomingIds)->delete();
+
+                foreach ($items as $itemIndex => $item) {
+                    $text = trim((string) ($item['text'] ?? ''));
+                    if ($text === '') {
+                        continue;
+                    }
+
+                    TaskChecklistItem::query()->updateOrCreate(
+                        [
+                            'id' => $item['id'],
+                            'task_checklist_id' => $checklist->id,
+                        ],
+                        [
+                            'text' => $text,
+                            'checked' => (bool) ($item['checked'] ?? false),
+                            'sort_order' => $itemIndex,
+                        ]
+                    );
+                }
             }
 
-            TaskChecklistItem::query()->updateOrCreate(
-                [
-                    'id' => $item['id'],
-                    'task_checklist_id' => $checklist->id,
-                ],
-                [
-                    'text' => $text,
-                    'checked' => (bool) ($item['checked'] ?? false),
-                    'sort_order' => $index,
-                ]
-            );
-        }
+            $query = TaskChecklist::query()->where('task_id', $task->id);
+            if ($keptIds !== []) {
+                $query->whereNotIn('id', $keptIds);
+            }
+            $query->delete();
+        });
     }
 }

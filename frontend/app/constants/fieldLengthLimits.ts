@@ -1,9 +1,19 @@
 export const USER_NAME_MAX_LENGTH = 20
+export const EMAIL_MAX_LENGTH = 255
+export const PASSWORD_MAX_LENGTH = 255
+export const ORGANIZATION_NAME_MAX_LENGTH = 255
+export const ORGANIZATION_SLUG_MAX_LENGTH = 100
 export const TASK_TITLE_MAX_LENGTH = 100
 export const LABEL_NAME_MAX_LENGTH = 30
+export const LABEL_CATEGORY_NAME_MAX_LENGTH = 40
+export const LIST_NAME_MAX_LENGTH = 40
 export const WORKSPACE_NAME_MAX_LENGTH = 30
 export const DOCUMENT_NAME_MAX_LENGTH = 30
 export const DOCUMENT_BODY_MAX_LENGTH = 50000
 export const CHECKLIST_TITLE_MAX_LENGTH = 30
+export const CHECKLIST_ITEM_TEXT_MAX_LENGTH = 2000
 export const COMMENT_BODY_MAX_LENGTH = 100
+/** タスク・スペース・資料の説明で共通 */
 export const TASK_DESCRIPTION_MAX_LENGTH = 5000
+/** 組織設定の既定リスト／ステータス／カテゴリ名 */
+export const DEFAULT_NAMED_ITEM_NAME_MAX_LENGTH = 255

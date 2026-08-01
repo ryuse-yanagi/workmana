@@ -3,6 +3,7 @@ export type SettingsTabKey =
   | 'workspace_statuses'
   | 'document_categories'
   | 'labels'
+  | 'members'
 
 export type SettingsLabelTabKey = 'workspace' | 'task' | 'document'
 

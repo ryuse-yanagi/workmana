@@ -2,14 +2,11 @@
   <main class="page">
     <h1>業務管理</h1>
     <p class="muted">
-      バックエンド API(Laravel)と連携します。本番導線は <NuxtLink to="/login">ログイン画面</NuxtLink> です。ローカルでは Cognito バイパス時、トークン欄にユーザー ID(数字)を入れてください。
+      バックエンド API(Laravel)と連携します。ログインは <NuxtLink to="/login">ログイン画面</NuxtLink> から行います。認証は HttpOnly Cookie で管理されるため、ブラウザにトークンを保存する必要はありません。
     </p>
     <section class="card">
       <p class="muted small">API ベース: <code>{{ apiBaseDisplay }}</code></p>
-      <label>API トークン(Bearer / Cognito ID トークン)</label>
-      <input v-model="tokenInput" type="text" placeholder="例: 1(バイパス時)" autocomplete="off" />
       <div class="actions">
-        <button type="button" @click="saveToken">保存</button>
         <button type="button" class="secondary" @click="testConnection">接続テスト(GET /me)</button>
       </div>
       <p v-if="statusMessage" class="status" :class="statusKind">{{ statusMessage }}</p>
@@ -55,7 +52,6 @@
 import { useApi } from '../composables/useApi'
 const config = useRuntimeConfig()
 const { api } = useApi()
-const tokenInput = ref('')
 const slug = ref('')
 const statusMessage = ref('')
 const statusKind = ref<'ok' | 'err'>('ok')
@@ -65,19 +61,9 @@ const avatarUploading = ref(false)
 const avatarMessage = ref('')
 const avatarStatusKind = ref<'ok' | 'err'>('ok')
 const apiBaseDisplay = computed(() => (config.public.apiBaseUrl as string) || '/api')
-if (import.meta.client) {
-  tokenInput.value = localStorage.getItem('id_token') ?? ''
-}
 function setStatus (msg: string, kind: 'ok' | 'err') {
   statusMessage.value = msg
   statusKind.value = kind
-}
-function saveToken () {
-  if (!import.meta.client) {
-    return
-  }
-  localStorage.setItem('id_token', tokenInput.value.trim())
-  setStatus('ローカルに保存しました。このあと「接続テスト」か組織ページで API を呼べます。', 'ok')
 }
 function setAvatarStatus (msg: string, kind: 'ok' | 'err') {
   avatarMessage.value = msg
@@ -96,7 +82,7 @@ async function testConnection () {
   if (!import.meta.client) {
     return
   }
-  setStatus('確認中…', 'ok')
+  setStatus('確認中...', 'ok')
   try {
     const me = await api<{ email?: string; avatar_url?: string | null }>('/me')
     avatarPreviewUrl.value = me.avatar_url || null

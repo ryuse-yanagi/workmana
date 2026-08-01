@@ -9,7 +9,12 @@
   >
     <div class="archived-tasks-modal__body">
       <p class="archived-tasks-modal__subtitle">
-        スペース #{{ workspaceId }} — アーカイブしたカードだけが表示されます。完全削除はこの画面からのみ行えます。
+        <template v-if="canManageArchive">
+          スペース #{{ workspaceId }} — アーカイブしたカードだけが表示されます。完全削除はこの画面からのみ行えます。
+        </template>
+        <template v-else>
+          閲覧のみ / 復元・完全削除は管理者のみ
+        </template>
       </p>
       <p v-if="error" class="archived-tasks-modal__err">{{ error }}</p>
       <div v-if="loading && !tasks" class="archived-tasks-modal__state">
@@ -21,7 +26,7 @@
       <ul v-else class="archived-tasks-modal__list">
         <li v-for="task in tasks" :key="task.id" class="archived-tasks-modal__item">
           <TaskBoardCard :task="task" />
-          <footer class="archived-tasks-modal__actions">
+          <footer v-if="canManageArchive" class="archived-tasks-modal__actions">
             <button
               type="button"
               class="archived-tasks-modal__action"
@@ -70,11 +75,14 @@ export type ArchivedTask = TaskBoardCardTask & {
   list_id: number | null
   archived_at?: string | null
 }
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean
   orgSlug: string
   workspaceId: string
-}>()
+  canManageArchive?: boolean
+}>(), {
+  canManageArchive: false,
+})
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   restored: [ArchivedTask]

@@ -147,12 +147,29 @@
   position: absolute;
   right: 0;
   top: calc(100% + 6.3px);
-  width: 196px;
+  width: 220px;
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
   padding: 4.9px;
+  max-height: min(420px, calc(100dvh - 80px));
+  overflow-y: auto;
+}
+
+.dropdown-section {
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dropdown-section__label {
+  margin: 0;
+  padding: 6px 9.1px 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.04em;
 }
 
 .dropdown-item {
@@ -167,6 +184,10 @@
   cursor: pointer;
 }
 
+.dropdown-item--active {
+  background: #f1f5f9;
+  color: mixin.$main;
+}
 
 .dropdown-item.danger {
   color: mixin.$danger;
@@ -174,4 +195,106 @@
 
 .dropdown-item:disabled {
   opacity: 0.45;
+}
+
+.notifications {
+  position: relative;
+}
+
+.notifications-trigger {
+  position: relative;
+}
+
+.notifications-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+
+.notifications-dropdown {
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(420px, calc(100dvh - 80px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.notifications-dropdown__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.notifications-dropdown__read-all {
+  border: none;
+  background: transparent;
+  color: mixin.$main;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.notifications-dropdown__read-all:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.notifications-dropdown__state {
+  margin: 0;
+  padding: 12px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.notifications-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+}
+
+.notifications-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+
+.notifications-item--unread {
+  background: #f8fafc;
+}
+
+.notifications-item__text {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.notifications-item__time {
+  font-size: 11px;
+  color: #64748b;
 }

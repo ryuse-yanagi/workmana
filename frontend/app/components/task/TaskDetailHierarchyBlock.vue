@@ -17,9 +17,6 @@
         :aria-current="isCurrentTask(parentTask.id) ? 'page' : undefined"
         @click="onSelect(parentTask.id)"
       >
-        <span class="task-hierarchy__row-icon" aria-hidden="true">
-          <ListTree :size="16" :stroke-width="2.25" />
-        </span>
         <span class="task-hierarchy__row-main">
           <span class="task-hierarchy__row-title">{{ parentTask.title }}</span>
           <span
@@ -81,7 +78,7 @@
   </section>
 </template>
 <script setup lang="ts">
-import { CalendarDays, ListTree, Network } from 'lucide-vue-next'
+import { CalendarDays, Network } from 'lucide-vue-next'
 import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,

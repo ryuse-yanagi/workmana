@@ -1,87 +1,120 @@
 # 業務管理アプリ（work-manager）
 
-組織単位でワークスペース・タスク・共有ドキュメントを管理する Web アプリケーションです。  
-フロントエンド（Nuxt / Vue）とバックエンド（Laravel API）を分離し、Amazon Cognito による認証と、Laravel Reverb によるリアルタイム同期に対応しています。
-
 ## 目次
 
 - [概要](#概要)
-- [主な機能](#主な機能)
-- [技術スタック](#技術スタック)
-- [リポジトリ構成](#リポジトリ構成)
-- [システム構成](#システム構成)
-- [前提環境](#前提環境)
-- [セットアップ（ローカル）](#セットアップローカル)
-- [環境変数](#環境変数)
-- [開発サーバーの起動](#開発サーバーの起動)
-- [認証](#認証)
-- [リアルタイム同期](#リアルタイム同期)
+- [特徴](#特徴)
+- [スクリーンショット](#スクリーンショット)
+- [機能](#機能)
+- [技術](#技術)
+- [技術詳細・設計](#技術詳細設計)
+- [構成](#構成)
+- [セットアップ](#セットアップ)
 - [ドメインモデルとロール](#ドメインモデルとロール)
 - [主な画面・API](#主な画面api)
 - [シードデータ](#シードデータ)
 - [テスト](#テスト)
 - [ドキュメント](#ドキュメント)
-- [UI メモ](#ui-メモ)
 
 ---
 
 ## 概要
 
-| 項目 | 内容 |
-|------|------|
-| フロントエンド | Nuxt 4 + Vue 3（TypeScript） |
-| バックエンド | Laravel 13（PHP 8.3+）REST API |
-| DB | PostgreSQL |
-| 認証 | Amazon Cognito JWT（ローカルはバイパス可） |
-| リアルタイム | Laravel Reverb + Redis + Laravel Echo |
-| アイコン | [Lucide Icons](https://lucide.dev/)（`lucide-vue-next`） |
+チームのタスク管理・資料共有を一元化する業務管理アプリです。
 
-マルチテナント（組織）前提で、組織配下にワークスペースを置き、カンバン／テーブル形式でタスクを運用します。共有ドキュメントやラベル体系も組織単位で管理できます。
+組織単位のマルチテナント構成を採用し、ユーザー・権限・スペースを管理できます。
+スペース内では、カンバン、WBS（ガント付き）、タスク管理を利用でき、資料やラベル管理にも対応しています。
+
+フロントエンドとバックエンドを分離した構成で、認証にはAmazon Cognito、リアルタイム同期にはLaravel Reverbを利用しています。
+
+UI／本READMEでは **スペース** と呼びます。設計ドキュメントの **project**、コード／APIの **workspace** はいずれもスペースに相当します。
 
 ---
 
-## 主な機能
+## 特徴
+
+- **組織単位のマルチテナント** — 組織・メンバー・招待・設定を組織ごとに分離
+- **カンバンと WBS** — ボード列の並び替えと、ガント付き WBS ビューを同一スペースで利用
+- **資料** — Markdown の編集／プレビュー、ラベル・カテゴリ、関連スペース／関連資料
+- **セッションベース認証** — Cognito 認可コード（PKCE）。JWT はブラウザに保存せず HttpOnly Cookie のみ
+- **ボード／WBS のリアルタイム同期** — Laravel Reverb でリスト／タスク操作を他クライアントへ反映
+- **添付の私有化** — タスク添付は `local` ディスク＋認証付き download（`/storage` 直リンク不可）
+
+---
+
+## スクリーンショット
+
+（準備中）
+
+---
+
+## 機能
 
 ### 組織・メンバー
 
-- 組織の作成・所属
-- 組織メンバー一覧
-- 組織設定（ラベルカテゴリ等の組織横断設定を含む）
+- アカウント作成（`/register`）と組織作成は分離。作成後は Cognito ログインが必要
+- 所属組織が無いユーザーは `/organizations/new` から組織を作成でき、作成者が管理者になる（API の `POST /organizations` は追加の組織作成も可）
+- ログイン後は `/post-login` で所属を解決。0 件なら組織作成、1 件以上なら `last_organization_id`（無ければ先頭）の組織トップへ遷移
+- プロフィールメニューから所属組織を切替（`PUT /me/current-organization` で `last_organization_id` を更新）
+- 組織メンバー一覧・ロール変更（`admin` / `member`）・メンバー削除
+- ユーザー招待（メール・トークン URL・新規登録／既存ユーザーの参加確認・取消）
+- 組織設定（既定ボードリスト／スペースステータス／資料カテゴリ、スペース／タスク／資料用ラベル）
 
 ### スペース
 
-- スペースの作成・更新・アーカイブ・削除
+- スペースの作成・更新・アーカイブ／復元・削除
+- アーカイブ済みスペース一覧
+- スペースステータス（組織の既定値を設定可能）
 - スペース間の関連付け
-- スペースと共有ドキュメントの関連付け
+- スペースと資料の関連付け
 - スペース用ラベル／ラベルカテゴリ
+- スペース担当者の設定
 
 ### タスク・リスト
 
 - リスト（ボード列）の CRUD・並び替え
 - タスクの CRUD・アーカイブ／復元
-- カンバン相当の並び替え、テーブルビュー・並べ替え
+- カンバン相当の並び替え
+- WBS ビュー（ガント・開始日・表示項目のカスタム・並べ替え）
 - 親子タスク
 - ステータス（`todo` / `in_progress` / `done`）・優先度（`low` / `medium` / `high`）
-- 担当者・期限・工数（時間単位）
+- 担当者・開始日・期限・工数（時間単位）
 - チェックリスト
 - タスクラベル
-- コメント・リアクション・変更履歴
+- コメント・リアクション・メンション通知（`@[表示名](user:ID)`）
+- 添付ファイル（認証付きアップロード／ダウンロード／削除。詳細は[ファイル保存](#ファイル保存)）
 
-### 共有ドキュメント
+### 資料
 
-- 組織内ドキュメントの作成・編集・削除
-- TipTap ベースのリッチテキスト／Markdown 連携
-- ドキュメントラベル・カテゴリ
-- 関連ワークスペース／関連ドキュメントの紐付け
+- 組織内資料の作成・編集・削除
+- アーカイブ／復元・アーカイブ済み一覧
+- Markdown の編集（textarea）とプレビュー（`marked` ＋ HTML サニタイズ）
+- 資料ラベル・カテゴリ
+- 関連スペース／関連資料の紐付け
 
 ### その他
 
 - プロフィール・アバター
-- ボード上の他メンバー操作のリアルタイム反映（Reverb）
+- アプリ内通知（ヘッダー一覧・既読／一括既読）
+- ボード／WBS 上のリスト／タスク操作のリアルタイム反映（Reverb。コメント・資料等は対象外）
 
 ---
 
-## 技術スタック
+## 技術
+
+| 分類 | 技術 |
+|------|------|
+| Frontend | Nuxt 4 / Vue 3 / TypeScript |
+| Backend | Laravel 13 / PHP 8.3 |
+| Database | PostgreSQL |
+| Authentication | Amazon Cognito |
+| Realtime | Laravel Reverb / Laravel Echo |
+
+---
+
+## 技術詳細・設計
+
+主要な技術選定と実装方針です。補助ライブラリ（`marked` / `lucide-vue-next` / `vuedraggable` / `pusher-js` など）は各サブセクションに記載します。
 
 ### フロントエンド（`frontend/`）
 
@@ -90,7 +123,7 @@
 | フレームワーク | Nuxt `^4` / Vue `^3` |
 | 言語 | TypeScript |
 | スタイル | SCSS（共通 mixin あり） |
-| エディタ | TipTap |
+| Markdown | `marked`（プレビュー用） |
 | DnD | vuedraggable |
 | リアルタイム | laravel-echo + pusher-js |
 | アイコン | lucide-vue-next |
@@ -105,23 +138,150 @@
 | フレームワーク | Laravel `^13` |
 | 言語 | PHP `^8.3` |
 | DB | PostgreSQL（`DB_CONNECTION=pgsql`） |
-| 認証 | Cognito JWT（`firebase/php-jwt`） |
+| 認証 | Cognito ID トークン検証（`firebase/php-jwt`） |
 | WebSocket | Laravel Reverb |
-| Redis | predis（ブロードキャスト Pub/Sub 等） |
-| キュー（ローカル既定） | `database`（本番では SQS 切替を想定） |
+| キュー（ローカル既定） | `database` |
+
+`predis` は依存関係に含まれます。既定の Reverb（`REVERB_SCALING_ENABLED=false`）では Redis は不要です。
+
+### 認証
+
+API ルートは `cognito` ミドルウェア配下です（[`backend/routes/api.php`](backend/routes/api.php)）。
+
+**JWT はブラウザに保存しません。** 認可コードフロー（PKCE）をバックエンドで完結させ、
+トークンはサーバー側セッションにのみ保持し、ブラウザへ渡すのは HttpOnly のセッション Cookie だけです。
+
+#### 本番・ステージング
+
+1. フロントが `GET /api/auth/login?next=...` へ遷移し、バックエンドが `state` と PKCE verifier をセッションに保存して Cognito Hosted UI へリダイレクト
+2. Cognito が `GET /api/auth/callback` へコールバック。バックエンドが `state` を検証し、認可コードをトークンへ交換
+3. IDトークンの署名・`iss`・`aud`・`token_use=id`・有効期限をJWKSで検証してユーザーを同期し、セッションIDを再生成してCookieを発行
+4. 以降の API はセッション Cookie で認証。更新系リクエストは `X-XSRF-TOKEN` ヘッダーによる CSRF 検証を通す
+5. トークン更新時も新しいIDトークンを同様に再検証し、失敗時はセッションを破棄
+6. ログアウト時はCognitoの`/oauth2/revoke`でRefresh Tokenを失効させてからローカルセッションを破棄
+7. ユーザー情報は `GET /api/auth/session` / `GET /api/me` から取得（フロントで JWT をデコードしない）
+
+ユーザー同期（`CognitoJwtService::syncUserFromClaims`）:
+
+- ID トークンの `email_verified` が真でない場合は同期を拒否する
+- メール一致で既存ユーザーを探すが、**別の `cognito_sub` が既に紐付いている場合は上書きしない**
+- ログイン後の `next` / リダイレクト先は同一オリジンの相対パスのみ許可（`//evil` 等を拒否）
+
+`COGNITO_REDIRECT_URI` は **ブラウザから見た URL**（フロントのオリジン配下の `/api/auth/callback`）を指定し、
+同じ値を Cognito アプリクライアントの「許可されているコールバック URL」にも登録してください。
+
+| エンドポイント | 用途 |
+|----------------|------|
+| `GET /api/auth/login` | Hosted UI へのリダイレクト開始 |
+| `GET /api/auth/callback` | 認可コードの受け取りとセッション確立 |
+| `POST /api/auth/logout` | セッション破棄と Hosted UI ログアウト URL の取得 |
+| `GET /api/auth/session` | 認証状態とユーザー情報（未認証でも 200） |
+| `GET /api/auth/csrf-cookie` | `XSRF-TOKEN` Cookie の発行 |
+| `POST /api/auth/register` | 組織未所属のアカウント作成（作成後は Cognito ログインが必要） |
+| `GET /api/me/current-organization` | ログイン後の利用組織を解決（`last_organization_id` 更新） |
+| `PUT /api/me/current-organization` | 組織切替（所属メンバーのみ。`last_organization_id` 更新） |
+
+ログイン後の既定リダイレクトは `/post-login`（`COGNITO_DEFAULT_REDIRECT_PATH`）。
+
+本番環境（`APP_ENV=production`）では起動時に以下を検証し、違反があれば起動を停止します。
+
+- `SESSION_ENCRYPT=true`、`SESSION_SECURE_COOKIE=true`、`SESSION_HTTP_ONLY=true`
+- `APP_DEBUG=false`
+- `SESSION_SAME_SITE=lax`または`none`（`strict`はCognitoからのコールバックでCookieが送られないため不可）
+- `SESSION_DRIVER`がサーバー側ストレージ（`cookie` / `array`は不可）
+- `COGNITO_BYPASS=false`
+- Cognitoの必須設定がすべて存在し、`COGNITO_AUDIENCE=COGNITO_CLIENT_ID`
+- `APP_URL`、CORS許可オリジン、Cognito・コールバック・フロントエンドのURLがすべてHTTPS
+
+#### ローカル（バイパス）
+
+`.env`:
+
+```env
+COGNITO_BYPASS=true
+COGNITO_BYPASS_USER_ID=1
+```
+
+- `COGNITO_BYPASS_USER_ID` は **必須**。ブラウザは Cookie 認証のみで `Authorization` ヘッダを送らないため、未設定だとログイン状態にならず `/login` から先へ進めません
+- `curl` などから直接叩く場合に限り、Bearer に **数値のユーザー ID** を載せる方法も使えます
+- Cognito 実体がなくても API を検証できます
+
+組織コンテキスト付き API は `orgs/{organization}` 配下で、`org.member` ミドルウェアにより所属チェックされます。
+
+#### ユーザー招待
+
+1. 組織管理者が設定画面の「ユーザー招待」からメールアドレスとロールを指定して送信
+2. サーバーが `organization_invites` を作成し、`/invite/{token}` へのリンク付きメールを送る（有効期限は既定 7 日）
+3. **新規ユーザー**: 名前・パスワードを入力して登録。Cognito / `users` / `memberships` を作成し、招待組織を `last_organization_id` に設定。その後 Cognito ログイン
+4. **既存ユーザー**: 自動ログインせず、ログイン後に参加確認を経てから `memberships` へ登録。招待メールとログイン中アカウントのメールが一致する場合のみ参加可能
+5. 使用済みトークンへ再アクセスすると「この招待は使用済みです」を表示（ワンタイム）
+
+| 環境変数 | 用途 |
+|----------|------|
+| `ORGANIZATION_INVITE_EXPIRES_DAYS` | 招待リンクの有効日数（既定 7） |
+| `COGNITO_USER_POOL_ID` / `COGNITO_REGION` | AdminCreateUser による登録（AWS 認証情報も必要）。未設定時は Client SignUp API |
+| `MAIL_*` | 招待メール送信（ローカル既定は `log`） |
+
+DB には平文トークンを保存せず、SHA-256 ハッシュを `organization_invites.token` に格納します。
+
+組織の**最後の管理者**はロール変更・削除できません（並行操作でも `lockForUpdate` でガード）。自分自身のメンバー削除は API で拒否され、設定画面でも自分自身の編集・削除ボタンは出しません。
+
+### リアルタイム同期
+
+| レイヤー | 技術 | 役割 |
+|----------|------|------|
+| WebSocket サーバー | Laravel Reverb | 購読クライアントへ push |
+| クライアント | Laravel Echo | チャンネル購読 |
+
+ボード（`WorkspaceBoard`）と WBS（`WorkspaceWbsView`）向けに、リスト／タスクの作成・更新・並び替え・アーカイブ等を配信します。WBS の親子・並び替えは `WbsTasksReordered` でも同期します。コメント・リアクション・資料・通知などはリアルタイム対象外です。
+
+ローカルで Reverb を起動しない場合、ボード／WBS のリアルタイム反映は動きませんが REST API 自体は利用できます（`APP_ENV=local` では `BROADCAST_FAIL_SILENTLY` 既定が有効）。
+
+方針メモ: [`_docs/decisions/realtime-sync.md`](_docs/decisions/realtime-sync.md)
+
+### ファイル保存
+
+| 種別 | ディスク | 公開方法 | 制限 |
+|------|----------|----------|------|
+| タスク添付 | `local`（コントローラで固定） | 認証付き `GET …/attachments/{id}/download` のみ | 最大 10MB。拡張子: pdf / txt / csv / md / png / jpg / jpeg / gif / webp / doc(x) / xls(x) / ppt(x) / zip |
+| アバター | `public` | `php artisan storage:link` 後の `/storage/avatars/…` | 画像のみ・最大 2MB |
+
+- 新規のタスク添付は **`/storage/...` 直リンクでは取得できません**
+- 移行前に `public` へ置かれた添付があっても、download API が `local` → `public` の順で解決します
+- 資料／タスク説明の Markdown プレビューは許可リスト型の HTML サニタイズを通します
 
 ---
 
-## リポジトリ構成
+## 構成
+
+### システム構成
+
+```
+[ Browser ]
+    │  HTTP (REST)                    WebSocket
+    ▼                                 ▼
+[ Nuxt :3000 ] ──proxy /api──▶ [ Laravel :8000 ] ──SQL──▶ [ PostgreSQL ]
+                                    │
+                                    │ broadcast (BROADCAST_CONNECTION=reverb)
+                                    ▼
+                               [ Reverb :8080 ] ──push──▶ [ Echo (他クライアント) ]
+```
+
+- **書き込み**: ブラウザ → REST API → PostgreSQL（Echo / Reverb は介在しない）
+- **配信（ボード／WBS）**: DB 更新後にイベント発火 → Reverb → 購読中クライアントへ push
+
+設計メモは [`_docs/architecture/realtime-sync.md`](_docs/architecture/realtime-sync.md) にもあります（構成図が古い場合は本 README とコードを優先）。
+
+### リポジトリ構成
 
 ```
 work-manager/
 ├── README.md                 # 本ファイル
 ├── _docs/                    # 設計・要件・意思決定ログ
-│   ├── architecture/         # アーキテクチャ（リアルタイム同期など）
-│   ├── database/             # スキーマ・列挙値
-│   ├── decisions/            # ADR
-│   └── requirements/         # 要件定義（認証・プロジェクト／タスク等）
+│   ├── architecture/
+│   ├── database/
+│   ├── decisions/
+│   └── requirements/
 ├── backend/                  # Laravel API
 │   ├── app/
 │   ├── config/
@@ -139,61 +299,35 @@ work-manager/
     └── ...
 ```
 
-設計ドキュメント上の用語で **project** と書かれている箇所は、実装では **workspace** に相当します。
-
 ---
 
-## システム構成
+## セットアップ
 
-```
-[ Browser ]
-    │  HTTP (REST)                    WebSocket
-    ▼                                 ▼
-[ Nuxt :3000 ] ──proxy /api──▶ [ Laravel :8000 ] ──SQL──▶ [ PostgreSQL ]
-                                    │
-                                    │ broadcast (ShouldBroadcast)
-                                    ▼
-                               [ Redis Pub/Sub ]
-                                    │
-                                    ▼
-                               [ Reverb :8080 ] ──push──▶ [ Echo (他クライアント) ]
-```
-
-- **書き込み**: ブラウザ → REST API → PostgreSQL（Echo / Reverb は介在しない）
-- **配信**: DB 更新後にイベント発火 → Redis → Reverb → 購読中クライアントへ push
-
-詳細は [`_docs/architecture/realtime-sync.md`](_docs/architecture/realtime-sync.md) を参照してください。
-
----
-
-## 前提環境
+### 前提環境
 
 | ツール | 目安 |
 |--------|------|
-| PHP | 8.3 以上（開発環境では 8.4 でも可） |
+| PHP | 8.3 以上 |
 | Composer | 2.x |
 | Node.js | 22.12 以上（`frontend/.nvmrc`） |
 | npm | package-lock 利用想定 |
-| PostgreSQL | 16 系など |
-| Redis | Reverb ブロードキャスト用（ローカル必須） |
+| PostgreSQL | `DB_CONNECTION=pgsql` で接続できること |
 
 任意:
 
 - Amazon Cognito ユーザープール（本番・ステージング）
-- AWS SQS（本番キュー切替時）
+- Redis（Reverb のスケーリング有効時など）
 
----
+### ローカル環境の構築
 
-## セットアップ（ローカル）
-
-### 1. リポジトリ取得
+#### 1. リポジトリ取得
 
 ```bash
 git clone <repository-url> work-manager
 cd work-manager
 ```
 
-### 2. バックエンド
+#### 2. バックエンド
 
 ```bash
 cd backend
@@ -207,18 +341,22 @@ php artisan key:generate
 - `DB_*`（PostgreSQL）
 - `FRONTEND_URL` / `CORS_ALLOWED_ORIGINS`（例: `http://localhost:3000`）
 - ローカル認証用: `COGNITO_BYPASS=true` と `COGNITO_BYPASS_USER_ID`（後述）
-- Reverb: `REVERB_*`（フロントの `NUXT_PUBLIC_REVERB_*` と一致させる）
+- Reverb を使う場合: `REVERB_*`（フロントの `NUXT_PUBLIC_REVERB_*` と一致）
 
 DB 作成例:
 
 ```bash
 createdb task_manager   # .env の DB_DATABASE に合わせる
 php artisan migrate
+# アバター用の public ディスクを公開（初回のみ）
+php artisan storage:link
 # 必要なら
 php artisan db:seed
 ```
 
-### 3. フロントエンド
+タスク添付は `local` ディスクに保存するため、`storage:link` は**アバター表示用**です。添付は認証付き download API 経由でのみ取得します。
+
+#### 3. フロントエンド
 
 ```bash
 cd frontend
@@ -229,20 +367,9 @@ npm install
 ローカルでは `NUXT_PUBLIC_API_BASE_URL` は未設定で構いません（相対 `/api` → Vite プロキシ）。  
 Reverb を使う場合は `NUXT_PUBLIC_REVERB_*` を backend の値に合わせてください。
 
-### 4. Redis
+### 環境変数
 
-Reverb のブロードキャストに Redis が必要です。起動例:
-
-```bash
-redis-server
-# または Docker 等
-```
-
----
-
-## 環境変数
-
-### バックエンド（`backend/.env`）
+#### バックエンド（`backend/.env`）
 
 | 変数 | 説明 |
 |------|------|
@@ -251,27 +378,32 @@ redis-server
 | `FRONTEND_URL` / `CORS_ALLOWED_ORIGINS` | フロントオリジン（カンマ区切り可） |
 | `BROADCAST_CONNECTION` | 既定 `reverb` |
 | `REVERB_APP_ID` / `KEY` / `SECRET` / `HOST` / `PORT` / `SCHEME` | WebSocket サーバー設定 |
-| `REDIS_*` | Pub/Sub 等 |
 | `QUEUE_CONNECTION` | ローカル既定 `database` |
-| `COGNITO_JWKS_URL` / `ISSUER` / `AUDIENCE` | 本番 JWT 検証 |
+| `FILESYSTEM_DISK` | 既定 `local` |
+| `MAIL_*` | 招待メール等。ローカル既定は `log`（`storage/logs` に出力） |
+| `COGNITO_JWKS_URL` / `ISSUER` / `AUDIENCE` | JWT検証。すべて必須で、`AUDIENCE`は`CLIENT_ID`と一致させる |
+| `COGNITO_DOMAIN` / `CLIENT_ID` / `CLIENT_SECRET` | Hosted UI と認可コードフロー（シークレットは任意） |
+| `COGNITO_REDIRECT_URI` / `LOGOUT_REDIRECT_URI` | ブラウザから見たコールバック URL・ログアウト後の戻り先 |
+| `COGNITO_FRONTEND_URL` / `COGNITO_DEFAULT_REDIRECT_PATH` | ログイン後の戻り先（相対パスに限定。既定 `/post-login`） |
+| `SESSION_ENCRYPT` | トークンを含むサーバー側セッションを暗号化。常に`true` |
+| `SESSION_HTTP_ONLY` / `SESSION_SAME_SITE` / `SESSION_SECURE_COOKIE` | 認証Cookieの保護。本番は`true` / `lax` / `true`を推奨 |
 | `COGNITO_BYPASS` | ローカルのみ `true` 可 |
 | `COGNITO_BYPASS_USER_ID` | バイパス時の既定ユーザー ID |
 
 詳細コメントは [`backend/.env.example`](backend/.env.example) を参照してください。
 
-### フロントエンド（`frontend/.env`）
+#### フロントエンド（`frontend/.env`）
 
 | 変数 | 説明 |
 |------|------|
 | `NUXT_PUBLIC_API_BASE_URL` | 本番では絶対 URL（例: `https://api.example.com/api`）。ローカルは省略可 |
 | `NUXT_PUBLIC_REVERB_KEY` / `HOST` / `PORT` / `SCHEME` | Echo 接続先（backend と一致） |
-| `NUXT_PUBLIC_COGNITO_*` | Cognito Hosted UI 等（本番） |
+
+Cognito の設定（`client_id` / `redirect_uri` 等）はバックエンドのみが保持します。
 
 詳細は [`frontend/.env.example`](frontend/.env.example) および [`frontend/nuxt.config.ts`](frontend/nuxt.config.ts) を参照してください。
 
----
-
-## 開発サーバーの起動
+### 開発サーバーの起動
 
 ターミナルを分けて起動する想定です。
 
@@ -285,7 +417,7 @@ php artisan serve
 cd backend
 php artisan queue:listen --tries=1
 
-# 3) Reverb（リアルタイム）
+# 3) Reverb（ボード／WBS のリアルタイム反映）
 cd backend
 php artisan reverb:start
 # → 既定 :8080
@@ -296,7 +428,7 @@ npm run dev
 # → http://localhost:3000
 ```
 
-`composer.json` の `composer run dev` は Laravel 標準の concurrently 構成（serve / queue / pail / vite）です。本アプリのフロントは `frontend/` 側の Nuxt なので、通常は上記のとおり **API と Nuxt を別プロセス**で起動してください。
+`composer.json` の `composer run dev` は Laravel 標準の concurrently 構成です。本アプリのフロントは `frontend/` の Nuxt なので、通常は **API と Nuxt を別プロセス**で起動してください。
 
 | サービス | URL（ローカル既定） |
 |----------|---------------------|
@@ -306,75 +438,38 @@ npm run dev
 
 ---
 
-## 認証
-
-API ルートは `cognito` ミドルウェア配下です（[`backend/routes/api.php`](backend/routes/api.php)）。
-
-### 本番・ステージング
-
-1. フロントで Cognito にログインし ID トークン（JWT）を取得
-2. `Authorization: Bearer <token>` で API を呼ぶ
-3. バックエンドが JWKS で検証し、`cognito_sub` でユーザーを同期
-
-### ローカル（バイパス）
-
-`.env`:
-
-```env
-COGNITO_BYPASS=true
-COGNITO_BYPASS_USER_ID=1
-```
-
-- Bearer に **数値のユーザー ID** を載せる、または設定した `COGNITO_BYPASS_USER_ID` でそのユーザーとして扱う
-- Cognito 実体がなくても API を検証できます
-
-組織コンテキスト付き API は `orgs/{organization}` 配下で、`org.member` ミドルウェアにより所属チェックされます。
-
----
-
-## リアルタイム同期
-
-| レイヤー | 技術 | 役割 |
-|----------|------|------|
-| WebSocket サーバー | Laravel Reverb | 購読クライアントへ push |
-| Pub/Sub | Redis | アプリ → Reverb のバス |
-| クライアント | Laravel Echo | チャンネル購読 |
-
-方針・代替案の経緯は [`_docs/decisions/realtime-sync.md`](_docs/decisions/realtime-sync.md) を参照してください。
-
----
-
 ## ドメインモデルとロール
 
 ### 主要な概念
 
 ```
 Organization
-  ├── Membership（ユーザー × 組織ロール）
-  ├── Workspace（実装上の作業単位。設計書では project と呼ぶ場合あり）
+  ├── Membership（ユーザー × 組織ロール: admin / member）
+  ├── OrganizationInvite
+  ├── Workspace（スペース。設計書では project、コードでは workspace）
   │     ├── List（ボード列）
-  │     ├── Task（コメント・履歴・チェックリスト・ラベル）
-  │     └── WorkspaceMembership / Assignees 等
-  ├── SharedDocument（関連ワークスペース・関連ドキュメント）
-  └── Labels（workspace / task / document 用のカテゴリ＋ラベル）
+  │     ├── Task（コメント・チェックリスト・ラベル・添付ファイル等）
+  │     └── Assignees 等
+  ├── SharedDocument（資料。アーカイブ・関連スペース／関連資料）
+  ├── Labels（スペース / タスク / 資料用のカテゴリ＋ラベル）
+  └── AppNotification（ユーザー向けアプリ内通知）
 ```
 
-### 組織ロール（設計上の列挙）
+### 組織ロール（実装）
 
 | 値 | 意味 |
 |----|------|
 | `admin` | 組織管理者 |
-| `project_leader` | プロジェクトリーダー |
 | `member` | メンバー |
 
-列挙値の正は [`_docs/database/enums.md`](_docs/database/enums.md) です。ロールの DB 制約は `backend/database/migrations` の create 定義を確認してください。
+実装の正は [`MembershipRole`](backend/app/Enums/MembershipRole.php) です。設計書（[`_docs/database/enums.md`](_docs/database/enums.md)）の `project_leader` は現行の組織ロールでは未使用です。
+
+組織メンバーであれば、その組織のスペースへアクセス・編集できます。
 
 ### タスクの状態・優先度
 
-- **status**: `todo` → `in_progress` → `done`（一部ロールで done からの戻しも可）
+- **status**: `todo` / `in_progress` / `done`
 - **priority**: `low` / `medium`（既定）/ `high`
-
----
 
 ## 主な画面・API
 
@@ -382,30 +477,36 @@ Organization
 
 | パス | 内容 |
 |------|------|
-| `/login` | ログイン |
-| `/auth/callback` | Cognito コールバック |
-| `/org/[slug]` | 組織ホーム |
-| `/org/[slug]/workspaces` | ワークスペース一覧 |
-| `/org/[slug]/workspaces/[id]` | ワークスペース詳細（ボード／テーブル） |
-| `/org/[slug]/documents` | ドキュメント一覧 |
-| `/org/[slug]/documents/[id]` | ドキュメント詳細 |
-| `/org/[slug]/settings` | 組織設定 |
+| `/login` | ログイン（Cognito コールバックはバックエンドの `/api/auth/callback` が処理） |
+| `/register` | アカウント作成（組織とは分離） |
+| `/organizations/new` | 組織作成（所属 0 件のとき。作成者が管理者） |
+| `/post-login` | ログイン後の組織決定・遷移 |
+| `/invite/[token]` | 招待確認・新規登録／既存ユーザーの参加確認 |
+| `/org/[slug]` | 組織ホーム（スペース一覧へリダイレクト） |
+| `/org/[slug]/workspaces` | スペース一覧 |
+| `/org/[slug]/workspaces/[id]` | スペース詳細（ボード／WBS・ガント） |
+| `/org/[slug]/documents` | 資料一覧 |
+| `/org/[slug]/documents/[id]` | 資料詳細 |
+| `/org/[slug]/settings` | 組織設定（`?tab=members` でユーザー招待） |
 
 ### API（抜粋）
 
-認証必須。プレフィックスは `/api`。
+認証必須（招待確認・受諾とアカウント作成を除く）。プレフィックスは `/api`。
 
-- `GET/PATCH /me` … プロフィール
-- `GET/POST /organizations`
-- `GET /orgs/{organization}/members` / `settings`
-- `CRUD /orgs/{organization}/workspaces`
-- `CRUD /orgs/{organization}/documents`
+- `GET/PATCH /me`・`POST/DELETE /me/avatar` … プロフィール／アバター
+- `GET /me/current-organization` / `PUT /me/current-organization` … 利用組織の解決・切替
+- `GET /notifications` / `PATCH …/read` / `POST …/read-all` … 通知
+- `POST /auth/register` … アカウント作成（組織未所属）
+- `POST /organizations` … 組織作成（作成者を admin として所属付け、`last_organization_id` 更新）
+- `GET /orgs/{organization}/members` / `PATCH|DELETE …/members/{member}` / `settings`
+- `GET/POST /orgs/{organization}/invites` / `DELETE …/invites/{invite}` … 招待（管理者）
+- `GET /invites/{token}` / `POST /invites/{token}/accept` … 招待確認・受諾（既存 Cognito ユーザーはセッション必須）
+- `CRUD /orgs/{organization}/workspaces`（`archived`・`archive`・`unarchive`・関連付け含む。メンバー一覧 GET は担当者候補用）
+- `CRUD /orgs/{organization}/documents`（`archived`・`archive`・`unarchive`・関連付け含む）
 - ラベル類: `workspace-labels` / `task-labels` / `document-labels`（＋ categories）
-- ワークスペース配下: `lists` / `tasks` / `comments` / `reactions` など
+- スペース配下: `lists` / `tasks` / `comments` / `reactions` / `attachments`（download 含む） / `tasks/wbs` など
 
 完全なルート一覧は [`backend/routes/api.php`](backend/routes/api.php) を参照してください。
-
----
 
 ## シードデータ
 
@@ -422,9 +523,16 @@ php artisan db:seed
 php artisan db:seed --class=UserSeeder
 ```
 
-ローカルバイパス用ユーザー ID はシード後の実 ID に合わせて `COGNITO_BYPASS_USER_ID` を設定してください。
+シード後の主なダミーデータ（[`DummySeederData`](backend/database/seeders/DummySeederData.php)）:
 
----
+| 項目 | 値 |
+|------|-----|
+| 組織 slug | `abcde` |
+| ユーザー | `a@example.com` …（名前 A〜T）。パスワードはいずれも `password` |
+| スペース例 | 「業務管理アプリ」など |
+
+ローカルバイパス用ユーザー ID はシード後の実 ID に合わせて `COGNITO_BYPASS_USER_ID` を設定してください（例: ユーザー A の ID）。
+フロントの初期導線は `/org/abcde/workspaces` などシードの slug に合わせると便利です。
 
 ## テスト
 
@@ -434,8 +542,6 @@ php artisan test
 # または
 composer test
 ```
-
----
 
 ## ドキュメント
 
@@ -453,14 +559,10 @@ composer test
 
 一部ディレクトリ（`api` / `permissions` / `ui` 等）は索引のみで中身が未整備の場合があります。実装の正はコードとマイグレーションを優先してください。
 
----
-
 ## UI メモ
 
 - アイコンは **Lucide Icons**（`lucide-vue-next`）を使用しています。
-- フォントは Inter / Noto Sans JP / Source Sans 3（`@fontsource/*`）を利用しています。
-
----
+- フォントは Inter / Noto Sans JP / Source Sans 3（`@fontsource/*`、`frontend/app/assets/styles/fonts.css`）を利用しています。
 
 ## ライセンス
 

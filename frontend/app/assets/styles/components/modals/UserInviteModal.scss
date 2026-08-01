@@ -1,0 +1,135 @@
+.user-invite-modal-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 11.2px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6.3px;
+  color: #1e293b;
+  font-size: 12.6px;
+  font-weight: 700;
+}
+
+.field input {
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  padding: 7.7px 9.8px;
+  font-size: 13.16px;
+  font-weight: 400;
+  color: #0f2945;
+  background: #fff;
+
+  &:focus {
+    @include mixin.input-focus-ring;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.roles {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.roles-legend {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 12.6px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.role-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  color: #0f2945;
+}
+
+.role-option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.role-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #8590a2;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: #fff;
+}
+
+.role-checkbox--checked {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.role-label {
+  font-size: 13.3px;
+  font-weight: 700;
+}
+
+.field-error,
+.err {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: mixin.$danger;
+}
+
+.actions {
+  margin-top: 2.8px;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+
+.ghost-btn,
+.primary-btn {
+  @include mixin.btn-base;
+}
+
+.ghost-btn--pill,
+.primary-btn--pill {
+  @include mixin.btn-pill;
+}
+
+.ghost-btn {
+  @include mixin.btn-ghost;
+}
+
+.primary-btn {
+  @include mixin.btn-primary;
+}

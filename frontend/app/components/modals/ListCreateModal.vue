@@ -14,8 +14,7 @@
         <input
           v-model.trim="name"
           type="text"
-          maxlength="40"
-          required
+          :maxlength="LIST_NAME_MAX_LENGTH"
           placeholder="リスト名を入力してください"
           :disabled="loading"
           @keydown.enter.exact.prevent
@@ -48,6 +47,7 @@ import {
   standardColorAtIndex,
   standardColorIndexFromHex,
 } from '../../constants/colorPresets'
+import { LIST_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { isCtrlEnterKeydown } from '../../utils/uiInteraction'
 import { requiredTextFieldError } from '../../utils/formValidation'
 const props = withDefaults(defineProps<{

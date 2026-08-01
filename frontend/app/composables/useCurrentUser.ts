@@ -1,4 +1,4 @@
-import { useApi } from './useApi'
+import { useAuth } from './useAuth'
 import {
   clearCurrentUserId,
   getCurrentUserIdState,
@@ -6,14 +6,10 @@ import {
   setCurrentUserPendingFetch,
 } from './currentUserIdState'
 
-type MeResponse = {
-  id: number
-}
-
 export { clearCurrentUserId }
 
 export function useCurrentUser () {
-  const { api } = useApi()
+  const { fetchSession } = useAuth()
   const currentUserId = getCurrentUserIdState()
 
   function setCurrentUserId (id: number | null) {
@@ -30,8 +26,9 @@ export function useCurrentUser () {
     }
     const pendingFetch = (async () => {
       try {
-        const me = await api<MeResponse>('/me')
-        currentUserId.value = me.id
+        // 認証状態とユーザー情報はサーバーが判定する（フロントで JWT を解析しない）
+        const session = await fetchSession()
+        currentUserId.value = session.user?.id ?? null
         return currentUserId.value
       } catch {
         currentUserId.value = null

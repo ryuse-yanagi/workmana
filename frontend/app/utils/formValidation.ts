@@ -5,6 +5,21 @@ export function requiredTextFieldError (value: string, emptyMessage: string): st
   return null
 }
 
+export function emailFieldError (
+  value: string,
+  emptyMessage = 'メールアドレスを入力してください。',
+  invalidMessage = 'メールアドレスの形式が正しくありません。',
+): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return emptyMessage
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return invalidMessage
+  }
+  return null
+}
+
 export function workspaceNameFieldError (value: string): string | null {
   return requiredTextFieldError(value, 'スペース名を入力してください')
 }

@@ -26,6 +26,9 @@
       :style="dropdownStyle"
       :assignees="assignees"
       :org-members="orgMembers"
+      :title="roleLabel"
+      :assigned-section-heading="roleLabel"
+      unassigned-section-heading="ユーザー"
       v-model:search-query="memberSearchQuery"
       :disabled="disabled || pending"
       :error="error"
@@ -46,10 +49,13 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   pending?: boolean
   error?: string | null
+  /** 担当者など、ピッカー見出しと aria-label 用 */
+  roleLabel?: string
 }>(), {
   disabled: false,
   pending: false,
   error: null,
+  roleLabel: '担当者',
 })
 
 const emit = defineEmits<{
@@ -73,9 +79,9 @@ const assigneeCount = computed(() => props.assignees.length)
 
 const triggerAriaLabel = computed(() => {
   if (assigneeCount.value > 0) {
-    return `担当者 ${assigneeCount.value} 名。クリックして変更`
+    return `${props.roleLabel} ${assigneeCount.value} 名。クリックして変更`
   }
-  return '担当者未設定。クリックして選択'
+  return `${props.roleLabel}未設定。クリックして選択`
 })
 
 const dropdownStyle = computed(() => {

@@ -39,9 +39,10 @@ export default defineNuxtPlugin(() => {
       return
     }
     const target = event.target
-    const isNormalTableBody = target instanceof Element
-      && Boolean(target.closest('.workspace-table:not(.workspace-table--edit) tbody'))
-    if (!isNormalTableBody && isInsideSelectableText(target)) {
+    const isWbsBodyDragScroll = target instanceof Element
+      && Boolean(resolveDragScrollContainer(target)?.container.closest('.workspace-wbs-board__viewport'))
+      && Boolean(target.closest('.workspace-wbs tbody'))
+    if (!isWbsBodyDragScroll && isInsideSelectableText(target)) {
       return
     }
     const resolved = resolveDragScrollContainer(event.target as Element)

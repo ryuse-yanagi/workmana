@@ -13,6 +13,7 @@ class TaskChecklist extends Model
         'organization_id',
         'workspace_id',
         'title',
+        'sort_order',
     ];
 
     public function task(): BelongsTo

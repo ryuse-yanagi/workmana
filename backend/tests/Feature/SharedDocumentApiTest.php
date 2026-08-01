@@ -189,7 +189,7 @@ class SharedDocumentApiTest extends TestCase
         ]);
     }
 
-    public function test_organization_member_can_delete_shared_document(): void
+    public function test_organization_member_can_permanently_delete_archived_shared_document(): void
     {
         $user = User::factory()->create();
         $organization = Organization::query()->create([
@@ -204,6 +204,10 @@ class SharedDocumentApiTest extends TestCase
             'created_by' => $user->id,
             'name' => '削除対象',
         ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$user->id)
+            ->postJson("/api/orgs/acme/documents/{$document->id}/archive")
+            ->assertOk();
 
         $this->withHeader('Authorization', 'Bearer '.$user->id)
             ->deleteJson("/api/orgs/acme/documents/{$document->id}")

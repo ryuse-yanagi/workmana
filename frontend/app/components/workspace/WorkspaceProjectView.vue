@@ -29,13 +29,13 @@
         />
         <div class="subheader-spacer" />
         <div
-          v-if="mode === 'table'"
+          v-if="mode === 'wbs'"
           class="subheader-actions"
         >
           <button
             type="button"
             class="document-header-action-btn document-header-action-btn--display-items"
-            :disabled="!tableBoardRef || tableEditSaving"
+            :disabled="!wbsBoardRef || wbsEditSaving"
             @click="onDisplayItemsClick"
           >
             表示項目
@@ -43,7 +43,7 @@
           <button
             type="button"
             class="document-header-action-btn document-header-action-btn--primary document-header-action-btn--task-add"
-            :disabled="!tableBoardRef || tableEditSaving"
+            :disabled="!wbsBoardRef || wbsEditSaving"
             @click="onTaskCreateClick"
           >
             <FilePlus
@@ -53,12 +53,12 @@
             />
             タスク追加
           </button>
-          <template v-if="!tableEditMode">
+          <template v-if="!wbsEditMode">
             <button
               type="button"
               class="document-header-action-btn document-header-action-btn--primary document-header-action-btn--edit"
-              :disabled="!tableBoardRef || tableEditSaving"
-              @click="onStartTableEditClick"
+              :disabled="!wbsBoardRef || wbsEditSaving"
+              @click="onStartWbsEditClick"
             >
               <Pencil
                 :size="16"
@@ -72,36 +72,36 @@
             <button
               type="button"
               class="document-header-action-btn document-header-action-btn--muted"
-              :disabled="tableEditSaving"
-              @click="onCancelTableEditClick"
+              :disabled="wbsEditSaving"
+              @click="onCancelWbsEditClick"
             >
               キャンセル
             </button>
             <button
               type="button"
               class="document-header-action-btn document-header-action-btn--primary"
-              :disabled="tableEditSaving"
-              @click="onConfirmTableEditClick"
+              :disabled="wbsEditSaving"
+              @click="onConfirmWbsEditClick"
             >
               <Check
                 :size="16"
                 :stroke-width="2.25"
                 aria-hidden="true"
               />
-              {{ tableEditSaving ? '保存中...' : '完了' }}
+              {{ wbsEditSaving ? '保存中...' : '完了' }}
             </button>
           </template>
         </div>
       </div>
     </header>
     <section class="workspace-view-page__body">
-      <WorkspaceTableBoard
-        v-if="mode === 'table' && orgSlug && workspaceId"
-        ref="tableBoardRef"
-        v-model:edit-mode="tableEditMode"
+      <WorkspaceWbsView
+        v-if="mode === 'wbs' && orgSlug && workspaceId"
+        ref="wbsBoardRef"
+        v-model:edit-mode="wbsEditMode"
         :org-slug="orgSlug"
         :workspace-id="workspaceId"
-        @edit-saving-change="tableEditSaving = $event"
+        @edit-saving-change="wbsEditSaving = $event"
       />
     </section>
   </div>
@@ -112,7 +112,7 @@ import type { WorkspaceViewKey } from '../../composables/useWorkspaceViewRoutes'
 import { useWorkspaceViewPageCssVars } from '../../composables/useWorkspaceViewPageRoot'
 import { useWorkspaceDetailMeta } from '../../composables/useWorkspaceDetailMeta'
 import WorkspaceBoard from './WorkspaceBoard.vue'
-import WorkspaceTableBoard from './WorkspaceTableBoard.vue'
+import WorkspaceWbsView from './WorkspaceWbsView.vue'
 import WorkspaceViewSwitcher from './WorkspaceViewSwitcher.vue'
 
 const props = defineProps<{
@@ -122,10 +122,10 @@ const props = defineProps<{
 }>()
 
 const boardRef = ref<InstanceType<typeof WorkspaceBoard> | null>(null)
-const tableBoardRef = ref<InstanceType<typeof WorkspaceTableBoard> | null>(null)
+const wbsBoardRef = ref<InstanceType<typeof WorkspaceWbsView> | null>(null)
 const pageCssVars = useWorkspaceViewPageCssVars()
-const tableEditMode = ref(false)
-const tableEditSaving = ref(false)
+const wbsEditMode = ref(false)
+const wbsEditSaving = ref(false)
 
 const metaSlug = computed(() => props.orgSlug ?? '')
 const metaWorkspaceId = computed(() => props.workspaceId ?? '')
@@ -144,53 +144,53 @@ watch(
 watch(
   () => props.mode,
   () => {
-    tableEditMode.value = false
-    tableEditSaving.value = false
+    wbsEditMode.value = false
+    wbsEditSaving.value = false
   },
 )
 
 /** 子の startEdit がセッション開始まで完了してからヘッダーを切り替える */
-function onStartTableEditClick () {
-  if (tableEditSaving.value || !tableBoardRef.value) {
+function onStartWbsEditClick () {
+  if (wbsEditSaving.value || !wbsBoardRef.value) {
     return
   }
-  tableEditMode.value = tableBoardRef.value.startEdit()
+  wbsEditMode.value = wbsBoardRef.value.startEdit()
 }
 
-function onCancelTableEditClick () {
-  if (tableEditSaving.value) {
+function onCancelWbsEditClick () {
+  if (wbsEditSaving.value) {
     return
   }
-  tableBoardRef.value?.cancelEdit?.()
-  tableEditMode.value = false
+  wbsBoardRef.value?.cancelEdit?.()
+  wbsEditMode.value = false
 }
 
-function onConfirmTableEditClick () {
-  if (tableEditSaving.value) {
+function onConfirmWbsEditClick () {
+  if (wbsEditSaving.value) {
     return
   }
-  void tableBoardRef.value?.confirmEdit?.()
+  void wbsBoardRef.value?.confirmEdit?.()
 }
 
 function onTaskCreateClick () {
-  if (tableEditSaving.value) {
+  if (wbsEditSaving.value) {
     return
   }
-  tableBoardRef.value?.openTaskCreate?.()
+  wbsBoardRef.value?.openTaskCreate?.()
 }
 
 function onDisplayItemsClick () {
-  if (tableEditSaving.value) {
+  if (wbsEditSaving.value) {
     return
   }
-  tableBoardRef.value?.openDisplayItems?.()
+  wbsBoardRef.value?.openDisplayItems?.()
 }
 
 function refreshOnViewSwitch (): Promise<void> {
   if (props.mode === 'board') {
     return boardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
   }
-  return tableBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
+  return wbsBoardRef.value?.refreshOnViewSwitch() ?? Promise.resolve()
 }
 
 defineExpose({

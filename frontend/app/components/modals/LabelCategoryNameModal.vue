@@ -8,14 +8,13 @@
     width="min(448px, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <form class="category-name-modal-body" @submit.prevent="submit">
+    <form class="category-name-modal-body" novalidate @submit.prevent="submit">
       <label class="field">
         <span>カテゴリ名</span>
         <input
           v-model.trim="name"
           type="text"
-          maxlength="40"
-          required
+          :maxlength="LABEL_CATEGORY_NAME_MAX_LENGTH"
           placeholder="カテゴリ名を入力してください"
           :disabled="loading"
         />
@@ -29,6 +28,7 @@
   </BaseModal>
 </template>
 <script setup lang="ts">
+import { LABEL_CATEGORY_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { requiredTextFieldError } from '../../utils/formValidation'
 const props = withDefaults(defineProps<{
   modelValue: boolean

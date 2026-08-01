@@ -31,7 +31,9 @@ export type OrgDocument = {
   labels: OrgDocumentLabel[]
   related_workspaces?: OrgDocumentRelatedItem[]
   related_documents?: OrgDocumentRelatedItem[]
+  archived_at?: string | null
   created_at?: string
+  updated_at?: string
 }
 export type OrgDocumentsPageSnapshot = {
   documents: OrgDocument[]

@@ -12,9 +12,11 @@ use App\Models\Organization;
 use App\Models\Workspace;
 use App\Models\Task;
 use App\Support\BoardListColors;
+use App\Support\FieldLengthLimits;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ListController extends ApiController
 {
@@ -31,11 +33,11 @@ class ListController extends ApiController
     public function store(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:'.FieldLengthLimits::LIST_NAME],
             'color_index' => ['required', 'integer', 'min:0', 'max:'.(BoardListColors::STANDARD_COUNT - 1)],
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
@@ -69,7 +71,7 @@ class ListController extends ApiController
     public function update(Request $request, Organization $organization, Workspace $workspace, BoardList $boardList): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $boardList->workspace_id !== (int) $workspace->id) {
@@ -77,7 +79,7 @@ class ListController extends ApiController
         }
 
         $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:255'],
+            'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::LIST_NAME],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
             'color_index' => ['sometimes', 'integer', 'min:0', 'max:'.(BoardListColors::STANDARD_COUNT - 1)],
         ]);
@@ -114,7 +116,7 @@ class ListController extends ApiController
     public function destroy(Request $request, Organization $organization, Workspace $workspace, BoardList $boardList): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $boardList->workspace_id !== (int) $workspace->id) {
@@ -130,32 +132,35 @@ class ListController extends ApiController
             return response()->json(['message' => 'Cannot delete the last list in the workspace.'], 422);
         }
 
-        $tasksToMove = Task::query()
-            ->where('workspace_id', $workspace->id)
-            ->where('list_id', $boardList->id)
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get();
-
-        if ($tasksToMove->isNotEmpty()) {
-            $maxOrder = Task::query()
-                ->where('workspace_id', $workspace->id)
-                ->where('list_id', $otherList->id)
-                ->notArchived()
-                ->max('sort_order');
-            $nextOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
-
-            foreach ($tasksToMove as $task) {
-                $task->list_id = $otherList->id;
-                $task->sort_order = $nextOrder;
-                $task->save();
-                $nextOrder++;
-            }
-        }
-
         $listId = (int) $boardList->id;
         $workspaceId = (int) $workspace->id;
-        $boardList->delete();
+
+        DB::transaction(function () use ($workspace, $boardList, $otherList) {
+            $tasksToMove = Task::query()
+                ->where('workspace_id', $workspace->id)
+                ->where('list_id', $boardList->id)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get();
+
+            if ($tasksToMove->isNotEmpty()) {
+                $maxOrder = Task::query()
+                    ->where('workspace_id', $workspace->id)
+                    ->where('list_id', $otherList->id)
+                    ->notArchived()
+                    ->max('sort_order');
+                $nextOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
+
+                foreach ($tasksToMove as $task) {
+                    $task->list_id = $otherList->id;
+                    $task->sort_order = $nextOrder;
+                    $task->save();
+                    $nextOrder++;
+                }
+            }
+
+            $boardList->delete();
+        });
 
         SafeBroadcast::toOthers(new ListDeleted($workspaceId, $listId));
 
@@ -165,7 +170,7 @@ class ListController extends ApiController
     public function reorder(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         $validated = $request->validate([
@@ -206,7 +211,7 @@ class ListController extends ApiController
     public function reorderTasks(Request $request, Organization $organization, Workspace $workspace, BoardList $boardList): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->ensureWorkspaceMember($request->user(), $workspace);
+        $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $boardList->workspace_id !== (int) $workspace->id) {

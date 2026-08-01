@@ -1,7 +1,12 @@
+import { extractApiErrorMessage } from '../utils/apiError'
 import { deepNormalizeColorIndexedPayload } from '../utils/colorPresetResolution'
+import { ensureXsrfToken, readXsrfToken } from '../utils/csrf'
+
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
 export function useApi () {
   const config = useRuntimeConfig()
-  const { getToken } = useAuth()
+  const apiBase = String(config.public.apiBaseUrl || '/api').replace(/\/$/, '')
   function getSocketId (): string {
     if (!import.meta.client) {
       return ''
@@ -15,25 +20,33 @@ export function useApi () {
     }
   }
   async function api<T> (path: string, opts: Record<string, unknown> = {}): Promise<T> {
-    const base = config.public.apiBaseUrl as string
-    const url = path.startsWith('http') ? path : `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`
+    const url = path.startsWith('http') ? path : `${apiBase}/${path.replace(/^\//, '')}`
+    const method = String(opts.method || 'GET').toUpperCase()
     const headers: Record<string, string> = {
       Accept: 'application/json',
       ...(opts.headers as Record<string, string> | undefined),
     }
-    const token = getToken()
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
+    const xsrfToken = READ_METHODS.has(method)
+      ? readXsrfToken()
+      : await ensureXsrfToken(apiBase)
+    if (xsrfToken) {
+      headers['X-XSRF-TOKEN'] = xsrfToken
     }
     const socketId = getSocketId()
     if (socketId) {
       headers['X-Socket-ID'] = socketId
     }
-    const result = await $fetch<T>(url, {
-      ...opts,
-      headers,
-    })
-    return deepNormalizeColorIndexedPayload(result)
+    try {
+      const result = await $fetch<T>(url, {
+        ...opts,
+        headers,
+        // 認証は HttpOnly のセッション Cookie で行うため、必ず Cookie を送る
+        credentials: 'include',
+      })
+      return deepNormalizeColorIndexedPayload(result)
+    } catch (error: unknown) {
+      throw new Error(extractApiErrorMessage(error))
+    }
   }
-  return { api, getToken }
+  return { api, apiBase }
 }

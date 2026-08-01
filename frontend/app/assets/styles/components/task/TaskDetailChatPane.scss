@@ -283,11 +283,68 @@
 .chat-composer {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 6.3px;
   padding: 9.1px 10.5px 10.5px;
   background: mixin.$white;
   border-top: 1px solid mixin.$border-light;
+}
+.chat-composer__tools {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+}
+.mention-picker-host {
+  position: relative;
+}
+.chat-mention-btn {
+  border: 1px solid mixin.$border;
+  border-radius: 6px;
+  background: mixin.$white;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+}
+.chat-mention-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.mention-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  min-width: 160px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: mixin.$white;
+  border: 1px solid mixin.$border-light;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  z-index: 2;
+}
+.mention-menu__item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  cursor: pointer;
+}
+.mention-menu__empty {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #64748b;
 }
 .chat-input {
   flex: 1 1 auto;

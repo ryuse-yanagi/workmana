@@ -465,7 +465,9 @@ const descriptionDisplayText = computed(() => (
     : descriptionDraft.value
 ))
 const renderedDescriptionHtml = computed(() => (
-  renderMarkdownToSafeHtml(descriptionDisplayText.value)
+  renderMarkdownToSafeHtml(descriptionDisplayText.value, {
+    preserveLineBreaks: props.readonlyDescription,
+  })
 ))
 async function setDescriptionViewMode (mode: DescriptionViewMode) {
   if (descriptionViewMode.value === mode) {

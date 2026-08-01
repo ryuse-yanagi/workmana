@@ -18,6 +18,7 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => false,
+    // セッション Cookie をクロスオリジンで送受信するために必須。
+    'supports_credentials' => true,
 
 ];

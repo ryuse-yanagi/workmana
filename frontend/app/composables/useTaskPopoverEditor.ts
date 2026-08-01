@@ -229,7 +229,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (fromEvent instanceof HTMLElement) return fromEvent
     const target = event?.target
     if (target instanceof Element) {
-      const cellButton = target.closest('.workspace-table__cell-btn')
+      const cellButton = target.closest('.workspace-wbs__cell-btn')
       if (cellButton instanceof HTMLElement) return cellButton
     }
     return null
@@ -240,30 +240,30 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       : DESCRIPTION_POPOVER_MAX_WIDTH
     return Math.min(DESCRIPTION_POPOVER_MAX_WIDTH, viewportMax || DESCRIPTION_POPOVER_MAX_WIDTH)
   }
-  function resolveTableTop (anchor: HTMLElement): number | null {
-    const table = anchor.closest('table.workspace-table')
-      ?? anchor.closest('.workspace-table-board__frame')
+  function resolveWbsTop (anchor: HTMLElement): number | null {
+    const table = anchor.closest('table.workspace-wbs')
+      ?? anchor.closest('.workspace-wbs-board__frame')
     if (!(table instanceof HTMLElement)) {
       return null
     }
     return table.getBoundingClientRect().top
   }
-  /** ボード内の先頭テーブル（見出し）上端。セクション分割された親なしテーブルでも共通の上限にする */
-  function resolveBoardTableTop (anchor: HTMLElement): number | null {
-    const board = anchor.closest('.workspace-table-board')
+  /** ボード内の先頭WBS（見出し）上端。セクション分割された親なしWBSでも共通の上限にする */
+  function resolveBoardWbsTop (anchor: HTMLElement): number | null {
+    const board = anchor.closest('.workspace-wbs-board')
     if (board instanceof HTMLElement) {
       const headerCell = board.querySelector(
-        '.workspace-table thead th, .workspace-table__header-cell',
+        '.workspace-wbs thead th, .workspace-wbs__header-cell',
       )
       if (headerCell instanceof HTMLElement) {
         return headerCell.getBoundingClientRect().top
       }
-      const firstFrame = board.querySelector('.workspace-table-board__frame')
+      const firstFrame = board.querySelector('.workspace-wbs-board__frame')
       if (firstFrame instanceof HTMLElement) {
         return firstFrame.getBoundingClientRect().top
       }
     }
-    return resolveTableTop(anchor)
+    return resolveWbsTop(anchor)
   }
   function measurePopoverContentHeight (popover: HTMLElement): number {
     const style = popover.style
@@ -317,11 +317,25 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     let forceHeight = false
 
     if (isDescription) {
-      // 説明: ボード先頭テーブル上端から（親なし独立テーブルも同じ位置）
-      const tableTop = resolveBoardTableTop(anchor)
-      top = Math.max(topPad, Math.round(tableTop ?? anchorRect.top))
-      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
-      forceHeight = isDescriptionEdit
+      if (isDescriptionEdit) {
+        // 編集モード: ボード先頭WBS上端から画面下まで表示
+        const wbsTop = resolveBoardWbsTop(anchor)
+        top = Math.max(topPad, Math.round(wbsTop ?? anchorRect.top))
+        maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
+        forceHeight = true
+      } else {
+        // 通常モード: 選択枠の隣。下に収まらなければ収まるまで上へ移動
+        const popoverHeight = measurePopoverContentHeight(popover)
+        top = Math.round(anchorRect.top)
+        if (top + popoverHeight > bottomLimit) {
+          top = bottomLimit - popoverHeight
+        }
+        top = Math.max(topPad, top)
+        maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
+        if (popoverHeight > maxHeight) {
+          forceHeight = true
+        }
+      }
     } else if (type === 'start-date' || type === 'due-date' || type === 'effort') {
       // カレンダー・工数: 選択枠の高さから。下に収まらなければ上へずらす
       const popoverHeight = measurePopoverContentHeight(popover)
@@ -340,22 +354,22 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       || type === 'labels'
       || type === 'list'
     ) {
-      // 担当・ラベル・リスト（親なし独立テーブル含む）:
+      // 担当・ラベル・リスト（親なし独立WBS含む）:
       // 1) 枠上端から伸ばして収まる → そこから
       // 2) 収まらない → 下寄せ
-      // 3) 下寄せしてもボード先頭テーブル上端に届く → そこで高さ固定しスクロール
+      // 3) 下寄せしてもボード先頭WBS上端に届く → そこで高さ固定しスクロール
       const popoverHeight = measurePopoverContentHeight(popover)
       const cellTop = Math.max(topPad, Math.round(anchorRect.top))
-      const boardTableTop = Math.max(
+      const boardWbsTop = Math.max(
         topPad,
-        Math.round(resolveBoardTableTop(anchor) ?? cellTop),
+        Math.round(resolveBoardWbsTop(anchor) ?? cellTop),
       )
       if (cellTop + popoverHeight <= bottomLimit) {
         top = cellTop
       } else {
         const bottomAlignedTop = bottomLimit - popoverHeight
-        if (bottomAlignedTop <= boardTableTop) {
-          top = boardTableTop
+        if (bottomAlignedTop <= boardWbsTop) {
+          top = boardWbsTop
           forceHeight = true
         } else {
           top = Math.max(topPad, Math.round(bottomAlignedTop))
@@ -366,8 +380,8 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
         forceHeight = true
       }
     } else {
-      const tableTop = resolveBoardTableTop(anchor)
-      top = Math.max(topPad, Math.round(tableTop ?? anchorRect.top))
+      const wbsTop = resolveBoardWbsTop(anchor)
+      top = Math.max(topPad, Math.round(wbsTop ?? anchorRect.top))
       maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
     }
 
@@ -432,7 +446,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     options.task.value = merged
     options.onUpdated(merged)
   }
-  function previewDescriptionInTable () {
+  function previewDescriptionInWbs () {
     // 閲覧専用では下書きの同期プレビューを行わない
     if (options.readonlyDescription?.value) return
     if (activePopover.value !== 'description') return
@@ -444,7 +458,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       description: description.trim() === '' ? null : description,
     })
   }
-  function previewEffortInTable () {
+  function previewEffortInWbs () {
     if (activePopover.value !== 'effort') return
     const task = options.task.value
     if (!task) return
@@ -585,15 +599,27 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (el.closest('.popover-layer, .popover, .popover-shell')) {
       return true
     }
+    // 閲覧専用の説明（入力済み）は、ポップオーバー外クリックで閉じる。
+    // 説明セル自体は click で開閉するため、外側クローズ対象外にする
+    // （mouseup で閉じた直後に click で再度開くのを防ぐ）。
+    if (activePopover.value === 'description' && options.readonlyDescription?.value) {
+      const notesCell = el.closest('.workspace-wbs__cell-btn--notes')
+      return !!(notesCell && notesCell.getAttribute('aria-disabled') !== 'true')
+    }
     if (el.closest('[data-workspace-view-switcher-root], .workspace-view-switcher-menu')) {
       return true
     }
-    // テーブルヘッダーの編集／キャンセル／完了などは外側クローズ対象外にする。
+    // WBSヘッダーの編集／キャンセル／完了などは外側クローズ対象外にする。
     // mouseup で非同期 close が走ると click / pointerdown による編集モード遷移と競合しうるため。
     if (el.closest('.subheader-actions, .document-header-action-btn, .page-header')) {
       return true
     }
-    if (el.closest('.workspace-table__cell-btn, .workspace-table__avatar-btn, .workspace-table__members-cell')) {
+    // セル側のクリックで開閉が処理されるため外側クローズ対象外。
+    // ただし操作無効なセル（空の説明など）は何も起きないので閉じる。
+    const cell = el.closest(
+      '.workspace-wbs__cell-btn, .workspace-wbs__avatar-btn, .workspace-wbs__members-cell',
+    )
+    if (cell && cell.getAttribute('aria-disabled') !== 'true') {
       return true
     }
     const anchor = popoverAnchorEl.value
@@ -607,16 +633,12 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const target = event.target
     if (!(target instanceof Node)) return
     if (resolvePopoverElement()?.contains(target)) return
-    // 説明はテーブル内の別セルを含め、プルダウン外のクリックで閉じる。
-    // 通常モードは保存不要、編集モードは変更を保存してから閉じる。
-    if (activePopover.value === 'description') {
-      dismissPopoverFromOutsidePointer(
-        target,
-        options.readonlyDescription?.value ? dismissPopover : closePopover,
-      )
+    if (shouldIgnorePopoverOutsideClose(target)) return
+    // 閲覧専用の説明は保存不要なので同期 dismiss で閉じる
+    if (activePopover.value === 'description' && options.readonlyDescription?.value) {
+      dismissPopoverFromOutsidePointer(target, dismissPopover)
       return
     }
-    if (shouldIgnorePopoverOutsideClose(target)) return
     if (activePopover.value === 'member-detail') {
       dismissPopoverFromOutsidePointer(target, dismissPopover)
       return
@@ -658,13 +680,13 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (activePopover.value === 'labels') updatePopoverPosition()
   })
   watch(descriptionDraft, () => {
-    previewDescriptionInTable()
+    previewDescriptionInWbs()
     if (activePopover.value === 'description') {
       updatePopoverPosition()
     }
   })
   watch(effortDraft, () => {
-    previewEffortInTable()
+    previewEffortInWbs()
   })
   function isDisabled (): boolean {
     return options.disabled?.value ?? false

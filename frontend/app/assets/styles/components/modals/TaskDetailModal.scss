@@ -955,6 +955,8 @@
 }
 .task-checklist-wrap {
   flex-shrink: 0;
+  display: grid;
+  gap: 16px;
 }
 .popover--checklist-create {
   width: min(252px, calc(100vw - 21px));
@@ -1105,4 +1107,94 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
   font-size: 10.92px;
   font-weight: 800;
   border-radius: 999px;
+}
+
+.attachments-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.attachments-upload {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+}
+
+.attachments-upload__input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.attachments-state {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.attachments-state--error {
+  color: mixin.$danger;
+}
+
+.attachments-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.attachments-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.attachments-item__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: mixin.$main;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachments-item__meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.attachments-item__delete {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: mixin.$danger;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.attachments-item__delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

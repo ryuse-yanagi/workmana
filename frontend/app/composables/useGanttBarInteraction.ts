@@ -190,8 +190,8 @@ export function useGanttBarInteraction (options: {
       return false
     }
     return Boolean(
-      target.closest('.workspace-table__day-cell')
-      || target.closest('.workspace-table__day-header')
+      target.closest('.workspace-wbs__day-cell')
+      || target.closest('.workspace-wbs__day-header')
       || target.closest('.popover.popover--gantt-color'),
     )
   }
@@ -574,7 +574,7 @@ export function useGanttBarInteraction (options: {
     }
     // 日付マス操作中のネイティブ選択・スクロール開始を抑止
     event.preventDefault()
-    const cell = (target.closest('.workspace-table__day-cell') as HTMLElement | null) ?? target
+    const cell = (target.closest('.workspace-wbs__day-cell') as HTMLElement | null) ?? target
     const cellRect = cell.getBoundingClientRect()
     const zone = forcedZone ?? resolveGanttBarHitZone(task, dayIso, event.clientX, cellRect)
     pending = {

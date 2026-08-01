@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\User;
-use Firebase\JWT\JWT;
 use Firebase\JWT\JWK;
+use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -18,8 +18,10 @@ class CognitoJwtService
         $issuer = config('cognito.issuer');
         $audience = config('cognito.audience');
 
-        if (! $jwksUrl || ! $issuer) {
-            throw new RuntimeException('Cognito JWKS URL and issuer must be configured.');
+        if (! is_string($jwksUrl) || $jwksUrl === ''
+            || ! is_string($issuer) || $issuer === ''
+            || ! is_string($audience) || $audience === '') {
+            throw new RuntimeException('Cognito JWKS URL, issuer, and audience must be configured.');
         }
 
         $jwksJson = Cache::remember('cognito_jwks', 3600, function () use ($jwksUrl) {
@@ -39,15 +41,17 @@ class CognitoJwtService
             throw new RuntimeException('Invalid token issuer.');
         }
 
-        if ($audience !== null && $audience !== '') {
-            $tokenAud = $claims['aud'] ?? null;
-            if (is_array($tokenAud)) {
-                if (! in_array($audience, $tokenAud, true)) {
-                    throw new RuntimeException('Invalid token audience.');
-                }
-            } elseif ($tokenAud !== $audience) {
+        if (($claims['token_use'] ?? null) !== 'id') {
+            throw new RuntimeException('Invalid token_use; an ID token is required.');
+        }
+
+        $tokenAud = $claims['aud'] ?? null;
+        if (is_array($tokenAud)) {
+            if (! in_array($audience, $tokenAud, true)) {
                 throw new RuntimeException('Invalid token audience.');
             }
+        } elseif ($tokenAud !== $audience) {
+            throw new RuntimeException('Invalid token audience.');
         }
 
         return $claims;
@@ -71,11 +75,22 @@ class CognitoJwtService
             throw new RuntimeException('Token missing email (use ID token or map username).');
         }
 
+        if (! $this->isEmailVerifiedClaim($claims['email_verified'] ?? null)) {
+            throw new RuntimeException('Token email is not verified.');
+        }
+
         $email = strtolower(trim($email));
 
         $user = User::query()->where('cognito_sub', $sub)->first();
         if ($user === null) {
-            $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+            $byEmail = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+            if ($byEmail !== null) {
+                // 既存アカウントへの紐付けは cognito_sub 未設定時のみ。上書きはアカウント乗っ取りになる。
+                if ($byEmail->cognito_sub !== null && $byEmail->cognito_sub !== '') {
+                    throw new RuntimeException('An account with this email is already linked to a different identity.');
+                }
+                $user = $byEmail;
+            }
         }
 
         if ($user === null) {
@@ -86,6 +101,9 @@ class CognitoJwtService
 
         $user->cognito_sub = $sub;
         $user->email = $email;
+        if ($user->email_verified_at === null) {
+            $user->email_verified_at = now();
+        }
         if (empty($user->name) && isset($claims['name']) && is_string($claims['name'])) {
             $user->name = $claims['name'];
         }
@@ -95,6 +113,11 @@ class CognitoJwtService
         $user->save();
 
         return $user;
+    }
+
+    private function isEmailVerifiedClaim(mixed $value): bool
+    {
+        return $value === true || $value === 'true' || $value === 1 || $value === '1';
     }
 
     public function resolveBypassUser(?string $rawToken): ?User

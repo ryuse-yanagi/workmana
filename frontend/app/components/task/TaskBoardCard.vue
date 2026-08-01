@@ -15,13 +15,6 @@
         {{ parentTaskTitle }}
       </p>
       <p class="task-title-row">
-        <ListTree
-          v-if="task.is_parent_task"
-          :size="15"
-          :stroke-width="2.25"
-          class="task-title-row__icon"
-          aria-hidden="true"
-        />
         <span class="task-title">{{ task.title }}</span>
       </p>
       <div
@@ -58,7 +51,7 @@
   </article>
 </template>
 <script setup lang="ts">
-import { CalendarDays, Clock, ListTree } from 'lucide-vue-next'
+import { CalendarDays, Clock } from 'lucide-vue-next'
 import TaskCardLabelList from './TaskCardLabelList.vue'
 import { memberDisplayName } from '../../composables/useMemberDisplay'
 import {

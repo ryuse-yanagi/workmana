@@ -83,4 +83,9 @@ class Organization extends Model
     {
         return $this->hasMany(SharedDocument::class);
     }
+
+    public function invites(): HasMany
+    {
+        return $this->hasMany(OrganizationInvite::class);
+    }
 }

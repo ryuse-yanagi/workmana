@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SharedDocument extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'organization_id',
         'created_by',
@@ -15,7 +19,16 @@ class SharedDocument extends Model
         'name',
         'description',
         'body',
+        'archived_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'archived_at' => 'datetime',
+            'deleted_at' => 'datetime',
+        ];
+    }
 
     public function organization(): BelongsTo
     {
@@ -39,7 +52,9 @@ class SharedDocument extends Model
             'workspace_related_document',
             'shared_document_id',
             'workspace_id',
-        )->withTimestamps();
+        )
+            ->whereNull('workspaces.archived_at')
+            ->withTimestamps();
     }
 
     public function relatedDocuments(): BelongsToMany
@@ -49,6 +64,23 @@ class SharedDocument extends Model
             'document_related_document',
             'document_id',
             'related_document_id',
-        )->withTimestamps();
+        )
+            ->whereNull('shared_documents.archived_at')
+            ->withTimestamps();
+    }
+
+    public function scopeNotArchived(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->whereNotNull('archived_at');
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
     }
 }

@@ -22,6 +22,9 @@ class DefaultNamedColorItems
                 if ($name === '') {
                     continue;
                 }
+                if (mb_strlen($name) > FieldLengthLimits::DEFAULT_NAMED_ITEM_NAME) {
+                    continue;
+                }
                 $fallback = $defaultItems[$index] ?? null;
                 $colorIndex = $fallback !== null
                     ? (int) $fallback['color_index']
@@ -40,6 +43,9 @@ class DefaultNamedColorItems
 
             $name = trim((string) ($entry['name'] ?? ''));
             if ($name === '') {
+                continue;
+            }
+            if (mb_strlen($name) > FieldLengthLimits::DEFAULT_NAMED_ITEM_NAME) {
                 continue;
             }
 

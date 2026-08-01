@@ -18,12 +18,12 @@ const DRAG_SCROLL_SKIP_SELECTOR = [
   '.list-header',
   '.sortable-fallback',
   '.sortable-chosen',
-  '.workspace-table__drag-handle',
-  '.workspace-table__title-cell',
-  '.workspace-table__title-field',
-  // テーブルヘッダー（ドラッグスクロール対象外）
-  '.workspace-table__header-cell',
-  '.workspace-table__day-header',
+  '.workspace-wbs__drag-handle',
+  '.workspace-wbs__title-cell',
+  '.workspace-wbs__title-field',
+  // WBSヘッダー（ドラッグスクロール対象外）
+  '.workspace-wbs__header-cell',
+  '.workspace-wbs__day-header',
   '.popover-layer',
   '.popover',
   '.popover-shell',
@@ -108,22 +108,36 @@ export function findScrollableAncestor (target: Element): Element | null {
 function isBoardDragScrollBackground (target: Element): boolean {
   return !target.closest(DRAG_SCROLL_SKIP_SELECTOR)
 }
+/** WBSヘッダー、編集時のガント操作・並び替えはドラッグスクロール対象外 */
+function isExcludedWorkspaceWbsDragScrollTarget (target: Element): boolean {
+  if (target.closest('thead, .workspace-wbs__header-cell, .workspace-wbs__day-header')) {
+    return true
+  }
+  if (
+    target.closest('.workspace-wbs--edit')
+    && target.closest(
+      '.workspace-wbs__day-cell, .workspace-wbs__gantt-edge, .workspace-wbs__drag-handle',
+    )
+  ) {
+    return true
+  }
+  return false
+}
 /**
- * 通常モードのテーブル本文では、ボタンや文字上を含む全領域を
- * テーブルの縦横ドラッグスクロール対象にする。
+ * WBS本文では、ボタンや文字上を含む全領域を
+ * WBSの縦横ドラッグスクロール対象にする。
+ * 編集モードではガントチャート操作領域・並び替えハンドルを除く。
  */
-function resolveWorkspaceTableDragScrollContainer (target: Element): {
+function resolveWorkspaceWbsDragScrollContainer (target: Element): {
   container: Element
   axes: ScrollAxes
 } | null {
-  const table = target.closest('.workspace-table')
-  const viewport = target.closest('.workspace-table-board__viewport')
-  if (
-    !(table instanceof Element)
-    || !(viewport instanceof Element)
-    || table.classList.contains('workspace-table--edit')
-    || target.closest('thead')
-  ) {
+  if (isExcludedWorkspaceWbsDragScrollTarget(target)) {
+    return null
+  }
+  const table = target.closest('.workspace-wbs')
+  const viewport = target.closest('.workspace-wbs-board__viewport')
+  if (!(table instanceof Element) || !(viewport instanceof Element)) {
     return null
   }
   const axes = getScrollAxes(viewport)
@@ -134,9 +148,12 @@ export function resolveDragScrollContainer (target: Element): {
   container: Element
   axes: ScrollAxes
 } | null {
-  const tableContainer = resolveWorkspaceTableDragScrollContainer(target)
-  if (tableContainer) {
-    return tableContainer
+  if (isExcludedWorkspaceWbsDragScrollTarget(target)) {
+    return null
+  }
+  const wbsContainer = resolveWorkspaceWbsDragScrollContainer(target)
+  if (wbsContainer) {
+    return wbsContainer
   }
   const board = target.closest('.board')
   if (board instanceof Element && isBoardDragScrollBackground(target)) {
@@ -155,7 +172,10 @@ export function shouldEnableDragScroll (target: EventTarget | null): boolean {
   if (!(target instanceof Element)) {
     return false
   }
-  if (resolveWorkspaceTableDragScrollContainer(target)) {
+  if (isExcludedWorkspaceWbsDragScrollTarget(target)) {
+    return false
+  }
+  if (resolveWorkspaceWbsDragScrollContainer(target)) {
     return true
   }
   if (isInsideSelectableText(target)) {

@@ -252,7 +252,7 @@
             </button>
           </section>
         </aside>
-        <section class="document-viewer">
+        <section ref="bodyScrollerRef" class="document-viewer">
           <div
             class="document-viewer__page"
             :class="{ 'document-viewer__page--editing': bodyEditing }"
@@ -355,12 +355,13 @@
         :loading="documentMetaPending"
         @submit="onDocumentFormSubmit"
       />
-      <DocumentDeleteModal
-        ref="documentDeleteModalRef"
-        v-model="documentDeleteModalOpen"
-        :document-name="currentDocument.name"
-        :loading="deletePending"
-        @confirm="confirmDocumentDelete"
+      <ConfirmModal
+        v-model="documentArchiveConfirmOpen"
+        title="資料のアーカイブ確認"
+        :message="`「${currentDocument.name}」をアーカイブしますか？`"
+        confirm-text="アーカイブ"
+        :loading="archivePending"
+        @confirm="confirmDocumentArchive"
       />
       <FloatingMenu
         :open="Boolean(relatedMenuOpen && relatedMenuPosition)"
@@ -432,7 +433,7 @@ import DocumentLabelSelect from '../../../../components/documents/DocumentLabelS
 import { renderMarkdownToSafeHtml } from '../../../../utils/renderMarkdown'
 import { Pencil, Save, Ellipsis, EllipsisVertical } from 'lucide-vue-next'
 import DocumentCreateModal from '../../../../components/modals/DocumentCreateModal.vue'
-import DocumentDeleteModal from '../../../../components/modals/DocumentDeleteModal.vue'
+import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
 import RelatedItemPickerModal from '../../../../components/modals/RelatedItemPickerModal.vue'
 import { useDropdownEscapeClose } from '../../../../composables/useDropdownEscapeClose'
 import {
@@ -440,8 +441,6 @@ import {
   syncPeerCachesAfterDocumentRelatedWorkspacesChange,
 } from '../../../../composables/syncRelatedRelationCaches'
 
-/** 資料本文用紙の最小縦幅（入力に応じて下方向へ伸びる） */
-const DOCUMENT_PAGE_MIN_HEIGHT_PX = 767
 /** 旧・複数ページ保存分を単一本文へ戻すための区切り */
 const LEGACY_DOCUMENT_PAGE_BREAK = '\n\n<!--wm-page-break-->\n\n'
 
@@ -490,16 +489,16 @@ const bodySaveError = ref<string | null>(null)
 const nameInputRef = ref<HTMLTextAreaElement | null>(null)
 const descriptionInputRef = ref<HTMLTextAreaElement | null>(null)
 const bodyInputRef = ref<HTMLTextAreaElement | null>(null)
+const bodyScrollerRef = ref<HTMLElement | null>(null)
 const documentMenuOpen = ref(false)
 const documentMenuMode = ref<'actions' | 'share'>('actions')
 const documentMenuPosition = ref<{ top: number; left: number } | null>(null)
 const documentMenuTriggerRef = ref<HTMLButtonElement | null>(null)
 const shareUrlInputRef = ref<HTMLInputElement | null>(null)
 const documentFormModalOpen = ref(false)
-const documentDeleteModalOpen = ref(false)
-const documentDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const documentArchiveConfirmOpen = ref(false)
 const documentMetaPending = ref(false)
-const deletePending = ref(false)
+const archivePending = ref(false)
 const relatedWorkspaceModalOpen = ref(false)
 const relatedDocumentModalOpen = ref(false)
 const relatedWorkspaceSaving = ref(false)
@@ -528,7 +527,6 @@ const DOCUMENT_MENU_SHARE_WIDTH = 320
 const pageCssVars = computed(() => ({
   '--global-header-offset': `${globalHeaderOffsetPx.value}px`,
   '--app-shell-page-pad': '3.5px',
-  '--document-page-min-height': `${DOCUMENT_PAGE_MIN_HEIGHT_PX}px`,
 } as Record<string, string>))
 function normalizeDocumentBodyText (body: string | null | undefined): string {
   if (body == null || body === '') {
@@ -1017,6 +1015,12 @@ function updateStickyOffsets () {
   }
 }
 function applyDocument (value: OrgDocument) {
+  if (value.archived_at) {
+    removeDocumentCached(slug.value, value.id)
+    invalidateCached(slug.value)
+    void navigateTo(`/org/${slug.value}/documents`)
+    return
+  }
   currentDocument.value = value
 }
 function closeDocumentMenu () {
@@ -1085,10 +1089,9 @@ const documentHeaderMenuItems = computed<FloatingMenuItem[]>(() => [
   { key: 'edit', label: '編集', disabled: documentMetaPending.value },
   { key: 'share', label: '共有' },
   {
-    key: 'delete',
-    label: '削除',
-    danger: true,
-    disabled: documentMetaPending.value || deletePending.value,
+    key: 'archive',
+    label: 'アーカイブ',
+    disabled: documentMetaPending.value || archivePending.value,
   },
 ])
 function onDocumentHeaderMenuSelect (item: FloatingMenuItem) {
@@ -1100,17 +1103,17 @@ function onDocumentHeaderMenuSelect (item: FloatingMenuItem) {
     void switchDocumentMenuToShare()
     return
   }
-  if (item.key === 'delete') {
-    openDocumentDeleteModal()
+  if (item.key === 'archive') {
+    openDocumentArchiveConfirm()
   }
 }
 function openDocumentEditModal () {
   closeDocumentMenu()
   documentFormModalOpen.value = true
 }
-function openDocumentDeleteModal () {
+function openDocumentArchiveConfirm () {
   closeDocumentMenu()
-  documentDeleteModalOpen.value = true
+  documentArchiveConfirmOpen.value = true
 }
 async function onDocumentFormSubmit (payload: {
   name: string
@@ -1149,26 +1152,25 @@ async function onDocumentFormSubmit (payload: {
     documentMetaPending.value = false
   }
 }
-async function confirmDocumentDelete () {
+async function confirmDocumentArchive () {
   const target = currentDocument.value
-  if (!target || deletePending.value) {
+  if (!target || archivePending.value) {
     return
   }
-  deletePending.value = true
+  archivePending.value = true
   try {
     await withAppLoadingCursor(async () => {
-      await api(`/orgs/${slug.value}/documents/${target.id}`, {
-        method: 'DELETE',
+      await api(`/orgs/${slug.value}/documents/${target.id}/archive`, {
+        method: 'POST',
       })
-      documentDeleteModalOpen.value = false
+      documentArchiveConfirmOpen.value = false
       removeDocumentCached(slug.value, target.id)
       await router.push(`/org/${slug.value}/documents`)
     })
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : '削除に失敗しました'
-    documentDeleteModalRef.value?.setSubmitError(message)
+    fieldSaveError.value = e instanceof Error ? e.message : 'アーカイブに失敗しました'
   } finally {
-    deletePending.value = false
+    archivePending.value = false
   }
 }
 function onDocumentMenuGlobalClick (event: Event) {
@@ -1459,7 +1461,15 @@ async function startBodyEdit () {
     bodyViewMode.value = 'markdown'
   }
   await nextTick()
+  const scroller = resolveBodyScroller()
+  const lockedScrollTop = scroller?.scrollTop ?? 0
+  const unlock = lockBodyScroller(scroller, lockedScrollTop)
   adjustBodyHeight()
+  restoreBodyScroller(scroller, lockedScrollTop)
+  requestAnimationFrame(() => {
+    restoreBodyScroller(scroller, lockedScrollTop)
+    unlock()
+  })
 }
 async function setBodyViewModeMarkdown () {
   bodyViewMode.value = 'markdown'
@@ -1467,7 +1477,15 @@ async function setBodyViewModeMarkdown () {
     return
   }
   await nextTick()
+  const scroller = resolveBodyScroller()
+  const lockedScrollTop = scroller?.scrollTop ?? 0
+  const unlock = lockBodyScroller(scroller, lockedScrollTop)
   adjustBodyHeight()
+  restoreBodyScroller(scroller, lockedScrollTop)
+  requestAnimationFrame(() => {
+    restoreBodyScroller(scroller, lockedScrollTop)
+    unlock()
+  })
 }
 function onBodyInput () {
   const scroller = resolveBodyScroller()
@@ -1481,11 +1499,7 @@ function onBodyInput () {
   })
 }
 function resolveBodyScroller (): HTMLElement | null {
-  const el = bodyInputRef.value
-  if (!el) {
-    return null
-  }
-  return el.closest('.document-viewer') as HTMLElement | null
+  return bodyScrollerRef.value
 }
 function restoreBodyScroller (scroller: HTMLElement | null, scrollTop: number) {
   if (!scroller) {
@@ -1514,16 +1528,30 @@ function adjustBodyHeight () {
   const scroller = resolveBodyScroller()
   const lockedScrollTop = scroller?.scrollTop ?? 0
   const page = el.closest('.document-viewer__page') as HTMLElement | null
-  // 一旦 auto にして実コンテンツ高さを測る（0 に潰すと親が勝手にスクロールしやすい）
-  el.style.height = 'auto'
+
+  // いったん縮めて本文実高さを測る
+  el.style.flex = 'none'
+  el.style.height = '1px'
   const contentHeight = el.scrollHeight
-  let minFill = contentHeight
-  if (page) {
-    const style = getComputedStyle(page)
-    const padY = Number.parseFloat(style.paddingTop || '0') + Number.parseFloat(style.paddingBottom || '0')
-    minFill = Math.max(contentHeight, Math.max(0, DOCUMENT_PAGE_MIN_HEIGHT_PX - padY))
+
+  // ビューアに収まる高さ（これ以上だとスクロールバーが出る）
+  let fitHeight = contentHeight
+  if (scroller && page) {
+    const scrollerStyle = getComputedStyle(scroller)
+    const pageStyle = getComputedStyle(page)
+    const scrollerPadY = Number.parseFloat(scrollerStyle.paddingTop || '0')
+      + Number.parseFloat(scrollerStyle.paddingBottom || '0')
+    const pagePadY = Number.parseFloat(pageStyle.paddingTop || '0')
+      + Number.parseFloat(pageStyle.paddingBottom || '0')
+    const pageBorderY = Number.parseFloat(pageStyle.borderTopWidth || '0')
+      + Number.parseFloat(pageStyle.borderBottomWidth || '0')
+    fitHeight = Math.max(
+      0,
+      Math.floor(scroller.clientHeight - scrollerPadY - pagePadY - pageBorderY),
+    )
   }
-  el.style.height = `${minFill}px`
+
+  el.style.height = `${Math.max(contentHeight, fitHeight)}px`
   restoreBodyScroller(scroller, lockedScrollTop)
 }
 function cancelBodyEdit () {
@@ -1647,6 +1675,11 @@ onActivated(() => {
     pageReady.value = true
   }
   void ensureCategoriesLoaded()
+  if (import.meta.client) {
+    nextTick(() => {
+      updateStickyOffsets()
+    })
+  }
 })
 onDeactivated(() => {
   // 他画面へ遷移するときは編集をキャンセル扱い（未保存は破棄）
@@ -1655,7 +1688,7 @@ onDeactivated(() => {
   closeDocumentMenu()
   closeRelatedMenu()
   documentFormModalOpen.value = false
-  documentDeleteModalOpen.value = false
+  documentArchiveConfirmOpen.value = false
   relatedWorkspaceModalOpen.value = false
   relatedDocumentModalOpen.value = false
 })

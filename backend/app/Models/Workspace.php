@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Workspace extends Model
 {
     use SoftDeletes;
+
     protected $fillable = [
         'organization_id',
         'created_by',
@@ -44,13 +45,6 @@ class Workspace extends Model
         return $this->hasMany(BoardList::class)->orderBy('sort_order');
     }
 
-    public function memberships(): BelongsToMany
-    {
-        return $this->belongsToMany(User::class, 'workspace_memberships')
-            ->withPivot(['role', 'added_by'])
-            ->withTimestamps();
-    }
-
     public function tasks(): HasMany
     {
         return $this->hasMany(Task::class);
@@ -73,7 +67,9 @@ class Workspace extends Model
             'workspace_related_workspace',
             'workspace_id',
             'related_workspace_id',
-        )->withTimestamps();
+        )
+            ->whereNull('workspaces.archived_at')
+            ->withTimestamps();
     }
 
     public function relatedDocuments(): BelongsToMany
@@ -83,7 +79,9 @@ class Workspace extends Model
             'workspace_related_document',
             'workspace_id',
             'shared_document_id',
-        )->withTimestamps();
+        )
+            ->whereNull('shared_documents.archived_at')
+            ->withTimestamps();
     }
 
     public function scopeActive(Builder $query): Builder
@@ -94,6 +92,11 @@ class Workspace extends Model
     public function scopeNotArchived(Builder $query): Builder
     {
         return $query->whereNull('archived_at');
+    }
+
+    public function scopeArchived(Builder $query): Builder
+    {
+        return $query->whereNotNull('archived_at');
     }
 
     public function isArchived(): bool

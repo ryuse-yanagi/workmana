@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Enums\MembershipRole;
 use App\Models\Organization;
 use App\Models\User;
 use App\Models\Workspace;
@@ -27,11 +26,6 @@ class WorkspaceSeeder extends Seeder
             return;
         }
 
-        $members = User::query()
-            ->whereIn('name', DummySeederData::userNames())
-            ->orderBy('id')
-            ->get();
-
         $workspace = Workspace::query()->firstOrCreate(
             [
                 'organization_id' => $org->id,
@@ -51,19 +45,6 @@ class WorkspaceSeeder extends Seeder
 
         if ($workspace->wasRecentlyCreated) {
             DefaultBoardLists::seedForWorkspace($workspace, $org);
-        }
-
-        foreach ($members as $user) {
-            if ($user->workspaces()->where('workspaces.id', $workspace->id)->exists()) {
-                continue;
-            }
-
-            $workspace->memberships()->attach($user->id, [
-                'role' => $user->id === $admin->id
-                    ? MembershipRole::Admin->value
-                    : MembershipRole::Member->value,
-                'added_by' => $admin->id,
-            ]);
         }
 
         $assigneeIds = User::query()

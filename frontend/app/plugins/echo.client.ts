@@ -1,6 +1,8 @@
 import Echo from 'laravel-echo'
 import Pusher from 'pusher-js'
+import { ensureXsrfToken } from '../utils/csrf'
 type EchoInstance = InstanceType<typeof Echo>
+type ChannelAuthorizationData = { auth: string; channel_data?: string; shared_secret?: string }
 const ECHO_SINGLETON_KEY = '__tmEchoInstance'
 function disconnectEcho (instance: EchoInstance | null | undefined): void {
   if (!instance) {
@@ -14,7 +16,6 @@ function disconnectEcho (instance: EchoInstance | null | undefined): void {
 }
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig()
-  const { getToken } = useAuth()
   const globalRef = globalThis as typeof globalThis & { [ECHO_SINGLETON_KEY]?: EchoInstance }
   // HMR でプラグインが再実行されると Pusher が増殖して WS が大量に Finished になる
   disconnectEcho(globalRef[ECHO_SINGLETON_KEY])
@@ -39,16 +40,32 @@ export default defineNuxtPlugin(() => {
       forceTLS: useTls,
       enabledTransports: useTls ? ['wss', 'ws'] : ['ws'],
       disableStats: true,
+      // チャンネル認可も Cookie 認証で行うため、独自ハンドラで credentials を付けて送る
       channelAuthorization: {
-        endpoint: authEndpoint,
-        transport: 'ajax',
-        headersProvider: () => {
-          const headers: Record<string, string> = {}
-          const token = getToken()
-          if (token) {
-            headers.Authorization = `Bearer ${token}`
-          }
-          return headers
+        customHandler: (
+          params: { socketId: string; channelName: string },
+          callback: (error: Error | null, data: ChannelAuthorizationData | null) => void,
+        ) => {
+          void (async () => {
+            try {
+              const xsrfToken = await ensureXsrfToken(apiBaseUrl)
+              const data = await $fetch<ChannelAuthorizationData>(authEndpoint, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  Accept: 'application/json',
+                  ...(xsrfToken ? { 'X-XSRF-TOKEN': xsrfToken } : {}),
+                },
+                body: {
+                  socket_id: params.socketId,
+                  channel_name: params.channelName,
+                },
+              })
+              callback(null, data)
+            } catch (error) {
+              callback(error instanceof Error ? error : new Error('channel authorization failed'), null)
+            }
+          })()
         },
       },
     })

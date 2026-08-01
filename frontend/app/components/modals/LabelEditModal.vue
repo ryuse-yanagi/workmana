@@ -15,7 +15,6 @@
           v-model.trim="name"
           type="text"
           :maxlength="LABEL_NAME_MAX_LENGTH"
-          required
           placeholder="ラベル名を入力してください"
           :disabled="loading"
           @keydown.enter.exact.prevent

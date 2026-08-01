@@ -56,11 +56,11 @@
 </template>
 <script setup lang="ts">
 import type { Component } from 'vue'
-import { Check, LayoutPanelLeft, NotebookPen, TableProperties } from 'lucide-vue-next'
+import { Check, LayoutPanelLeft, ListTree, NotebookPen } from 'lucide-vue-next'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 const viewIcons: Record<WorkspaceViewKey, Component> = {
   board: LayoutPanelLeft,
-  table: TableProperties,
+  wbs: ListTree,
 }
 const props = defineProps<{
   orgSlug: string

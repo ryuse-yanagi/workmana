@@ -6,11 +6,13 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'cognito_sub', 'avatar_path'])]
+#[Fillable(['name', 'email', 'password', 'cognito_sub', 'avatar_path', 'email_verified_at', 'last_organization_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -25,6 +27,11 @@ class User extends Authenticatable
         ];
     }
 
+    public function lastOrganization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'last_organization_id');
+    }
+
     public function organizations(): BelongsToMany
     {
         return $this->belongsToMany(Organization::class, 'memberships')
@@ -37,27 +44,28 @@ class User extends Authenticatable
         return $this->organizations()->where('organizations.id', $organization->id)->first()?->pivot;
     }
 
-    public function workspacePivot(Workspace $workspace): ?object
+    public function isMemberOfOrganization(Organization|int $organization): bool
     {
-        return $this->workspaces()->where('workspaces.id', $workspace->id)->first()?->pivot;
+        $organizationId = $organization instanceof Organization ? $organization->id : $organization;
+
+        return $this->organizations()->where('organizations.id', $organizationId)->exists();
     }
 
-    public function isMemberOfWorkspace(Workspace $workspace): bool
-    {
-        return $this->workspaces()->where('workspaces.id', $workspace->id)->exists();
-    }
-
+    /**
+     * 組織メンバーであればスペースへアクセス・編集できる。
+     */
     public function canAccessWorkspace(Workspace $workspace): bool
     {
-        return $this->organizations()
-            ->where('organizations.id', $workspace->organization_id)
-            ->exists();
+        return $this->isMemberOfOrganization((int) $workspace->organization_id);
     }
 
-    public function workspaces(): BelongsToMany
+    public function canEditWorkspace(Workspace $workspace): bool
     {
-        return $this->belongsToMany(Workspace::class, 'workspace_memberships')
-            ->withPivot(['role', 'added_by'])
-            ->withTimestamps();
+        return $this->canAccessWorkspace($workspace);
+    }
+
+    public function appNotifications(): HasMany
+    {
+        return $this->hasMany(AppNotification::class);
     }
 }

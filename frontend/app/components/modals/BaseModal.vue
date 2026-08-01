@@ -111,6 +111,7 @@ function onDocumentEscape (event: KeyboardEvent) {
 }
 const PRIMARY_INPUT_SELECTOR = [
   'input[type="text"]:not([disabled])',
+  'input[type="email"]:not([disabled])',
   'input:not([type]):not([disabled])',
   'textarea:not([disabled])',
 ].join(', ')

@@ -31,12 +31,6 @@
               >
                 <div class="parent-toggle-card__head">
                   <div class="parent-toggle-card__label-wrap">
-                    <ListTree
-                      :size="18"
-                      :stroke-width="2"
-                      class="parent-toggle-card__icon"
-                      aria-hidden="true"
-                    />
                     <span class="parent-toggle-card__label">親タスクとして新規追加する</span>
                   </div>
                   <button
@@ -60,45 +54,11 @@
                 ref="metaPickerRootRef"
                 class="parent-picker-block"
               >
-                <div class="parent-select-wrap">
-                  <button
-                    v-if="!createAsParent"
-                    type="button"
-                    class="action-btn action-btn--parent"
-                    :class="{ 'action-btn--active': parentPickerOpen }"
-                    :disabled="submitting || parentTasksLoading || parentTaskDefaultsLoading"
-                    :aria-expanded="parentPickerOpen"
-                    aria-haspopup="dialog"
-                    aria-label="親タスク"
-                    @click.stop="toggleParentPicker($event)"
-                  >
-                    <span class="action-btn-icon" aria-hidden="true">
-                      <ListTree :size="16" :stroke-width="2.25" />
-                    </span>
-                    親タスク
-                  </button>
-                  <button
-                    type="button"
-                    class="action-btn action-btn--list"
-                    :class="{ 'action-btn--active': listPickerOpen }"
-                    :disabled="submitting"
-                    :aria-expanded="listPickerOpen"
-                    aria-haspopup="dialog"
-                    aria-label="リスト"
-                    @click.stop="toggleListPicker($event)"
-                  >
-                    <span class="action-btn-icon" aria-hidden="true">
-                      <List :size="16" :stroke-width="2.25" />
-                    </span>
-                    リスト
-                  </button>
-                </div>
                 <div
-                  v-if="showDetailMetaRow"
                   class="detail-meta-row"
                 >
                   <section
-                    v-if="!createAsParent && parentTaskId !== null"
+                    v-if="!createAsParent"
                     class="detail-item detail-item--parent"
                   >
                     <span class="detail-item-label">親タスク</span>
@@ -187,6 +147,7 @@
             :parents="parentTasks"
             :selected-parent-id="parentTaskId"
             :clear-disabled="submitting || parentTaskDefaultsLoading"
+            show-unset-option
             :error="parentPickerError"
             @select="selectParentTask"
             @clear="clearParentTask"
@@ -243,7 +204,6 @@
   </Teleport>
 </template>
 <script setup lang="ts">
-import { List, ListTree } from 'lucide-vue-next'
 import ParentTaskPickerPanel from '../task/ParentTaskPickerPanel.vue'
 import TaskFormPane from '../task/TaskFormPane.vue'
 import PopoverShell from '../ui/PopoverShell.vue'
@@ -352,9 +312,9 @@ const POPOVER_ANCHOR_GAP = 6
 const POPOVER_MIN_HEIGHT = 120
 const POPOVER_DEFAULT_WIDTH_PX = 312
 const selectedParentTaskTitle = computed(() => {
-  if (parentTaskId.value === null) return ''
+  if (parentTaskId.value === null) return '未設定'
   const parent = parentTasks.value.find(item => item.id === parentTaskId.value)
-  return parent?.title ?? ''
+  return parent?.title ?? '未設定'
 })
 const selectedListOption = computed((): WorkspaceListOption | null => {
   const listId = selectedListId.value
@@ -365,10 +325,6 @@ const selectedListName = computed(() => selectedListOption.value?.name ?? 'リ�
 const selectedListValueStyle = computed(() => {
   const color = resolveListColor(selectedListId.value, props.workspaceLists)
   return color ? { color } : undefined
-})
-const showDetailMetaRow = computed(() => {
-  const showParent = !createAsParent.value && parentTaskId.value !== null
-  return showParent || selectedListId.value !== null
 })
 const panePopoverOpen = computed(() => taskFormPaneRef.value?.activePopover != null)
 const anyPopoverOpen = computed(() => panePopoverOpen.value || parentPickerOpen.value || listPickerOpen.value)
@@ -465,7 +421,7 @@ async function toggleParentPicker (event?: Event) {
     return
   }
   closeListPicker()
-  parentPickerAnchorEl.value = captureMetaPickerAnchor(event, '.action-btn--parent')
+  parentPickerAnchorEl.value = captureMetaPickerAnchor(event, '.detail-value-btn--parent')
   parentPickerError.value = null
   parentPickerOpen.value = true
   updateParentPickerPosition()
@@ -481,7 +437,7 @@ async function toggleListPicker (event?: Event) {
     return
   }
   closeParentPicker()
-  listPickerAnchorEl.value = captureMetaPickerAnchor(event, '.action-btn--list')
+  listPickerAnchorEl.value = captureMetaPickerAnchor(event, '.detail-value-btn--list')
   listPickerError.value = null
   listPickerOpen.value = true
   updateListPickerPosition()
@@ -526,7 +482,7 @@ function onParentPickerOutsidePointerUp (event: MouseEvent) {
   const target = event.target
   if (!(target instanceof Node)) return
   if (resolveParentPickerPopoverElement()?.contains(target)) return
-  if (shouldIgnoreMetaPickerOutsideClose(target, ['.action-btn--parent', '.detail-value-btn--parent'])) return
+  if (shouldIgnoreMetaPickerOutsideClose(target, ['.detail-value-btn--parent'])) return
   dismissPopoverFromOutsidePointer(target, closeParentPicker)
 }
 function onListPickerOutsidePointerUp (event: MouseEvent) {
@@ -534,7 +490,7 @@ function onListPickerOutsidePointerUp (event: MouseEvent) {
   const target = event.target
   if (!(target instanceof Node)) return
   if (resolveListPickerPopoverElement()?.contains(target)) return
-  if (shouldIgnoreMetaPickerOutsideClose(target, ['.action-btn--list', '.detail-value-btn--list'])) return
+  if (shouldIgnoreMetaPickerOutsideClose(target, ['.detail-value-btn--list'])) return
   dismissPopoverFromOutsidePointer(target, closeListPicker)
 }
 function onParentPickerEscape (event: KeyboardEvent) {

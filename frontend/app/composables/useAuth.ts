@@ -1,79 +1,73 @@
+import { useApi } from './useApi'
+import { safeInternalPath } from '../utils/safeInternalPath'
+
+export type AuthUser = {
+  id: number
+  email: string | null
+  name: string | null
+  avatar_url: string | null
+  last_organization_id?: number | null
+  organizations?: Array<{ id: number; name: string; slug: string; role?: string }>
+}
+
+export type AuthSession = {
+  authenticated: boolean
+  configured: boolean
+  user: AuthUser | null
+}
+
+const SIGNED_OUT: AuthSession = { authenticated: false, configured: false, user: null }
+
+/**
+ * 認証はすべてバックエンド（HttpOnly セッション Cookie）に委ねる。
+ * フロントエンドは JWT を保持もデコードもしない。
+ */
 export function useAuth () {
-  const config = useRuntimeConfig()
-  const tokenKey = 'id_token'
-  const isClient = import.meta.client
-  const cognitoDomain = computed(() => String(config.public.cognitoDomain || '').replace(/\/$/, ''))
-  const cognitoClientId = computed(() => String(config.public.cognitoClientId || ''))
-  const cognitoRedirectUri = computed(() => String(config.public.cognitoRedirectUri || ''))
-  const cognitoLogoutRedirectUri = computed(() => String(config.public.cognitoLogoutRedirectUri || ''))
-  const isConfigured = computed(() => {
-    return !!(cognitoDomain.value && cognitoClientId.value && cognitoRedirectUri.value)
-  })
-  function getToken (): string {
-    if (!isClient) {
-      return ''
-    }
-    return localStorage.getItem(tokenKey)?.trim() ?? ''
+  const { api, apiBase } = useApi()
+
+  /**
+   * Cognito Hosted UI へのリダイレクトはバックエンドが組み立てる。
+   * クライアント側に client_id や PKCE の情報を持たせない。
+   */
+  function loginUrl (next: string): string {
+    const target = safeInternalPath(next, '/')
+    return `${apiBase}/auth/login?next=${encodeURIComponent(target)}`
   }
-  function setToken (token: string) {
-    if (!isClient) {
+
+  function startLogin (next: string): void {
+    if (!import.meta.client) {
       return
     }
-    localStorage.setItem(tokenKey, token.trim())
+    window.location.href = loginUrl(next)
   }
-  function clearToken () {
-    if (!isClient) {
+
+  async function fetchSession (): Promise<AuthSession> {
+    try {
+      return await api<AuthSession>('/auth/session')
+    } catch {
+      return SIGNED_OUT
+    }
+  }
+
+  async function logout (): Promise<void> {
+    if (!import.meta.client) {
       return
     }
-    localStorage.removeItem(tokenKey)
-  }
-  function buildLoginUrl (nextPath: string = '/org/acme/workspaces'): string {
-    if (!isConfigured.value) {
-      throw new Error('Cognito 設定が不足しています（domain / clientId / redirectUri）')
+    let logoutUrl: string | null = null
+    try {
+      const res = await api<{ logout_url: string | null }>('/auth/logout', { method: 'POST' })
+      logoutUrl = res.logout_url
+    } catch {
+      logoutUrl = null
     }
-    const query = new URLSearchParams({
-      client_id: cognitoClientId.value,
-      response_type: 'token',
-      scope: 'openid email profile',
-      redirect_uri: cognitoRedirectUri.value,
-      state: nextPath,
-    })
-    return `${cognitoDomain.value}/login?${query.toString()}`
+    // Cognito 側のセッションも終わらせるため、Hosted UI のログアウトを経由する
+    window.location.href = logoutUrl || '/login'
   }
-  function buildLogoutUrl (): string | null {
-    if (!cognitoDomain.value || !cognitoClientId.value || !cognitoLogoutRedirectUri.value) {
-      return null
-    }
-    const query = new URLSearchParams({
-      client_id: cognitoClientId.value,
-      logout_uri: cognitoLogoutRedirectUri.value,
-    })
-    return `${cognitoDomain.value}/logout?${query.toString()}`
-  }
-  function readIdTokenFromHash (): string {
-    if (!isClient) {
-      return ''
-    }
-    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
-    const params = new URLSearchParams(hash)
-    return (params.get('id_token') || '').trim()
-  }
-  function readStateFromHash (): string {
-    if (!isClient) {
-      return ''
-    }
-    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
-    const params = new URLSearchParams(hash)
-    return (params.get('state') || '').trim()
-  }
+
   return {
-    isConfigured,
-    getToken,
-    setToken,
-    clearToken,
-    buildLoginUrl,
-    buildLogoutUrl,
-    readIdTokenFromHash,
-    readStateFromHash,
+    loginUrl,
+    startLogin,
+    fetchSession,
+    logout,
   }
 }

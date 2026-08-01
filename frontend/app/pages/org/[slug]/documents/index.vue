@@ -26,6 +26,15 @@
             />
           </div>
           <button
+            class="ghost-btn"
+            type="button"
+            :disabled="pending"
+            @click="archivedDocumentsOpen = true"
+          >
+            <Archive :size="18" :stroke-width="2.25" aria-hidden="true" />
+            アーカイブ済み
+          </button>
+          <button
             class="primary-btn"
             type="button"
             :disabled="pending"
@@ -148,18 +157,28 @@
         :loading="pending"
         @submit="onDocumentFormSubmit"
       />
-      <DocumentDeleteModal
-        ref="documentDeleteModalRef"
-        v-model="documentDeleteModalOpen"
-        :document-name="documentDeleteTarget?.name ?? ''"
-        :loading="deletePending"
-        @confirm="confirmDocumentDelete"
+      <ConfirmModal
+        v-model="documentArchiveConfirmOpen"
+        title="資料のアーカイブ確認"
+        :message="documentArchiveTarget ? `「${documentArchiveTarget.name}」をアーカイブしますか？` : ''"
+        confirm-text="アーカイブ"
+        :loading="archivePending"
+        @confirm="confirmDocumentArchive"
+      />
+      <ArchivedNamedItemsModal
+        v-model="archivedDocumentsOpen"
+        :org-slug="slug"
+        resource="documents"
+        item-kind="資料"
+        :can-manage-archive="isOrgAdmin"
+        @restored="onDocumentRestored"
+        @deleted="onDocumentPermanentlyDeleted"
       />
     </template>
   </main>
 </template>
 <script setup lang="ts">
-import { Ellipsis, NotebookPen } from 'lucide-vue-next'
+import { Archive, Ellipsis, NotebookPen } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import { useApi } from '../../../../composables/useApi'
@@ -170,17 +189,19 @@ import {
   type OrgDocumentsPageSnapshot,
 } from '../../../../composables/useOrgDocumentsPageData'
 import type { TaskFormCategory, TaskFormLabel } from '../../../../composables/useTaskFormHelpers'
-import { resolveStandardColors } from '../../../../utils/colorPresetResolution'
+import { resolveLabelColors, resolveStandardColors } from '../../../../utils/colorPresetResolution'
 import {
   getTopmostModalOverlay,
   isKeyboardShortcutBlockedTarget,
 } from '../../../../utils/uiInteraction'
 import DocumentCategorySelect from '../../../../components/documents/DocumentCategorySelect.vue'
 import DocumentCreateModal from '../../../../components/modals/DocumentCreateModal.vue'
-import DocumentDeleteModal from '../../../../components/modals/DocumentDeleteModal.vue'
+import ArchivedNamedItemsModal from '../../../../components/modals/ArchivedNamedItemsModal.vue'
+import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
 import LabelStrip from '../../../../components/ui/LabelStrip.vue'
 import OverflowFlexRow from '../../../../components/ui/OverflowFlexRow.vue'
+import { useOrgRole } from '../../../../composables/useOrgRole'
 definePageMeta({
   name: 'org-slug-documents',
   key: route => route.fullPath,
@@ -188,6 +209,7 @@ definePageMeta({
 })
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
+const { isOrgAdmin } = useOrgRole(slug)
 const { api } = useApi()
 const {
   fetchSnapshot,
@@ -206,14 +228,16 @@ const pending = ref(false)
 const documentFormModalOpen = ref(false)
 const documentFormMode = ref<'create' | 'edit'>('create')
 const documentEditTarget = ref<OrgDocument | null>(null)
-const documentDeleteModalOpen = ref(false)
-const documentDeleteTarget = ref<OrgDocument | null>(null)
-const documentDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
-const deletePending = ref(false)
+const documentArchiveConfirmOpen = ref(false)
+const documentArchiveTarget = ref<OrgDocument | null>(null)
+const archivedDocumentsOpen = ref(false)
+const archivePending = ref(false)
 const openMenuDocumentId = ref<number | null>(null)
 const documentMenuPosition = ref<{ top: number; left: number } | null>(null)
 const DOCUMENT_MENU_MIN_WIDTH = 160
 const searchQuery = ref('')
+const debouncedSearchQuery = ref('')
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 const sortMode = ref<'newest' | 'oldest' | 'name'>('newest')
 const loadingDocumentId = ref<number | null>(null)
 const updatingCategoryDocumentId = ref<number | null>(null)
@@ -232,10 +256,12 @@ const listPageCssVars = computed(() => ({
   '--app-shell-page-pad': '3.5px',
 } as Record<string, string>))
 const visibleDocuments = computed(() => {
-  const query = searchQuery.value.toLowerCase()
+  const query = debouncedSearchQuery.value.trim().toLowerCase()
   const filtered = query
-    ? documents.value.filter(document => document.name.toLowerCase().includes(query))
-    : [...documents.value]
+    ? documents.value
+    : searchQuery.value.trim()
+      ? documents.value.filter(document => document.name.toLowerCase().includes(searchQuery.value.trim().toLowerCase()))
+      : [...documents.value]
   if (sortMode.value === 'name') {
     return filtered.sort((a, b) => a.name.localeCompare(b.name, 'ja'))
   }
@@ -412,14 +438,14 @@ function openDocumentEditModal (document: OrgDocument) {
   documentEditTarget.value = document
   documentFormModalOpen.value = true
 }
-function openDocumentDeleteModal (document: OrgDocument) {
+function openDocumentArchiveConfirm (document: OrgDocument) {
   closeDocumentMenu()
-  documentDeleteTarget.value = document
-  documentDeleteModalOpen.value = true
+  documentArchiveTarget.value = document
+  documentArchiveConfirmOpen.value = true
 }
 const documentMenuItems: FloatingMenuItem[] = [
   { key: 'edit', label: '編集' },
-  { key: 'delete', label: '削除', danger: true },
+  { key: 'archive', label: 'アーカイブ' },
 ]
 function onDocumentMenuSelect (item: FloatingMenuItem) {
   const document = openMenuDocument.value
@@ -428,8 +454,8 @@ function onDocumentMenuSelect (item: FloatingMenuItem) {
     openDocumentEditModal(document)
     return
   }
-  if (item.key === 'delete') {
-    openDocumentDeleteModal(document)
+  if (item.key === 'archive') {
+    openDocumentArchiveConfirm(document)
   }
 }
 function onGlobalClick (ev: Event) {
@@ -457,10 +483,11 @@ function canUseDocumentListKeyboardShortcut (): boolean {
   }
   if (
     documentFormModalOpen.value
-    || documentDeleteModalOpen.value
+    || documentArchiveConfirmOpen.value
+    || archivedDocumentsOpen.value
     || openMenuDocumentId.value !== null
     || pending.value
-    || deletePending.value
+    || archivePending.value
   ) {
     return false
   }
@@ -566,30 +593,37 @@ async function onDocumentFormSubmit (payload: {
   }
   await createDocument(payload)
 }
-async function confirmDocumentDelete () {
-  const target = documentDeleteTarget.value
-  if (!target || deletePending.value) return
-  deletePending.value = true
+async function confirmDocumentArchive () {
+  const target = documentArchiveTarget.value
+  if (!target || archivePending.value) return
+  archivePending.value = true
   error.value = null
   try {
     await withAppLoadingCursor(async () => {
-      await api(`/orgs/${slug.value}/documents/${target.id}`, {
-        method: 'DELETE',
+      await api(`/orgs/${slug.value}/documents/${target.id}/archive`, {
+        method: 'POST',
       })
-      documentDeleteModalOpen.value = false
-      documentDeleteTarget.value = null
+      documentArchiveConfirmOpen.value = false
+      documentArchiveTarget.value = null
       documents.value = documents.value.filter(document => document.id !== target.id)
       invalidateCached(slug.value)
       invalidateDocumentCached(slug.value, target.id)
-      await load({ refresh: true })
     })
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : '削除に失敗しました'
-    documentDeleteModalRef.value?.setSubmitError(message)
-    error.value = message
+    error.value = e instanceof Error ? e.message : 'アーカイブに失敗しました'
   } finally {
-    deletePending.value = false
+    archivePending.value = false
   }
+}
+
+function onDocumentRestored () {
+  invalidateCached(slug.value)
+  void load({ refresh: true })
+}
+
+function onDocumentPermanentlyDeleted (documentId: number) {
+  invalidateCached(slug.value)
+  invalidateDocumentCached(slug.value, documentId)
 }
 async function load (opts?: { refresh?: boolean }) {
   const refresh = opts?.refresh ?? false
@@ -711,6 +745,37 @@ function warmVisibleDocuments () {
     void prefetchDocument(slug.value, document.id)
   }
 }
+
+async function fetchDocumentsWithSearch (query: string) {
+  const q = query.trim()
+  const path = q
+    ? `/orgs/${slug.value}/documents?q=${encodeURIComponent(q)}`
+    : `/orgs/${slug.value}/documents`
+  const res = await api<{ data: OrgDocument[] }>(path)
+  documents.value = (res.data ?? []).map(document => ({
+    ...document,
+    labels: resolveLabelColors(document.labels ?? []),
+  }))
+}
+
+watch(searchQuery, (value) => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer)
+  }
+  searchDebounceTimer = setTimeout(() => {
+    debouncedSearchQuery.value = value.trim()
+  }, 300)
+})
+
+watch(debouncedSearchQuery, (query) => {
+  if (!pageReady.value) {
+    return
+  }
+  void fetchDocumentsWithSearch(query).catch((e: unknown) => {
+    error.value = e instanceof Error ? e.message : '検索に失敗しました'
+  })
+})
+
 watch(
   () => [pageReady.value, visibleDocuments.value] as const,
   () => {

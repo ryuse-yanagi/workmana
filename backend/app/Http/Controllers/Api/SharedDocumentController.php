@@ -5,12 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Models\DocumentLabel;
 use App\Models\Organization;
 use App\Models\SharedDocument;
+use App\Models\User;
 use App\Models\Workspace;
 use App\Support\BidirectionalRelationSync;
 use App\Support\DefaultDocumentCategories;
 use App\Support\FieldLengthLimits;
+use App\Support\ListQuery;
+use App\Support\PermanentDeleter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SharedDocumentController extends ApiController
 {
@@ -21,14 +25,40 @@ class SharedDocumentController extends ApiController
             abort(403);
         }
 
+        $query = SharedDocument::query()
+            ->where('organization_id', $organization->id)
+            ->notArchived()
+            ->with(['labels'])
+            ->orderByDesc('created_at');
+
+        $viewer = $request->user();
+        $result = ListQuery::paginate(
+            $query,
+            $request,
+            fn (SharedDocument $document) => $this->documentPayload($document, $organization, $viewer),
+            ['shared_documents.name', 'shared_documents.description'],
+        );
+
+        return response()->json($result);
+    }
+
+    public function archivedIndex(Request $request, Organization $organization): JsonResponse
+    {
+        if (! $request->attributes->get('organization_membership')) {
+            abort(403);
+        }
+
         $documents = SharedDocument::query()
             ->where('organization_id', $organization->id)
+            ->archived()
             ->with(['labels'])
-            ->orderByDesc('created_at')
+            ->orderByDesc('archived_at')
             ->get();
 
+        $viewer = $request->user();
+
         return response()->json([
-            'data' => $documents->map(fn (SharedDocument $document) => $this->documentPayload($document, $organization)),
+            'data' => $documents->map(fn (SharedDocument $document) => $this->documentPayload($document, $organization, $viewer)),
         ]);
     }
 
@@ -42,7 +72,7 @@ class SharedDocumentController extends ApiController
             'relatedDocuments:id,name,description,organization_id',
         ]);
 
-        return response()->json($this->documentPayload($document, $organization));
+        return response()->json($this->documentPayload($document, $organization, $request->user()));
     }
 
     public function store(Request $request, Organization $organization): JsonResponse
@@ -54,8 +84,8 @@ class SharedDocumentController extends ApiController
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:'.FieldLengthLimits::DOCUMENT_NAME],
-            'description' => ['nullable', 'string'],
-            'category' => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
+            'category' => ['nullable', 'string', 'max:'.FieldLengthLimits::DEFAULT_NAMED_ITEM_NAME],
             'label_ids' => ['nullable', 'array'],
             'label_ids.*' => ['integer', 'distinct'],
         ]);
@@ -70,21 +100,33 @@ class SharedDocumentController extends ApiController
             $validated['category'] ?? null,
         );
 
-        $document = SharedDocument::query()->create([
-            'organization_id' => $organization->id,
-            'created_by' => $request->user()->id,
-            'name' => $name,
-            'description' => $validated['description'] ?? null,
-            'category' => $category,
-        ]);
-
         $labelIds = $this->validateDocumentLabelIds(
             $organization,
             $validated['label_ids'] ?? [],
         );
-        if ($labelIds !== []) {
-            $document->labels()->sync($labelIds);
-        }
+
+        $document = DB::transaction(function () use (
+            $organization,
+            $request,
+            $name,
+            $validated,
+            $category,
+            $labelIds,
+        ) {
+            $document = SharedDocument::query()->create([
+                'organization_id' => $organization->id,
+                'created_by' => $request->user()->id,
+                'name' => $name,
+                'description' => $validated['description'] ?? null,
+                'category' => $category,
+            ]);
+
+            if ($labelIds !== []) {
+                $document->labels()->sync($labelIds);
+            }
+
+            return $document;
+        });
 
         $document->load([
             'labels',
@@ -93,7 +135,7 @@ class SharedDocumentController extends ApiController
         ]);
 
         return response()->json(
-            $this->documentPayload($document, $organization),
+            $this->documentPayload($document, $organization, $request->user()),
             201,
         );
     }
@@ -101,12 +143,13 @@ class SharedDocumentController extends ApiController
     public function update(Request $request, Organization $organization, SharedDocument $document): JsonResponse
     {
         $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->assertDocumentNotArchived($document);
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::DOCUMENT_NAME],
-            'description' => ['nullable', 'string'],
+            'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
             'body' => ['nullable', 'string', 'max:'.FieldLengthLimits::DOCUMENT_BODY],
-            'category' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'category' => ['sometimes', 'nullable', 'string', 'max:'.FieldLengthLimits::DEFAULT_NAMED_ITEM_NAME],
             'label_ids' => ['nullable', 'array'],
             'label_ids.*' => ['integer', 'distinct'],
         ]);
@@ -130,12 +173,18 @@ class SharedDocumentController extends ApiController
                 $validated['category'],
             );
         }
-        $document->save();
 
-        if (array_key_exists('label_ids', $validated)) {
-            $labelIds = $this->validateDocumentLabelIds($organization, $validated['label_ids'] ?? []);
-            $document->labels()->sync($labelIds);
-        }
+        $labelIds = array_key_exists('label_ids', $validated)
+            ? $this->validateDocumentLabelIds($organization, $validated['label_ids'] ?? [])
+            : null;
+
+        DB::transaction(function () use ($document, $labelIds) {
+            $document->save();
+
+            if ($labelIds !== null) {
+                $document->labels()->sync($labelIds);
+            }
+        });
 
         $document->load([
             'labels',
@@ -143,12 +192,13 @@ class SharedDocumentController extends ApiController
             'relatedDocuments:id,name,description,organization_id',
         ]);
 
-        return response()->json($this->documentPayload($document, $organization));
+        return response()->json($this->documentPayload($document, $organization, $request->user()));
     }
 
     public function syncRelatedWorkspaces(Request $request, Organization $organization, SharedDocument $document): JsonResponse
     {
         $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->assertDocumentNotArchived($document);
 
         $validated = $request->validate([
             'workspace_ids' => ['present', 'array'],
@@ -165,8 +215,10 @@ class SharedDocumentController extends ApiController
             'relatedWorkspaces:id,name,description,organization_id,archived_at',
         ]);
 
+        $viewer = $request->user();
+
         return response()->json([
-            'data' => $document->relatedWorkspaces
+            'data' => $this->filterAccessibleWorkspaces($viewer, $document->relatedWorkspaces)
                 ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
                 ->values(),
         ]);
@@ -175,6 +227,7 @@ class SharedDocumentController extends ApiController
     public function syncRelatedDocuments(Request $request, Organization $organization, SharedDocument $document): JsonResponse
     {
         $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->assertDocumentNotArchived($document);
 
         $validated = $request->validate([
             'document_ids' => ['present', 'array'],
@@ -205,6 +258,7 @@ class SharedDocumentController extends ApiController
         Workspace $workspace,
     ): JsonResponse {
         $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->assertDocumentNotArchived($document);
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
 
         $document->relatedWorkspaces()->detach($workspace->id);
@@ -212,8 +266,10 @@ class SharedDocumentController extends ApiController
             'relatedWorkspaces:id,name,description,organization_id,archived_at',
         ]);
 
+        $viewer = $request->user();
+
         return response()->json([
-            'data' => $document->relatedWorkspaces
+            'data' => $this->filterAccessibleWorkspaces($viewer, $document->relatedWorkspaces)
                 ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
                 ->values(),
         ]);
@@ -226,6 +282,7 @@ class SharedDocumentController extends ApiController
         SharedDocument $relatedDocument,
     ): JsonResponse {
         $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->assertDocumentNotArchived($document);
         $this->ensureDocumentBelongsToOrganization($relatedDocument, $organization);
 
         BidirectionalRelationSync::detachRelatedDocument($document, $relatedDocument);
@@ -240,11 +297,47 @@ class SharedDocumentController extends ApiController
         ]);
     }
 
-    public function destroy(Request $request, Organization $organization, SharedDocument $document): JsonResponse
+    public function archive(Request $request, Organization $organization, SharedDocument $document): JsonResponse
     {
         $this->ensureDocumentBelongsToOrganization($document, $organization);
 
-        $document->delete();
+        if ($document->isArchived()) {
+            return response()->json(['message' => 'Document is already archived.'], 422);
+        }
+
+        $document->archived_at = now();
+        $document->save();
+
+        return response()->json($this->documentPayload($document, $organization, $request->user()));
+    }
+
+    public function unarchive(Request $request, Organization $organization, SharedDocument $document): JsonResponse
+    {
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->assertCanRestoreOrPermanentlyDelete($request);
+
+        if (! $document->isArchived()) {
+            return response()->json(['message' => 'Document is not archived.'], 422);
+        }
+
+        $document->archived_at = null;
+        $document->save();
+
+        return response()->json($this->documentPayload($document, $organization, $request->user()));
+    }
+
+    public function destroy(Request $request, Organization $organization, SharedDocument $document): JsonResponse
+    {
+        $this->ensureDocumentBelongsToOrganization($document, $organization);
+        $this->assertCanRestoreOrPermanentlyDelete($request);
+
+        if (! $document->isArchived()) {
+            return response()->json([
+                'message' => 'Archive the document before deleting it permanently.',
+            ], 422);
+        }
+
+        PermanentDeleter::deleteDocument($document);
 
         return response()->json(null, 204);
     }
@@ -261,8 +354,15 @@ class SharedDocumentController extends ApiController
         }
     }
 
+    private function assertDocumentNotArchived(SharedDocument $document): void
+    {
+        if ($document->isArchived()) {
+            abort(403, 'Cannot update an archived document.');
+        }
+    }
+
     /**
-     * @param array<int, mixed> $labelIds
+     * @param  array<int, mixed>  $labelIds
      * @return array<int, int>
      */
     private function validateDocumentLabelIds(Organization $organization, array $labelIds): array
@@ -284,7 +384,7 @@ class SharedDocumentController extends ApiController
     }
 
     /**
-     * @param array<int, mixed> $workspaceIds
+     * @param  array<int, mixed>  $workspaceIds
      * @return array<int, int>
      */
     private function validateRelatedWorkspaceIds(
@@ -297,20 +397,27 @@ class SharedDocumentController extends ApiController
             return [];
         }
 
-        $count = Workspace::query()
+        $workspaces = Workspace::query()
             ->where('organization_id', $organization->id)
             ->whereNull('archived_at')
             ->whereIn('id', $ids)
-            ->count();
-        if ($count !== count($ids)) {
+            ->get(['id', 'organization_id', 'archived_at']);
+        if ($workspaces->count() !== count($ids)) {
             abort(422, 'One or more workspaces are invalid for this organization.');
+        }
+
+        $user = $request->user();
+        foreach ($workspaces as $workspace) {
+            if (! $user->canAccessWorkspace($workspace)) {
+                abort(422, 'One or more workspaces are invalid for this organization.');
+            }
         }
 
         return $ids;
     }
 
     /**
-     * @param array<int, mixed> $documentIds
+     * @param  array<int, mixed>  $documentIds
      * @return array<int, int>
      */
     private function validateRelatedDocumentIds(
@@ -326,6 +433,7 @@ class SharedDocumentController extends ApiController
 
         $count = SharedDocument::query()
             ->where('organization_id', $organization->id)
+            ->notArchived()
             ->whereIn('id', $ids)
             ->count();
         if ($count !== count($ids)) {
@@ -362,7 +470,7 @@ class SharedDocumentController extends ApiController
     /**
      * @return array<string, mixed>
      */
-    private function documentPayload(SharedDocument $document, Organization $organization): array
+    private function documentPayload(SharedDocument $document, Organization $organization, User $viewer): array
     {
         return [
             'id' => $document->id,
@@ -377,7 +485,7 @@ class SharedDocumentController extends ApiController
                 'color_index' => $label->color_index,
             ])->values()->all(),
             'related_workspaces' => $document->relationLoaded('relatedWorkspaces')
-                ? $document->relatedWorkspaces
+                ? $this->filterAccessibleWorkspaces($viewer, $document->relatedWorkspaces)
                     ->map(fn (Workspace $item) => $this->relatedWorkspacePayload($item))
                     ->values()
                 : [],
@@ -386,7 +494,9 @@ class SharedDocumentController extends ApiController
                     ->map(fn (SharedDocument $item) => $this->relatedDocumentPayload($item))
                     ->values()
                 : [],
+            'archived_at' => $document->archived_at,
             'created_at' => $document->created_at,
+            'updated_at' => $document->updated_at,
         ];
     }
 }

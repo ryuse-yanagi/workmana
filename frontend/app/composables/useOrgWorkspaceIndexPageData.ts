@@ -38,6 +38,7 @@ export type OrgWorkspaceItem = {
   assignees?: OrgWorkspaceAssignee[]
   related_workspaces?: OrgWorkspaceRelatedItem[]
   related_documents?: OrgWorkspaceRelatedItem[]
+  archived_at?: string | null
 }
 
 export type OrgWorkspaceIndexPageSnapshot = {

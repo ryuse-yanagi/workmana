@@ -1,5 +1,5 @@
 <template>
-  <form class="inline-composer" @submit.prevent="submit">
+  <form class="inline-composer" novalidate @submit.prevent="submit">
     <component
       :is="multiline ? 'textarea' : 'input'"
       ref="inputRef"

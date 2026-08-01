@@ -3,7 +3,26 @@
     <p v-if="loading" class="empty-text parent-task-loading">
       読み込み中...
     </p>
-    <ul v-else-if="parents.length" class="parent-task-picker-list">
+    <ul
+      v-else-if="parents.length || showUnsetOption"
+      class="parent-task-picker-list"
+    >
+      <li v-if="showUnsetOption">
+        <button
+          type="button"
+          class="parent-task-picker-row"
+          :class="{ 'parent-task-picker-row--selected': selectedParentId === null }"
+          :disabled="clearDisabled"
+          @click.stop="emit('clear')"
+        >
+          <span
+            class="parent-task-picker-radio"
+            :class="{ 'parent-task-picker-radio--checked': selectedParentId === null }"
+            aria-hidden="true"
+          />
+          <span class="parent-task-picker-label">未設定</span>
+        </button>
+      </li>
       <li
         v-for="parent in parents"
         :key="parent.id"
@@ -23,10 +42,10 @@
         </button>
       </li>
     </ul>
-    <p v-if="!loading && !parents.length" class="empty-text parent-task-empty">
+    <p v-if="!loading && !parents.length && !showUnsetOption" class="empty-text parent-task-empty">
       親タスクがありません。
     </p>
-    <div v-if="!loading && parents.length" class="popover-field-actions">
+    <div v-if="!showUnsetOption && !loading && parents.length" class="popover-field-actions">
       <button
         type="button"
         class="popover-field-clear-btn"
@@ -49,6 +68,7 @@ defineProps<{
   parents: ParentTaskPickerOption[]
   selectedParentId: number | null
   clearDisabled?: boolean
+  showUnsetOption?: boolean
   error?: string | null
 }>()
 const emit = defineEmits<{
