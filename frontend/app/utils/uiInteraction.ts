@@ -24,6 +24,8 @@ const DRAG_SCROLL_SKIP_SELECTOR = [
   // WBSヘッダー（ドラッグスクロール対象外）
   '.workspace-wbs__header-cell',
   '.workspace-wbs__day-header',
+  '.workspace-wbs__gantt-controls-header',
+  '.workspace-wbs__month-btn',
   '.popover-layer',
   '.popover',
   '.popover-shell',
@@ -110,7 +112,7 @@ function isBoardDragScrollBackground (target: Element): boolean {
 }
 /** WBSヘッダー、編集時のガント操作・並び替えはドラッグスクロール対象外 */
 function isExcludedWorkspaceWbsDragScrollTarget (target: Element): boolean {
-  if (target.closest('thead, .workspace-wbs__header-cell, .workspace-wbs__day-header')) {
+  if (target.closest('thead, .workspace-wbs__header-cell, .workspace-wbs__day-header, .workspace-wbs__gantt-controls-header')) {
     return true
   }
   if (

@@ -35,8 +35,7 @@ body.workspace-view-page-root {
   padding-top: 3.5px;
 }
 .global-header,
-.page-header,
-.workspace-view-switcher-menu {
+.page-header {
   @include mixin.header-font;
 }
 /*

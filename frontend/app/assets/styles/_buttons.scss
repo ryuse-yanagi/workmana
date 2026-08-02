@@ -20,8 +20,7 @@ select:hover:not(:disabled),
 [role='menuitem']:hover,
 [role='listbox'] button:hover:not(:disabled),
 .board-filter-option:hover,
-.dropdown-item:hover:not(:disabled),
-.workspace-view-switcher-item:hover {
+.dropdown-item:hover:not(:disabled) {
   opacity: 0.8;
 }
 

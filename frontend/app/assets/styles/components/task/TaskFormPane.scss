@@ -60,7 +60,12 @@
   background: transparent;
   width: 100%;
   box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
   line-height: 1.25;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   display: block;
   outline: none;
   box-shadow: none;

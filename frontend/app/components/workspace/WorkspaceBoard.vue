@@ -6,7 +6,7 @@
     <template v-if="fatalLoadError">
       <PageLoadFatal :message="fatalLoadError" @retry="retryBoardLoad" />
     </template>
-    <template v-else-if="pageReady">
+    <template v-else>
       <header class="page-header">
         <div class="subheader">
           <NuxtLink
@@ -21,13 +21,18 @@
           >{{ workspaceMetaName }}</p>
           <WorkspaceViewSwitcher :org-slug="slug" :workspace-id="workspaceId" />
           <div class="subheader-filters">
-            <p class="subheader-count" aria-live="polite">{{ visibleTaskCount }} 件</p>
+            <p
+              v-if="pageReady"
+              class="subheader-count"
+              aria-live="polite"
+            >{{ visibleTaskCount }} 件</p>
             <input
               v-model.trim="searchQuery"
               class="header-search"
               type="search"
               placeholder="タスク名で検索する"
               aria-label="タスク名検索"
+              :disabled="!pageReady"
             />
           </div>
           <div class="subheader-actions" data-subheader-actions-root>
@@ -38,6 +43,7 @@
               :aria-expanded="boardFilterOpen"
               aria-haspopup="dialog"
               aria-label="絞り込み"
+              :disabled="!pageReady"
               @click.stop="toggleBoardFilter"
             >
               <ListFilter :size="24" :stroke-width="2.25" aria-hidden="true" />
@@ -49,6 +55,7 @@
               :aria-expanded="subheaderMenuOpen"
               aria-haspopup="menu"
               aria-label="メニュー"
+              :disabled="!pageReady"
               @click.stop="toggleSubheaderMenu"
             >
               <Ellipsis :size="24" :stroke-width="2.25" aria-hidden="true" />
@@ -63,7 +70,44 @@
         />
         <div class="page-shell-fade">
           <p v-if="error" class="err">{{ error }}</p>
+          <!-- 初回ロード中は枠組だけ先に出す -->
           <section
+            v-if="!pageReady"
+            class="board board--skeleton"
+            aria-hidden="true"
+          >
+            <div class="board-columns">
+              <div class="board-lists-sortable">
+                <article
+                  v-for="(skeleton, skeletonIndex) in loadingSkeletonColumns"
+                  :key="`skeleton-col-${skeletonIndex}`"
+                  class="list-column list-column--skeleton"
+                >
+                  <header
+                    class="list-header list-header--skeleton"
+                    :style="{ backgroundColor: skeleton.headerColor }"
+                  >
+                    <div class="board-skeleton-bar board-skeleton-bar--list-title" />
+                  </header>
+                  <div class="list-drop-zone list-drop-zone--empty list-drop-zone--skeleton">
+                    <div
+                      v-for="cardIndex in skeleton.cardCount"
+                      :key="`skeleton-card-${skeletonIndex}-${cardIndex}`"
+                      class="task-card task-card--skeleton"
+                    >
+                      <div class="board-skeleton-bar board-skeleton-bar--card-title" />
+                      <div class="board-skeleton-bar board-skeleton-bar--card-meta" />
+                    </div>
+                  </div>
+                  <div class="composer composer--skeleton">
+                    <div class="board-skeleton-bar board-skeleton-bar--composer" />
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+          <section
+            v-else
             class="board"
             :class="{
               'board-dragging': boardDragging,
@@ -330,73 +374,75 @@
           </section>
         </div>
       </div>
-      <ArchivedTasksModal
-        ref="archivedModalRef"
-        v-model="archivedModalOpen"
-        :org-slug="slug"
-        :workspace-id="workspaceId"
-        :can-manage-archive="isOrgAdmin"
-        @restored="onArchivedTaskRestored"
-      />
-      <ConfirmModal
-        v-model="archiveConfirmTaskOpen"
-        title="タスクカードのアーカイブ確認"
-        confirm-text="アーカイブ"
-        variant="danger"
-        @confirm="confirmArchiveFromModal"
-      />
-      <ListCreateModal
-        ref="listCreateModalRef"
-        v-model="listCreateOpen"
-        :mode="listModalMode"
-        :initial-values="listModalInitialValues"
-        :loading="listCreateLoading"
-        @submit="onListCreateSubmit"
-      />
-      <ListDeleteModal
-        ref="listDeleteModalRef"
-        v-model="listDeleteOpen"
-        :list-name="listDeleteTarget?.title ?? ''"
-        :loading="listDeleteLoading"
-        @confirm="confirmListDelete"
-      />
-      <TaskCreateModal
-        v-model="taskCreateOpen"
-        :org-slug="slug"
-        :workspace-id="workspaceId"
-        :list-id="taskCreateListId"
-        :org-labels="orgLabels"
-        :workspace-members="workspaceMembers"
-        :workspace-lists="detailWorkspaceLists"
-        @created="onTaskCreatedFromModal"
-      />
-      <TaskDetailModal
-        v-if="detailInitialTask"
-        v-model="taskDetailOpen"
-        :org-slug="slug"
-        :workspace-id="workspaceId"
-        :task-id="detailTaskId"
-        :org-labels="orgLabels"
-        :workspace-members="workspaceMembers"
-        :workspace-lists="detailWorkspaceLists"
-        :initial-task-detail="detailInitialTask"
-        :initial-parent-tasks="boardParentTasks"
-        :hierarchy-tasks="detailHierarchyTasks"
-        :initial-comments="detailInitialComments"
-        :remote-update="detailModalRemotePatch"
-        :remote-update-rev="detailModalRemoteRev"
-        @updated="onTaskDetailUpdated"
-        @comments-updated="onTaskCommentsUpdated"
-        @navigate="onTaskDetailNavigate"
-      />
-      <div
-        v-if="undoToastTask"
-        class="undo-toast"
-        role="status"
-      >
-        <span class="undo-toast-message">「{{ undoToastTask.title }}」をアーカイブしました</span>
-        <button type="button" class="undo-toast-close" aria-label="通知を閉じる" @click="clearUndoTimer">✕</button>
-      </div>
+      <template v-if="pageReady">
+        <ArchivedTasksModal
+          ref="archivedModalRef"
+          v-model="archivedModalOpen"
+          :org-slug="slug"
+          :workspace-id="workspaceId"
+          :can-manage-archive="isOrgAdmin"
+          @restored="onArchivedTaskRestored"
+        />
+        <ConfirmModal
+          v-model="archiveConfirmTaskOpen"
+          title="タスクカードのアーカイブ確認"
+          confirm-text="アーカイブ"
+          variant="danger"
+          @confirm="confirmArchiveFromModal"
+        />
+        <ListCreateModal
+          ref="listCreateModalRef"
+          v-model="listCreateOpen"
+          :mode="listModalMode"
+          :initial-values="listModalInitialValues"
+          :loading="listCreateLoading"
+          @submit="onListCreateSubmit"
+        />
+        <ListDeleteModal
+          ref="listDeleteModalRef"
+          v-model="listDeleteOpen"
+          :list-name="listDeleteTarget?.title ?? ''"
+          :loading="listDeleteLoading"
+          @confirm="confirmListDelete"
+        />
+        <TaskCreateModal
+          v-model="taskCreateOpen"
+          :org-slug="slug"
+          :workspace-id="workspaceId"
+          :list-id="taskCreateListId"
+          :org-labels="orgLabels"
+          :workspace-members="workspaceMembers"
+          :workspace-lists="detailWorkspaceLists"
+          @created="onTaskCreatedFromModal"
+        />
+        <TaskDetailModal
+          v-if="detailInitialTask"
+          v-model="taskDetailOpen"
+          :org-slug="slug"
+          :workspace-id="workspaceId"
+          :task-id="detailTaskId"
+          :org-labels="orgLabels"
+          :workspace-members="workspaceMembers"
+          :workspace-lists="detailWorkspaceLists"
+          :initial-task-detail="detailInitialTask"
+          :initial-parent-tasks="boardParentTasks"
+          :hierarchy-tasks="detailHierarchyTasks"
+          :initial-comments="detailInitialComments"
+          :remote-update="detailModalRemotePatch"
+          :remote-update-rev="detailModalRemoteRev"
+          @updated="onTaskDetailUpdated"
+          @comments-updated="onTaskCommentsUpdated"
+          @navigate="onTaskDetailNavigate"
+        />
+        <div
+          v-if="undoToastTask"
+          class="undo-toast"
+          role="status"
+        >
+          <span class="undo-toast-message">「{{ undoToastTask.title }}」をアーカイブしました</span>
+          <button type="button" class="undo-toast-close" aria-label="通知を閉じる" @click="clearUndoTimer">✕</button>
+        </div>
+      </template>
     </template>
     <Teleport to="body">
       <div
@@ -1027,6 +1073,18 @@ function isListColumnEmpty (listKey: string): boolean {
   return count === 0
 }
 const visibleTaskCount = computed(() => visibleTaskIdSet.value.size)
+/** 枠組の見た目用。列ヘッダー色とカード枚数のパターン */
+const loadingSkeletonColumns = computed(() => {
+  if (pageReady.value) {
+    return []
+  }
+  return [
+    { headerColor: '#8c8f97', cardCount: 3 },
+    { headerColor: '#669df1', cardCount: 2 },
+    { headerColor: '#4bce97', cardCount: 4 },
+    { headerColor: '#c883e2', cardCount: 2 },
+  ]
+})
 const anyBoardDropdownOpen = computed(() => (
   boardFilterOpen.value
   || subheaderMenuOpen.value
@@ -1308,9 +1366,6 @@ function onGlobalClick (ev: Event) {
       return
     }
     if (el && el.closest('[data-workspace-view-switcher-root]')) {
-      return
-    }
-    if (el && el.closest('.workspace-view-switcher-menu')) {
       return
     }
     if (el && el.closest('.workspace-wbs__cell-btn')) {
@@ -2327,6 +2382,9 @@ function syncBoardPageCache () {
 function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>) {
   applyBoardSnapshot(data)
 }
+function isBoardLocalEditActive (): boolean {
+  return editingTaskId.value != null || editingListKey.value != null
+}
 async function load (opts?: { refresh?: boolean; silent?: boolean }) {
   const refresh = opts?.refresh ?? false
   const silent = opts?.silent ?? false
@@ -2336,6 +2394,9 @@ async function load (opts?: { refresh?: boolean; silent?: boolean }) {
   }
   const applyFreshPayload = async () => {
     const data = await fetchBoardPayload()
+    if (isBoardLocalEditActive()) {
+      return
+    }
     applyBoardPayload(data)
     pageReady.value = true
     clearBoardCacheStale(slug.value, workspaceId.value)
@@ -2381,10 +2442,10 @@ function refreshOnViewSwitch (): Promise<void> {
   if (!pageReady.value) {
     return load()
   }
-  const cached = getBoardCached(slug.value, workspaceId.value)
-  if (cached) {
-    applyBoardSnapshot(cached)
+  if (isBoardLocalEditActive()) {
+    return Promise.resolve()
   }
+  // keep-alive 済みの表示をキャッシュ再適用で上書きしない（API で最新化）
   return load({ refresh: true, silent: true })
 }
 defineExpose({

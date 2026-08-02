@@ -49,7 +49,7 @@ export function useWorkspaceViewRoutes (
   const id = computed(() => toValue(workspaceId))
   const basePath = computed(() => `/org/${slug.value}/workspaces/${id.value}`)
   const views = computed((): WorkspaceViewOption[] => [
-    { key: 'board', label: 'Board', to: basePath.value },
+    { key: 'board', label: 'ボード', to: basePath.value },
     { key: 'wbs', label: 'WBS', to: `${basePath.value}?view=wbs` },
   ])
   const activeView = computed((): WorkspaceRouteViewKey => workspaceViewFromRoute(route))

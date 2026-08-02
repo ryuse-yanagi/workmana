@@ -1,26 +1,3 @@
-.named-color-items-panel__toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 11.9px;
-}
-.named-color-items-panel__add-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5.6px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 6.3px 18.9px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: mixin.$white;
-  background: mixin.$main;
-  cursor: pointer;
-}
-.named-color-items-panel__add-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 .named-color-items-panel__empty {
   margin: 0;
   color: #64748b;

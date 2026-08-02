@@ -1,41 +1,7 @@
 <template>
   <div class="workspace-wbs-board">
-    <div
-      v-if="showGantt"
-      class="workspace-wbs-board__toolbar"
-    >
-      <div class="workspace-wbs-board__month-nav">
-        <button
-          type="button"
-          class="workspace-wbs-board__nav-btn"
-          aria-label="前の月"
-          @click="goPrevMonth"
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          class="workspace-wbs-board__nav-btn"
-          aria-label="次の月"
-          @click="goNextMonth"
-        >
-          ›
-        </button>
-      </div>
-      <button
-        type="button"
-        class="workspace-wbs-board__today-btn"
-        :disabled="isCurrentMonth"
-        @click="goCurrentMonth"
-      >
-        今月
-      </button>
-    </div>
-    <div v-if="loading" class="workspace-wbs-board__state">
-      読み込み中...
-    </div>
-    <p v-else-if="error" class="workspace-wbs-board__error">{{ error }}</p>
-    <p v-else-if="!hasDisplayRows" class="workspace-wbs-board__state">
+    <p v-if="error" class="workspace-wbs-board__error">{{ error }}</p>
+    <p v-else-if="!loading && !hasDisplayRows" class="workspace-wbs-board__state">
       表示できるタスクがありません。
     </p>
     <div
@@ -48,18 +14,7 @@
       }"
     >
       <div
-        v-if="showGantt"
-        class="workspace-wbs-board__month-strip"
-        :style="{ width: `${fullWbsWidth}px` }"
-      >
-        <div
-          class="workspace-wbs-board__month-strip-spacer"
-          :style="{ width: `${visibleWbsWidth}px` }"
-        />
-        <span class="workspace-wbs-board__month-strip-label">{{ monthLabel }}</span>
-      </div>
-      <div
-        v-for="(section, sectionIndex) in wbsSections"
+        v-for="(section, sectionIndex) in tableSections"
         :key="section.key"
         class="workspace-wbs-board__frame"
         :class="{ 'workspace-wbs-board__frame--stacked': sectionIndex > 0 }"
@@ -73,7 +28,10 @@
         >
         <table
           class="workspace-wbs"
-          :class="{ 'workspace-wbs--edit': editMode }"
+          :class="{
+            'workspace-wbs--edit': editMode,
+            'workspace-wbs--gantt': showGantt,
+          }"
           :style="{
             '--wbs-width': `${fullWbsWidth}px`,
             '--gantt-day-col-width': `${GANTT_DAY_COL_WIDTH}px`,
@@ -92,16 +50,16 @@
           >
         </colgroup>
         <thead v-if="sectionIndex === 0">
-          <tr>
+          <tr class="workspace-wbs__header-row workspace-wbs__header-row--primary">
             <th
-              v-for="(column, columnIndex) in visibleColumns"
+              v-for="column in visibleColumns"
               :key="column.key"
               scope="col"
-              class="workspace-wbs__header-cell workspace-wbs__header-cell--sticky"
+              class="workspace-wbs__header-cell"
               :class="{
-                'workspace-wbs__header-cell--sticky-edge': columnIndex === visibleColumns.length - 1,
+                'workspace-wbs__header-cell--edge': isLastVisibleColumn(column.key),
               }"
-              :style="stickyDescStyleForKey(column.key, true)"
+              :rowspan="showGantt ? 2 : 1"
             >
               <span class="workspace-wbs__header-label">{{ column.label }}</span>
               <span
@@ -113,6 +71,46 @@
                 @pointercancel="onResizePointerCancel"
               />
             </th>
+            <th
+              v-if="showGantt"
+              class="workspace-wbs__gantt-controls-header"
+              :colspan="Math.max(ganttDays.length, 1)"
+            >
+              <div class="workspace-wbs__gantt-controls">
+                <button
+                  type="button"
+                  class="workspace-wbs__month-btn workspace-wbs__month-btn--today"
+                  :disabled="isCurrentMonth"
+                  @click="goCurrentMonth"
+                >
+                  今月
+                </button>
+                <div class="workspace-wbs__month-nav">
+                  <button
+                    type="button"
+                    class="workspace-wbs__month-btn workspace-wbs__month-btn--nav"
+                    aria-label="前の月"
+                    @click="goPrevMonth"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    class="workspace-wbs__month-btn workspace-wbs__month-btn--nav"
+                    aria-label="次の月"
+                    @click="goNextMonth"
+                  >
+                    ›
+                  </button>
+                </div>
+                <span class="workspace-wbs__month-label">{{ monthLabel }}</span>
+              </div>
+            </th>
+          </tr>
+          <tr
+            v-if="showGantt"
+            class="workspace-wbs__header-row workspace-wbs__header-row--days"
+          >
             <th
               v-for="day in ganttDays"
               :key="`head-${day.iso}`"
@@ -129,13 +127,35 @@
           </tr>
         </thead>
         <tbody :ref="el => registerSectionBody(section.key, el)">
+          <template v-if="section.rows.length">
+          <tr
+            v-if="section.key === 'standalone'"
+            class="workspace-wbs__task-row workspace-wbs__task-row--spacer"
+            aria-hidden="true"
+          >
+            <td
+              v-for="column in visibleColumns"
+              :key="`spacer-${column.key}`"
+              class="workspace-wbs__desc-cell"
+              :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn(column.key) }"
+            />
+            <td
+              v-for="day in ganttDays"
+              :key="`spacer-${day.iso}`"
+              class="workspace-wbs__day-cell"
+              :class="{
+                'workspace-wbs__day-cell--weekend': day.isWeekend,
+                'workspace-wbs__day-cell--today': day.isToday,
+              }"
+            />
+          </tr>
           <tr
             v-for="(row, rowIndex) in section.rows"
             :key="`${row.kind}-${row.task.id}`"
             class="workspace-wbs__task-row"
             :class="{
               'workspace-wbs__task-row--parent': row.kind === 'parent',
-              'workspace-wbs__task-row--child': row.kind === 'child',
+              'workspace-wbs__task-row--child': row.kind === 'child' || row.kind === 'task',
               'workspace-wbs__task-row--drag-preview': draggingTaskIds.has(row.task.id),
             }"
             :data-wbs-row-index="rowIndex"
@@ -145,12 +165,11 @@
               v-if="isColumnVisible('title')"
               class="workspace-wbs__task-title workspace-wbs__desc-cell"
               :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn('title') }"
-              :style="stickyDescStyleForKey('title')"
             >
               <div
                 class="workspace-wbs__title-cell"
                 :class="{
-                  'workspace-wbs__title-cell--child': row.kind !== 'parent' && !editMode,
+                  'workspace-wbs__title-cell--child': row.kind !== 'parent',
                   'workspace-wbs__title-cell--editable': editMode && editingTitleTaskId !== row.task.id,
                 }"
                 :tabindex="editMode && editingTitleTaskId !== row.task.id ? 0 : undefined"
@@ -223,7 +242,6 @@
               v-if="isColumnVisible('assignees')"
               class="workspace-wbs__desc-cell"
               :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn('assignees') }"
-              :style="stickyDescStyleForKey('assignees')"
             >
               <div
                 class="workspace-wbs__members-cell"
@@ -272,7 +290,6 @@
               v-if="isColumnVisible('labels')"
               class="workspace-wbs__desc-cell"
               :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn('labels') }"
-              :style="stickyDescStyleForKey('labels')"
             >
               <div
                 v-if="row.task.labels?.length && !editMode"
@@ -318,7 +335,6 @@
               v-if="isColumnVisible('list')"
               class="workspace-wbs__desc-cell"
               :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn('list') }"
-              :style="stickyDescStyleForKey('list')"
             >
               <button
                 type="button"
@@ -343,7 +359,6 @@
               v-if="isColumnVisible('startDate')"
               class="workspace-wbs__desc-cell"
               :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn('startDate') }"
-              :style="stickyDescStyleForKey('startDate')"
             >
               <button
                 type="button"
@@ -363,7 +378,6 @@
               v-if="isColumnVisible('dueDate')"
               class="workspace-wbs__desc-cell"
               :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn('dueDate') }"
-              :style="stickyDescStyleForKey('dueDate')"
             >
               <button
                 type="button"
@@ -383,7 +397,6 @@
               v-if="isColumnVisible('effort')"
               class="workspace-wbs__desc-cell"
               :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn('effort') }"
-              :style="stickyDescStyleForKey('effort')"
             >
               <button
                 type="button"
@@ -403,7 +416,6 @@
               v-if="isColumnVisible('notes')"
               class="workspace-wbs__desc-cell"
               :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn('notes') }"
-              :style="stickyDescStyleForKey('notes')"
             >
               <button
                 type="button"
@@ -458,6 +470,44 @@
               />
             </td>
           </tr>
+          </template>
+          <template v-else>
+            <tr
+              v-for="(skeleton, skeletonIndex) in loadingSkeletonRows"
+              :key="`skeleton-${skeletonIndex}`"
+              class="workspace-wbs__task-row workspace-wbs__task-row--skeleton"
+              :class="{
+                'workspace-wbs__task-row--parent': skeleton.isParent,
+                'workspace-wbs__task-row--child': !skeleton.isParent,
+              }"
+              aria-hidden="true"
+            >
+              <td
+                v-for="column in visibleColumns"
+                :key="`skeleton-${skeletonIndex}-${column.key}`"
+                class="workspace-wbs__desc-cell"
+                :class="{ 'workspace-wbs__desc-cell--edge': isLastVisibleColumn(column.key) }"
+              >
+                <span
+                  class="workspace-wbs__skeleton-bar"
+                  :class="{
+                    'workspace-wbs__skeleton-bar--title': column.key === 'title',
+                    'workspace-wbs__skeleton-bar--short': column.key !== 'title' && column.key !== 'notes',
+                    'workspace-wbs__skeleton-bar--child': column.key === 'title' && !skeleton.isParent,
+                  }"
+                />
+              </td>
+              <td
+                v-for="day in ganttDays"
+                :key="`skeleton-${skeletonIndex}-${day.iso}`"
+                class="workspace-wbs__day-cell"
+                :class="{
+                  'workspace-wbs__day-cell--weekend': day.isWeekend,
+                  'workspace-wbs__day-cell--today': day.isToday,
+                }"
+              />
+            </tr>
+          </template>
         </tbody>
         </table>
         <div
@@ -592,9 +642,10 @@ const {
   patchCachedTasks,
   getCached: getBoardCached,
   replaceCachedBoardState,
+  warmWorkspaceBoardCache,
 } = useWorkspaceBoardPageData()
 const { getCached: getWbsCached, setCached: setWbsCached } = useWorkspaceWbsPageData()
-const loading = ref(false)
+const loading = ref(true)
 const error = ref<string | null>(null)
 const tasks = ref<WbsTask[]>([])
 const orgLabels = ref<TaskFormLabel[]>([])
@@ -804,24 +855,6 @@ const isCurrentMonth = computed(() => {
   const now = currentYearMonth()
   return visibleYear.value === now.year && visibleMonth.value === now.month
 })
-const stickyLeftOffsetsByKey = computed(() => {
-  const offsets = {} as Record<WbsColumnKey, number>
-  let left = 0
-  for (const column of visibleColumns.value) {
-    offsets[column.key] = left
-    left += columnWidths.value[column.key]
-  }
-  return offsets
-})
-function stickyDescStyleForKey (key: WbsColumnKey, isHeader = false) {
-  const index = visibleColumns.value.findIndex(column => column.key === key)
-  const left = stickyLeftOffsetsByKey.value[key] ?? 0
-  const stack = Math.max(0, visibleColumns.value.length - index)
-  return {
-    left: `${left}px`,
-    zIndex: (isHeader ? 20 : 5) + stack,
-  }
-}
 type WbsSectionKey = 'grouped' | 'standalone'
 const groupedDrag = useWbsTaskDragReorder({
   tasks,
@@ -859,6 +892,34 @@ const wbsSections = computed(() => {
   return sections
 })
 const hasDisplayRows = computed(() => wbsSections.value.length > 0)
+/** 初回ロード中はヘッダー枠だけ先に出すための仮セクション */
+const tableSections = computed(() => {
+  if (wbsSections.value.length > 0) {
+    return wbsSections.value
+  }
+  if (loading.value) {
+    return [{ key: 'grouped' as WbsSectionKey, rows: [] as WbsDisplayRow[] }]
+  }
+  return []
+})
+/** 枠組の見た目用。親行→子行の繰り返しパターン */
+const loadingSkeletonRows = computed(() => {
+  if (!loading.value || hasDisplayRows.value) {
+    return []
+  }
+  return [
+    { isParent: true },
+    { isParent: false },
+    { isParent: false },
+    { isParent: false },
+    { isParent: true },
+    { isParent: false },
+    { isParent: false },
+    { isParent: true },
+    { isParent: false },
+    { isParent: false },
+  ]
+})
 function registerSectionBody (key: WbsSectionKey, el: unknown) {
   const body = el instanceof HTMLTableSectionElement ? el : null
   if (key === 'grouped') {
@@ -1608,6 +1669,15 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
     if (generation !== wbsLoadGeneration) {
       return
     }
+    // サイレント再取得中に編集が始まった場合はタスク並びを上書きしない
+    if (opts?.silent && editMode.value) {
+      orgLabels.value = resolveLabelColors(labelsRes.data ?? [])
+      workspaceMembers.value = membersRes.data ?? []
+      workspaceLists.value = resolveListColors([...(listsRes.data ?? [])]).sort(
+        (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+      )
+      return
+    }
     tasks.value = (tasksRes.data ?? []).map(task => ({
       ...task,
       labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
@@ -1646,9 +1716,12 @@ watch(
     reorderSnapshot.value = null
     collapsedParentIds.value = new Set()
     dismissEditInteractions()
+    // ボード切替時に枠組待ちを短くするため、裏でボードキャッシュを温める
+    void warmWorkspaceBoardCache(props.orgSlug, props.workspaceId)
     const cached = getWbsCached(props.orgSlug, props.workspaceId)
     if (cached) {
       applyWbsSnapshot(cached)
+      loading.value = false
       void loadWbsTasks({ silent: true })
       return
     }
@@ -1657,9 +1730,16 @@ watch(
   { immediate: true },
 )
 function refreshOnViewSwitch (): Promise<void> {
-  const cached = getWbsCached(props.orgSlug, props.workspaceId)
-  if (cached) {
-    applyWbsSnapshot(cached)
+  // 編集セッション中はローカル並びを壊さない
+  if (editMode.value) {
+    return Promise.resolve()
+  }
+  // keep-alive 済みで既に表示データがあるときはキャッシュ再適用でちらつかせない
+  if (tasks.value.length === 0) {
+    const cached = getWbsCached(props.orgSlug, props.workspaceId)
+    if (cached) {
+      applyWbsSnapshot(cached)
+    }
   }
   return loadWbsTasks({ silent: tasks.value.length > 0 })
 }
@@ -1842,8 +1922,7 @@ defineExpose({
   openTaskCreate,
   openDisplayItems,
 })
-watch(loading, async (isLoading) => {
-  if (isLoading) return
+watch(loading, async () => {
   await nextTick()
   const containerWidth = wbsScrollEl.value?.clientWidth
   if (!containerWidth) return

@@ -58,7 +58,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
   const popoverAnchorEl = ref<HTMLElement | null>(null)
   const calendarCursor = ref(new Date())
   const pendingDate = ref<string | null>(null)
-  const titleInputRef = ref<HTMLInputElement | null>(null)
+  const titleInputRef = ref<HTMLTextAreaElement | null>(null)
   const labelSearchQuery = ref('')
   const categorySearchQuery = ref('')
   const statusSearchQuery = ref('')

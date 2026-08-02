@@ -408,8 +408,26 @@ export function buildStandaloneWbsDisplayRows (tasks: WbsTask[]): WbsDisplayRow[
   const taskById = new Map(sorted.map((task) => [task.id, task]))
   return collectStandaloneTasks(sorted, taskById).map(task => ({ kind: 'task' as const, task }))
 }
+const WBS_WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'] as const
 export function formatWbsDate (value: string | null | undefined): string {
-  return formatTaskCardSingleDate(value) ?? ''
+  const formatted = formatTaskCardSingleDate(value)
+  if (!formatted) {
+    return ''
+  }
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) {
+    return formatted
+  }
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  const weekday = WBS_WEEKDAY_LABELS[date.getDay()]
+  if (!weekday) {
+    return formatted
+  }
+  const yearMatch = formatted.match(/^(\d{2}\/\d{2})( \(\d{4}\))?$/)
+  if (!yearMatch) {
+    return `${formatted}（${weekday}）`
+  }
+  return `${yearMatch[1]}（${weekday}）${yearMatch[2] ?? ''}`
 }
 export function formatWbsEffort (task: WbsTask): string {
   return formatTaskCardEffort(task) ?? ''

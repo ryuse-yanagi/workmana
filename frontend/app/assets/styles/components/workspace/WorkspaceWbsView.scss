@@ -5,68 +5,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-}
-.workspace-wbs-board__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10.5px;
-  margin-bottom: 6.3px;
-  flex-shrink: 0;
-}
-.workspace-wbs-board__month-nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 4.9px;
-}
-.workspace-wbs-board__nav-btn,
-.workspace-wbs-board__today-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid mixin.$border-light;
-  border-radius: 6px;
   background: #fff;
-  color: mixin.$text;
-  cursor: pointer;
-  font: inherit;
-}
-.workspace-wbs-board__nav-btn {
-  width: 24.5px;
-  height: 24.5px;
-  padding: 0;
-  font-size: 14px;
-  line-height: 1;
-}
-.workspace-wbs-board__today-btn {
-  height: 24.5px;
-  padding: 0 9.1px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.workspace-wbs-board__today-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.workspace-wbs-board__month-strip {
-  display: flex;
-  align-items: flex-end;
-  width: fit-content;
-  min-width: 100%;
-  margin-bottom: 2.8px;
-  flex-shrink: 0;
-}
-.workspace-wbs-board__month-strip-spacer {
-  flex-shrink: 0;
-}
-.workspace-wbs-board__month-strip-label {
-  flex: 1;
-  min-width: 0;
-  padding-left: 4.9px;
-  font-size: 14px;
-  font-weight: 700;
-  color: mixin.$text;
-  line-height: 1.2;
 }
 .workspace-wbs-board__viewport {
   flex: 1;
@@ -74,6 +13,7 @@
   min-width: 0;
   width: 100%;
   overflow: auto;
+  background: #fff;
 }
 .workspace-wbs-board__viewport--dragging {
   cursor: default;
@@ -87,18 +27,19 @@
 .workspace-wbs-board__frame {
   display: block;
   width: fit-content;
-  border: 1px solid mixin.$border-light;
-  border-radius: 12px;
-  background: #fff;
-  overflow: hidden;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
-/** 親タスクを持たないタスクは、独立したWBSとして下に離して並べる */
+/** 親なしタスクは空白の親行スペーサ直下に続ける（カード分割しない） */
 .workspace-wbs-board__frame--stacked {
-  margin-top: 16.8px;
+  margin-top: 0;
 }
 .workspace-wbs-wrap {
   position: relative;
   width: fit-content;
+  border-right: 1px solid mixin.$border-light;
 }
 .workspace-wbs-wrap--dragging {
   cursor: default;
@@ -134,16 +75,25 @@
 }
 .workspace-wbs {
   --wbs-row-height: 36px;
-  --wbs-parent-row-height: 40px;
+  --wbs-parent-row-height: 56px;
+  --wbs-header-controls-height: 36px;
+  --wbs-header-days-height: 36px;
+  --wbs-header-height: 52px;
   --wbs-chip-height: 24px;
   --wbs-label-chip-width: 32px;
   --wbs-leading-control-width: 18.9px;
+  /** 親タイトル開始位置からの追加インデント */
+  --wbs-child-nest-indent: 28px;
   --wbs-width: auto;
   --gantt-day-col-width: 34px;
   width: var(--wbs-width);
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 14px;
+  background: #fff;
+}
+.workspace-wbs--gantt {
+  --wbs-header-height: calc(var(--wbs-header-controls-height) + var(--wbs-header-days-height));
 }
 .workspace-wbs__day-col {
   width: var(--gantt-day-col-width);
@@ -174,24 +124,29 @@
 }
 .workspace-wbs thead th {
   position: sticky;
-  top: 0;
   z-index: 2;
   min-width: 0;
-  padding: 7.7px 9.1px;
-  background: mixin.$table-header-bg;
-  border-bottom: 1px solid mixin.$table-header-bg;
+  background: mixin.$surface-canvas;
+  border-bottom: 1px solid mixin.$border-light;
   text-align: left;
   font-size: 14px;
   font-weight: 700;
-  color: mixin.$white;
+  color: mixin.$text-sub;
   white-space: nowrap;
   overflow: hidden;
   isolation: isolate;
 }
-.workspace-wbs__header-cell--sticky {
-  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.12);
+.workspace-wbs__header-cell {
+  top: 0;
+  height: var(--wbs-header-height);
+  min-height: var(--wbs-header-height);
+  padding: 0 9.1px;
+  vertical-align: middle;
 }
-.workspace-wbs__header-cell--sticky-edge {
+.workspace-wbs__header-cell:first-child {
+  padding-left: 42px;
+}
+.workspace-wbs__header-cell--edge {
   box-shadow: 2px 0 0 rgba(15, 23, 42, 0.12);
 }
 .workspace-wbs__header-label {
@@ -201,34 +156,106 @@
   text-overflow: ellipsis;
   padding-right: 4.9px;
 }
+.workspace-wbs__gantt-controls-header {
+  top: 0;
+  z-index: 2;
+  height: var(--wbs-header-controls-height);
+  max-height: var(--wbs-header-controls-height);
+  padding: 0 8px;
+  vertical-align: middle;
+  border-bottom: 1px solid transparent;
+}
+.workspace-wbs__gantt-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+.workspace-wbs__month-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.workspace-wbs__month-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px solid mixin.$border-light;
+  border-radius: 6px;
+  background: #fff;
+  color: mixin.$text;
+  cursor: pointer;
+  font: inherit;
+  flex-shrink: 0;
+}
+.workspace-wbs__month-btn--today {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.workspace-wbs__month-btn--nav {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+.workspace-wbs__month-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.workspace-wbs__month-label {
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: mixin.$text;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 .workspace-wbs__day-header {
+  top: var(--wbs-header-controls-height);
+  z-index: 1;
   width: var(--gantt-day-col-width);
   min-width: var(--gantt-day-col-width);
   max-width: var(--gantt-day-col-width);
-  padding: 4.2px 0;
+  height: var(--wbs-header-days-height);
+  padding: 2px 0 4px;
   text-align: center;
+  vertical-align: middle;
   line-height: 1.05;
-  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.12);
+  box-shadow: inset 1px 0 0 mixin.$border-light;
+  font-weight: 600;
+  color: mixin.$text-sub;
 }
 .workspace-wbs__day-header--weekend {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, mixin.$surface-canvas 88%, mixin.$border-light);
 }
 .workspace-wbs__day-header--today {
-  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, 0.95);
+  box-shadow:
+    inset 1px 0 0 mixin.$border-light,
+    inset 0 -2px 0 mixin.$main;
+  color: mixin.$text;
 }
 .workspace-wbs__day-date {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.05;
 }
 .workspace-wbs__day-weekday {
   display: block;
   margin-top: 0.28px;
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.05;
-  opacity: 0.92;
+  opacity: 0.85;
 }
 .workspace-wbs__resize-guide {
   position: absolute;
@@ -261,18 +288,6 @@
   cursor: col-resize;
   z-index: 1;
 }
-.workspace-wbs thead th:first-child {
-  border-top-left-radius: 12px;
-}
-.workspace-wbs thead th:last-child {
-  border-top-right-radius: 12px;
-}
-.workspace-wbs__task-row:last-child td:first-child {
-  border-bottom-left-radius: 12px;
-}
-.workspace-wbs__task-row:last-child td:last-child {
-  border-bottom-right-radius: 12px;
-}
 .workspace-wbs__task-row td {
   height: var(--wbs-row-height);
   max-height: var(--wbs-row-height);
@@ -285,15 +300,15 @@
   overflow: hidden;
 }
 .workspace-wbs__desc-cell {
-  position: sticky;
   background: #fff;
   box-shadow: 1px 0 0 mixin.$border-light;
 }
 .workspace-wbs__desc-cell--edge {
   box-shadow: 2px 0 0 rgba(15, 23, 42, 0.12);
 }
-.workspace-wbs__task-row--parent .workspace-wbs__desc-cell {
-  background: mixin.$wbs-parent-bg;
+.workspace-wbs__task-row--parent .workspace-wbs__desc-cell,
+.workspace-wbs__task-row--spacer .workspace-wbs__desc-cell {
+  background: #fff;
 }
 .workspace-wbs__day-cell {
   width: var(--gantt-day-col-width);
@@ -379,13 +394,11 @@
   min-height: var(--wbs-row-height);
   padding: 0 9.1px;
 }
-.workspace-wbs__task-row:last-child td {
-  border-bottom: none;
-}
-.workspace-wbs__task-row--parent td {
+.workspace-wbs__task-row--parent td,
+.workspace-wbs__task-row--spacer td {
   height: var(--wbs-parent-row-height);
   max-height: var(--wbs-parent-row-height);
-  background: mixin.$wbs-parent-bg;
+  background: #fff;
 }
 .workspace-wbs__task-row--parent td > .workspace-wbs__placeholder {
   min-height: var(--wbs-parent-row-height);
@@ -393,9 +406,15 @@
 .workspace-wbs__task-row--parent .workspace-wbs__cell-btn {
   min-height: var(--wbs-parent-row-height);
 }
+.workspace-wbs__task-row--spacer {
+  pointer-events: none;
+}
+.workspace-wbs__task-row--spacer td {
+  border-bottom: 1px solid mixin.$border-light;
+}
 .workspace-wbs__task-title {
   font-weight: 700;
-  padding-left: 0 !important;
+  padding-left: 16px !important;
 }
 .workspace-wbs__title-cell {
   display: flex;
@@ -423,7 +442,15 @@
   height: var(--wbs-parent-row-height);
 }
 .workspace-wbs__title-cell--child {
-  padding-left: var(--wbs-leading-control-width);
+  /* トグル幅ぶん揃えたうえで、さらにネストインデント */
+  padding-left: calc(var(--wbs-leading-control-width) + var(--wbs-child-nest-indent));
+}
+.workspace-wbs--edit .workspace-wbs__title-cell--child {
+  /* 編集時はドラッグハンドルがあるので、ネスト分だけ足す */
+  padding-left: var(--wbs-child-nest-indent);
+}
+.workspace-wbs__task-row--child .workspace-wbs__task-title {
+  font-weight: 500;
 }
 .workspace-wbs__title-field {
   flex: 1;
@@ -509,9 +536,13 @@
   overflow: hidden;
   transition: background-color 0.12s ease;
 }
+.workspace-wbs__cell-btn:not(.workspace-wbs__cell-btn--readonly):not(.workspace-wbs__cell-btn--popover-open):not(:has(.workspace-wbs__label-add-chip--active)):hover {
+  background: mixin.$main-aqua-surface-light;
+}
 .workspace-wbs__cell-btn--popover-open {
   border-radius: 8px;
   box-shadow: inset 0 0 0 1.4px mixin.$main;
+  background: #fff;
 }
 .workspace-wbs__cell-btn--readonly {
   cursor: default;
@@ -574,6 +605,13 @@
 }
 .workspace-wbs__members-cell--edit {
   cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+.workspace-wbs__members-cell--edit:not(:has(.workspace-wbs__avatar-btn--active)):hover {
+  background: mixin.$main-aqua-surface-light;
+}
+.workspace-wbs__members-cell--edit:has(.workspace-wbs__avatar-btn--active) {
+  background: #fff;
 }
 .workspace-wbs__task-row--parent .workspace-wbs__members-cell {
   min-height: var(--wbs-parent-row-height);
@@ -713,4 +751,32 @@
 }
 .workspace-wbs__notes {
   color: mixin.$text-sub;
+}
+.workspace-wbs__task-row--skeleton {
+  pointer-events: none;
+}
+.workspace-wbs__task-row--skeleton .workspace-wbs__desc-cell {
+  vertical-align: middle;
+}
+.workspace-wbs__skeleton-bar {
+  display: block;
+  box-sizing: border-box;
+  height: 12px;
+  margin: 0 12.6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, mixin.$border-light 80%, #fff);
+}
+.workspace-wbs__skeleton-bar--title {
+  width: 42%;
+  margin-left: 16px;
+}
+.workspace-wbs__skeleton-bar--child {
+  margin-left: calc(16px + var(--wbs-leading-control-width) + var(--wbs-child-nest-indent));
+  width: 36%;
+}
+.workspace-wbs__skeleton-bar--short {
+  width: 48%;
+}
+.workspace-wbs__task-row--parent .workspace-wbs__skeleton-bar--title {
+  width: 28%;
 }

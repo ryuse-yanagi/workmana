@@ -1,23 +1,18 @@
 <template>
   <div class="project-page-root">
-    <WorkspaceProjectView
-      ref="boardRef"
-      v-show="displayedView === 'board'"
-      mode="board"
-    />
-    <WorkspaceProjectView
-      v-if="wbsMounted"
-      ref="wbsViewRef"
-      v-show="displayedView === 'wbs'"
-      mode="wbs"
-      :org-slug="slug"
-      :workspace-id="workspaceId"
-    />
+    <KeepAlive :max="2">
+      <WorkspaceProjectView
+        :key="displayedView"
+        ref="viewRef"
+        :mode="displayedView"
+        :org-slug="slug"
+        :workspace-id="workspaceId"
+      />
+    </KeepAlive>
   </div>
 </template>
 <script setup lang="ts">
 import WorkspaceProjectView from '../../../../components/workspace/WorkspaceProjectView.vue'
-import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import {
   invalidateWorkspaceDetailMeta,
   prefetchWorkspaceDetail,
@@ -52,54 +47,34 @@ onBeforeMount(() => {
   void redirectIfWorkspaceArchived()
 })
 const { activeView } = useWorkspaceViewRoutes(() => slug.value, () => workspaceId.value)
-const boardRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
-const wbsViewRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
-const wbsMounted = ref(false)
-function initialProjectView (): WorkspaceViewKey {
-  const view = activeView.value
+const viewRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
+function resolveProjectView (view: string): WorkspaceViewKey {
   if (view === 'wbs') {
-    return view
+    return 'wbs'
   }
   return 'board'
 }
-const displayedView = ref<WorkspaceViewKey>(initialProjectView())
+const displayedView = ref<WorkspaceViewKey>(resolveProjectView(activeView.value))
 let viewSwitchSeq = 0
 function syncViewFromRoute () {
-  const view = initialProjectView()
-  displayedView.value = view
-  wbsMounted.value = view === 'wbs'
+  displayedView.value = resolveProjectView(activeView.value)
 }
-async function refreshProjectView (view: WorkspaceViewKey) {
-  if (view === 'wbs') {
-    wbsMounted.value = true
-  }
-  await nextTick()
-  await withAppLoadingCursor(async () => {
-    if (view === 'board') {
-      await boardRef.value?.refreshOnViewSwitch()
+/** 表示は待たず、切替後にバックグラウンドで最新化 */
+function refreshActiveViewInBackground () {
+  const seq = ++viewSwitchSeq
+  void nextTick(() => {
+    if (seq !== viewSwitchSeq) {
       return
     }
-    await wbsViewRef.value?.refreshOnViewSwitch()
+    void viewRef.value?.refreshOnViewSwitch()
   })
 }
-watch(activeView, async (view) => {
+watch(activeView, (view) => {
   if (view !== 'board' && view !== 'wbs') {
     return
   }
-  const seq = ++viewSwitchSeq
-  if (view === 'board') {
-    displayedView.value = 'board'
-  } else {
-    wbsMounted.value = true
-    await nextTick()
-  }
-  try {
-    await refreshProjectView(view)
-  } finally {
-    if (seq === viewSwitchSeq) {
-      displayedView.value = view
-    }
-  }
+  displayedView.value = view
+  refreshActiveViewInBackground()
 }, { immediate: true })
 watch(
   () => [slug.value, workspaceId.value] as const,
@@ -113,10 +88,7 @@ onActivated(() => {
   syncViewFromRoute()
   warmWorkspaceDetailCache(slug.value, workspaceId.value)
   void redirectIfWorkspaceArchived()
-})
-onDeactivated(() => {
-  displayedView.value = 'board'
-  wbsMounted.value = false
+  refreshActiveViewInBackground()
 })
 </script>
 <style lang="scss" scoped src="~/assets/styles/pages/org/slug/workspaces/id.scss"></style>

@@ -1,16 +1,5 @@
 <template>
   <div class="label-category-panel">
-    <div v-if="canManage" class="label-category-panel__toolbar">
-      <button
-        type="button"
-        class="label-category-panel__add-category-btn"
-        :disabled="loading"
-        @click="openCreateCategory"
-      >
-        <Group :size="20" :stroke-width="2.1" aria-hidden="true" />
-        カテゴリ追加
-      </button>
-    </div>
     <p v-if="message" class="settings-msg" :class="{ 'settings-msg--err': messageKind === 'err' }">
       {{ message }}
     </p>
@@ -124,7 +113,7 @@
 </template>
 <script setup lang="ts">
 import draggable from 'vuedraggable'
-import { Equal, Group } from 'lucide-vue-next'
+import { Equal } from 'lucide-vue-next'
 import { TagPlus } from '../icons/TagPlusIcon'
 import { useApi } from '../../composables/useApi'
 import LabelCategoryNameModal from '../modals/LabelCategoryNameModal.vue'
@@ -404,7 +393,7 @@ async function deleteLabel (label: SettingsLabelItem) {
 onMounted(() => {
   void load()
 })
-defineExpose({ load })
+defineExpose({ load, openCreateCategory })
 </script>
 <style lang="scss" src="~/assets/styles/components/settings/SettingsLabelCategoryPanel.global.scss"></style>
 <style lang="scss" scoped src="~/assets/styles/components/settings/SettingsLabelCategoryPanel.scss"></style>

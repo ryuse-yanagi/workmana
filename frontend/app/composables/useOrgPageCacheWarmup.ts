@@ -1,5 +1,4 @@
 import { useOrgDocumentsPageData } from './useOrgDocumentsPageData'
-import { useOrgSettingsPageData } from './useOrgSettingsPageData'
 import { useOrgWorkspaceIndexPageData } from './useOrgWorkspaceIndexPageData'
 
 const inflightBySlug = new Map<string, Promise<void>>()
@@ -11,7 +10,6 @@ export function clearAllOrgPageCacheWarmup (): void {
 export function useOrgPageCacheWarmup () {
   const { fetchSnapshot: fetchOrgWorkspaceIndexSnapshot } = useOrgWorkspaceIndexPageData()
   const { fetchSnapshot: fetchOrgDocumentsSnapshot } = useOrgDocumentsPageData()
-  const { fetchSnapshot: fetchOrgSettingsSnapshot } = useOrgSettingsPageData()
   function warmOrgPageCaches (orgSlug: string): Promise<void> {
     const slug = orgSlug.trim()
     if (!slug) {
@@ -24,7 +22,6 @@ export function useOrgPageCacheWarmup () {
     const job = Promise.all([
       fetchOrgWorkspaceIndexSnapshot(slug).catch(() => undefined),
       fetchOrgDocumentsSnapshot(slug).catch(() => undefined),
-      fetchOrgSettingsSnapshot(slug).catch(() => undefined),
     ]).then(() => undefined)
     inflightBySlug.set(slug, job)
     void job.finally(() => {

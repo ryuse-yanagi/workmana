@@ -100,6 +100,21 @@ export function useOrgSettingsPageData () {
     })
   }
 
+  function patchOrgSettingsCache (
+    orgSlug: string,
+    orgSettings: SettingsPageSnapshot['orgSettings'],
+  ): void {
+    const slug = orgSlug.trim()
+    const existing = cacheBySlug.get(slug)
+    if (!existing) {
+      return
+    }
+    cacheBySlug.set(slug, {
+      ...existing,
+      orgSettings,
+    })
+  }
+
   function invalidateCached (orgSlug: string): void {
     cacheBySlug.delete(orgSlug.trim())
   }
@@ -114,6 +129,7 @@ export function useOrgSettingsPageData () {
     getCached,
     getCachedLabelCategories,
     patchLabelCategoriesCache,
+    patchOrgSettingsCache,
     invalidateCached,
     clearAllCached,
   }

@@ -9,17 +9,18 @@
         class="field-label"
       >{{ titleFieldLabel }}</span>
       <div class="title-input-wrap">
-        <input
+        <textarea
           ref="titleInputRef"
           v-model="titleDraft"
-          type="text"
           :maxlength="titleMaxLength"
           class="title-input"
           :aria-label="titleFieldLabel"
           :disabled="disabled"
+          rows="1"
           @input="onTitleInput"
           @compositionstart="onTitleCompositionStart"
           @compositionend="onTitleCompositionEnd"
+          @keydown.enter.prevent
         />
         <span
           v-if="showTitlePlaceholder"
@@ -709,26 +710,11 @@ const titleMaxLength = computed(() => {
   if (props.documentMode) return DOCUMENT_NAME_MAX_LENGTH
   return TASK_TITLE_MAX_LENGTH
 })
-watch(
-  () => props.modelValue.title,
-  (title) => {
-    if (title !== titleDraft.value) {
-      titleDraft.value = title
-    }
-  },
-  { immediate: true },
-)
 function onTitleCompositionStart () {
   titleComposing.value = true
 }
 function onTitleCompositionEnd () {
   titleComposing.value = false
-}
-function onTitleInput () {
-  emit('update:modelValue', {
-    ...props.modelValue,
-    title: titleDraft.value,
-  })
 }
 const {
   activePopover,
@@ -790,6 +776,33 @@ const {
   documentCategories: toRef(props, 'documentCategories'),
   workspaceStatuses: toRef(props, 'workspaceStatuses'),
 })
+function adjustTitleTextareaHeight () {
+  const el = titleInputRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+function onTitleInput () {
+  const cleaned = titleDraft.value.replace(/\r?\n/g, '')
+  if (cleaned !== titleDraft.value) {
+    titleDraft.value = cleaned
+  }
+  adjustTitleTextareaHeight()
+  emit('update:modelValue', {
+    ...props.modelValue,
+    title: titleDraft.value,
+  })
+}
+watch(
+  () => props.modelValue.title,
+  (title) => {
+    if (title !== titleDraft.value) {
+      titleDraft.value = title
+    }
+    nextTick(() => adjustTitleTextareaHeight())
+  },
+  { immediate: true },
+)
 /** ステータス・カテゴリ用: 淡色背景+濃色文字のピル配色 */
 function surfacePillStyle (color: string) {
   return {
@@ -804,6 +817,7 @@ const activeCalendarDate = computed(() => {
 })
 defineExpose({ resetPaneState, focusTitleInput, activePopover, closePopover })
 onMounted(() => {
+  nextTick(() => adjustTitleTextareaHeight())
   if (props.autoFocusTitle) {
     focusTitleInput()
   }

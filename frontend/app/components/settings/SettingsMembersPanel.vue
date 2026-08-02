@@ -1,18 +1,15 @@
 <template>
-  <SettingsPanel
-    title="ユーザー設定"
-    note="組織のメンバーと招待を管理します。招待リンクの有効期限は7日です。"
-  >
-    <div v-if="canManage" class="members-toolbar">
+  <SettingsPanel title="ユーザー設定">
+    <template v-if="canManage" #actions>
       <button
         type="button"
-        class="settings-primary-btn"
+        class="settings-panel__action-btn"
         @click="inviteModalOpen = true"
       >
         ユーザー招待
       </button>
-    </div>
-    <p v-else class="invite-readonly">
+    </template>
+    <p v-if="!canManage" class="invite-readonly">
       招待の送信は組織管理者のみ行えます。
     </p>
 

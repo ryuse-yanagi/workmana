@@ -606,7 +606,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       const notesCell = el.closest('.workspace-wbs__cell-btn--notes')
       return !!(notesCell && notesCell.getAttribute('aria-disabled') !== 'true')
     }
-    if (el.closest('[data-workspace-view-switcher-root], .workspace-view-switcher-menu')) {
+    if (el.closest('[data-workspace-view-switcher-root]')) {
       return true
     }
     // WBSヘッダーの編集／キャンセル／完了などは外側クローズ対象外にする。

@@ -145,6 +145,10 @@
   flex-direction: column;
   padding: 0 0 10.5px;
 }
+.workspace-view-page--wbs .workspace-view-page__body {
+  padding: 0;
+  background: #fff;
+}
 .workspace-view-page__body > :deep(*) {
   flex: 1;
   min-height: 0;

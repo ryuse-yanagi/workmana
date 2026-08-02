@@ -126,6 +126,10 @@
 .header-search:focus {
   @include mixin.input-focus-ring;
 }
+.header-search:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .subheader-count {
   margin: 0;
   font-size: 11.48px;
@@ -897,4 +901,60 @@ button:disabled {
   margin: 0 auto 11.2px;
   color: mixin.$danger;
   font-weight: 700;
+}
+/* 初回ロード中の枠組プレースホルダー */
+.list-column--skeleton {
+  pointer-events: none;
+}
+.list-header--skeleton {
+  cursor: default;
+  min-height: 42px;
+}
+.list-drop-zone--skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 7px 10.5px 3.5px;
+  min-height: 56px;
+}
+.task-card--skeleton {
+  cursor: default;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8.4px;
+  padding: 12.6px 10.5px;
+  box-shadow: none;
+}
+.task-card--skeleton:hover {
+  border-color: mixin.$border;
+}
+.composer--skeleton {
+  justify-content: stretch;
+  padding: 8.4px 10.5px 10.5px;
+}
+.board-skeleton-bar {
+  display: block;
+  box-sizing: border-box;
+  height: 12px;
+  border-radius: 4px;
+  background: color-mix(in srgb, mixin.$border-light 80%, #fff);
+}
+.board-skeleton-bar--list-title {
+  width: 48%;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.45);
+}
+.board-skeleton-bar--card-title {
+  width: 72%;
+}
+.board-skeleton-bar--card-meta {
+  width: 42%;
+  height: 10px;
+}
+.board-skeleton-bar--composer {
+  width: 100%;
+  height: 32px;
+  border-radius: 8px;
+  background: color-mix(in srgb, mixin.$border-light 65%, #fff);
 }

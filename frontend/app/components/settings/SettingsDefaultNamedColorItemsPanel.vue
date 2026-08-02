@@ -1,17 +1,17 @@
 <template>
-  <SettingsPanel :title="title" :note="note">
+  <SettingsPanel :title="title">
+    <template v-if="canManage" #actions>
+      <button
+        type="button"
+        class="settings-panel__action-btn"
+        :disabled="loading || items.length >= 20"
+        @click="openCreate"
+      >
+        <component :is="addButtonIcon" :size="20" :stroke-width="2.1" aria-hidden="true" />
+        {{ addButtonLabel }}
+      </button>
+    </template>
     <div class="named-color-items-panel">
-      <div v-if="canManage" class="named-color-items-panel__toolbar">
-        <button
-          type="button"
-          class="named-color-items-panel__add-btn"
-          :disabled="loading || items.length >= 20"
-          @click="openCreate"
-        >
-          <component :is="addButtonIcon" :size="20" :stroke-width="2.1" aria-hidden="true" />
-          {{ addButtonLabel }}
-        </button>
-      </div>
       <p v-if="message" class="settings-msg" :class="{ 'settings-msg--err': messageKind === 'err' }">
         {{ message }}
       </p>
@@ -99,6 +99,7 @@ import type { Component } from 'vue'
 import draggable from 'vuedraggable'
 import { Equal } from 'lucide-vue-next'
 import { useApi } from '../../composables/useApi'
+import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
 import DefaultNamedColorItemDeleteModal from '../modals/DefaultNamedColorItemDeleteModal.vue'
 import DefaultNamedColorItemEditModal from '../modals/DefaultNamedColorItemEditModal.vue'
 import SettingsPanel from './SettingsPanel.vue'
@@ -122,7 +123,6 @@ const props = defineProps<{
   initialItems: DefaultNamedColorItem[]
   canManage: boolean
   title: string
-  note: string
   settingsField: SettingsField
   defaultItems: DefaultNamedColorItem[]
   itemKind: string
@@ -136,6 +136,7 @@ const props = defineProps<{
 }>()
 
 const { api } = useApi()
+const { patchOrgSettingsCache } = useOrgSettingsPageData()
 let nextItemKey = 1
 const items = ref<DraftItem[]>(attachKeys(props.initialItems))
 const loading = ref(false)
@@ -205,6 +206,7 @@ async function persistItems (successMessage?: string) {
     })
     const saved = attachKeys(normalizeFromResponse(res))
     items.value = saved
+    patchOrgSettingsCache(props.orgSlug, res)
     if (successMessage) {
       setMessage(successMessage, 'ok')
     }
@@ -224,6 +226,7 @@ async function load () {
   try {
     const res = await api<OrgSettingsResponse>(`/orgs/${props.orgSlug}/settings`)
     items.value = attachKeys(normalizeFromResponse(res))
+    patchOrgSettingsCache(props.orgSlug, res)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : props.saveErrorMessage
     setMessage(msg, 'err')
@@ -326,10 +329,6 @@ async function confirmDelete () {
     // persistItems already surfaced the error
   }
 }
-
-onMounted(() => {
-  void load()
-})
 
 defineExpose({ load })
 </script>

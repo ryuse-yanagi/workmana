@@ -19,19 +19,21 @@ export type WbsDisplayItemDef = {
 }
 /** ドラッグハンドル列の幅（WBS先頭の固定列） */
 export const WBS_DRAG_COL_WIDTH = 36
-/** 各列の最小幅（タスク名列以外） */
+/** 各列の最小幅（タスク名・日付列以外） */
 export const WBS_COLUMN_MIN_WIDTH = 72
 /** タスク名列の最小幅 */
 export const WBS_TITLE_COLUMN_MIN_WIDTH = 168
+/** 開始日・終了日列の最小幅（MM/DD（曜）が切れない幅） */
+export const WBS_DATE_COLUMN_MIN_WIDTH = 132
 export const WBS_COLUMNS: readonly WbsColumnDef[] = [
   { key: 'title', label: 'タスク', defaultRatio: 0.16 },
   { key: 'assignees', label: '担当者', defaultRatio: 0.10 },
-  { key: 'labels', label: 'ラベル', defaultRatio: 0.14 },
-  { key: 'list', label: 'リスト', defaultRatio: 0.11 },
-  { key: 'startDate', label: '開始日', defaultRatio: 0.09 },
-  { key: 'dueDate', label: '終了日', defaultRatio: 0.09 },
+  { key: 'labels', label: 'ラベル', defaultRatio: 0.13 },
+  { key: 'list', label: 'リスト', defaultRatio: 0.10 },
+  { key: 'startDate', label: '開始日', defaultRatio: 0.11 },
+  { key: 'dueDate', label: '終了日', defaultRatio: 0.11 },
   { key: 'effort', label: '工数', defaultRatio: 0.07 },
-  { key: 'notes', label: '説明', defaultRatio: 0.24 },
+  { key: 'notes', label: '説明', defaultRatio: 0.22 },
 ] as const
 /** 表示項目モーダル用。順序固定（ガントチャートは末尾）。 */
 export const WBS_DISPLAY_ITEMS: readonly WbsDisplayItemDef[] = [
@@ -95,7 +97,13 @@ type ResizeSession = {
 }
 const DEFAULT_CONTAINER_WIDTH = 1200
 function minWidthForColumn (key: WbsColumnKey): number {
-  return key === 'title' ? WBS_TITLE_COLUMN_MIN_WIDTH : WBS_COLUMN_MIN_WIDTH
+  if (key === 'title') {
+    return WBS_TITLE_COLUMN_MIN_WIDTH
+  }
+  if (key === 'startDate' || key === 'dueDate') {
+    return WBS_DATE_COLUMN_MIN_WIDTH
+  }
+  return WBS_COLUMN_MIN_WIDTH
 }
 function clampColumnWidth (key: WbsColumnKey, width: number): number {
   return Math.max(minWidthForColumn(key), Math.round(width))
