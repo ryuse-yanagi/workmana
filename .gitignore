@@ -1,2 +1,4 @@
 node_modules/
 frontend/.nuxt/
+aws/
+awscliv2.zip
