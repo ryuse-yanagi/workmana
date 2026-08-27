@@ -42,8 +42,11 @@ return new class extends Migration
             $table->string('name', 100);
             $table->text('description')->nullable();
             $table->longText('body')->nullable();
+            $table->timestamp('archived_at')->nullable();
+            $table->softDeletes();
             $table->timestamps();
             $table->index(['organization_id', 'created_at']);
+            $table->index(['organization_id', 'deleted_at', 'archived_at']);
         });
 
         Schema::create('document_document_label', function (Blueprint $table) {

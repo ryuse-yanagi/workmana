@@ -1,6 +1,12 @@
 import type { SettingsLabelCategory, SettingsLabelTabKey, SettingsPageSnapshot } from '../components/settings/types'
 import { normalizeSettingsLabelCategories } from '../components/settings/labelCategoryNormalize'
 import { useApi } from './useApi'
+import {
+  clearAllOrgSettingsResourceCaches,
+  invalidateOrgSettingsResource,
+  setCachedOrgSettings,
+  useOrgSettingsResource,
+} from './useOrgSettingsResource'
 
 const cacheBySlug = new Map<string, SettingsPageSnapshot>()
 const inflightBySlug = new Map<string, Promise<SettingsPageSnapshot>>()
@@ -8,10 +14,12 @@ const inflightBySlug = new Map<string, Promise<SettingsPageSnapshot>>()
 export function clearAllOrgSettingsPageCaches (): void {
   cacheBySlug.clear()
   inflightBySlug.clear()
+  clearAllOrgSettingsResourceCaches()
 }
 
 export function useOrgSettingsPageData () {
   const { api } = useApi()
+  const { fetchOrgSettings } = useOrgSettingsResource()
 
   async function fetchSnapshot (orgSlug: string, opts?: { refresh?: boolean }): Promise<SettingsPageSnapshot> {
     const slug = orgSlug.trim()
@@ -32,7 +40,7 @@ export function useOrgSettingsPageData () {
 
     const job = (async () => {
       const [orgSettings, workspaceLabelCategoriesRes, taskLabelCategoriesRes, documentLabelCategoriesRes] = await Promise.all([
-        api<SettingsPageSnapshot['orgSettings']>(`/orgs/${slug}/settings`),
+        fetchOrgSettings(slug, opts?.refresh ? { refresh: true } : undefined),
         api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/workspace-label-categories`),
         api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/task-label-categories`),
         api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/document-label-categories`),
@@ -105,6 +113,7 @@ export function useOrgSettingsPageData () {
     orgSettings: SettingsPageSnapshot['orgSettings'],
   ): void {
     const slug = orgSlug.trim()
+    setCachedOrgSettings(slug, orgSettings)
     const existing = cacheBySlug.get(slug)
     if (!existing) {
       return
@@ -116,7 +125,9 @@ export function useOrgSettingsPageData () {
   }
 
   function invalidateCached (orgSlug: string): void {
-    cacheBySlug.delete(orgSlug.trim())
+    const slug = orgSlug.trim()
+    cacheBySlug.delete(slug)
+    invalidateOrgSettingsResource(slug)
   }
 
   function clearAllCached (): void {

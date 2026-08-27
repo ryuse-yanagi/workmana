@@ -4,8 +4,8 @@
   box-sizing: border-box;
   width: 880px;
   max-width: 100%;
-  background: #fff;
-  border: 1px solid #dbe3ee;
+  background: mixin.$white;
+  border: 1px solid mixin.$border;
   border-radius: 10px;
   padding: 14px;
 }
@@ -24,7 +24,7 @@
   margin: 0;
   font-size: 16.8px;
   font-weight: 700;
-  color: #0f172a;
+  color: mixin.$text;
   line-height: 1.3;
 }
 
@@ -52,14 +52,14 @@
 
 .settings-panel__action-btn:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 .settings-field {
   display: flex;
   flex-direction: column;
   gap: 4.9px;
-  color: #1e293b;
+  color: mixin.$text-heading;
   font-size: 12.6px;
   font-weight: 700;
 }
@@ -69,7 +69,7 @@
   border-radius: 8px;
   padding: 7.7px 9.8px;
   font-size: 13.3px;
-  background: #fff;
+  background: mixin.$white;
 
   &:focus {
     @include mixin.input-focus-ring;
@@ -102,25 +102,21 @@
 }
 
 .settings-ghost-btn {
-  background: #fff;
-  color: #334155;
-  border-color: #94a3b8;
+  background: mixin.$white;
+  color: mixin.$text-strong;
+  border-color: mixin.$text-placeholder;
 }
 
 .settings-primary-btn:disabled,
 .settings-ghost-btn:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 .settings-msg {
   margin: 7.7px 0 0;
-  color: #0f766e;
-  font-weight: 700;
-}
-
-.settings-msg--err {
   color: mixin.$danger;
+  font-weight: 700;
 }
 
 .settings-label-list {
@@ -136,10 +132,10 @@
   display: inline-flex;
   align-items: center;
   gap: 4.9px;
-  border: 1px solid #dbe3ee;
+  border: 1px solid mixin.$border;
   border-radius: 999px;
   padding: 4.2px 7.7px;
-  background: #fff;
+  background: mixin.$white;
 }
 
 .settings-label-dot {
@@ -150,11 +146,11 @@
 
 .settings-label-name {
   font-size: 11.9px;
-  color: #0f172a;
+  color: mixin.$text;
   font-weight: 600;
 }
 
 .settings-label-empty {
-  color: #64748b;
+  color: mixin.$text-muted;
   font-size: 12.6px;
 }

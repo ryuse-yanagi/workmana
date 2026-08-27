@@ -29,6 +29,11 @@ const DRAG_SCROLL_SKIP_SELECTOR = [
   '.popover-layer',
   '.popover',
   '.popover-shell',
+  '.board-filter-dropdown',
+  '.workspace-member-picker-popover',
+  '.workspace-status-select__dropdown',
+  '.document-label-select__dropdown',
+  '.document-category-select__dropdown',
   '.settings-sidebar',
   '[data-no-drag-scroll]',
 ].join(', ')
@@ -221,6 +226,23 @@ export function dismissPopoverFromOutsidePointer (
     suppressOverlayBackdropCloseOnce()
   }
   void dismiss()
+}
+/**
+ * capture の scroll 監視で、ポップオーバー内部スクロールを除外する。
+ * （内部スクロールのたびに再配置すると高さ計測でスクロールが潰れる）
+ */
+export function isScrollInsideRoot (
+  event: Event,
+  root: Element | null | undefined,
+): boolean {
+  if (!root) {
+    return false
+  }
+  const target = event.target
+  if (!(target instanceof Node)) {
+    return false
+  }
+  return target === root || root.contains(target)
 }
 export function createOverlayBackdropClose (options: {
   onClose: () => void

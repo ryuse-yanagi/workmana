@@ -1,75 +1,72 @@
 <template>
-  <main class="page">
-    <h1>アカウント作成</h1>
-    <p class="muted">
-      ユーザーアカウントを作成します。組織の作成はログイン後に行います。
-    </p>
+  <AuthGateShell
+    title="アカウント作成"
+    subtitle="ユーザーアカウントを作成します。組織の作成はログイン後に行います。"
+    :busy="bootstrapping"
+    busy-label="ログイン状態を確認しています…"
+  >
+    <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
 
-    <section class="card">
-      <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
-      <p v-if="completed" class="ok">アカウントを作成しました。ログインしてください。</p>
+    <form v-if="!completed" class="auth-form" novalidate @submit.prevent="submit">
+      <label class="auth-field">
+        <span class="auth-label">ユーザー名</span>
+        <input
+          v-model="name"
+          type="text"
+          class="auth-input"
+          :maxlength="USER_NAME_MAX_LENGTH"
+          autocomplete="name"
+          aria-required="true"
+          :disabled="submitting"
+        >
+        <p v-if="nameError" class="auth-field-error">{{ nameError }}</p>
+      </label>
+      <label class="auth-field">
+        <span class="auth-label">メールアドレス</span>
+        <input
+          v-model="email"
+          type="email"
+          class="auth-input"
+          :maxlength="EMAIL_MAX_LENGTH"
+          autocomplete="email"
+          aria-required="true"
+          :disabled="submitting"
+        >
+        <p v-if="emailError" class="auth-field-error">{{ emailError }}</p>
+      </label>
+      <label class="auth-field">
+        <span class="auth-label">パスワード</span>
+        <input
+          v-model="password"
+          type="password"
+          class="auth-input"
+          :maxlength="PASSWORD_MAX_LENGTH"
+          autocomplete="new-password"
+          aria-required="true"
+          :disabled="submitting"
+        >
+        <p v-if="passwordError" class="auth-field-error">{{ passwordError }}</p>
+      </label>
+      <p class="auth-hint">パスワードは8文字以上にしてください。</p>
+      <button type="submit" class="auth-btn auth-btn--block" :disabled="submitting">
+        {{ submitting ? '作成中…' : 'アカウントを作成' }}
+      </button>
+    </form>
 
-      <form v-if="!completed" class="form" novalidate @submit.prevent="submit">
-        <label class="field">
-          <span class="label">ユーザー名</span>
-          <input
-            v-model="name"
-            type="text"
-            class="input"
-            :maxlength="USER_NAME_MAX_LENGTH"
-            autocomplete="name"
-            aria-required="true"
-            :disabled="submitting"
-          >
-          <p v-if="nameError" class="field-error">{{ nameError }}</p>
-        </label>
-        <label class="field">
-          <span class="label">メールアドレス</span>
-          <input
-            v-model="email"
-            type="email"
-            class="input"
-            :maxlength="EMAIL_MAX_LENGTH"
-            autocomplete="email"
-            aria-required="true"
-            :disabled="submitting"
-          >
-          <p v-if="emailError" class="field-error">{{ emailError }}</p>
-        </label>
-        <label class="field">
-          <span class="label">パスワード</span>
-          <input
-            v-model="password"
-            type="password"
-            class="input"
-            :maxlength="PASSWORD_MAX_LENGTH"
-            autocomplete="new-password"
-            aria-required="true"
-            :disabled="submitting"
-          >
-          <p v-if="passwordError" class="field-error">{{ passwordError }}</p>
-        </label>
-        <p class="hint">パスワードは8文字以上にしてください。</p>
-        <button type="submit" :disabled="submitting">
-          {{ submitting ? '作成中…' : 'アカウントを作成' }}
-        </button>
-      </form>
-
-      <button
-        v-if="completed"
-        type="button"
-        class="link-btn"
-        @click="goLogin"
-      >
+    <div v-else class="auth-success">
+      <p class="auth-copy">
+        アカウントを作成しました。続けてログインし、組織を作成してください。
+      </p>
+      <button type="button" class="auth-btn auth-btn--block" @click="goLogin">
         ログインして組織を作成
       </button>
+    </div>
 
-      <p class="footer-link">
-        既にアカウントをお持ちの方は
-        <NuxtLink to="/login">ログイン</NuxtLink>
-      </p>
-    </section>
-  </main>
+    <template #footer>
+      既にアカウントをお持ちの方は
+      <NuxtLink to="/login">ログイン</NuxtLink>
+    </template>
+  </AuthGateShell>
 </template>
 
 <script setup lang="ts">
@@ -80,7 +77,7 @@ import {
   PASSWORD_MAX_LENGTH,
   USER_NAME_MAX_LENGTH,
 } from '../constants/fieldLengthLimits'
-import { emailFieldError, requiredTextFieldError } from '../utils/formValidation'
+import { emailFieldError, passwordFieldError, requiredTextFieldError } from '../utils/formValidation'
 
 const { api } = useApi()
 const { startLogin, fetchSession } = useAuth()
@@ -90,6 +87,7 @@ const email = ref('')
 const password = ref('')
 const submitting = ref(false)
 const completed = ref(false)
+const bootstrapping = ref(true)
 const errorMessage = ref('')
 const nameError = ref<string | null>(null)
 const emailError = ref<string | null>(null)
@@ -103,13 +101,9 @@ async function submit () {
   if (submitting.value) return
   submitting.value = true
   errorMessage.value = ''
-  nameError.value = requiredTextFieldError(name.value, 'ユーザー名を入力してください。')
+  nameError.value = requiredTextFieldError(name.value, 'ユーザー名', USER_NAME_MAX_LENGTH)
   emailError.value = emailFieldError(email.value)
-  if (password.value.length < 8) {
-    passwordError.value = 'パスワードは8文字以上にしてください。'
-  } else {
-    passwordError.value = null
-  }
+  passwordError.value = passwordFieldError(password.value)
   if (nameError.value || emailError.value || passwordError.value) {
     submitting.value = false
     return
@@ -140,19 +134,8 @@ onMounted(async () => {
   const session = await fetchSession()
   if (session.authenticated) {
     await navigateTo('/post-login')
+    return
   }
+  bootstrapping.value = false
 })
 </script>
-
-<style lang="scss" scoped src="~/assets/styles/pages/invite.scss"></style>
-<style lang="scss" scoped>
-.footer-link {
-  margin-top: 14px;
-  font-size: 12.6px;
-  color: #64748b;
-}
-.footer-link a {
-  color: #0f2945;
-  font-weight: 700;
-}
-</style>

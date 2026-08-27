@@ -20,7 +20,7 @@
             <template v-if="!bodyEditing">
               <button
                 type="button"
-                class="document-header-action-btn document-header-action-btn--primary"
+                class="document-header-action-btn document-header-action-btn--edit"
                 @click="startBodyEdit"
               >
                 <Pencil :size="16" :stroke-width="2.25" aria-hidden="true" />
@@ -47,11 +47,31 @@
                 {{ bodySaving ? '保存中...' : '保存' }}
               </button>
             </template>
+            <button
+              type="button"
+              class="subheader-menu-btn"
+              :aria-expanded="sidebarOpen"
+              :aria-label="sidebarOpen ? 'サイドバーを閉じる' : 'サイドバーを開く'"
+              @click="toggleSidebar"
+            >
+              <PanelRightClose
+                v-if="sidebarOpen"
+                :size="18"
+                :stroke-width="2.25"
+                aria-hidden="true"
+              />
+              <PanelRightOpen
+                v-else
+                :size="18"
+                :stroke-width="2.25"
+                aria-hidden="true"
+              />
+            </button>
             <div class="document-header-menu" data-document-header-menu-root>
               <button
                 ref="documentMenuTriggerRef"
                 type="button"
-                class="document-header-menu-btn"
+                class="subheader-menu-btn"
                 aria-label="資料のメニュー"
                 :aria-expanded="documentMenuOpen"
                 @click.stop="toggleDocumentMenu"
@@ -63,6 +83,12 @@
         </div>
       </header>
       <div class="page-shell-fade document-show-body">
+        <div
+          class="document-sidebar-slot"
+          :class="{ 'document-sidebar-slot--closed': !sidebarOpen }"
+          :aria-hidden="!sidebarOpen"
+          :inert="!sidebarOpen"
+        >
         <aside class="document-sidebar">
           <div
             class="document-sidebar__title-field"
@@ -160,6 +186,7 @@
               <DocumentLabelSelect
                 :selected-ids="selectedLabelIds"
                 :labels="orgDocumentLabels"
+                :label-categories="orgDocumentLabelCategories"
                 :pending="labelSaving"
                 @toggle="toggleDocumentLabel"
               />
@@ -252,6 +279,7 @@
             </button>
           </section>
         </aside>
+        </div>
         <section ref="bodyScrollerRef" class="document-viewer">
           <div
             class="document-viewer__page"
@@ -322,11 +350,13 @@
         :style="documentMenuStyle"
         :items="documentHeaderMenuItems"
         @select="onDocumentHeaderMenuSelect"
+        @close="closeDocumentMenu"
       />
       <FloatingMenu
         :open="Boolean(documentMenuOpen && documentMenuPosition && documentMenuMode === 'share')"
         :style="documentMenuStyle"
         root-class="document-header-menu--share"
+        @close="closeDocumentMenu"
       >
         <li role="none" class="document-header-share-panel-wrap">
           <div class="document-header-share-panel">
@@ -345,12 +375,14 @@
         </li>
       </FloatingMenu>
       <DocumentCreateModal
+        ref="documentFormModalRef"
         v-model="documentFormModalOpen"
         mode="edit"
         title="資料の編集"
         :initial-values="documentFormInitialValues"
         :org-slug="slug"
         :labels="orgDocumentLabels"
+        :label-categories="orgDocumentLabelCategories"
         :categories="documentCategories"
         :loading="documentMetaPending"
         @submit="onDocumentFormSubmit"
@@ -358,8 +390,9 @@
       <ConfirmModal
         v-model="documentArchiveConfirmOpen"
         title="資料のアーカイブ確認"
-        :message="`「${currentDocument.name}」をアーカイブしますか？`"
+        :message="buildDestructiveConfirmMessage('資料', 'アーカイブ', currentDocument.name)"
         confirm-text="アーカイブ"
+        variant="danger"
         :loading="archivePending"
         @confirm="confirmDocumentArchive"
       />
@@ -370,12 +403,13 @@
         :disabled="relatedDetachPending"
         :items="relatedMenuItems"
         @select="onRelatedMenuSelect"
+        @close="closeRelatedMenu"
       />
       <RelatedItemPickerModal
         ref="relatedWorkspaceModalRef"
         v-model="relatedWorkspaceModalOpen"
         title="関連スペースの編集"
-        search-placeholder="スペース名で検索"
+        search-placeholder="スペース名を検索..."
         empty-message="該当するスペースがありません。"
         :items="workspacePickerItems"
         :initial-selected-ids="relatedWorkspaceSelectedIds"
@@ -388,7 +422,7 @@
         ref="relatedDocumentModalRef"
         v-model="relatedDocumentModalOpen"
         title="関連資料の編集"
-        search-placeholder="資料名で検索"
+        search-placeholder="資料名を検索..."
         empty-message="該当する資料がありません。"
         :items="documentPickerItems"
         :initial-selected-ids="relatedDocumentSelectedIds"
@@ -416,6 +450,7 @@ import {
 } from '../../../../composables/useOrgWorkspaceIndexPageData'
 import { useApi } from '../../../../composables/useApi'
 import type { TaskFormCategory, TaskFormLabel } from '../../../../composables/useTaskFormHelpers'
+import type { LabelCategoryGroup } from '../../../../composables/useLabelCategories'
 import {
   DOCUMENT_NAME_MAX_LENGTH,
   DOCUMENT_BODY_MAX_LENGTH,
@@ -426,16 +461,18 @@ import {
   resolveLabelColors,
   resolveStandardColors,
 } from '../../../../utils/colorPresetResolution'
+import { buildDestructiveConfirmMessage } from '../../../../utils/destructiveConfirmMessage'
 import LabelStrip from '../../../../components/ui/LabelStrip.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
 import DocumentCategorySelect from '../../../../components/documents/DocumentCategorySelect.vue'
 import DocumentLabelSelect from '../../../../components/documents/DocumentLabelSelect.vue'
 import { renderMarkdownToSafeHtml } from '../../../../utils/renderMarkdown'
-import { Pencil, Save, Ellipsis, EllipsisVertical } from 'lucide-vue-next'
+import { Pencil, Save, Ellipsis, EllipsisVertical, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
 import DocumentCreateModal from '../../../../components/modals/DocumentCreateModal.vue'
 import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
 import RelatedItemPickerModal from '../../../../components/modals/RelatedItemPickerModal.vue'
 import { useDropdownEscapeClose } from '../../../../composables/useDropdownEscapeClose'
+import { useUiSidebarPreference } from '../../../../composables/useUiSidebarPreference'
 import {
   syncPeerCachesAfterDocumentRelatedDocumentsChange,
   syncPeerCachesAfterDocumentRelatedWorkspacesChange,
@@ -469,6 +506,7 @@ const {
 const currentDocument = ref<OrgDocument | null>(null)
 const documentCategories = ref<OrgDocumentCategory[]>([])
 const orgDocumentLabels = ref<TaskFormLabel[]>([])
+const orgDocumentLabelCategories = ref<LabelCategoryGroup[]>([])
 const pageReady = ref(false)
 const fatalLoadError = ref<string | null>(null)
 const globalHeaderOffsetPx = ref(46)
@@ -491,6 +529,7 @@ const descriptionInputRef = ref<HTMLTextAreaElement | null>(null)
 const bodyInputRef = ref<HTMLTextAreaElement | null>(null)
 const bodyScrollerRef = ref<HTMLElement | null>(null)
 const documentMenuOpen = ref(false)
+const { sidebarOpen, toggleSidebar, hydrateSidebarPreference } = useUiSidebarPreference('document')
 const documentMenuMode = ref<'actions' | 'share'>('actions')
 const documentMenuPosition = ref<{ top: number; left: number } | null>(null)
 const documentMenuTriggerRef = ref<HTMLButtonElement | null>(null)
@@ -506,6 +545,7 @@ const relatedDocumentSaving = ref(false)
 const relatedDetachPending = ref(false)
 const relatedWorkspaceModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const relatedDocumentModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const documentFormModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const workspaceCandidates = ref<OrgWorkspaceRelatedItem[]>([])
 const documentCandidates = ref<OrgDocumentRelatedItem[]>([])
 const workspaceCandidatesLoading = ref(false)
@@ -907,20 +947,21 @@ function resolveDocumentCategoryOption (category: OrgDocument['category']): Task
 function applyCategories (categories: OrgDocumentCategory[]) {
   documentCategories.value = categories
 }
-function applyOrgLabels (labels: TaskFormLabel[]) {
+function applyOrgLabels (labels: TaskFormLabel[], categories: LabelCategoryGroup[] = []) {
   orgDocumentLabels.value = labels
+  orgDocumentLabelCategories.value = categories
 }
 async function ensureCategoriesLoaded () {
   const cached = getCached(slug.value)
   if (cached) {
     applyCategories(cached.documentCategories)
-    applyOrgLabels(cached.documentLabels)
+    applyOrgLabels(cached.documentLabels, cached.documentLabelCategories)
     return
   }
   try {
     const snapshot = await fetchSnapshot(slug.value)
     applyCategories(snapshot.documentCategories)
-    applyOrgLabels(snapshot.documentLabels)
+    applyOrgLabels(snapshot.documentLabels, snapshot.documentLabelCategories)
   } catch {
     // カテゴリ/ラベル取得失敗時はプルダウンを空のままにする
   }
@@ -1086,11 +1127,12 @@ function onShareUrlFocus (event: FocusEvent) {
   }
 }
 const documentHeaderMenuItems = computed<FloatingMenuItem[]>(() => [
-  { key: 'edit', label: '編集', disabled: documentMetaPending.value },
-  { key: 'share', label: '共有' },
+  { key: 'edit', label: '資料の編集', disabled: documentMetaPending.value },
+  { key: 'share', label: '資料の共有' },
   {
     key: 'archive',
-    label: 'アーカイブ',
+    label: '資料のアーカイブ',
+    danger: true,
     disabled: documentMetaPending.value || archivePending.value,
   },
 ])
@@ -1147,7 +1189,9 @@ async function onDocumentFormSubmit (payload: {
       documentFormModalOpen.value = false
     })
   } catch (e: unknown) {
-    fieldSaveError.value = e instanceof Error ? e.message : '資料の更新に失敗しました'
+    const message = e instanceof Error ? e.message : '資料の更新に失敗しました'
+    fieldSaveError.value = message
+    documentFormModalRef.value?.setSubmitError(message)
   } finally {
     documentMetaPending.value = false
   }
@@ -1657,6 +1701,7 @@ function retryLoad () {
   void load()
 }
 onBeforeMount(() => {
+  void hydrateSidebarPreference()
   const cached = getDocumentCached(slug.value, documentId.value)
     ?? getDocumentFromListCache(slug.value, documentId.value)
   if (cached) {
@@ -1666,6 +1711,7 @@ onBeforeMount(() => {
   void ensureCategoriesLoaded()
 })
 onActivated(() => {
+  void hydrateSidebarPreference()
   discardBodyEditOnLeave()
   editingField.value = null
   const cached = getDocumentCached(slug.value, documentId.value)

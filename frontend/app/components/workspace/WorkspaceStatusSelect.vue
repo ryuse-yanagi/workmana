@@ -10,7 +10,7 @@
       type="button"
       class="workspace-status-select__trigger"
       :aria-expanded="isOpen"
-      aria-haspopup="listbox"
+      aria-haspopup="dialog"
       :aria-label="triggerAriaLabel"
       :disabled="disabled || pending || !statuses.length"
       @click.stop="toggleDropdown"
@@ -32,36 +32,74 @@
       v-if="isOpen"
       ref="dropdownRef"
       class="workspace-status-select__dropdown"
-      role="listbox"
-      aria-label="ステータスを選択"
+      role="dialog"
+      aria-label="ステータス"
       :style="dropdownStyle"
+      @click.stop
     >
-      <ul
+      <header class="workspace-status-select__header">
+        <p class="workspace-status-select__title">ステータス</p>
+        <button
+          type="button"
+          class="workspace-status-select__close"
+          :disabled="pending"
+          aria-label="閉じる"
+          @click.stop="closeDropdown"
+        >✕</button>
+      </header>
+      <input
+        v-model="searchQuery"
+        type="search"
+        class="workspace-status-select__search"
+        placeholder="ステータスを検索..."
+        :disabled="pending"
+        @click.stop
+      />
+      <p class="workspace-status-select__section-heading">ステータス</p>
+      <div
         class="workspace-status-select__list"
         :style="listStyle"
       >
-        <li
-          v-for="status in statuses"
-          :key="status.name"
-          class="workspace-status-select__item"
-          role="option"
-          :aria-selected="isSelected(status)"
-        >
-          <button
-            type="button"
-            class="workspace-status-select__option"
-            :class="{ 'workspace-status-select__option--selected': isSelected(status) }"
-            :disabled="pending"
-            @click.stop="selectStatus(status)"
+        <ul class="workspace-status-select__picker-list">
+          <li
+            v-for="status in filteredStatuses"
+            :key="status.name"
           >
-            <LabelStrip
-              :label="statusLabel(status)"
-              :text-color="statusTextColor(status.color)"
-              size="sm"
-            />
-          </button>
-        </li>
-      </ul>
+            <button
+              type="button"
+              class="workspace-status-select__row"
+              :disabled="pending"
+              @click.stop="selectStatus(status)"
+            >
+              <span
+                class="workspace-status-select__checkbox"
+                :class="{ 'workspace-status-select__checkbox--checked': isSelected(status) }"
+                aria-hidden="true"
+              >
+                <span v-if="isSelected(status)">✓</span>
+              </span>
+              <span
+                class="workspace-status-select__pill"
+                :style="surfacePillStyle(status.color)"
+              >
+                {{ status.name }}
+              </span>
+            </button>
+          </li>
+        </ul>
+        <p
+          v-if="!statuses.length"
+          class="workspace-status-select__empty-text"
+        >
+          ステータスは設定画面で作成できます。
+        </p>
+        <p
+          v-else-if="!filteredStatuses.length"
+          class="workspace-status-select__empty-text"
+        >
+          該当するステータスがありません。
+        </p>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -71,6 +109,9 @@ import {
   standardColorSurfaceBackground,
 } from '../../constants/colorPresets'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
+import { isScrollInsideRoot } from '../../utils/uiInteraction'
+import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, POPOVER_SCROLLBAR_GUTTER_VAR, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
 import type { OrgWorkspaceStatus } from '../../composables/useOrgWorkspaceIndexPageData'
 import LabelStrip from '../ui/LabelStrip.vue'
 
@@ -91,13 +132,12 @@ const emit = defineEmits<{
 
 const DROPDOWN_GAP = 6
 const VIEWPORT_PAD = 8
-const DROPDOWN_VERTICAL_PADDING = 12
-let activeCloseDropdown: (() => void) | null = null
-
+const DROPDOWN_CHROME_HEIGHT = 96
 const triggerRef = ref<HTMLElement | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
-const dropdownPosition = ref<{ top: number; left: number } | null>(null)
+const searchQuery = ref('')
+const dropdownPosition = ref<{ top: number; left: number; scrollbarGutter: number } | null>(null)
 const listMaxHeight = ref<number | null>(null)
 
 const currentStatus = computed(() => props.status ?? null)
@@ -108,13 +148,20 @@ const triggerAriaLabel = computed(() => {
   return 'ステータス未設定。クリックして選択'
 })
 
+const filteredStatuses = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) {
+    return props.statuses
+  }
+  return props.statuses.filter(status => status.name.toLowerCase().includes(query))
+})
+
 const listStyle = computed(() => {
   if (listMaxHeight.value == null) {
     return {}
   }
-  return {
-    maxHeight: `${listMaxHeight.value}px`,
-  }
+  const scrollbarGutter = dropdownPosition.value?.scrollbarGutter ?? 0
+  return popoverMaxHeightStyle(listMaxHeight.value, scrollbarGutter)
 })
 
 const dropdownStyle = computed(() => {
@@ -123,11 +170,12 @@ const dropdownStyle = computed(() => {
       visibility: 'hidden',
     } as Record<string, string>
   }
-  const { top, left } = dropdownPosition.value
+  const { top, left, scrollbarGutter } = dropdownPosition.value
   return {
     top: `${top}px`,
     left: `${left}px`,
     visibility: 'visible',
+    ...popoverScrollbarGutterStyle(scrollbarGutter),
   }
 })
 
@@ -142,24 +190,22 @@ function statusTextColor (color: string) {
   return standardColorEmphasisText(color)
 }
 
+function surfacePillStyle (color: string) {
+  return {
+    backgroundColor: standardColorSurfaceBackground(color),
+    color: standardColorEmphasisText(color),
+  }
+}
+
 function isSelected (status: OrgWorkspaceStatus) {
   return currentStatus.value?.name === status.name
 }
 
 function closeDropdown () {
   isOpen.value = false
+  searchQuery.value = ''
   dropdownPosition.value = null
   listMaxHeight.value = null
-  if (activeCloseDropdown === closeDropdown) {
-    activeCloseDropdown = null
-  }
-}
-
-function claimActiveDropdown () {
-  if (activeCloseDropdown && activeCloseDropdown !== closeDropdown) {
-    activeCloseDropdown()
-  }
-  activeCloseDropdown = closeDropdown
 }
 
 function positionDropdown () {
@@ -170,25 +216,38 @@ function positionDropdown () {
     return
   }
   const rect = trigger.getBoundingClientRect()
-  const dropdownWidth = dropdownRef.value?.offsetWidth ?? 128
-  let left = rect.right + DROPDOWN_GAP
-  const top = Math.max(VIEWPORT_PAD, rect.top)
+  const dropdown = dropdownRef.value
+  if (dropdown) {
+    dropdown.style.setProperty(POPOVER_SCROLLBAR_GUTTER_VAR, '0px')
+  }
+  const list = dropdown?.querySelector('.workspace-status-select__list')
+  const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PAD
+  const spaceAbove = rect.top - VIEWPORT_PAD
+  let top: number
+  if (spaceBelow >= 160) {
+    top = rect.bottom + DROPDOWN_GAP
+    listMaxHeight.value = Math.max(0, spaceBelow - DROPDOWN_GAP - DROPDOWN_CHROME_HEIGHT)
+  } else {
+    listMaxHeight.value = Math.max(0, spaceAbove - DROPDOWN_GAP - DROPDOWN_CHROME_HEIGHT)
+    top = Math.max(VIEWPORT_PAD, rect.top - DROPDOWN_GAP - (dropdown?.offsetHeight ?? 240))
+  }
+  const scrollbarGutter = list instanceof HTMLElement
+    ? resolvePopoverScrollbarGutter(list, listMaxHeight.value)
+    : 0
+  const dropdownWidth = (dropdown?.offsetWidth ?? 252) + popoverWidthExtraForGutter(scrollbarGutter)
+  let left = rect.left
   if (left + dropdownWidth > window.innerWidth - VIEWPORT_PAD) {
-    left = rect.left - dropdownWidth - DROPDOWN_GAP
+    left = rect.right - dropdownWidth
   }
   left = Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - dropdownWidth - VIEWPORT_PAD))
-  listMaxHeight.value = Math.max(
-    0,
-    window.innerHeight - VIEWPORT_PAD - top - DROPDOWN_VERTICAL_PADDING,
-  )
-  dropdownPosition.value = { top, left }
+  dropdownPosition.value = { top, left, scrollbarGutter }
 }
 
 function openDropdown () {
   if (props.disabled || props.pending || !props.statuses.length) {
     return
   }
-  claimActiveDropdown()
+  searchQuery.value = ''
   isOpen.value = true
   nextTick(() => {
     positionDropdown()
@@ -256,8 +315,11 @@ function onWindowResize () {
   positionDropdown()
 }
 
-function onWindowScroll () {
+function onWindowScroll (event: Event) {
   if (!isOpen.value) {
+    return
+  }
+  if (isScrollInsideRoot(event, dropdownRef.value)) {
     return
   }
   if (!isTriggerVisible()) {
@@ -303,12 +365,10 @@ watch(isOpen, (open) => {
 })
 
 onBeforeUnmount(() => {
-  if (activeCloseDropdown === closeDropdown) {
-    activeCloseDropdown = null
-  }
   unbindGlobalListeners()
 })
 
 useDropdownEscapeClose(isOpen, closeDropdown)
+useExclusivePopover(isOpen, closeDropdown)
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/workspace/WorkspaceStatusSelect.scss"></style>

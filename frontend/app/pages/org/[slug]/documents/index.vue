@@ -6,49 +6,83 @@
     <template v-if="fatalLoadError">
       <PageLoadFatal :message="fatalLoadError" @retry="retryInitialLoad" />
     </template>
-    <template v-else-if="pageReady">
+    <template v-else>
       <header class="page-header">
         <div class="subheader">
-          <p class="subheader-title">Documents</p>
+          <p class="subheader-title">
+            <NotebookText :size="20" :stroke-width="2.25" class="subheader-title__icon" aria-hidden="true" />
+            Documents
+          </p>
           <div class="subheader-filters">
-            <select v-model="sortMode" class="header-sort" aria-label="並び順">
-              <option value="newest">ID降順</option>
-              <option value="oldest">ID昇順</option>
+            <select
+              v-model="sortMode"
+              class="header-sort"
+              aria-label="並び順"
+              :disabled="!pageReady"
+            >
+              <option value="created">作成日時順</option>
+              <option value="updated">更新日時順</option>
               <option value="name">名前順</option>
             </select>
-            <p class="subheader-count" aria-live="polite">{{ visibleDocuments.length }} 件</p>
+            <p class="subheader-count" aria-live="polite">{{ pageReady ? `${visibleDocuments.length} 件` : '' }}</p>
             <input
               v-model.trim="searchQuery"
               class="header-search"
               type="search"
-              placeholder="資料名で検索"
+              placeholder="資料名を検索..."
               aria-label="検索"
+              :disabled="!pageReady"
             />
           </div>
           <button
-            class="ghost-btn"
-            type="button"
-            :disabled="pending"
-            @click="archivedDocumentsOpen = true"
-          >
-            <Archive :size="18" :stroke-width="2.25" aria-hidden="true" />
-            アーカイブ済み
-          </button>
-          <button
             class="primary-btn"
             type="button"
-            :disabled="pending"
+            :disabled="pending || !pageReady"
             @click="openDocumentCreateModal"
           >
             <NotebookPen :size="20" :stroke-width="2.25" aria-hidden="true" />
             資料作成
           </button>
+          <div class="subheader-actions" data-subheader-actions-root>
+            <button
+              ref="listFilterTriggerRef"
+              type="button"
+              class="subheader-menu-btn"
+              :aria-expanded="listFilterOpen"
+              aria-haspopup="dialog"
+              aria-label="絞り込み"
+              :disabled="pending || !pageReady"
+              @click.stop="toggleListFilter"
+            >
+              <ListFilter :size="18" :stroke-width="2.25" aria-hidden="true" />
+            </button>
+            <button
+              ref="subheaderMenuTriggerRef"
+              type="button"
+              class="subheader-menu-btn"
+              :aria-expanded="subheaderMenuOpen"
+              aria-haspopup="menu"
+              aria-label="メニュー"
+              :disabled="pending || !pageReady"
+              @click.stop="toggleSubheaderMenu"
+            >
+              <Ellipsis :size="18" :stroke-width="2.25" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </header>
       <div class="page-shell-fade">
         <p v-if="error" class="err">{{ error }}</p>
         <section class="table-card">
-          <div class="table-wrap">
+          <div
+            v-if="!pageReady"
+            class="page-await-spacer"
+            aria-busy="true"
+            aria-label="読み込み中"
+          >
+            <div class="spinner" />
+          </div>
+          <div v-else class="table-wrap">
             <table class="document-table">
               <thead>
                 <tr>
@@ -139,20 +173,120 @@
           </div>
         </section>
       </div>
+      <Teleport to="body">
+        <div
+          v-if="listFilterOpen && listFilterPosition"
+          ref="listFilterDropdownRef"
+          class="board-filter-dropdown"
+          role="dialog"
+          aria-label="絞り込み"
+          :style="listFilterStyle"
+          @click.stop
+        >
+          <section class="board-filter-section">
+            <h3 class="board-filter-section-title">ラベル</h3>
+            <ul class="board-filter-options">
+              <li>
+                <label class="board-filter-option">
+                  <input
+                    type="checkbox"
+                    :checked="isLabelFilterSelected('unset')"
+                    @change="toggleLabelFilter('unset')"
+                  >
+                  <span>未設定</span>
+                </label>
+              </li>
+            </ul>
+            <div
+              v-for="category in labelFilterCategories"
+              :key="category.id"
+              class="board-filter-label-group"
+            >
+              <p class="board-filter-category-title">{{ category.name }}</p>
+              <ul class="board-filter-options">
+                <li v-for="label in category.labels" :key="label.id">
+                  <label class="board-filter-option">
+                    <input
+                      type="checkbox"
+                      :checked="isLabelFilterSelected(String(label.id))"
+                      @change="toggleLabelFilter(String(label.id))"
+                    >
+                    <span
+                      class="board-filter-label-bar"
+                      :style="{
+                        backgroundColor: label.color,
+                        color: labelBarTextColor(label.color),
+                      }"
+                    >{{ label.name }}</span>
+                  </label>
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="board-filter-section">
+            <h3 class="board-filter-section-title">カテゴリ</h3>
+            <ul class="board-filter-options">
+              <li>
+                <label class="board-filter-option">
+                  <input
+                    type="checkbox"
+                    :checked="isCategoryFilterSelected('unset')"
+                    @change="toggleCategoryFilter('unset')"
+                  >
+                  <span>未設定</span>
+                </label>
+              </li>
+            </ul>
+            <div class="board-filter-label-group">
+              <ul class="board-filter-options">
+                <li v-for="category in documentCategories" :key="category.name">
+                  <label class="board-filter-option">
+                    <input
+                      type="checkbox"
+                      :checked="isCategoryFilterSelected(category.name)"
+                      @change="toggleCategoryFilter(category.name)"
+                    >
+                    <span
+                      class="board-filter-label-bar"
+                      :style="{
+                        backgroundColor: category.color,
+                        color: labelBarTextColor(category.color),
+                      }"
+                    >{{ category.name }}</span>
+                  </label>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </Teleport>
+      <FloatingMenu
+        :open="Boolean(subheaderMenuOpen && subheaderMenuPosition)"
+        density="compact"
+        :flush="false"
+        :style="subheaderMenuStyle"
+        :disabled="pending"
+        :items="subheaderMenuItems"
+        @select="onSubheaderMenuSelect"
+        @close="closeSubheaderMenu"
+      />
       <FloatingMenu
         :open="Boolean(openMenuDocument && documentMenuPosition)"
         :style="documentMenuStyle"
         :disabled="pending"
         :items="documentMenuItems"
         @select="onDocumentMenuSelect"
+        @close="closeDocumentMenu"
       />
       <DocumentCreateModal
+        ref="documentFormModalRef"
         v-model="documentFormModalOpen"
         :mode="documentFormMode"
         :title="documentFormMode === 'edit' ? '資料の編集' : '資料の作成'"
         :initial-values="documentFormInitialValues"
         :org-slug="slug"
         :labels="documentLabels"
+        :label-categories="documentLabelCategories"
         :categories="documentCategories"
         :loading="pending"
         @submit="onDocumentFormSubmit"
@@ -160,8 +294,11 @@
       <ConfirmModal
         v-model="documentArchiveConfirmOpen"
         title="資料のアーカイブ確認"
-        :message="documentArchiveTarget ? `「${documentArchiveTarget.name}」をアーカイブしますか？` : ''"
+        :message="documentArchiveTarget
+          ? buildDestructiveConfirmMessage('資料', 'アーカイブ', documentArchiveTarget.name)
+          : ''"
         confirm-text="アーカイブ"
+        variant="danger"
         :loading="archivePending"
         @confirm="confirmDocumentArchive"
       />
@@ -178,7 +315,7 @@
   </main>
 </template>
 <script setup lang="ts">
-import { Archive, Ellipsis, NotebookPen } from 'lucide-vue-next'
+import { Ellipsis, ListFilter, NotebookPen, NotebookText } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import { useApi } from '../../../../composables/useApi'
@@ -188,8 +325,10 @@ import {
   type OrgDocumentCategory,
   type OrgDocumentsPageSnapshot,
 } from '../../../../composables/useOrgDocumentsPageData'
-import type { TaskFormCategory, TaskFormLabel } from '../../../../composables/useTaskFormHelpers'
+import { labelBarTextColor, type TaskFormCategory, type TaskFormLabel } from '../../../../composables/useTaskFormHelpers'
+import type { LabelCategoryGroup } from '../../../../composables/useLabelCategories'
 import { resolveLabelColors, resolveStandardColors } from '../../../../utils/colorPresetResolution'
+import { buildDestructiveConfirmMessage } from '../../../../utils/destructiveConfirmMessage'
 import {
   getTopmostModalOverlay,
   isKeyboardShortcutBlockedTarget,
@@ -201,6 +340,9 @@ import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
 import LabelStrip from '../../../../components/ui/LabelStrip.vue'
 import OverflowFlexRow from '../../../../components/ui/OverflowFlexRow.vue'
+import { useDropdownEscapeClose } from '../../../../composables/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../../../composables/useExclusivePopover'
+import { popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../../../utils/popoverScrollbar'
 import { useOrgRole } from '../../../../composables/useOrgRole'
 definePageMeta({
   name: 'org-slug-documents',
@@ -221,11 +363,13 @@ const {
 const documents = ref<OrgDocumentsPageSnapshot['documents']>([])
 const documentCategories = ref<OrgDocumentCategory[]>([])
 const documentLabels = ref<TaskFormLabel[]>([])
+const documentLabelCategories = ref<LabelCategoryGroup[]>([])
 const pageReady = ref(false)
 const fatalLoadError = ref<string | null>(null)
 const error = ref<string | null>(null)
 const pending = ref(false)
 const documentFormModalOpen = ref(false)
+const documentFormModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const documentFormMode = ref<'create' | 'edit'>('create')
 const documentEditTarget = ref<OrgDocument | null>(null)
 const documentArchiveConfirmOpen = ref(false)
@@ -235,10 +379,23 @@ const archivePending = ref(false)
 const openMenuDocumentId = ref<number | null>(null)
 const documentMenuPosition = ref<{ top: number; left: number } | null>(null)
 const DOCUMENT_MENU_MIN_WIDTH = 160
+const subheaderMenuOpen = ref(false)
+const subheaderMenuTriggerRef = ref<HTMLElement | null>(null)
+const subheaderMenuPosition = ref<{ top: number; left: number } | null>(null)
+const SUBHEADER_MENU_MIN_WIDTH = 220
+const listFilterOpen = ref(false)
+const listFilterTriggerRef = ref<HTMLElement | null>(null)
+const listFilterDropdownRef = ref<HTMLElement | null>(null)
+const listFilterPosition = ref<{ top: number; left: number; scrollbarGutter: number } | null>(null)
+const LIST_FILTER_WIDTH = 384
+const LIST_FILTER_BOTTOM_OFFSET = 12
+const labelFilterSelected = ref(new Set<string>())
+const categoryFilterSelected = ref(new Set<string>())
 const searchQuery = ref('')
 const debouncedSearchQuery = ref('')
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
-const sortMode = ref<'newest' | 'oldest' | 'name'>('newest')
+let searchRequestSeq = 0
+const sortMode = ref<'created' | 'updated' | 'name'>('created')
 const loadingDocumentId = ref<number | null>(null)
 const updatingCategoryDocumentId = ref<number | null>(null)
 const justCreatedDocumentIds = reactive<Record<number, true>>({})
@@ -258,18 +415,38 @@ const listPageCssVars = computed(() => ({
 const visibleDocuments = computed(() => {
   const query = debouncedSearchQuery.value.trim().toLowerCase()
   const filtered = query
-    ? documents.value
+    ? [...documents.value]
     : searchQuery.value.trim()
       ? documents.value.filter(document => document.name.toLowerCase().includes(searchQuery.value.trim().toLowerCase()))
       : [...documents.value]
+  const sorted = filtered.filter(document => (
+    matchesLabelFilter(document)
+    && matchesCategoryFilter(document)
+  ))
   if (sortMode.value === 'name') {
-    return filtered.sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+    return sorted.sort((a, b) => a.name.localeCompare(b.name, 'ja') || b.id - a.id)
   }
-  if (sortMode.value === 'oldest') {
-    return filtered.sort((a, b) => a.id - b.id)
+  if (sortMode.value === 'updated') {
+    return sorted.sort((a, b) => compareTimestampDesc(a.updated_at, b.updated_at) || b.id - a.id)
   }
-  return filtered.sort((a, b) => b.id - a.id)
+  return sorted.sort((a, b) => compareTimestampDesc(a.created_at, b.created_at) || b.id - a.id)
 })
+function compareTimestampDesc (a?: string | null, b?: string | null): number {
+  const aTime = a ? Date.parse(a) : Number.NaN
+  const bTime = b ? Date.parse(b) : Number.NaN
+  const aValid = Number.isFinite(aTime)
+  const bValid = Number.isFinite(bTime)
+  if (aValid && bValid) {
+    return bTime - aTime
+  }
+  if (aValid) {
+    return -1
+  }
+  if (bValid) {
+    return 1
+  }
+  return 0
+}
 const openMenuDocument = computed(() => {
   const id = openMenuDocumentId.value
   if (id == null) return null
@@ -288,6 +465,81 @@ const documentMenuStyle = computed(() => {
     zIndex: 80,
   }
 })
+const subheaderMenuStyle = computed(() => {
+  if (!subheaderMenuPosition.value) {
+    return undefined
+  }
+  const { top, left } = subheaderMenuPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    minWidth: `${SUBHEADER_MENU_MIN_WIDTH}px`,
+    zIndex: 80,
+  }
+})
+const listFilterStyle = computed(() => {
+  if (!listFilterPosition.value) {
+    return {}
+  }
+  const { top, left, scrollbarGutter } = listFilterPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    bottom: `${LIST_FILTER_BOTTOM_OFFSET}px`,
+    width: `${LIST_FILTER_WIDTH + popoverWidthExtraForGutter(scrollbarGutter)}px`,
+    zIndex: 1000,
+    ...popoverScrollbarGutterStyle(scrollbarGutter),
+  }
+})
+const labelFilterCategories = computed(() =>
+  documentLabelCategories.value.filter(category => category.labels.length > 0),
+)
+function matchesLabelFilter (document: OrgDocument): boolean {
+  if (labelFilterSelected.value.size === 0) {
+    return true
+  }
+  const labels = document.labels ?? []
+  if (labelFilterSelected.value.has('unset') && labels.length === 0) {
+    return true
+  }
+  return labels.some(label => labelFilterSelected.value.has(String(label.id)))
+}
+function matchesCategoryFilter (document: OrgDocument): boolean {
+  if (categoryFilterSelected.value.size === 0) {
+    return true
+  }
+  const categoryName = document.category?.name
+  if (categoryFilterSelected.value.has('unset') && !categoryName) {
+    return true
+  }
+  return Boolean(categoryName && categoryFilterSelected.value.has(categoryName))
+}
+function isLabelFilterSelected (key: string): boolean {
+  return labelFilterSelected.value.has(key)
+}
+function toggleLabelFilter (key: string) {
+  const next = new Set(labelFilterSelected.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  labelFilterSelected.value = next
+}
+function isCategoryFilterSelected (key: string): boolean {
+  return categoryFilterSelected.value.has(key)
+}
+function toggleCategoryFilter (key: string) {
+  const next = new Set(categoryFilterSelected.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  categoryFilterSelected.value = next
+}
 const documentFormInitialValues = computed(() => {
   if (documentFormMode.value !== 'edit' || !documentEditTarget.value) {
     return null
@@ -376,9 +628,12 @@ function applySnapshot (snapshot: OrgDocumentsPageSnapshot) {
   documents.value = snapshot.documents
   documentCategories.value = snapshot.documentCategories
   documentLabels.value = snapshot.documentLabels
+  documentLabelCategories.value = snapshot.documentLabelCategories ?? []
 }
 function openDocumentCreateModal () {
   closeDocumentMenu()
+  closeSubheaderMenu()
+  closeListFilter()
   documentFormMode.value = 'create'
   documentEditTarget.value = null
   documentFormModalOpen.value = true
@@ -386,6 +641,90 @@ function openDocumentCreateModal () {
 function closeDocumentMenu () {
   openMenuDocumentId.value = null
   documentMenuPosition.value = null
+}
+function closeSubheaderMenu () {
+  subheaderMenuOpen.value = false
+  subheaderMenuPosition.value = null
+}
+function closeListFilter () {
+  listFilterOpen.value = false
+  listFilterPosition.value = null
+}
+useExclusivePopover(listFilterOpen, closeListFilter)
+useDropdownEscapeClose(listFilterOpen, closeListFilter)
+function positionSubheaderMenu () {
+  const anchor = subheaderMenuTriggerRef.value
+  if (!anchor || !import.meta.client) {
+    subheaderMenuPosition.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const pad = 8
+  const gap = 6
+  let left = rect.right - SUBHEADER_MENU_MIN_WIDTH
+  left = Math.max(pad, Math.min(left, window.innerWidth - SUBHEADER_MENU_MIN_WIDTH - pad))
+  subheaderMenuPosition.value = {
+    top: rect.bottom + gap,
+    left,
+  }
+}
+function toggleSubheaderMenu () {
+  if (subheaderMenuOpen.value) {
+    closeSubheaderMenu()
+    return
+  }
+  closeDocumentMenu()
+  closeListFilter()
+  subheaderMenuOpen.value = true
+  nextTick(() => positionSubheaderMenu())
+}
+function positionListFilter () {
+  const anchor = listFilterTriggerRef.value
+  if (!anchor || !import.meta.client) {
+    listFilterPosition.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const pad = 8
+  const gap = 6
+  const top = rect.bottom + gap
+  const maxHeight = Math.max(0, window.innerHeight - top - LIST_FILTER_BOTTOM_OFFSET)
+  const el = listFilterDropdownRef.value
+  const scrollbarGutter = el
+    ? resolvePopoverScrollbarGutter(el, maxHeight)
+    : 0
+  const width = LIST_FILTER_WIDTH + popoverWidthExtraForGutter(scrollbarGutter)
+  let left = rect.right - width
+  left = Math.max(pad, Math.min(left, window.innerWidth - width - pad))
+  listFilterPosition.value = {
+    top,
+    left,
+    scrollbarGutter,
+  }
+}
+function openListFilter () {
+  if (listFilterOpen.value) {
+    return
+  }
+  closeDocumentMenu()
+  closeSubheaderMenu()
+  listFilterOpen.value = true
+  nextTick(() => {
+    positionListFilter()
+    requestAnimationFrame(() => positionListFilter())
+  })
+}
+function toggleListFilter () {
+  if (listFilterOpen.value) {
+    closeListFilter()
+    return
+  }
+  openListFilter()
+}
+function openArchivedDocumentsModal () {
+  closeSubheaderMenu()
+  closeListFilter()
+  archivedDocumentsOpen.value = true
 }
 function positionDocumentMenu (anchor: HTMLElement) {
   if (!import.meta.client) {
@@ -410,6 +749,8 @@ function openDocumentMenu (documentId: number, anchor: HTMLElement) {
     closeDocumentMenu()
     return
   }
+  closeSubheaderMenu()
+  closeListFilter()
   positionDocumentMenu(anchor)
   openMenuDocumentId.value = documentId
 }
@@ -444,9 +785,17 @@ function openDocumentArchiveConfirm (document: OrgDocument) {
   documentArchiveConfirmOpen.value = true
 }
 const documentMenuItems: FloatingMenuItem[] = [
-  { key: 'edit', label: '編集' },
-  { key: 'archive', label: 'アーカイブ' },
+  { key: 'edit', label: '資料の編集' },
+  { key: 'archive', label: '資料のアーカイブ', danger: true },
 ]
+const subheaderMenuItems: FloatingMenuItem[] = [
+  { key: 'archived', label: 'アーカイブ済み資料' },
+]
+function onSubheaderMenuSelect (item: FloatingMenuItem) {
+  if (item.key === 'archived') {
+    openArchivedDocumentsModal()
+  }
+}
 function onDocumentMenuSelect (item: FloatingMenuItem) {
   const document = openMenuDocument.value
   if (!document) return
@@ -465,14 +814,24 @@ function onGlobalClick (ev: Event) {
     if (el?.closest('.document-card__menu-btn')) {
       return
     }
+    if (el?.closest('[data-subheader-actions-root]')) {
+      return
+    }
     if (el?.closest('[data-floating-menu]')) {
+      return
+    }
+    if (el?.closest('.board-filter-dropdown')) {
       return
     }
   }
   closeDocumentMenu()
+  closeSubheaderMenu()
+  closeListFilter()
 }
 function onWindowResize () {
   closeDocumentMenu()
+  closeSubheaderMenu()
+  closeListFilter()
 }
 function canUseDocumentListKeyboardShortcut (): boolean {
   if (!pageReady.value || fatalLoadError.value) {
@@ -486,6 +845,8 @@ function canUseDocumentListKeyboardShortcut (): boolean {
     || documentArchiveConfirmOpen.value
     || archivedDocumentsOpen.value
     || openMenuDocumentId.value !== null
+    || subheaderMenuOpen.value
+    || listFilterOpen.value
     || pending.value
     || archivePending.value
   ) {
@@ -495,7 +856,7 @@ function canUseDocumentListKeyboardShortcut (): boolean {
 }
 function onDocumentListKeydown (event: KeyboardEvent) {
   const key = event.key
-  if (key !== 'n' && key !== 'N') {
+  if (key !== 'n' && key !== 'N' && key !== 'f' && key !== 'F') {
     return
   }
   if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
@@ -505,6 +866,11 @@ function onDocumentListKeydown (event: KeyboardEvent) {
     return
   }
   if (!canUseDocumentListKeyboardShortcut()) {
+    return
+  }
+  if (key === 'f' || key === 'F') {
+    event.preventDefault()
+    openListFilter()
     return
   }
   event.preventDefault()
@@ -543,7 +909,9 @@ async function createDocument (payload: {
       markDocumentAsJustCreated(createdDocument.id)
     })
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : '作成に失敗しました'
+    const message = e instanceof Error ? e.message : '作成に失敗しました'
+    error.value = message
+    documentFormModalRef.value?.setSubmitError(message)
   } finally {
     pending.value = false
   }
@@ -576,7 +944,9 @@ async function updateDocument (payload: {
       await load({ refresh: true })
     })
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : '更新に失敗しました'
+    const message = e instanceof Error ? e.message : '更新に失敗しました'
+    error.value = message
+    documentFormModalRef.value?.setSubmitError(message)
   } finally {
     pending.value = false
   }
@@ -678,7 +1048,7 @@ function retryInitialLoad () {
   void load({ refresh: true })
 }
 function warmDocument (documentId: number) {
-  void prefetchDocument(slug.value, documentId)
+  void prefetchDocument(slug.value, documentId).catch(() => {})
 }
 function onDocumentPointerDown (event: PointerEvent, documentId: number) {
   if (event.button !== 0 || loadingDocumentId.value !== null) {
@@ -747,11 +1117,15 @@ function warmVisibleDocuments () {
 }
 
 async function fetchDocumentsWithSearch (query: string) {
+  const requestSeq = ++searchRequestSeq
   const q = query.trim()
   const path = q
     ? `/orgs/${slug.value}/documents?q=${encodeURIComponent(q)}`
     : `/orgs/${slug.value}/documents`
   const res = await api<{ data: OrgDocument[] }>(path)
+  if (requestSeq !== searchRequestSeq) {
+    return
+  }
   documents.value = (res.data ?? []).map(document => ({
     ...document,
     labels: resolveLabelColors(document.labels ?? []),
@@ -805,6 +1179,8 @@ onActivated(() => {
 })
 onDeactivated(() => {
   closeDocumentMenu()
+  closeSubheaderMenu()
+  closeListFilter()
   if (import.meta.client) {
     document.removeEventListener('keydown', onDocumentListKeydown)
   }
@@ -842,6 +1218,8 @@ onBeforeUnmount(() => {
   globalHeaderObserver?.disconnect()
   globalHeaderObserver = null
   closeDocumentMenu()
+  closeSubheaderMenu()
+  closeListFilter()
 })
 </script>
 <style lang="scss" scoped src="~/assets/styles/pages/org/slug/documents/index.scss"></style>

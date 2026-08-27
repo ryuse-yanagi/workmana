@@ -11,6 +11,11 @@ class TaskChecklistItem extends Model
 
     protected $keyType = 'string';
 
+    /**
+     * @var list<string>
+     */
+    protected $touches = ['checklist'];
+
     protected $fillable = [
         'id',
         'task_checklist_id',

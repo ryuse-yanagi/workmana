@@ -103,4 +103,12 @@ class Workspace extends Model
     {
         return $this->archived_at !== null;
     }
+
+    /**
+     * Bump updated_at so workspace list "更新日時順" reflects recent in-space activity.
+     */
+    public function recordActivity(): bool
+    {
+        return $this->touch();
+    }
 }

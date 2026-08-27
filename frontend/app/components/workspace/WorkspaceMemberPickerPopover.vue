@@ -34,7 +34,10 @@
                   size="xs"
                   class="member-picker-avatar"
                 />
-                <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
+                <span
+                  class="member-picker-name"
+                  :title="memberDisplayName(member)"
+                >{{ memberDisplayName(member) }}</span>
               </span>
               <Check
                 :size="16"
@@ -62,7 +65,10 @@
                   size="xs"
                   class="member-picker-avatar"
                 />
-                <span class="member-picker-name">{{ memberDisplayName(member) }}</span>
+                <span
+                  class="member-picker-name"
+                  :title="memberDisplayName(member)"
+                >{{ memberDisplayName(member) }}</span>
               </span>
             </button>
           </li>

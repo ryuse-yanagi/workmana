@@ -36,19 +36,57 @@
             <span v-if="comment.edited" class="comment-item__edited">(編集済み)</span>
           </header>
           <div v-if="editingCommentId === comment.id" class="comment-item__edit">
-            <textarea
-              ref="editInputRef"
-              v-model="editDraft"
-              class="comment-item__edit-input"
-              rows="3"
-              :maxlength="COMMENT_BODY_MAX_LENGTH"
-              :disabled="editSaving"
-            />
+            <div class="mention-picker-host comment-item__edit-host">
+              <ul
+                v-if="mentionMenuOpen && mentionTarget === 'edit'"
+                class="mention-menu"
+                role="listbox"
+                aria-label="メンション"
+              >
+                <li v-if="showAllMentionOption">
+                  <button
+                    type="button"
+                    class="mention-menu__item"
+                    role="option"
+                    @mousedown.prevent="insertAllMention"
+                  >
+                    @all
+                  </button>
+                </li>
+                <li v-for="member in filteredMentionCandidates" :key="member.id">
+                  <button
+                    type="button"
+                    class="mention-menu__item"
+                    role="option"
+                    @mousedown.prevent="insertMemberMention(member)"
+                  >
+                    {{ memberDisplayName(member) }}
+                  </button>
+                </li>
+                <li
+                  v-if="!showAllMentionOption && !filteredMentionCandidates.length"
+                  class="mention-menu__empty"
+                >
+                  メンバーがいません
+                </li>
+              </ul>
+              <div
+                :ref="setEditInputRef"
+                class="comment-item__edit-input comment-input--rich"
+                role="textbox"
+                aria-multiline="true"
+                :contenteditable="editSaving ? 'false' : 'true'"
+                :aria-disabled="editSaving"
+                @input="onEditInput"
+                @keydown="onEditKeydown"
+                @paste="onRichPaste"
+              />
+            </div>
             <div class="comment-item__edit-actions">
               <button
                 type="button"
                 class="comment-item__edit-save"
-                :disabled="!editDraft.trim()"
+                :disabled="!editDraft.trim() || editSaving"
                 @click="saveEdit(comment)"
               >
                 保存
@@ -56,6 +94,7 @@
               <button
                 type="button"
                 class="comment-item__edit-cancel"
+                :disabled="editSaving"
                 @click="cancelEdit"
               >
                 キャンセル
@@ -81,7 +120,7 @@
               <span>{{ reaction.count }}</span>
             </button>
           </div>
-          <footer v-if="isCommentMine(comment)" class="comment-item__actions">
+          <footer class="comment-item__actions">
             <div class="comment-item__reaction-menu-host">
               <button
                 type="button"
@@ -107,70 +146,82 @@
                 </button>
               </div>
             </div>
-            <button
-              type="button"
-              class="comment-item__action"
-              @click="startEdit(comment)"
-            >
-              編集
-            </button>
-            <span class="comment-item__action-sep" aria-hidden="true">•</span>
-            <div class="comment-item__delete-menu-host">
+            <template v-if="isCommentMine(comment)">
               <button
                 type="button"
                 class="comment-item__action"
-                :class="{ 'comment-item__action--active': openDeleteMenuCommentId === comment.id }"
-                :aria-expanded="openDeleteMenuCommentId === comment.id"
-                aria-haspopup="dialog"
-                @click="toggleDeleteMenu(comment.id, $event)"
+                @click="startEdit(comment)"
               >
-                削除
+                編集
               </button>
-            </div>
+              <span class="comment-item__action-sep" aria-hidden="true">•</span>
+              <div class="comment-item__delete-menu-host">
+                <button
+                  type="button"
+                  class="comment-item__action"
+                  :class="{ 'comment-item__action--active': openDeleteMenuCommentId === comment.id }"
+                  :aria-expanded="openDeleteMenuCommentId === comment.id"
+                  aria-haspopup="dialog"
+                  @click="toggleDeleteMenu(comment.id, $event)"
+                >
+                  削除
+                </button>
+              </div>
+            </template>
           </footer>
         </div>
       </article>
       </template>
     </div>
     <footer class="chat-composer">
-      <div class="chat-composer__tools">
-        <div class="mention-picker-host">
-          <button
-            type="button"
-            class="chat-mention-btn"
-            aria-label="メンション"
-            :disabled="commentSending || commentsLoading || !!commentsLoadError || !taskId"
-            @click="toggleMentionMenu"
+      <div class="mention-picker-host chat-composer__input-host">
+        <ul
+          v-if="mentionMenuOpen && mentionTarget === 'composer'"
+          class="mention-menu"
+          role="listbox"
+          aria-label="メンション"
+        >
+          <li v-if="showAllMentionOption">
+            <button
+              type="button"
+              class="mention-menu__item"
+              role="option"
+              @mousedown.prevent="insertAllMention"
+            >
+              @all
+            </button>
+          </li>
+          <li v-for="member in filteredMentionCandidates" :key="member.id">
+            <button
+              type="button"
+              class="mention-menu__item"
+              role="option"
+              @mousedown.prevent="insertMemberMention(member)"
+            >
+              {{ memberDisplayName(member) }}
+            </button>
+          </li>
+          <li
+            v-if="!showAllMentionOption && !filteredMentionCandidates.length"
+            class="mention-menu__empty"
           >
-            @
-          </button>
-          <ul v-if="mentionMenuOpen" class="mention-menu">
-            <li v-for="member in mentionCandidates" :key="member.id">
-              <button
-                type="button"
-                class="mention-menu__item"
-                @click="insertMention(member)"
-              >
-                {{ memberDisplayName(member) }}
-              </button>
-            </li>
-            <li v-if="!mentionCandidates.length" class="mention-menu__empty">
-              メンバーがいません
-            </li>
-          </ul>
-        </div>
+            メンバーがいません
+          </li>
+        </ul>
+        <div
+          ref="commentInputRef"
+          class="chat-input comment-input--rich"
+          :class="{ 'is-empty': !commentDraft.trim() }"
+          role="textbox"
+          aria-multiline="true"
+          data-placeholder="コメントを入力..."
+          :contenteditable="composerDisabled ? 'false' : 'true'"
+          :aria-disabled="composerDisabled"
+          @input="onComposerInput"
+          @keydown="onComposerKeydown"
+          @paste="onRichPaste"
+        />
       </div>
-      <textarea
-        ref="commentInputRef"
-        v-model.trim="commentDraft"
-        class="chat-input"
-        rows="1"
-        :maxlength="COMMENT_BODY_MAX_LENGTH"
-        placeholder="コメントを入力する..."
-        :disabled="commentSending || commentsLoading || !!commentsLoadError || !taskId"
-        @input="adjustCommentInputHeight"
-        @keydown.enter.exact.prevent="sendComment"
-      />
       <button
         type="button"
         class="chat-send-btn"
@@ -197,8 +248,7 @@
         >
           <template v-if="deleteError">{{ deleteError }}</template>
           <template v-else>
-            このコメントを削除しますか？<br>
-            取り消せません。
+            このコメントを削除します。よろしいですか？
           </template>
         </p>
         <button
@@ -220,6 +270,7 @@ import { useApi } from '../../composables/useApi'
 import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import { useCurrentUser } from '../../composables/useCurrentUser'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
 import { memberDisplayName, type MemberLike } from '../../composables/useMemberDisplay'
 import type { TaskCommentReaction, TaskDetailComment } from './taskCommentTypes'
 type TaskComment = TaskDetailComment
@@ -247,8 +298,11 @@ const commentDraft = ref('')
 const commentSending = ref(false)
 const commentSendError = ref<string | null>(null)
 const chatMessagesRef = ref<HTMLElement | null>(null)
-const commentInputRef = ref<HTMLTextAreaElement | null>(null)
-const editInputRef = ref<HTMLTextAreaElement | null>(null)
+const commentInputRef = ref<HTMLElement | null>(null)
+const editInputRef = ref<HTMLElement | null>(null)
+function setEditInputRef (el: unknown) {
+  editInputRef.value = el instanceof HTMLElement ? el : null
+}
 const editingCommentId = ref<number | null>(null)
 const editDraft = ref('')
 const editSaving = ref(false)
@@ -262,6 +316,11 @@ const deleteMenuAnchorEl = ref<HTMLElement | null>(null)
 const deleteMenuRef = ref<HTMLElement | null>(null)
 const deleteMenuStyle = ref<Record<string, string>>({})
 const mentionMenuOpen = ref(false)
+const mentionTarget = ref<'composer' | 'edit' | null>(null)
+const mentionQuery = ref('')
+const composerDisabled = computed(() => (
+  commentSending.value || commentsLoading.value || !!commentsLoadError.value || !props.taskId
+))
 const openDeleteMenuComment = computed(() => {
   const commentId = openDeleteMenuCommentId.value
   if (commentId === null) {
@@ -316,9 +375,10 @@ const anyCommentMenuOpen = computed(() => (
 function closeCommentMenus () {
   closeDeleteMenu()
   openReactionMenuCommentId.value = null
-  mentionMenuOpen.value = false
+  closeMentionMenu()
 }
 useDropdownEscapeClose(anyCommentMenuOpen, closeCommentMenus)
+useExclusivePopover(anyCommentMenuOpen, closeCommentMenus)
 function updateDeleteMenuPosition () {
   nextTick(() => {
     requestAnimationFrame(() => {
@@ -347,7 +407,7 @@ function updateDeleteMenuPosition () {
         position: 'fixed',
         top: `${Math.round(top)}px`,
         left: `${Math.round(left)}px`,
-        zIndex: '80',
+        zIndex: '210',
       }
     })
   })
@@ -374,7 +434,7 @@ function onDocumentClick (event: MouseEvent) {
     openReactionMenuCommentId.value = null
   }
   if (!target.closest('.mention-picker-host')) {
-    mentionMenuOpen.value = false
+    closeMentionMenu()
   }
   if (
     openDeleteMenuCommentId.value !== null
@@ -403,43 +463,295 @@ function resetComments () {
   openDeleteMenuCommentId.value = null
   deleteMenuAnchorEl.value = null
   unbindDeleteMenuListeners()
-  mentionMenuOpen.value = false
+  closeMentionMenu()
+  clearRichEditor(commentInputRef.value)
+}
+function escapeHtmlText (value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+function mentionChipHtml (mention: string, label: string): string {
+  return `<span class="comment-mention" contenteditable="false" data-mention="${escapeHtmlText(mention)}">@${escapeHtmlText(label)}</span>`
 }
 function formatCommentBody (body: string): string {
   const escaped = body
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-  return escaped.replace(
+  const withAll = escaped.replace(
+    /@\[all\]/g,
+    () => mentionChipHtml('all', 'all'),
+  )
+  const withCompactMentions = withAll.replace(
+    /@\[user:(\d+)\]/g,
+    (_match, userId: string) => {
+      const member = props.workspaceMembers.find(item => item.id === Number(userId))
+      const label = member ? memberDisplayName(member) : `user:${userId}`
+      return mentionChipHtml(`user:${userId}`, label)
+    },
+  )
+  return withCompactMentions.replace(
     /@\[([^\]]+)\]\(user:(\d+)\)/g,
-    '<strong>$1</strong>',
+    (_match, label: string, userId: string) => mentionChipHtml(`user:${userId}`, label),
   )
 }
-const mentionCandidates = computed(() => props.workspaceMembers)
-function toggleMentionMenu () {
-  mentionMenuOpen.value = !mentionMenuOpen.value
-  if (mentionMenuOpen.value) {
-    closeDeleteMenu()
-    openReactionMenuCommentId.value = null
+function bodyToEditableHtml (body: string): string {
+  return formatCommentBody(body).replace(/\n/g, '<br>')
+}
+function serializeRichEditor (root: HTMLElement): string {
+  let out = ''
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      out += node.textContent ?? ''
+      return
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return
+    }
+    const el = node as HTMLElement
+    const mention = el.dataset.mention
+    if (mention === 'all') {
+      out += '@[all]'
+      return
+    }
+    if (mention?.startsWith('user:')) {
+      out += `@[${mention}]`
+      return
+    }
+    if (el.tagName === 'BR') {
+      out += '\n'
+      return
+    }
+    const isBlock = el.tagName === 'DIV' || el.tagName === 'P'
+    if (isBlock && out && !out.endsWith('\n')) {
+      out += '\n'
+    }
+    Array.from(el.childNodes).forEach(walk)
+  }
+  Array.from(root.childNodes).forEach(walk)
+  return out.replace(/\u00a0/g, ' ')
+}
+function clearRichEditor (el: HTMLElement | null) {
+  if (!el) {
+    return
+  }
+  el.innerHTML = ''
+}
+function syncDraftFromEditor (target: 'composer' | 'edit') {
+  const el = target === 'composer' ? commentInputRef.value : editInputRef.value
+  if (!el) {
+    return
+  }
+  const serialized = serializeRichEditor(el)
+  if (target === 'composer') {
+    commentDraft.value = serialized
+  } else {
+    editDraft.value = serialized
   }
 }
-function insertMention (member: MemberLike) {
-  const token = `@[${memberDisplayName(member)}](user:${member.id}) `
-  const el = commentInputRef.value
-  if (el) {
-    const start = el.selectionStart ?? commentDraft.value.length
-    const end = el.selectionEnd ?? start
-    commentDraft.value = `${commentDraft.value.slice(0, start)}${token}${commentDraft.value.slice(end)}`
-    nextTick(() => {
-      el.focus()
-      const pos = start + token.length
-      el.setSelectionRange(pos, pos)
-      adjustCommentInputHeight()
-    })
-  } else {
-    commentDraft.value = `${commentDraft.value}${token}`
-  }
+function closeMentionMenu () {
   mentionMenuOpen.value = false
+  mentionTarget.value = null
+  mentionQuery.value = ''
+}
+const filteredMentionCandidates = computed(() => {
+  const q = mentionQuery.value.trim().toLowerCase()
+  if (!q) {
+    return props.workspaceMembers
+  }
+  return props.workspaceMembers.filter((member) => {
+    const name = memberDisplayName(member).toLowerCase()
+    const email = (member.email || '').toLowerCase()
+    return name.includes(q) || email.includes(q)
+  })
+})
+const showAllMentionOption = computed(() => {
+  const q = mentionQuery.value.trim().toLowerCase()
+  return !q || 'all'.startsWith(q) || '@all'.startsWith(q)
+})
+type MentionTrigger = {
+  query: string
+  textNode: Text
+  startOffset: number
+  endOffset: number
+}
+function getMentionTrigger (root: HTMLElement): MentionTrigger | null {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
+    return null
+  }
+  const node = selection.anchorNode
+  if (!node || node.nodeType !== Node.TEXT_NODE || !root.contains(node)) {
+    return null
+  }
+  if ((node.parentElement)?.closest('[data-mention]')) {
+    return null
+  }
+  const textNode = node as Text
+  const endOffset = selection.anchorOffset
+  const textBefore = (textNode.textContent ?? '').slice(0, endOffset)
+  const match = textBefore.match(/@([^\s@]*)$/)
+  if (!match) {
+    return null
+  }
+  const startOffset = endOffset - match[0].length
+  if (startOffset > 0) {
+    const prev = textBefore.charAt(startOffset - 1)
+    if (prev && !/\s/.test(prev)) {
+      return null
+    }
+  }
+  return {
+    query: match[1] ?? '',
+    textNode,
+    startOffset,
+    endOffset,
+  }
+}
+function updateMentionMenuFromEditor (target: 'composer' | 'edit') {
+  const el = target === 'composer' ? commentInputRef.value : editInputRef.value
+  if (!el || (target === 'composer' && composerDisabled.value) || (target === 'edit' && editSaving.value)) {
+    closeMentionMenu()
+    return
+  }
+  const trigger = getMentionTrigger(el)
+  if (!trigger) {
+    closeMentionMenu()
+    return
+  }
+  mentionTarget.value = target
+  mentionQuery.value = trigger.query
+  mentionMenuOpen.value = true
+  closeDeleteMenu()
+  openReactionMenuCommentId.value = null
+}
+function createMentionChipElement (mention: string, label: string): HTMLSpanElement {
+  const chip = document.createElement('span')
+  chip.className = 'comment-mention'
+  chip.contentEditable = 'false'
+  chip.dataset.mention = mention
+  chip.textContent = `@${label}`
+  return chip
+}
+function insertMentionChip (mention: string, label: string) {
+  const target = mentionTarget.value
+  if (!target) {
+    return
+  }
+  const root = target === 'composer' ? commentInputRef.value : editInputRef.value
+  if (!root) {
+    return
+  }
+  root.focus()
+  const trigger = getMentionTrigger(root)
+  const chip = createMentionChipElement(mention, label)
+  const space = document.createTextNode('\u00a0')
+  if (trigger) {
+    const range = document.createRange()
+    range.setStart(trigger.textNode, trigger.startOffset)
+    range.setEnd(trigger.textNode, trigger.endOffset)
+    range.deleteContents()
+    range.insertNode(space)
+    range.insertNode(chip)
+  } else {
+    root.appendChild(chip)
+    root.appendChild(space)
+  }
+  const selection = window.getSelection()
+  if (selection) {
+    const after = document.createRange()
+    after.setStartAfter(space)
+    after.collapse(true)
+    selection.removeAllRanges()
+    selection.addRange(after)
+  }
+  syncDraftFromEditor(target)
+  if (target === 'composer') {
+    adjustCommentInputHeight()
+  }
+  closeMentionMenu()
+}
+function insertAllMention () {
+  insertMentionChip('all', 'all')
+}
+function insertMemberMention (member: MemberLike) {
+  insertMentionChip(`user:${member.id}`, memberDisplayName(member))
+}
+function onRichPaste (event: ClipboardEvent) {
+  event.preventDefault()
+  const text = event.clipboardData?.getData('text/plain') ?? ''
+  if (!text) {
+    return
+  }
+  document.execCommand('insertText', false, text)
+}
+function enforceBodyMaxLength (target: 'composer' | 'edit') {
+  const el = target === 'composer' ? commentInputRef.value : editInputRef.value
+  if (!el) {
+    return
+  }
+  const serialized = serializeRichEditor(el)
+  if (serialized.length <= COMMENT_BODY_MAX_LENGTH) {
+    return
+  }
+  // 超過時は直前状態へ戻すのが難しいため、プレーンテキスト化して切り詰める
+  el.textContent = serialized.slice(0, COMMENT_BODY_MAX_LENGTH)
+  syncDraftFromEditor(target)
+}
+function onComposerInput () {
+  syncDraftFromEditor('composer')
+  enforceBodyMaxLength('composer')
+  adjustCommentInputHeight()
+  updateMentionMenuFromEditor('composer')
+}
+function onEditInput () {
+  syncDraftFromEditor('edit')
+  enforceBodyMaxLength('edit')
+  updateMentionMenuFromEditor('edit')
+}
+function selectFirstMentionOption () {
+  if (showAllMentionOption.value) {
+    insertAllMention()
+    return
+  }
+  const first = filteredMentionCandidates.value[0]
+  if (first) {
+    insertMemberMention(first)
+  }
+}
+function onComposerKeydown (event: KeyboardEvent) {
+  if (mentionMenuOpen.value && mentionTarget.value === 'composer') {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMentionMenu()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      selectFirstMentionOption()
+      return
+    }
+  }
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    void sendComment()
+  }
+}
+function onEditKeydown (event: KeyboardEvent) {
+  if (mentionMenuOpen.value && mentionTarget.value === 'edit') {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMentionMenu()
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      selectFirstMentionOption()
+    }
+  }
 }
 function commentAuthorMember (comment: TaskComment): MemberLike {
   if (comment.author) {
@@ -549,12 +861,16 @@ async function sendComment () {
   if (props.taskId === null) {
     return
   }
+  if (commentInputRef.value) {
+    syncDraftFromEditor('composer')
+  }
   const body = commentDraft.value.trim()
   if (!body || commentSending.value || body.length > COMMENT_BODY_MAX_LENGTH) {
     return
   }
   commentSending.value = true
   commentSendError.value = null
+  closeMentionMenu()
   try {
     const created = await api<TaskComment>(
       `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${props.taskId}/comments`,
@@ -563,6 +879,7 @@ async function sendComment () {
     comments.value = [...comments.value, created]
     notifyCommentsUpdated()
     commentDraft.value = ''
+    clearRichEditor(commentInputRef.value)
     nextTick(() => {
       adjustCommentInputHeight()
       scrollChatToBottom()
@@ -583,7 +900,15 @@ function startEdit (comment: TaskComment) {
   editError.value = null
   openReactionMenuCommentId.value = null
   closeDeleteMenu()
-  nextTick(() => editInputRef.value?.focus())
+  closeMentionMenu()
+  nextTick(() => {
+    const el = editInputRef.value
+    if (!el) {
+      return
+    }
+    el.innerHTML = bodyToEditableHtml(comment.body)
+    el.focus()
+  })
 }
 function cancelEdit () {
   if (editSaving.value) {
@@ -592,10 +917,14 @@ function cancelEdit () {
   editingCommentId.value = null
   editDraft.value = ''
   editError.value = null
+  closeMentionMenu()
 }
 async function saveEdit (comment: TaskComment) {
   if (props.taskId === null || editSaving.value) {
     return
+  }
+  if (editInputRef.value) {
+    syncDraftFromEditor('edit')
   }
   const body = editDraft.value.trim()
   if (!body || body.length > COMMENT_BODY_MAX_LENGTH) {
@@ -603,6 +932,7 @@ async function saveEdit (comment: TaskComment) {
   }
   editSaving.value = true
   editError.value = null
+  closeMentionMenu()
   try {
     const updated = await api<TaskComment>(
       `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${props.taskId}/comments/${comment.id}`,

@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TaskAttachment extends Model
 {
+    /**
+     * @var list<string>
+     */
+    protected $touches = ['task'];
+
     protected $fillable = [
         'task_id',
         'uploaded_by',

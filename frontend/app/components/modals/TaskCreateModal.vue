@@ -97,6 +97,7 @@
                 v-model="draft"
                 :org-slug="orgSlug"
                 :org-labels="orgLabels"
+                :label-categories="labelCategories"
                 :workspace-members="workspaceMembers"
                 :disabled="submitting"
                 :title-error="titleError"
@@ -217,12 +218,15 @@ import {
   type TaskFormLabel,
   type TaskFormMember,
 } from '../../composables/useTaskFormHelpers'
+import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
 import {
   resolveListColor,
   type WorkspaceListOption,
 } from '../../composables/useTaskPopoverEditor'
 import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
+import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
 import { taskTitleFieldError } from '../../utils/formValidation'
 type ParentTaskOption = {
   id: number
@@ -232,8 +236,6 @@ type ParentTaskDetail = {
   start_date: string | null
   due_date: string | null
   effort_hours: number | string | null
-  effort_value: number | string | null
-  effort_unit: string | null
   assignees: TaskFormMember[]
   labels: TaskFormLabel[]
 }
@@ -245,14 +247,10 @@ export type CreatedTask = {
   parent_task_id?: number | null
   title: string
   description: string | null
-  status: string
   priority?: string
   start_date?: string | null
   due_date?: string | null
   effort_hours?: number | string | null
-  effort_value?: number | string | null
-  effort_unit?: string | null
-  assignee_id?: number | null
   assignees?: TaskFormMember[]
   labels?: TaskFormLabel[]
   created_at?: string
@@ -270,10 +268,12 @@ const props = withDefaults(defineProps<{
   workspaceId: string
   listId: number | null
   orgLabels: TaskFormLabel[]
+  labelCategories?: LabelCategoryGroup[]
   workspaceMembers: TaskFormMember[]
   workspaceLists?: WorkspaceListOption[]
 }>(), {
   workspaceLists: () => [],
+  labelCategories: () => [],
 })
 const emit = defineEmits<{
   'update:modelValue': [boolean]
@@ -375,12 +375,6 @@ function positionAnchoredPopover (
   const pad = POPOVER_VIEWPORT_PAD
   const gap = POPOVER_ANCHOR_GAP
   const anchorRect = anchor.getBoundingClientRect()
-  const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
-  const popoverWidth = measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX
-  let left = anchorRect.left
-  if (left + popoverWidth > window.innerWidth - pad) {
-    left = anchorRect.right - popoverWidth
-  }
   const spaceBelow = window.innerHeight - anchorRect.bottom - pad
   const spaceAbove = anchorRect.top - pad
   let top: number
@@ -392,12 +386,20 @@ function positionAnchoredPopover (
     maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceAbove - gap))
     top = Math.max(pad, anchorRect.top - gap - maxHeight)
   }
+  const scrollbarGutter = resolvePopoverScrollbarGutter(popover, maxHeight)
+  const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
+  const popoverWidth = (measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX) + popoverWidthExtraForGutter(scrollbarGutter)
+  let left = anchorRect.left
+  if (left + popoverWidth > window.innerWidth - pad) {
+    left = anchorRect.right - popoverWidth
+  }
   return {
     position: 'fixed',
     top: `${Math.round(top)}px`,
     left: `${Math.round(left)}px`,
-    maxHeight: `${maxHeight}px`,
-    zIndex: '80',
+    zIndex: '210',
+    ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
+    ...popoverScrollbarGutterStyle(scrollbarGutter),
   }
 }
 function positionParentPicker () {
@@ -452,6 +454,8 @@ function closeListPicker () {
   listPickerError.value = null
   listPickerStyle.value = {}
 }
+useExclusivePopover(parentPickerOpen, closeParentPicker)
+useExclusivePopover(listPickerOpen, closeListPicker)
 function selectParentTask (id: number) {
   if (parentTaskId.value === id) return
   parentTaskId.value = id

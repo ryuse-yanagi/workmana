@@ -99,6 +99,7 @@
         <DocumentLabelSelect
           :selected-ids="selectedLabelIds"
           :labels="orgLabelOptions"
+          :label-categories="orgLabelCategories"
           :pending="labelSaving"
           @toggle="toggleWorkspaceLabel"
         />
@@ -240,12 +241,13 @@
       :disabled="relatedDetachPending"
       :items="relatedMenuItems"
       @select="onRelatedMenuSelect"
+      @close="closeRelatedMenu"
     />
     <RelatedItemPickerModal
       ref="relatedWorkspaceModalRef"
       v-model="relatedWorkspaceModalOpen"
       title="関連スペースの編集"
-      search-placeholder="スペース名で検索"
+      search-placeholder="スペース名を検索..."
       empty-message="該当するスペースがありません。"
       :items="workspacePickerItems"
       :initial-selected-ids="relatedWorkspaceSelectedIds"
@@ -259,7 +261,7 @@
       ref="relatedDocumentModalRef"
       v-model="relatedDocumentModalOpen"
       title="関連資料の編集"
-      search-placeholder="資料名で検索"
+      search-placeholder="資料名を検索..."
       empty-message="該当する資料がありません。"
       :items="documentPickerItems"
       :initial-selected-ids="relatedDocumentSelectedIds"
@@ -284,6 +286,9 @@ import {
 import { useOrgDocumentsPageData, type OrgDocument } from '../../composables/useOrgDocumentsPageData'
 import { useWorkspaceDetailMeta } from '../../composables/useWorkspaceDetailMeta'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
+import { isScrollInsideRoot } from '../../utils/uiInteraction'
+import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
 import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFormHelpers'
 import {
   TASK_DESCRIPTION_MAX_LENGTH,
@@ -291,7 +296,7 @@ import {
 } from '../../constants/fieldLengthLimits'
 import { workspaceNameFieldError } from '../../utils/formValidation'
 import { resolveLabelColors } from '../../utils/colorPresetResolution'
-import { memberDisplayName } from '../../composables/useMemberDisplay'
+import { memberDisplayName, sortMembersByDisplayName } from '../../composables/useMemberDisplay'
 import LabelStrip from '../ui/LabelStrip.vue'
 import MemberAvatar from '../ui/MemberAvatar.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../ui/FloatingMenu.vue'
@@ -303,6 +308,10 @@ import {
   syncPeerCachesAfterWorkspaceRelatedDocumentsChange,
   syncPeerCachesAfterWorkspaceRelatedWorkspacesChange,
 } from '../../composables/syncRelatedRelationCaches'
+import {
+  applyUserProfileToMembers,
+  useOnUserProfileUpdated,
+} from '../../composables/userProfileUpdated'
 
 const props = defineProps<{
   orgSlug: string
@@ -313,6 +322,7 @@ const { api } = useApi()
 const {
   workspace,
   orgLabels,
+  orgLabelCategories,
   workspaceStatuses,
   ensureLoaded,
   applyWorkspace,
@@ -345,7 +355,7 @@ const assigneePickerOpen = ref(false)
 const assigneeSearchQuery = ref('')
 const assigneeAddTriggerRef = ref<HTMLElement | null>(null)
 const assigneePickerRef = ref<{ rootRef: HTMLElement | null } | null>(null)
-const assigneePickerPosition = ref<{ top: number; left: number; maxHeight: number } | null>(null)
+const assigneePickerPosition = ref<{ top: number; left: number; maxHeight: number; scrollbarGutter: number } | null>(null)
 const ASSIGNEE_PICKER_GAP = 6
 const ASSIGNEE_PICKER_VIEWPORT_PAD = 8
 const ASSIGNEE_PICKER_VERTICAL_PADDING = 12
@@ -358,12 +368,13 @@ const assigneePickerStyle = computed(() => {
       visibility: 'hidden',
     } as Record<string, string>
   }
-  const { top, left, maxHeight } = assigneePickerPosition.value
+  const { top, left, maxHeight, scrollbarGutter } = assigneePickerPosition.value
   return {
     top: `${top}px`,
     left: `${left}px`,
-    maxHeight: `${maxHeight}px`,
     visibility: 'visible',
+    ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
+    ...popoverScrollbarGutterStyle(scrollbarGutter),
   }
 })
 
@@ -1084,6 +1095,7 @@ function closeAssigneePicker () {
   assigneePickerPosition.value = null
   assigneeSearchQuery.value = ''
 }
+useExclusivePopover(assigneePickerOpen, closeAssigneePicker)
 
 function positionAssigneePicker () {
   const trigger = assigneeAddTriggerRef.value
@@ -1092,7 +1104,16 @@ function positionAssigneePicker () {
     return
   }
   const rect = trigger.getBoundingClientRect()
-  const dropdownWidth = assigneePickerRef.value?.rootRef?.offsetWidth ?? ASSIGNEE_PICKER_WIDTH
+  const popover = assigneePickerRef.value?.rootRef ?? null
+  const top = Math.max(ASSIGNEE_PICKER_VIEWPORT_PAD, rect.top)
+  const maxHeight = Math.max(
+    ASSIGNEE_PICKER_MIN_HEIGHT,
+    window.innerHeight - ASSIGNEE_PICKER_VIEWPORT_PAD - top - ASSIGNEE_PICKER_VERTICAL_PADDING,
+  )
+  const scrollbarGutter = popover
+    ? resolvePopoverScrollbarGutter(popover, maxHeight)
+    : 0
+  const dropdownWidth = (popover?.offsetWidth ?? ASSIGNEE_PICKER_WIDTH) + popoverWidthExtraForGutter(scrollbarGutter)
   let left = rect.right + ASSIGNEE_PICKER_GAP
   if (left + dropdownWidth > window.innerWidth - ASSIGNEE_PICKER_VIEWPORT_PAD) {
     left = rect.left - dropdownWidth - ASSIGNEE_PICKER_GAP
@@ -1101,12 +1122,7 @@ function positionAssigneePicker () {
     ASSIGNEE_PICKER_VIEWPORT_PAD,
     Math.min(left, window.innerWidth - dropdownWidth - ASSIGNEE_PICKER_VIEWPORT_PAD),
   )
-  const top = Math.max(ASSIGNEE_PICKER_VIEWPORT_PAD, rect.top)
-  const maxHeight = Math.max(
-    ASSIGNEE_PICKER_MIN_HEIGHT,
-    window.innerHeight - ASSIGNEE_PICKER_VIEWPORT_PAD - top - ASSIGNEE_PICKER_VERTICAL_PADDING,
-  )
-  assigneePickerPosition.value = { top, left, maxHeight }
+  assigneePickerPosition.value = { top, left, maxHeight, scrollbarGutter }
 }
 
 async function openAssigneePicker () {
@@ -1154,8 +1170,11 @@ function onAssigneePickerWindowResize () {
   positionAssigneePicker()
 }
 
-function onAssigneePickerWindowScroll () {
+function onAssigneePickerWindowScroll (event: Event) {
   if (!assigneePickerOpen.value) {
+    return
+  }
+  if (isScrollInsideRoot(event, assigneePickerRef.value?.rootRef)) {
     return
   }
   const trigger = assigneeAddTriggerRef.value
@@ -1190,9 +1209,11 @@ async function toggleWorkspaceAssignee (member: TaskFormMember) {
   }
   const previousAssignees = [...(current.assignees ?? [])]
   const exists = previousAssignees.some(item => item.id === member.id)
-  const nextAssignees = exists
-    ? previousAssignees.filter(item => item.id !== member.id)
-    : [...previousAssignees, member]
+  const nextAssignees = sortMembersByDisplayName(
+    exists
+      ? previousAssignees.filter(item => item.id !== member.id)
+      : [...previousAssignees, member],
+  )
   const nextIds = nextAssignees.map(item => item.id)
   assigneeSaving.value = true
   fieldSaveError.value = null
@@ -1213,5 +1234,9 @@ async function toggleWorkspaceAssignee (member: TaskFormMember) {
     assigneeSaving.value = false
   }
 }
+
+useOnUserProfileUpdated((detail) => {
+  orgMembers.value = applyUserProfileToMembers(orgMembers.value, detail)
+})
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/workspace/WorkspaceDetailSidebar.scss"></style>

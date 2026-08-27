@@ -13,7 +13,7 @@
       招待の送信は組織管理者のみ行えます。
     </p>
 
-    <p v-if="message" class="settings-msg" :class="{ 'settings-msg--err': messageKind === 'err' }">
+    <p v-if="message" class="settings-msg">
       {{ message }}
     </p>
 
@@ -124,6 +124,10 @@ import MemberEditModal from '../modals/MemberEditModal.vue'
 import UserInviteModal from '../modals/UserInviteModal.vue'
 import MemberAvatar from '../ui/MemberAvatar.vue'
 import { useCurrentUser } from '../../composables/useCurrentUser'
+import {
+  applyUserProfileToMembers,
+  useOnUserProfileUpdated,
+} from '../../composables/userProfileUpdated'
 
 type InviteRole = 'admin' | 'member'
 
@@ -239,7 +243,7 @@ async function submitInvite (payload: { email: string; role: InviteRole }) {
   submittingInvite.value = true
   message.value = ''
   try {
-    const res = await api<{ resent?: boolean }>(`/orgs/${props.orgSlug}/invites`, {
+    await api<{ resent?: boolean }>(`/orgs/${props.orgSlug}/invites`, {
       method: 'POST',
       body: {
         email: payload.email,
@@ -247,10 +251,7 @@ async function submitInvite (payload: { email: string; role: InviteRole }) {
       },
     })
     inviteModalOpen.value = false
-    messageKind.value = 'ok'
-    message.value = res.resent
-      ? '招待メールを再送しました。'
-      : '招待メールを送信しました。'
+    message.value = ''
     await loadInvites()
   } catch (error: unknown) {
     inviteModalRef.value?.setSubmitError(
@@ -276,8 +277,7 @@ async function confirmCancelInvite () {
     await api(`/orgs/${props.orgSlug}/invites/${invite.id}`, { method: 'DELETE' })
     cancelInviteModalOpen.value = false
     cancelTargetInvite.value = null
-    messageKind.value = 'ok'
-    message.value = '招待を取り消しました。'
+    message.value = ''
     await reloadLists()
   } catch (error: unknown) {
     messageKind.value = 'err'
@@ -305,8 +305,7 @@ async function submitEditMember (payload: { role: InviteRole }) {
     })
     memberEditModalOpen.value = false
     editingMember.value = null
-    messageKind.value = 'ok'
-    message.value = 'ロールを更新しました。'
+    message.value = ''
     await loadMembers()
   } catch (error: unknown) {
     memberEditModalRef.value?.setSubmitError(
@@ -332,8 +331,7 @@ async function confirmRemoveMember () {
     await api(`/orgs/${props.orgSlug}/members/${member.id}`, { method: 'DELETE' })
     memberDeleteModalOpen.value = false
     deletingMember.value = null
-    messageKind.value = 'ok'
-    message.value = 'メンバーを削除しました。'
+    message.value = ''
     await reloadLists()
   } catch (error: unknown) {
     memberDeleteModalRef.value?.setSubmitError(
@@ -353,6 +351,9 @@ watch(
   },
   { immediate: true },
 )
+useOnUserProfileUpdated((detail) => {
+  members.value = applyUserProfileToMembers(members.value, detail)
+})
 </script>
 
 <style lang="scss" scoped src="~/assets/styles/components/settings/SettingsMembersPanel.scss"></style>

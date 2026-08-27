@@ -1,24 +1,21 @@
 
 .named-item-delete-modal-body {
-  padding: 14px 18.9px 18.9px;
+  padding: 14px 18.9px 0;
 }
 .named-item-delete-modal-message {
   margin: 0;
-  font-size: 12.6px;
-  color: mixin.$text-sub;
-  line-height: 1.45;
+  font-size: 14px;
+  color: mixin.$text;
+  line-height: 1.75;
 }
 .err {
   margin: 10.5px 0 0;
   color: mixin.$danger;
   font-weight: 700;
-  font-size: 12.04px;
+  font-size: mixin.$modal-field-font-size;
 }
 .actions {
-  margin-top: 13.3px;
-  display: flex;
-  justify-content: center;
-  gap: 7px;
+  @include mixin.modal-footer-actions;
 }
 .ghost-btn,
 .danger-btn {
@@ -33,5 +30,5 @@
 }
 .danger-btn {
   background: mixin.$danger;
-  color: #fff;
+  color: mixin.$white;
 }

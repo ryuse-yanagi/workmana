@@ -1,12 +1,9 @@
 import { useAuth } from './useAuth'
 import {
-  clearCurrentUserId,
   getCurrentUserIdState,
   getCurrentUserPendingFetch,
   setCurrentUserPendingFetch,
 } from './currentUserIdState'
-
-export { clearCurrentUserId }
 
 export function useCurrentUser () {
   const { fetchSession } = useAuth()

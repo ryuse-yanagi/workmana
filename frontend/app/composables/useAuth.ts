@@ -7,7 +7,7 @@ export type AuthUser = {
   name: string | null
   avatar_url: string | null
   last_organization_id?: number | null
-  organizations?: Array<{ id: number; name: string; slug: string; role?: string }>
+  organizations?: Array<{ id: number; name: string; slug: string; role?: string; icon_url?: string | null }>
 }
 
 export type AuthSession = {

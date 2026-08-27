@@ -1,93 +1,174 @@
 .profile-settings-modal-body {
-  padding: 14px 16.1px 16.8px;
+  padding: 0 16.1px 0;
 }
-.profile-settings-modal-note {
-  margin: 0 0 14px;
-  color: #64748b;
-  font-size: 12.6px;
-}
-.profile-field {
+
+.profile-avatar-section {
   display: flex;
-  flex-direction: column;
-  gap: 4.9px;
-  color: #1e293b;
-  font-size: 12.6px;
-  font-weight: 700;
+  justify-content: center;
+  padding: 28px 0;
 }
-.profile-input {
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 7.7px 9.8px;
-  font-size: 13.3px;
-  background: #fff;
-  &:focus {
-    @include mixin.input-focus-ring;
-  }
-}
-.profile-button-row {
-  margin-top: 7.7px;
-  display: flex;
-  gap: 7px;
-}
-.profile-primary-btn,
-.profile-ghost-btn {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 7px 11.2px;
-  font-size: 12.04px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.profile-primary-btn {
-  background: mixin.$main;
-  color: mixin.$white;
-}
-.profile-ghost-btn {
-  background: #fff;
-  color: #334155;
-  border-color: #94a3b8;
-}
-.profile-primary-btn:disabled,
-.profile-ghost-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.profile-row {
+
+.profile-avatar-row {
   display: flex;
   gap: 14px;
   align-items: center;
-  margin-top: 14px;
 }
-.profile-name-form {
-  max-width: 476px;
-}
+
 .avatar-image,
 .avatar-placeholder {
   width: 84px;
   height: 84px;
   border-radius: 9999px;
-  border: 1px solid #cbd5e1;
+  flex-shrink: 0;
 }
+
 .avatar-image {
   object-fit: cover;
-  background: #fff;
+  background: mixin.$white;
+  border: 1px solid mixin.$border;
 }
+
 .avatar-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
-  background: #f8fafc;
-  font-size: 11.2px;
+  border: none;
+  background: mixin.$bg-gray;
 }
-.profile-actions {
-  flex: 1;
+
+.avatar-placeholder__initial {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: mixin.$text;
 }
-.profile-msg {
-  margin: 11.9px 0 0;
-  color: #0f766e;
+
+.profile-avatar-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profile-avatar-file-input {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.profile-avatar-dropzone {
+  @include mixin.btn-base;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  max-width: 100%;
+  border: 1.5px dashed mixin.$main;
+  border-radius: 10px;
+  padding: 14px 18px;
+  background: mixin.$bg-white;
+  color: mixin.$main;
+  text-align: left;
+}
+
+.profile-avatar-dropzone--active {
+  background: mixin.$main-aqua-surface;
+}
+
+.profile-avatar-dropzone__icon {
+  flex-shrink: 0;
+  color: mixin.$main;
+}
+
+.profile-avatar-dropzone__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profile-avatar-dropzone__title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: mixin.$main;
+}
+
+.profile-avatar-dropzone__hint {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: mixin.$text-gray;
+}
+
+.profile-avatar-reset-btn {
+  @include mixin.btn-base;
+  border: none;
+  background: transparent;
+  padding: 7px 0;
+  font-size: 12.04px;
+  color: mixin.$text-gray;
+}
+
+.profile-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4.9px;
+  color: mixin.$text-heading;
+  font-size: mixin.$modal-field-font-size;
   font-weight: 700;
 }
-.profile-msg--err {
+
+.profile-input {
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  padding: 7.7px 9.8px;
+  font-size: mixin.$modal-field-font-size;
+  background: mixin.$white;
+  &:focus {
+    @include mixin.input-focus-ring;
+  }
+}
+
+.err {
+  margin: 0;
+  font-size: mixin.$modal-field-font-size;
+  font-weight: 700;
   color: mixin.$danger;
+}
+
+.actions {
+  @include mixin.modal-footer-actions;
+}
+
+.ghost-btn,
+.primary-btn {
+  @include mixin.btn-base;
+}
+
+.ghost-btn--pill,
+.primary-btn--pill {
+  @include mixin.btn-pill;
+}
+
+.ghost-btn {
+  @include mixin.btn-ghost;
+}
+
+.primary-btn {
+  @include mixin.btn-primary;
 }

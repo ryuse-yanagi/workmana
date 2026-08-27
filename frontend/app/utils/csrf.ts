@@ -14,13 +14,18 @@ export function readXsrfToken (): string {
   return decodeURIComponent(matched[1])
 }
 
-export async function ensureXsrfToken (apiBaseUrl: string): Promise<string> {
+export async function ensureXsrfToken (
+  apiBaseUrl: string,
+  options: { force?: boolean } = {},
+): Promise<string> {
   if (!import.meta.client) {
     return ''
   }
-  const existing = readXsrfToken()
-  if (existing) {
-    return existing
+  if (!options.force) {
+    const existing = readXsrfToken()
+    if (existing) {
+      return existing
+    }
   }
   await $fetch(`${apiBaseUrl}/auth/csrf-cookie`, {
     credentials: 'include',

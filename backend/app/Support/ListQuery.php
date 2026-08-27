@@ -48,6 +48,39 @@ final class ListQuery
     }
 
     /**
+     * 検索を適用しつつ全件を返す（1ページ表示用）。
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     * @param  Builder<TModel>  $query
+     * @param  callable(TModel): mixed  $map
+     * @param  list<string>  $searchColumns
+     * @return array{data: list<mixed>, meta: array{page: int, per_page: int, total: int, last_page: int, q: string}}
+     */
+    public static function all(Builder $query, Request $request, callable $map, array $searchColumns = []): array
+    {
+        $q = trim((string) $request->query('q', ''));
+        self::applySearch($query, $q, $searchColumns);
+
+        $items = $query
+            ->get()
+            ->map($map)
+            ->values()
+            ->all();
+        $total = count($items);
+
+        return [
+            'data' => $items,
+            'meta' => [
+                'page' => 1,
+                'per_page' => $total,
+                'total' => $total,
+                'last_page' => 1,
+                'q' => $q,
+            ],
+        ];
+    }
+
+    /**
      * @template TModel of \Illuminate\Database\Eloquent\Model
      * @param  Builder<TModel>  $query
      * @param  callable(TModel): mixed  $map

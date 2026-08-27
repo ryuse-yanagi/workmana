@@ -96,7 +96,6 @@ class CognitoJwtService
         if ($user === null) {
             $user = new User;
             $user->email = $email;
-            $user->password = null;
         }
 
         $user->cognito_sub = $sub;

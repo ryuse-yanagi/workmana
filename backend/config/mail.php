@@ -14,6 +14,7 @@ return [
     |
     */
 
+    // ローカル既定は log。本番は Amazon SES（MAIL_MAILER=ses）を必須とする。
     'default' => env('MAIL_MAILER', 'log'),
 
     /*

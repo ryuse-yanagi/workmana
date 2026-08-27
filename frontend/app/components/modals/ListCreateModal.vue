@@ -15,7 +15,7 @@
           v-model.trim="name"
           type="text"
           :maxlength="LIST_NAME_MAX_LENGTH"
-          placeholder="リスト名を入力してください"
+          placeholder="リスト名を入力..."
           :disabled="loading"
           @keydown.enter.exact.prevent
         />
@@ -100,7 +100,7 @@ function close () {
 }
 function submit () {
   if (props.loading) return
-  const validationError = requiredTextFieldError(name.value, 'リスト名を入力してください')
+  const validationError = requiredTextFieldError(name.value, 'リスト名', LIST_NAME_MAX_LENGTH)
   if (validationError) {
     nameError.value = validationError
     return
@@ -108,7 +108,10 @@ function submit () {
   const trimmed = name.value.trim()
   nameError.value = null
   submitError.value = null
-  emit('submit', { name: trimmed, color_index: standardColorIndexFromHex(color.value) })
+  emit('submit', {
+    name: trimmed,
+    color_index: standardColorIndexFromHex(color.value),
+  })
 }
 function onFormKeydown (event: KeyboardEvent) {
   if (!isCtrlEnterKeydown(event)) return

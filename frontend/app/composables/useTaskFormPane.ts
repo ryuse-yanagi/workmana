@@ -1,24 +1,28 @@
 import type { Ref } from 'vue'
+import type { LabelCategoryGroup } from './useLabelCategories'
+import { filterLabelCategories, labelCategoriesFromFlat } from './useLabelCategories'
 import { dismissPopoverFromOutsidePointer } from '../utils/uiInteraction'
+import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../utils/popoverScrollbar'
+import { useExclusivePopover } from './useExclusivePopover'
 import {
   type TaskFormCategory,
   type TaskFormDraft,
   type TaskFormLabel,
   type TaskFormMember,
   EFFORT_UNIT_LABEL,
-  FIXED_EFFORT_UNIT,
   effortValueToDraft,
   formatDateDisplay,
   formatEffortAmount,
   formatEffortDisplay,
   labelBarTextColor,
   memberEmailLine,
-  normalizeEffortValue,
+  normalizeEffortHours,
   parseEffortDraft,
   resolveStoredEffortValue,
   sanitizeEffortDraftInput,
   toDateInputValue,
 } from './useTaskFormHelpers'
+import { sortMembersByDisplayName } from './useMemberDisplay'
 export type TaskFormPopoverType =
   | 'start-date'
   | 'due-date'
@@ -38,6 +42,7 @@ type CalendarCell = {
 type UseTaskFormPaneOptions = {
   draft: Ref<TaskFormDraft>
   orgLabels: Ref<TaskFormLabel[]>
+  labelCategories?: Ref<LabelCategoryGroup[]>
   workspaceMembers: Ref<TaskFormMember[]>
   disabled: Ref<boolean>
   documentCategories?: Ref<TaskFormCategory[]>
@@ -70,6 +75,12 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     const query = labelSearchQuery.value.trim().toLowerCase()
     if (!query) return options.orgLabels.value
     return options.orgLabels.value.filter(label => label.name.toLowerCase().includes(query))
+  })
+  const filteredLabelCategories = computed(() => {
+    return filterLabelCategories(
+      labelCategoriesFromFlat(options.labelCategories?.value, options.orgLabels.value),
+      labelSearchQuery.value,
+    )
   })
   const filteredDocumentCategories = computed(() => {
     const categories = options.documentCategories?.value ?? []
@@ -154,12 +165,6 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     const pad = POPOVER_VIEWPORT_PAD
     const gap = POPOVER_ANCHOR_GAP
     const anchorRect = anchor.getBoundingClientRect()
-    const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
-    const popoverWidth = measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX
-    let left = anchorRect.left
-    if (left + popoverWidth > window.innerWidth - pad) {
-      left = anchorRect.right - popoverWidth
-    }
     const spaceBelow = window.innerHeight - anchorRect.bottom - pad
     const spaceAbove = anchorRect.top - pad
     let top: number
@@ -171,12 +176,20 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
       maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceAbove - gap))
       top = Math.max(pad, anchorRect.top - gap - maxHeight)
     }
+    const scrollbarGutter = resolvePopoverScrollbarGutter(popover, maxHeight)
+    const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
+    const popoverWidth = (measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX) + popoverWidthExtraForGutter(scrollbarGutter)
+    let left = anchorRect.left
+    if (left + popoverWidth > window.innerWidth - pad) {
+      left = anchorRect.right - popoverWidth
+    }
     popoverStyle.value = {
       position: 'fixed',
       top: `${Math.round(top)}px`,
       left: `${Math.round(left)}px`,
-      maxHeight: `${maxHeight}px`,
-      zIndex: '75',
+      zIndex: '210',
+      ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
+      ...popoverScrollbarGutterStyle(scrollbarGutter),
     }
   }
   function updatePopoverPosition () {
@@ -205,19 +218,15 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     popoverError.value = null
     if (parsed !== null) {
-      const effortValue = normalizeEffortValue(parsed)
+      const effortHours = normalizeEffortHours(parsed)
       options.draft.value = {
         ...options.draft.value,
-        effort_value: effortValue,
-        effort_hours: effortValue,
-        effort_unit: effortValue === null ? null : FIXED_EFFORT_UNIT,
+        effort_hours: effortHours,
       }
     } else {
       options.draft.value = {
         ...options.draft.value,
-        effort_value: null,
         effort_hours: null,
-        effort_unit: null,
       }
     }
     dismissPopover()
@@ -227,9 +236,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     effortDraft.value = ''
     options.draft.value = {
       ...options.draft.value,
-      effort_value: null,
       effort_hours: null,
-      effort_unit: null,
     }
     dismissPopover()
   }
@@ -247,6 +254,10 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     }
     dismissPopover()
   }
+  useExclusivePopover(
+    () => activePopover.value != null,
+    () => { void closePopover() },
+  )
   function shouldIgnorePopoverOutsideClose (target: Node): boolean {
     const anchor = popoverAnchorEl.value
     if (!anchor?.contains(target)) return false
@@ -439,9 +450,11 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     const exists = current.some(item => item.id === member.id)
     options.draft.value = {
       ...options.draft.value,
-      assignees: exists
-        ? current.filter(item => item.id !== member.id)
-        : [...current, member],
+      assignees: sortMembersByDisplayName(
+        exists
+          ? current.filter(item => item.id !== member.id)
+          : [...current, member],
+      ),
     }
     popoverError.value = null
   }
@@ -513,6 +526,7 @@ export function useTaskFormPane (options: UseTaskFormPaneOptions) {
     effortInputRef,
     weekdayLabels,
     filteredOrgLabels,
+    filteredLabelCategories,
     filteredDocumentCategories,
     filteredWorkspaceStatuses,
     showEffortDetailSection,

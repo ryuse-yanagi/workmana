@@ -113,7 +113,7 @@ const props = withDefaults(defineProps<{
   submitLabel?: string
   savingLabel?: string
 }>(), {
-  searchPlaceholder: '名前で検索',
+  searchPlaceholder: '名前を検索...',
   emptyMessage: '該当する項目がありません。',
   initialSelectedIds: () => [],
   hiddenIds: () => [],

@@ -1,6 +1,7 @@
 /**
  * アプリ共通の色プリセット（30色 / 6行×5列）
  * ラベル・リスト列など、UI 全体の色はこのファイルで一元管理する。
+ * UI クローム色は _mixin.scss。ここはユーザー選択パレットのみ。
  */
 export const COLOR_PRESET_GRID_COLUMNS = 5
 export const COLOR_PRESETS = [
@@ -178,7 +179,7 @@ function darkColorForPresetIndex (presetIndex: number): string | null {
 }
 /** 標準色に対応する薄い背景色（リスト列など） */
 export function standardColorSurfaceBackground (hex: string): string {
-  return STANDARD_COLOR_SURFACE_BY_COLOR[hex.toLowerCase()] ?? '#ffffff'
+  return STANDARD_COLOR_SURFACE_BY_COLOR[hex.toLowerCase()] ?? '#fff'
 }
 /** 標準色に対応する濃い文字色（ステータスバッジなど） */
 export function standardColorEmphasisText (hex: string): string {
@@ -205,14 +206,14 @@ export function colorSwatchBorderColor (hex: string): string {
   }
   const rgb = parseHexColor(hex)
   if (!rgb) {
-    return 'rgba(15, 23, 42, 0.18)'
+    return 'rgba(15, 23, 42, 0.18)' // mixin.$ink @ 0.18
   }
   const factor = 0.82
   return `rgb(${Math.round(rgb[0] * factor)}, ${Math.round(rgb[1] * factor)}, ${Math.round(rgb[2] * factor)})`
 }
 /**
  * ガントバー選択枠の色
- * 淡色→標準色、標準色→濃色、濃色→#475569
+ * 淡色→標準色、標準色→濃色、濃色→$text-sub
  */
 export function ganttBarSelectionBorderColor (hex: string): string {
   const presetIndex = findColorPresetIndex(hex)
@@ -225,8 +226,7 @@ export function ganttBarSelectionBorderColor (hex: string): string {
   if (STANDARD_COLOR_PRESET_INDEX_SET.has(presetIndex)) {
     return COLOR_PRESETS[presetIndex + 5] ?? hex
   }
-  // 濃色 → #475569
-  return '#475569'
+  return '#475569' // mixin.$text-sub
 }
 /** 選択チェックマークの色（標準色は白、それ以外は背景輝度で白/黒） */
 export function colorSwatchCheckColor (hex: string): string {
@@ -239,5 +239,5 @@ export function colorSwatchCheckColor (hex: string): string {
     return '#fff'
   }
   const luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
-  return luminance > 0.72 ? '#334155' : '#fff'
+  return luminance > 0.72 ? '#334155' : '#fff' // $text-strong / $white
 }

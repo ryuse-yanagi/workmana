@@ -13,7 +13,7 @@
       </div>
 
       <div class="global-header__right">
-        <div class="notifications" data-notifications-root>
+        <div class="notifications">
           <button
             type="button"
             class="nav-btn nav-btn--icon notifications-trigger"
@@ -22,41 +22,9 @@
             :aria-expanded="notificationsOpen"
             @click.stop="toggleNotifications"
           >
-            <Bell :size="24" :stroke-width="2.25" aria-hidden="true" />
+            <Bell :size="30" :stroke-width="1.5" class="nav-btn__icon" aria-hidden="true" />
             <span v-if="unreadCount > 0" class="notifications-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
           </button>
-          <div v-if="notificationsOpen" class="dropdown notifications-dropdown" role="menu">
-            <div class="notifications-dropdown__header">
-              <span>通知</span>
-              <button
-                type="button"
-                class="notifications-dropdown__read-all"
-                :disabled="!unreadCount || notificationsLoading"
-                @click="markAllNotificationsRead"
-              >
-                すべて既読
-              </button>
-            </div>
-            <p v-if="notificationsLoading && !notifications.length" class="notifications-dropdown__state">
-              読み込み中…
-            </p>
-            <p v-else-if="!notifications.length" class="notifications-dropdown__state">
-              通知はありません。
-            </p>
-            <ul v-else class="notifications-list">
-              <li v-for="item in notifications" :key="item.id">
-                <button
-                  type="button"
-                  class="notifications-item"
-                  :class="{ 'notifications-item--unread': !item.read_at }"
-                  @click="onNotificationClick(item)"
-                >
-                  <span class="notifications-item__text">{{ notificationLabel(item) }}</span>
-                  <time class="notifications-item__time">{{ formatNotificationTime(item.created_at) }}</time>
-                </button>
-              </li>
-            </ul>
-          </div>
         </div>
         <button
           type="button"
@@ -64,9 +32,11 @@
           :disabled="!orgSlug"
           aria-label="設定"
           title="設定"
+          @pointerenter="prefetchOrgSettingsRoute"
+          @focus="prefetchOrgSettingsRoute"
           @click="goOrgSettings"
         >
-          <Settings :size="24" :stroke-width="2.25" aria-hidden="true" />
+          <Settings :size="30" :stroke-width="1.5" class="nav-btn__icon" aria-hidden="true" />
         </button>
         <span class="global-header__divider" aria-hidden="true" />
         <div class="profile" data-profile-root>
@@ -81,15 +51,21 @@
           <div v-if="menuOpen" class="dropdown" role="menu">
             <div v-if="organizations.length" class="dropdown-section">
               <p class="dropdown-section__label">組織を切替</p>
+              <p v-if="orgSwitchError" class="dropdown-section__error" role="alert">{{ orgSwitchError }}</p>
               <button
                 v-for="org in organizations"
                 :key="org.id"
                 type="button"
-                class="dropdown-item"
+                class="dropdown-item dropdown-item--org"
                 :class="{ 'dropdown-item--active': org.slug === orgSlug }"
+                :disabled="switchingOrg"
                 @click="switchToOrganization(org)"
               >
-                {{ org.name }}
+                <MemberAvatar
+                  :member="{ id: org.id, name: org.name, avatar_url: org.icon_url ?? null }"
+                  size="xs"
+                />
+                <span>{{ org.name }}</span>
               </button>
             </div>
             <button type="button" class="dropdown-item" :disabled="!orgSlug" @click="goProfileFromMenu">
@@ -104,18 +80,88 @@
     </div>
 
     <ProfileSettingsModal v-model="profileModalOpen" />
+
+    <Teleport to="body">
+      <Transition name="notifications-drawer">
+        <div
+          v-if="notificationsOpen"
+          class="notifications-drawer-overlay"
+          role="presentation"
+          @mousedown="onNotificationsOverlayMouseDown"
+        >
+          <aside
+            class="notifications-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="お知らせ"
+          >
+            <header class="notifications-drawer__header">
+              <h2 class="notifications-drawer__title">お知らせ</h2>
+              <button
+                type="button"
+                class="notifications-drawer__close"
+                aria-label="閉じる"
+                @click="closeNotifications"
+              >
+                <X :size="20" :stroke-width="2.25" aria-hidden="true" />
+              </button>
+            </header>
+            <div class="notifications-drawer__body">
+              <p v-if="notificationsLoading && !notifications.length" class="notifications-drawer__state">
+                読み込み中…
+              </p>
+              <p v-else-if="notificationsError && !notifications.length" class="notifications-drawer__state notifications-drawer__state--error">
+                {{ notificationsError }}
+              </p>
+              <p v-else-if="!notifications.length" class="notifications-drawer__state">
+                通知はありません。
+              </p>
+              <template v-else>
+                <p v-if="notificationsError" class="notifications-drawer__state notifications-drawer__state--error">
+                  {{ notificationsError }}
+                </p>
+                <ul class="notifications-list">
+                  <li v-for="item in notifications" :key="item.id">
+                    <button
+                      type="button"
+                      class="notifications-item"
+                      :class="{ 'notifications-item--unread': !item.read_at }"
+                      @click="onNotificationClick(item)"
+                    >
+                      <span class="notifications-item__main">
+                        <time class="notifications-item__time">{{ formatNotificationDate(item.created_at) }}</time>
+                        <span class="notifications-item__text">{{ notificationLabel(item) }}</span>
+                      </span>
+                      <ChevronRight
+                        :size="18"
+                        :stroke-width="2"
+                        class="notifications-item__chevron"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </li>
+                </ul>
+              </template>
+            </div>
+          </aside>
+        </div>
+      </Transition>
+    </Teleport>
   </header>
 </template>
 
 <script setup lang="ts">
-import { Bell, FolderOpen, NotebookText, Settings } from 'lucide-vue-next'
+import { Bell, ChevronRight, FolderOpen, NotebookText, Settings, X } from 'lucide-vue-next'
 import ProfileSettingsModal from '../modals/ProfileSettingsModal.vue'
+import MemberAvatar from '../ui/MemberAvatar.vue'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
 import { useAuth } from '../../composables/useAuth'
 import { useApi } from '../../composables/useApi'
 import { useOrganizationContext, type OrganizationSummary } from '../../composables/useOrganizationContext'
 import { useOrgPageCacheWarmup } from '../../composables/useOrgPageCacheWarmup'
 import { clearSessionScopedCaches } from '../../composables/useSessionScopedCaches'
+import { createOverlayBackdropClose } from '../../utils/uiInteraction'
 
 type AppNotification = {
   id: number
@@ -146,8 +192,10 @@ const profileModalOpen = ref(false)
 const notificationsOpen = ref(false)
 const notifications = ref<AppNotification[]>([])
 const notificationsLoading = ref(false)
+const notificationsError = ref<string | null>(null)
 let notificationsPollTimer: ReturnType<typeof setInterval> | null = null
 const switchingOrg = ref(false)
+const orgSwitchError = ref<string | null>(null)
 
 const unreadCount = computed(() => notifications.value.filter(item => !item.read_at).length)
 
@@ -201,6 +249,7 @@ async function refreshMeContext () {
     name: org.name,
     slug: org.slug,
     role: org.role,
+    icon_url: org.icon_url ?? null,
   }))
   if (!routeSlug) {
     const lastId = me.last_organization_id
@@ -247,15 +296,16 @@ function notificationLabel (item: AppNotification): string {
   return title
 }
 
-function formatNotificationTime (iso: string): string {
+const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土'] as const
+
+function formatNotificationDate (iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString('ja-JP', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const weekday = WEEKDAY_LABELS[date.getDay()] ?? ''
+  return `${y}/${m}/${d}(${weekday})`
 }
 
 async function loadNotifications () {
@@ -263,8 +313,10 @@ async function loadNotifications () {
   try {
     const res = await api<{ data: AppNotification[] }>('/notifications')
     notifications.value = res.data ?? []
-  } catch {
-    notifications.value = []
+    notificationsError.value = null
+  } catch (e: unknown) {
+    // 一時失敗で既存の一覧を消さない
+    notificationsError.value = e instanceof Error ? e.message : '通知の取得に失敗しました'
   } finally {
     notificationsLoading.value = false
   }
@@ -284,53 +336,97 @@ async function markNotificationRead (item: AppNotification) {
   }
 }
 
-async function markAllNotificationsRead () {
-  if (!unreadCount.value) return
-  try {
-    await api('/notifications/read-all', { method: 'POST' })
-    const now = new Date().toISOString()
-    notifications.value = notifications.value.map(item => ({
-      ...item,
-      read_at: item.read_at ?? now,
-    }))
-  } catch {
-    // ignore
-  }
-}
-
 async function onNotificationClick (item: AppNotification) {
   await markNotificationRead(item)
   closeNotifications()
   const slug = item.data?.organization_slug || orgSlug.value
   const workspaceId = item.data?.workspace_id
-  if (slug && workspaceId) {
-    await router.push(`/org/${slug}/workspaces/${workspaceId}`)
+  const taskId = item.data?.task_id
+  if (!slug || !workspaceId) {
+    return
   }
+  const query: Record<string, string> = {}
+  if (typeof taskId === 'number' && Number.isFinite(taskId) && taskId > 0) {
+    query.task = String(taskId)
+  }
+  await router.push({
+    path: `/org/${slug}/workspaces/${workspaceId}`,
+    query,
+  })
 }
 
 function toggleMenu () {
   menuOpen.value = !menuOpen.value
+  if (menuOpen.value) {
+    closeNotifications()
+  }
 }
+
+const {
+  onOverlayMouseDown: onNotificationsOverlayMouseDown,
+  resetOverlayBackdropClose: resetNotificationsOverlayBackdropClose,
+} = createOverlayBackdropClose({
+  onClose: closeNotifications,
+})
+
+watch(notificationsOpen, (open) => {
+  if (!open) {
+    resetNotificationsOverlayBackdropClose()
+  }
+})
 
 useDropdownEscapeClose(menuOpen, closeMenu)
 useDropdownEscapeClose(notificationsOpen, closeNotifications)
+useExclusivePopover(menuOpen, closeMenu)
+useExclusivePopover(notificationsOpen, closeNotifications)
 
 async function goWorkspaceList () {
   if (!orgSlug.value) return
   closeMenu()
+  closeNotifications()
   await router.push(`/org/${orgSlug.value}/workspaces`)
 }
 
 async function goDocumentsList () {
   if (!orgSlug.value) return
   closeMenu()
+  closeNotifications()
   await router.push(`/org/${orgSlug.value}/documents`)
+}
+
+function orgSettingsRoute (slug: string) {
+  return { path: `/org/${slug}/settings`, query: { tab: 'default_board_lists' } }
+}
+
+/** 設定ページのルート chunk を先読み（遷移待ちの主因を温める） */
+function prefetchOrgSettingsRoute () {
+  if (!import.meta.client) return
+  const slug = orgSlug.value
+  if (!slug) return
+  void preloadRouteComponents(orgSettingsRoute(slug)).catch(() => {})
+}
+
+function scheduleOrgSettingsRouteWarmup (slug: string) {
+  if (!import.meta.client || !slug) return
+  onNuxtReady(() => {
+    const run = () => {
+      void preloadRouteComponents(orgSettingsRoute(slug)).catch(() => {})
+    }
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(() => run())
+      return
+    }
+    setTimeout(run, 1)
+  })
 }
 
 async function goOrgSettings () {
   if (!orgSlug.value) return
   closeMenu()
-  await router.push({ path: `/org/${orgSlug.value}/settings`, query: { tab: 'default_board_lists' } })
+  closeNotifications()
+  // クリック時点でも先読みを走らせ、未 prefetch の場合の待ちを短縮する
+  prefetchOrgSettingsRoute()
+  await router.push(orgSettingsRoute(orgSlug.value))
 }
 
 function goProfileFromMenu () {
@@ -345,13 +441,14 @@ async function switchToOrganization (org: OrganizationSummary) {
     return
   }
   switchingOrg.value = true
-  closeMenu()
+  orgSwitchError.value = null
   try {
     await switchOrganization({ id: org.id, slug: org.slug })
     orgSlug.value = org.slug
+    closeMenu()
     await router.push(orgTopPath(org.slug))
-  } catch {
-    // 切替失敗時は現在の組織のまま
+  } catch (e: unknown) {
+    orgSwitchError.value = e instanceof Error ? e.message : '組織の切替に失敗しました'
   } finally {
     switchingOrg.value = false
   }
@@ -364,8 +461,20 @@ async function logout () {
   await endSession()
 }
 
+function onOrgIconUpdated (e: Event) {
+  const detail = (e as CustomEvent<{ slug?: string; icon_url?: string | null }>).detail
+  const slug = detail?.slug
+  if (!slug) {
+    void refreshMeContext()
+    return
+  }
+  organizations.value = organizations.value.map(org => (
+    org.slug === slug ? { ...org, icon_url: detail.icon_url ?? null } : org
+  ))
+}
+
 function onUserProfileUpdated (e: Event) {
-  const detail = (e as CustomEvent<{ name?: string; avatar_url?: string | null }>).detail
+  const detail = (e as CustomEvent<{ id?: number; name?: string; avatar_url?: string | null }>).detail
   const name = (detail?.name || '').trim()
   if (name) {
     displayName.value = name
@@ -381,18 +490,13 @@ function onUserProfileUpdated (e: Event) {
 }
 
 function onDocClick (e: MouseEvent) {
-  const target = e.target as Node | null
-  if (menuOpen.value) {
-    const root = document.querySelector('[data-profile-root]')
-    if (root && target && !root.contains(target)) {
-      closeMenu()
-    }
+  if (!menuOpen.value) {
+    return
   }
-  if (notificationsOpen.value) {
-    const root = document.querySelector('[data-notifications-root]')
-    if (root && target && !root.contains(target)) {
-      closeNotifications()
-    }
+  const target = e.target as Node | null
+  const root = document.querySelector('[data-profile-root]')
+  if (root && target && !root.contains(target)) {
+    closeMenu()
   }
 }
 
@@ -403,11 +507,22 @@ watch(
   },
 )
 
+watch(
+  orgSlug,
+  (slug) => {
+    if (slug) {
+      scheduleOrgSettingsRouteWarmup(slug)
+    }
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
   void refreshMeContext()
   if (import.meta.client) {
     document.addEventListener('click', onDocClick)
     window.addEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
+    window.addEventListener('tm:org-icon-updated', onOrgIconUpdated as EventListener)
     void loadNotifications()
     notificationsPollTimer = setInterval(() => {
       void loadNotifications()
@@ -419,6 +534,7 @@ onBeforeUnmount(() => {
   if (import.meta.client) {
     document.removeEventListener('click', onDocClick)
     window.removeEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
+    window.removeEventListener('tm:org-icon-updated', onOrgIconUpdated as EventListener)
     if (notificationsPollTimer) {
       clearInterval(notificationsPollTimer)
       notificationsPollTimer = null

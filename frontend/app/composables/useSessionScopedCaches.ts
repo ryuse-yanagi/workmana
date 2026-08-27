@@ -1,4 +1,5 @@
 import { clearCurrentUserId } from './currentUserIdState'
+import { clearAvatarUrlOverrides } from './userProfileUpdated'
 import { clearAllOrgDocumentsPageCaches } from './useOrgDocumentsPageData'
 import { clearAllOrgPageCacheWarmup } from './useOrgPageCacheWarmup'
 import { clearAllOrgSettingsPageCaches } from './useOrgSettingsPageData'
@@ -21,5 +22,6 @@ export function clearSessionScopedCaches () {
   clearAllOrgPageCacheWarmup()
   clearAllWorkspaceDetailMetaCaches()
   clearOrgRoleCache()
+  clearAvatarUrlOverrides()
   clearCurrentUserId()
 }

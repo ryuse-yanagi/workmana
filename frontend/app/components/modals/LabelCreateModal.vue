@@ -15,13 +15,14 @@
           v-model.trim="name"
           type="text"
           :maxlength="LABEL_NAME_MAX_LENGTH"
-          placeholder="ラベル名を入力してください"
+          placeholder="ラベル名を入力..."
           :disabled="loading"
           @keydown.enter.exact.prevent
         />
         <p v-if="nameError" class="field-error">{{ nameError }}</p>
       </label>
       <ColorPresetPicker v-model="color" :disabled="loading" />
+      <p v-if="submitError" class="err">{{ submitError }}</p>
       <div class="actions">
         <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">キャンセル</button>
         <button type="button" class="primary-btn primary-btn--pill" :disabled="loading" @click="submit">作成</button>
@@ -49,6 +50,7 @@ const defaultColor = DEFAULT_COLOR_PRESET
 const name = ref('')
 const color = ref<string>(defaultColor)
 const nameError = ref<string | null>(null)
+const submitError = ref<string | null>(null)
 watch(
   () => props.modelValue,
   (open) => {
@@ -56,12 +58,16 @@ watch(
       name.value = ''
       color.value = defaultColor
       nameError.value = null
+      submitError.value = null
     }
   },
 )
 watch(name, () => {
   if (nameError.value) {
     nameError.value = null
+  }
+  if (submitError.value) {
+    submitError.value = null
   }
 })
 function close () {
@@ -70,15 +76,20 @@ function close () {
 }
 function submit () {
   if (props.loading) return
-  const validationError = requiredTextFieldError(name.value, 'ラベル名を入力してください')
+  const validationError = requiredTextFieldError(name.value, 'ラベル名', LABEL_NAME_MAX_LENGTH)
   if (validationError) {
     nameError.value = validationError
     return
   }
   const trimmed = name.value.trim()
   nameError.value = null
+  submitError.value = null
   emit('submit', { name: trimmed, color_index: colorPresetIndexFromHex(color.value) })
 }
+function setSubmitError (message: string) {
+  submitError.value = message
+}
+defineExpose({ setSubmitError })
 function onFormKeydown (event: KeyboardEvent) {
   if (!isCtrlEnterKeydown(event)) return
   event.preventDefault()

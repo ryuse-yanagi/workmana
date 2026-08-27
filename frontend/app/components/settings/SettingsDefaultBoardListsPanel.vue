@@ -12,7 +12,6 @@
     create-modal-title="リストの作成"
     edit-modal-title="リストの編集"
     delete-modal-title="リストの削除"
-    save-success-message="リスト設定を更新しました。"
     save-error-message="リスト設定の更新に失敗しました"
   />
 </template>

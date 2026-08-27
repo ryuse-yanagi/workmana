@@ -1,21 +1,22 @@
-# ADR: リアルタイム同期に Laravel Reverb / Redis / Laravel Echo を採用
+# ADR: リアルタイム同期に Laravel Reverb / Laravel Echo を採用
 
 - ステータス: Accepted
 - 日付: 2026-05-13
+- 最終確認: 2026-08-07（実装に合わせて記述を更新）
 
 ## 背景
 
-業務管理アプリのボード画面は、複数メンバーが同時に編集することを想定している。現状の実装ではクライアントがリロード or 自分の操作をトリガーにしないと他メンバーの変更が反映されず、ボード状態の食い違いや「気付かないうちに上書き」が発生し得る。
+業務管理アプリのボード／WBS 画面は、複数メンバーが同時に編集することを想定している。リアルタイム配信がないと、クライアントがリロードや自分の操作をトリガーにしない限り他メンバーの変更が反映されず、ボード状態の食い違いや「気付かないうちに上書き」が発生し得る。
 
 ## 決定
 
-リアルタイム同期は以下の3コンポーネントの組み合わせで実装する。
+リアルタイム同期は以下の組み合わせで実装する。
 
 - **Laravel Reverb**: WebSocket サーバー
-- **Redis**: Laravel のブロードキャストドライバ兼 Pub/Sub バス（キュー / キャッシュとも共用）
-- **Laravel Echo**: フロントエンド（Nuxt / Vue）の購読クライアント
+- **ブロードキャスト接続**: Laravel の `BROADCAST_CONNECTION=reverb`（アプリから Reverb への配信。単一ノードでは Redis を必須としない）
+- **Laravel Echo**（+ `pusher-js`）: フロントエンド（Nuxt / Vue）の購読クライアント
 
-詳細な構成は [`../architecture/realtime-sync.md`](../architecture/realtime-sync.md) を参照。
+詳細な現行構成は [`../architecture/realtime-sync.md`](../architecture/realtime-sync.md) を参照。
 
 ## 検討した代替案
 
@@ -29,22 +30,22 @@
 
 ## 採用理由
 
-1. **Laravel 公式 / 標準統合**: `Broadcast` ファサード、`ShouldBroadcast` インターフェース、`routes/channels.php` の認可など、既存の Laravel エコシステムにそのまま乗る。
+1. **Laravel 公式 / 標準統合**: `Broadcast` ファサード、ブロードキャスト可能な Event、`routes/channels.php` の認可など、既存の Laravel エコシステムにそのまま乗る。
 2. **Pusher 互換プロトコル**: フロント側は Laravel Echo + `pusher-js` をそのまま使え、将来 Pusher / Ably などへ移行する場合も差し替えやすい。
-3. **Redis を Pub/Sub バスにできる**: Laravel の Queue / Cache としてどのみち Redis を導入する想定であり、追加コンポーネントを増やさずに済む。水平スケールアウト時もアプリサーバー↔ Reverb 間の経路を Redis に集約できる。
-4. **セルフホストでコスト固定**: 同時接続数や月間メッセージ数に応じた SaaS 課金が発生しない。
-5. **学習資産が再利用できる**: 認可、イベント、キューといった Laravel の既知の概念だけで構築でき、新たな技術スタック（Node.js, Go 等）を持ち込まない。
+3. **セルフホストでコスト固定**: 同時接続数や月間メッセージ数に応じた SaaS 課金が発生しない。
+4. **学習資産が再利用できる**: 認可、イベントといった Laravel の既知の概念だけで構築でき、新たな技術スタック（Node.js, Go 等）を持ち込まない。
+5. **単一ノードでは Redis 必須ではない**: 配信は `reverb` ドライバ経由。Redis は Reverb の水平スケール（`REVERB_SCALING_ENABLED`）時のオプションとして使える。
 
-## 影響範囲
+## 影響範囲（現行実装）
 
-- **インフラ**: Redis と Reverb のプロセス（`php artisan reverb:start`）を本番に常駐させる必要がある。プロセスマネージャ（systemd / Supervisor 等）での監視を行う。
-- **環境変数**: `.env` に `BROADCAST_DRIVER=redis` ・ Reverb の `REVERB_*` 系設定を追加。
-- **バックエンド**: 変更操作（タスク作成・更新・移動・アーカイブ、リスト作成・並び替え、ラベル更新 等）に対応する Event クラスを `ShouldBroadcast` で実装し、`broadcast(...)->toOthers()` で配信する。
-- **フロントエンド**: Nuxt プラグインで Echo を初期化し、ボードページ等で `Echo.private(...)` のチャンネル購読 → ストア更新の口を作る。再接続時は対象リソースを `GET` で再取得して整合性を担保する。
-- **認可**: `routes/channels.php` で「プロジェクト所属者のみ購読可」のチャンネルガードを追加する。
+- **インフラ**: Reverb プロセス（`php artisan reverb:start`）を常駐させる。本番ではプロセスマネージャ（systemd / Supervisor 等）で監視する。
+- **環境変数**: バックエンドに `BROADCAST_CONNECTION=reverb` と `REVERB_*`。フロントに `NUXT_PUBLIC_REVERB_*`（backend の key/host/port/scheme と一致）。
+- **バックエンド**: リスト／タスク変更に対応する Event を `ShouldBroadcastNow` で実装し、`SafeBroadcast::toOthers(...)`（内部は `broadcast($event)->toOthers()`）で配信する。ローカルでは `BROADCAST_FAIL_SILENTLY` 既定 true により、Reverb 未起動でも HTTP 書き込みは失敗させない。
+- **フロントエンド**: Nuxt プラグインで Echo を初期化し、ボード／WBS で `Echo.private('workspaces.{id}')` を購読して状態を更新する。API リクエストに `X-Socket-ID` を付け、自分の操作分のブロードキャストを除外する。
+- **認可**: `routes/channels.php` で `workspaces.{workspaceId}` をガード。組織メンバー（`canAccessWorkspace`）のみ購読可。認可 HTTP は `/api/broadcasting/auth`（Cookie + `cognito`）。
 
 ## 未決定事項 / フォロー
 
-- 楽観的更新と `toOthers()` の組み合わせ方針（自分の操作分を二重反映しない仕組み）。
-- スケールアウト時の Reverb 複数ノード構成（共有 Redis を介した sticky session 要否）。
+- スケールアウト時の Reverb 複数ノード構成（`REVERB_SCALING_ENABLED` + Redis。sticky session 要否を含む）。
 - プレゼンス機能（誰がボードを見ているか）の導入タイミング。
+- WebSocket 再接続時のボード／WBS フル再取得方針（現状は接続時にリスナー再バインドが中心。一部イベント処理内で部分 `GET` はあるが、再接続ポリシーとしては未整備）。

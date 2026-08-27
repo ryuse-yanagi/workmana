@@ -1,8 +1,8 @@
 <template>
   <BaseModal
     :model-value="modelValue"
-    title="アーカイブ済みタスク一覧"
-    aria-label="アーカイブ済みタスク一覧"
+    title="アーカイブ済みタスク"
+    aria-label="アーカイブ済みタスク"
     width="min(672px, 100%)"
     :close-disabled="pendingId !== null"
     @update:model-value="emit('update:modelValue', $event)"
@@ -58,7 +58,7 @@
     <ConfirmModal
       v-model="deleteConfirmOpen"
       title="タスクカードの完全削除"
-      message="完全削除は取り消せません。"
+      :message="deleteConfirmMessage"
       confirm-text="完全削除"
       variant="danger"
       :loading="pendingId !== null"
@@ -69,9 +69,9 @@
 <script setup lang="ts">
 import TaskBoardCard, { type TaskBoardCardTask } from '../task/TaskBoardCard.vue'
 import { useApi } from '../../composables/useApi'
+import { buildDestructiveConfirmMessage } from '../../utils/destructiveConfirmMessage'
 import type { RealtimeArchivedTask } from '../../composables/useWorkspaceRealtimeChannel'
 export type ArchivedTask = TaskBoardCardTask & {
-  status: string
   list_id: number | null
   archived_at?: string | null
 }
@@ -106,6 +106,9 @@ const deleteConfirmOpen = computed({
     if (!open) deleteConfirmTask.value = null
   },
 })
+const deleteConfirmMessage = computed(() =>
+  buildDestructiveConfirmMessage('タスク', '削除', deleteConfirmTask.value?.title),
+)
 async function fetchArchived () {
   const res = await api<{ data: ArchivedTask[] }>(
     `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/archived`,
@@ -185,7 +188,6 @@ function addTaskFromRealtime (task: RealtimeArchivedTask) {
   tasks.value!.push({
     id: task.id,
     title: task.title,
-    status: task.status,
     list_id: task.list_id,
     archived_at: task.archived_at ?? null,
     labels: task.labels ?? [],

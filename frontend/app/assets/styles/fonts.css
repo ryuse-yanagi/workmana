@@ -1,85 +1,106 @@
-/* Self-hosted fonts — optional で初回描画後のメトリクス変化（レイアウトシフト）を防ぐ */
+/* Self-hosted fonts — block でフォールバック太さの一瞬表示を防ぐ */
 @font-face {
   font-family: 'Noto Sans JP';
   font-style: normal;
   font-weight: 400;
-  font-display: optional;
+  font-display: block;
   src: url('@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-400-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Noto Sans JP';
   font-style: normal;
   font-weight: 500;
-  font-display: optional;
+  font-display: block;
   src: url('@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-500-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Noto Sans JP';
   font-style: normal;
   font-weight: 600;
-  font-display: optional;
+  font-display: block;
   src: url('@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-600-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Noto Sans JP';
   font-style: normal;
   font-weight: 700;
-  font-display: optional;
+  font-display: block;
   src: url('@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Sans JP';
+  font-style: normal;
+  font-weight: 800;
+  font-display: block;
+  src: url('@fontsource/noto-sans-jp/files/noto-sans-jp-japanese-800-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Source Sans 3';
   font-style: normal;
   font-weight: 400;
-  font-display: optional;
+  font-display: block;
   src: url('@fontsource/source-sans-3/files/source-sans-3-latin-400-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Source Sans 3';
   font-style: normal;
   font-weight: 600;
-  font-display: optional;
+  font-display: block;
   src: url('@fontsource/source-sans-3/files/source-sans-3-latin-600-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Source Sans 3';
   font-style: normal;
   font-weight: 700;
-  font-display: optional;
+  font-display: block;
   src: url('@fontsource/source-sans-3/files/source-sans-3-latin-700-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  font-style: normal;
+  font-weight: 800;
+  font-display: block;
+  src: url('@fontsource/source-sans-3/files/source-sans-3-latin-800-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url('@fontsource/inter/files/inter-latin-400-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
   font-weight: 500;
-  font-display: swap;
+  font-display: block;
   src: url('@fontsource/inter/files/inter-latin-500-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
   font-weight: 600;
-  font-display: swap;
+  font-display: block;
   src: url('@fontsource/inter/files/inter-latin-600-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
+  font-display: block;
   src: url('@fontsource/inter/files/inter-latin-700-normal.woff2') format('woff2');
 }
 @font-face {
   font-family: 'Inter';
   font-style: normal;
+  font-weight: 800;
+  font-display: block;
+  src: url('@fontsource/inter/files/inter-latin-800-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
   font-weight: 900;
-  font-display: swap;
+  font-display: block;
   src: url('@fontsource/inter/files/inter-latin-900-normal.woff2') format('woff2');
 }

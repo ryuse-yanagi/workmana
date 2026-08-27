@@ -1,16 +1,16 @@
 
 .floating-menu {
   margin: 0;
-  padding: 4.9px 0;
+  padding: 8px;
   list-style: none;
   box-sizing: border-box;
-  background: #fff;
-  border: 1px solid mixin.$border;
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  background: mixin.$white;
+  border: none;
+  border-radius: mixin.$popover-border-radius;
+  box-shadow: 0 2px 4px mixin.black-a(0.2);
 }
-.floating-menu--compact:not(.floating-menu--flush) {
-  padding: 4.9px;
+.floating-menu > li + li {
+  border-top: 1px solid mixin.$border;
 }
 .floating-menu__item {
   display: flex;
@@ -22,27 +22,19 @@
   background: transparent;
   text-align: left;
   font: inherit;
-  font-weight: 600;
+  font-size: mixin.$popover-title-font-size;
+  font-weight: mixin.$popover-font-weight;
   color: mixin.$text;
   cursor: pointer;
   text-decoration: none;
+  padding: 8px 4px;
   &:disabled {
     opacity: 0.55;
     cursor: default;
   }
 }
-.floating-menu--comfortable .floating-menu__item {
-  padding: 7.7px 11.9px;
-  font-size: 14px;
-}
-.floating-menu--compact .floating-menu__item {
-  padding: 7.7px 11.9px;
-  font-size: 12.04px;
-}
 .floating-menu--compact:not(.floating-menu--flush) .floating-menu__item {
-  padding: 7.7px 9.1px;
   border-radius: 8px;
-  font-weight: 700;
 }
 .floating-menu__item--danger {
   color: mixin.$danger;

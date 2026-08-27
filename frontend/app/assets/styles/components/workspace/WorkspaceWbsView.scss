@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  background: #fff;
+  background: mixin.$white;
 }
 .workspace-wbs-board__viewport {
   flex: 1;
@@ -13,7 +13,7 @@
   min-width: 0;
   width: 100%;
   overflow: auto;
-  background: #fff;
+  background: mixin.$white;
 }
 .workspace-wbs-board__viewport--dragging {
   cursor: default;
@@ -39,7 +39,7 @@
 .workspace-wbs-wrap {
   position: relative;
   width: fit-content;
-  border-right: 1px solid mixin.$border-light;
+  border-right: 1px solid mixin.$border;
 }
 .workspace-wbs-wrap--dragging {
   cursor: default;
@@ -90,7 +90,7 @@
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 14px;
-  background: #fff;
+  background: mixin.$white;
 }
 .workspace-wbs--gantt {
   --wbs-header-height: calc(var(--wbs-header-controls-height) + var(--wbs-header-days-height));
@@ -127,7 +127,7 @@
   z-index: 2;
   min-width: 0;
   background: mixin.$surface-canvas;
-  border-bottom: 1px solid mixin.$border-light;
+  border-bottom: 1px solid mixin.$border;
   text-align: left;
   font-size: 14px;
   font-weight: 700;
@@ -147,7 +147,7 @@
   padding-left: 42px;
 }
 .workspace-wbs__header-cell--edge {
-  box-shadow: 2px 0 0 rgba(15, 23, 42, 0.12);
+  box-shadow: 2px 0 0 mixin.ink-a(0.12);
 }
 .workspace-wbs__header-label {
   display: block;
@@ -185,9 +185,9 @@
   justify-content: center;
   box-sizing: border-box;
   margin: 0;
-  border: 1px solid mixin.$border-light;
+  border: 1px solid mixin.$border;
   border-radius: 6px;
-  background: #fff;
+  background: mixin.$white;
   color: mixin.$text;
   cursor: pointer;
   font: inherit;
@@ -230,16 +230,16 @@
   text-align: center;
   vertical-align: middle;
   line-height: 1.05;
-  box-shadow: inset 1px 0 0 mixin.$border-light;
+  box-shadow: inset 1px 0 0 mixin.$border;
   font-weight: 600;
   color: mixin.$text-sub;
 }
 .workspace-wbs__day-header--weekend {
-  background: color-mix(in srgb, mixin.$surface-canvas 88%, mixin.$border-light);
+  background: color-mix(in srgb, mixin.$surface-canvas 88%, mixin.$border);
 }
 .workspace-wbs__day-header--today {
   box-shadow:
-    inset 1px 0 0 mixin.$border-light,
+    inset 1px 0 0 mixin.$border,
     inset 0 -2px 0 mixin.$main;
   color: mixin.$text;
 }
@@ -265,14 +265,7 @@
   pointer-events: none;
 }
 .workspace-wbs__resize-guide::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  margin-left: -0.5px;
-  background: rgba(148, 163, 184, 0.45);
+  display: none;
 }
 .workspace-wbs__resize-guide--no-line::after {
   display: none;
@@ -293,29 +286,25 @@
   max-height: var(--wbs-row-height);
   min-width: 0;
   padding: 0;
-  border-bottom: 1px solid mixin.$border-light;
+  border-bottom: 1px solid mixin.$border;
   vertical-align: middle;
   color: mixin.$text;
   line-height: 1.2;
   overflow: hidden;
 }
 .workspace-wbs__desc-cell {
-  background: #fff;
-  box-shadow: 1px 0 0 mixin.$border-light;
-}
-.workspace-wbs__desc-cell--edge {
-  box-shadow: 2px 0 0 rgba(15, 23, 42, 0.12);
+  background: mixin.$white;
 }
 .workspace-wbs__task-row--parent .workspace-wbs__desc-cell,
 .workspace-wbs__task-row--spacer .workspace-wbs__desc-cell {
-  background: #fff;
+  background: mixin.$white;
 }
 .workspace-wbs__day-cell {
   width: var(--gantt-day-col-width);
   min-width: var(--gantt-day-col-width);
   max-width: var(--gantt-day-col-width);
   padding: 0;
-  background: #fff;
+  background: mixin.$white;
   position: relative;
   touch-action: none;
   user-select: none;
@@ -323,7 +312,7 @@
 .workspace-wbs__task-row td.workspace-wbs__day-cell {
   border-left: none;
   overflow: visible;
-  box-shadow: inset 1px 0 0 mixin.$border-light;
+  box-shadow: inset 1px 0 0 mixin.$border;
 }
 .workspace-wbs__day-cell--interactive {
   cursor: cell;
@@ -398,7 +387,7 @@
 .workspace-wbs__task-row--spacer td {
   height: var(--wbs-parent-row-height);
   max-height: var(--wbs-parent-row-height);
-  background: #fff;
+  background: mixin.$white;
 }
 .workspace-wbs__task-row--parent td > .workspace-wbs__placeholder {
   min-height: var(--wbs-parent-row-height);
@@ -410,7 +399,7 @@
   pointer-events: none;
 }
 .workspace-wbs__task-row--spacer td {
-  border-bottom: 1px solid mixin.$border-light;
+  border-bottom: 1px solid mixin.$border;
 }
 .workspace-wbs__task-title {
   font-weight: 700;
@@ -489,7 +478,7 @@
   min-height: 24px;
   margin: auto 0;
   border: 1px solid mixin.$border;
-  background: #fff;
+  background: mixin.$white;
   line-height: calc(24px - 2px);
 }
 .workspace-wbs__title-input:focus {
@@ -542,7 +531,7 @@
 .workspace-wbs__cell-btn--popover-open {
   border-radius: 8px;
   box-shadow: inset 0 0 0 1.4px mixin.$main;
-  background: #fff;
+  background: mixin.$white;
 }
 .workspace-wbs__cell-btn--readonly {
   cursor: default;
@@ -611,7 +600,7 @@
   background: mixin.$main-aqua-surface-light;
 }
 .workspace-wbs__members-cell--edit:has(.workspace-wbs__avatar-btn--active) {
-  background: #fff;
+  background: mixin.$white;
 }
 .workspace-wbs__task-row--parent .workspace-wbs__members-cell {
   min-height: var(--wbs-parent-row-height);
@@ -639,7 +628,7 @@
 }
 .workspace-wbs__avatar-btn--add {
   border: 1.5px solid transparent;
-  background: #fff;
+  background: mixin.$white;
   box-shadow: inset 0 0 0 1px mixin.$border;
   overflow: visible;
 }
@@ -655,7 +644,7 @@
   font-size: 16px;
   font-weight: 400;
   line-height: 1;
-  color: #64748b;
+  color: mixin.$text-muted;
 }
 .workspace-wbs__avatar-pill {
   display: inline-flex;
@@ -665,7 +654,7 @@
   box-sizing: border-box;
   width: 100%;
   height: 100%;
-  border: 1.5px solid #fff;
+  border: 1.5px solid mixin.$white;
 }
 .workspace-wbs__avatar-pill :deep(.member-avatar__initial) {
   font-size: 10px;
@@ -729,8 +718,8 @@
   padding: 0;
   border-radius: 4px;
   border: 1.5px solid transparent;
-  background: #fff;
-  color: #64748b;
+  background: mixin.$white;
+  color: mixin.$text-muted;
   box-shadow: inset 0 0 0 1px mixin.$border;
   overflow: visible;
   flex-shrink: 0;
@@ -764,7 +753,7 @@
   height: 12px;
   margin: 0 12.6px;
   border-radius: 4px;
-  background: color-mix(in srgb, mixin.$border-light 80%, #fff);
+  background: color-mix(in srgb, mixin.$border 80%, mixin.$white);
 }
 .workspace-wbs__skeleton-bar--title {
   width: 42%;

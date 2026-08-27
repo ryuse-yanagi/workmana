@@ -1,0 +1,63 @@
+.label-section-heading {
+  margin: 2.1px mixin.$popover-padding 4.9px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-subtle;
+}
+.label-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 mixin.$popover-padding mixin.$popover-padding;
+  display: flex;
+  flex-direction: column;
+  gap: 2.8px;
+}
+.label-picker-row {
+  @include mixin.picker-checkbox-row;
+  display: flex;
+  align-items: center;
+  gap: 5.6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 2.1px 0;
+  text-align: left;
+  font-weight: mixin.$popover-font-weight;
+}
+.label-picker-checkbox {
+  width: 14px;
+  height: 14px;
+  border: 1px solid mixin.$border-checkbox;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.08px;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$white;
+  background: mixin.$white;
+}
+.label-picker-checkbox--checked {
+  background: mixin.$main;
+  border-color: mixin.$main;
+}
+.label-picker-bar {
+  flex: 0 0 200px;
+  box-sizing: border-box;
+  width: 200px;
+  height: 38px;
+  min-height: 38px;
+  border-radius: 4px;
+  padding: 5.32px 7.7px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  line-height: 1.25;
+  display: flex;
+  align-items: center;
+}
+.empty-text.label-picker-empty {
+  margin: 0 mixin.$popover-padding mixin.$popover-padding;
+  font-size: 11.76px;
+  color: mixin.$text-placeholder;
+}

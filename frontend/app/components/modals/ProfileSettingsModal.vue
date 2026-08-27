@@ -3,201 +3,382 @@
     :model-value="modelValue"
     title="プロフィール設定"
     aria-label="プロフィール設定"
-    :close-disabled="nameLoading || avatarLoading"
+    :close-disabled="loading"
     width="min(576px, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <div class="profile-settings-modal-body">
-      <p class="profile-settings-modal-note">ユーザー名とアイコン画像を設定できます。</p>
-      <form class="profile-name-form" novalidate @submit.prevent="saveProfileName">
+    <form class="profile-settings-modal-body" novalidate @submit.prevent="save">
+      <div class="profile-avatar-section">
+        <div class="profile-avatar-row">
+          <img
+            v-if="displayAvatarSrc"
+            :src="displayAvatarSrc"
+            alt="ユーザーアイコン"
+            class="avatar-image"
+            @error="onAvatarImageError"
+          />
+          <div v-else class="avatar-placeholder" aria-label="デフォルトアイコン">
+            <span class="avatar-placeholder__initial">{{ avatarInitial }}</span>
+          </div>
+          <div class="profile-avatar-actions">
+            <input
+              ref="avatarFileInputRef"
+              class="profile-avatar-file-input"
+              type="file"
+              accept="image/*"
+              :disabled="loading"
+              @change="onAvatarFileChange"
+            />
+            <button
+              type="button"
+              class="profile-avatar-dropzone"
+              :class="{ 'profile-avatar-dropzone--active': avatarDropActive }"
+              :disabled="loading"
+              @click="openAvatarFileDialog"
+              @dragenter.prevent="onAvatarDragEnter"
+              @dragover.prevent="onAvatarDragOver"
+              @dragleave.prevent="onAvatarDragLeave"
+              @drop.prevent="onAvatarDrop"
+            >
+              <CloudUpload
+                class="profile-avatar-dropzone__icon"
+                :size="28"
+                :stroke-width="1.75"
+                aria-hidden="true"
+              />
+              <span class="profile-avatar-dropzone__text">
+                <span class="profile-avatar-dropzone__title">画像を選択してアイコンを変更</span>
+                <span class="profile-avatar-dropzone__hint">またはドラッグ＆ドロップ</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              class="profile-avatar-reset-btn"
+              :disabled="loading || !canResetAvatar"
+              @click="resetAvatarToDefault"
+            >
+              デフォルトに戻す
+            </button>
+            <p v-if="avatarError" class="field-error">{{ avatarError }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-fields">
         <label class="profile-field">
-          <span>ユーザー名</span>
+          <span>表示名</span>
           <input
             v-model.trim="nameDraft"
             class="profile-input"
             type="text"
             :maxlength="USER_NAME_MAX_LENGTH"
-            placeholder="表示名を入力してください"
-            :disabled="nameLoading"
+            placeholder="表示名を入力..."
+            :disabled="loading"
           />
           <p v-if="nameError" class="field-error">{{ nameError }}</p>
         </label>
-        <div class="profile-button-row">
-          <button type="submit" class="profile-primary-btn" :disabled="nameLoading">
-            ユーザー名を保存
-          </button>
-          <button type="button" class="profile-ghost-btn" :disabled="nameLoading" @click="resetNameDraft">
-            元に戻す
-          </button>
-        </div>
-      </form>
-      <div class="profile-row">
-        <img v-if="avatarPreviewUrl" :src="avatarPreviewUrl" alt="ユーザーアイコン" class="avatar-image" />
-        <div v-else class="avatar-placeholder">No Icon</div>
-        <div class="profile-actions">
-          <input type="file" accept="image/*" :disabled="avatarLoading" @change="onAvatarFileChange" />
-          <p v-if="avatarError" class="field-error">{{ avatarError }}</p>
-          <div class="profile-button-row">
-            <button
-              type="button"
-              class="profile-primary-btn"
-              :disabled="avatarLoading"
-              @click="uploadAvatar"
-            >
-              アイコンを保存
-            </button>
-            <button
-              type="button"
-              class="profile-ghost-btn"
-              :disabled="avatarLoading || !avatarPreviewUrl"
-              @click="deleteAvatar"
-            >
-              削除
-            </button>
-          </div>
-        </div>
+
+        <label class="profile-field">
+          <span>メールアドレス</span>
+          <input
+            v-model.trim="emailDraft"
+            class="profile-input"
+            type="email"
+            :maxlength="EMAIL_MAX_LENGTH"
+            placeholder="メールアドレスを入力..."
+            :disabled="loading"
+          />
+          <p v-if="emailError" class="field-error">{{ emailError }}</p>
+        </label>
+
+        <p v-if="submitError" class="err">{{ submitError }}</p>
       </div>
-      <p v-if="message" class="profile-msg" :class="{ 'profile-msg--err': messageKind === 'err' }">
-        {{ message }}
-      </p>
-    </div>
+
+      <div class="actions">
+        <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">
+          キャンセル
+        </button>
+        <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading">
+          {{ loading ? '保存中…' : '保存' }}
+        </button>
+      </div>
+    </form>
   </BaseModal>
 </template>
 <script setup lang="ts">
+import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import { useApi } from '../../composables/useApi'
-import { USER_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
-import { requiredTextFieldError } from '../../utils/formValidation'
+import { useCurrentUser } from '../../composables/useCurrentUser'
+import { memberInitial } from '../../composables/useMemberDisplay'
+import { dispatchUserProfileUpdated } from '../../composables/userProfileUpdated'
+import { EMAIL_MAX_LENGTH, USER_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
+import { emailFieldError, requiredTextFieldError } from '../../utils/formValidation'
+import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
+import { CloudUpload } from 'lucide-vue-next'
 import BaseModal from './BaseModal.vue'
+
 type MeResponse = {
+  id?: number
   name?: string | null
+  email?: string | null
   avatar_url?: string | null
 }
+
 const props = defineProps<{
   modelValue: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [boolean]
 }>()
+
 const { api } = useApi()
+const { currentUserId, ensureCurrentUser, setCurrentUserId } = useCurrentUser()
+
+const config = useRuntimeConfig()
+const avatarFileInputRef = ref<HTMLInputElement | null>(null)
 const avatarPreviewUrl = ref<string | null>(null)
+const avatarCurrentUrl = ref<string | null>(null)
 const selectedAvatarFile = ref<File | null>(null)
-const avatarLoading = ref(false)
+const avatarResetPending = ref(false)
+const localPreviewObjectUrl = ref<string | null>(null)
+const avatarImageFailed = ref(false)
+const avatarDropActive = ref(false)
+const avatarDragDepth = ref(0)
+const profileUserId = ref(0)
+
 const nameCurrent = ref('')
 const nameDraft = ref('')
-const nameLoading = ref(false)
+const emailCurrent = ref('')
+const emailDraft = ref('')
+
+const loading = ref(false)
 const nameError = ref<string | null>(null)
+const emailError = ref<string | null>(null)
 const avatarError = ref<string | null>(null)
-const message = ref('')
-const messageKind = ref<'ok' | 'err'>('ok')
-function setMessage (msg: string, kind: 'ok' | 'err') {
-  message.value = msg
-  messageKind.value = kind
+const submitError = ref<string | null>(null)
+
+const displayAvatarSrc = computed(() => {
+  if (avatarImageFailed.value || !avatarPreviewUrl.value) {
+    return null
+  }
+  if (localPreviewObjectUrl.value && avatarPreviewUrl.value === localPreviewObjectUrl.value) {
+    return avatarPreviewUrl.value
+  }
+  return resolveAvatarUrl(
+    avatarPreviewUrl.value,
+    String(config.public.apiBaseUrl || '/api'),
+  )
+})
+
+const canResetAvatar = computed(() => Boolean(displayAvatarSrc.value))
+
+const avatarInitial = computed(() => memberInitial({
+  id: profileUserId.value || currentUserId.value || 0,
+  name: nameDraft.value || nameCurrent.value,
+  email: emailDraft.value || emailCurrent.value,
+}))
+
+syncAppLoadingCursor(loading)
+
+function onAvatarImageError () {
+  avatarImageFailed.value = true
 }
-function notifyProfileUpdated (detail: { name?: string; avatar_url?: string | null }) {
-  if (!import.meta.client) return
-  window.dispatchEvent(new CustomEvent('tm:user-profile-updated', { detail }))
+
+function revokeLocalPreview () {
+  if (localPreviewObjectUrl.value) {
+    URL.revokeObjectURL(localPreviewObjectUrl.value)
+    localPreviewObjectUrl.value = null
+  }
 }
+
+function clearErrors () {
+  nameError.value = null
+  emailError.value = null
+  avatarError.value = null
+  submitError.value = null
+}
+
+async function notifyProfileUpdated (detail: { name?: string; avatar_url?: string | null }) {
+  let id = currentUserId.value
+  if (!id) {
+    id = await ensureCurrentUser()
+  }
+  if (!id) {
+    return
+  }
+  dispatchUserProfileUpdated({ id, ...detail })
+}
+
 async function load () {
-  const me = await api<MeResponse>('/me')
+  const [me] = await Promise.all([
+    api<MeResponse>('/me'),
+    ensureCurrentUser(),
+  ])
+  if (typeof me.id === 'number') {
+    profileUserId.value = me.id
+    setCurrentUserId(me.id)
+  }
   nameCurrent.value = (me.name || '').trim()
   nameDraft.value = nameCurrent.value
-  avatarPreviewUrl.value = me.avatar_url || null
+  emailCurrent.value = (me.email || '').trim()
+  emailDraft.value = emailCurrent.value
+  avatarCurrentUrl.value = me.avatar_url || null
+  avatarPreviewUrl.value = avatarCurrentUrl.value
   selectedAvatarFile.value = null
-  nameError.value = null
-  avatarError.value = null
-  setMessage('', 'ok')
-}
-function resetNameDraft () {
-  nameDraft.value = nameCurrent.value
-  nameError.value = null
-  setMessage('', 'ok')
-}
-watch(nameDraft, () => {
-  if (nameError.value) {
-    nameError.value = null
+  avatarResetPending.value = false
+  avatarImageFailed.value = false
+  avatarDropActive.value = false
+  avatarDragDepth.value = 0
+  revokeLocalPreview()
+  if (avatarFileInputRef.value) {
+    avatarFileInputRef.value.value = ''
   }
-})
-async function saveProfileName () {
-  if (nameLoading.value) return
-  const validationError = requiredTextFieldError(nameDraft.value, '表示名を入力してください')
-  if (validationError) {
-    nameError.value = validationError
+  clearErrors()
+}
+
+function close () {
+  if (loading.value) return
+  emit('update:modelValue', false)
+}
+
+function openAvatarFileDialog () {
+  if (loading.value) return
+  avatarFileInputRef.value?.click()
+}
+
+function applyAvatarFile (file: File | null) {
+  avatarError.value = null
+  submitError.value = null
+  if (!file) {
     return
   }
-  const name = nameDraft.value.trim()
-  nameError.value = null
-  nameLoading.value = true
-  setMessage('', 'ok')
-  try {
-    const res = await api<{ name?: string | null }>('/me', {
-      method: 'PATCH',
-      body: { name },
-    })
-    const savedName = (res.name || '').trim()
-    nameCurrent.value = savedName
-    nameDraft.value = savedName
-    setMessage('ユーザー名を更新しました。', 'ok')
-    notifyProfileUpdated({ name: savedName, avatar_url: avatarPreviewUrl.value })
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'ユーザー名の更新に失敗しました'
-    setMessage(msg, 'err')
-  } finally {
-    nameLoading.value = false
+  if (!file.type.startsWith('image/')) {
+    avatarError.value = '画像ファイルを選択してください'
+    return
   }
+  revokeLocalPreview()
+  selectedAvatarFile.value = file
+  avatarResetPending.value = false
+  avatarImageFailed.value = false
+  const objectUrl = URL.createObjectURL(file)
+  localPreviewObjectUrl.value = objectUrl
+  avatarPreviewUrl.value = objectUrl
 }
+
 function onAvatarFileChange (event: Event) {
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0] ?? null
-  selectedAvatarFile.value = file
-  avatarError.value = null
-  if (file) {
-    avatarPreviewUrl.value = URL.createObjectURL(file)
-    setMessage('画像を選択しました。保存を押してください。', 'ok')
+  applyAvatarFile(input.files?.[0] ?? null)
+}
+
+function onAvatarDragEnter () {
+  if (loading.value) return
+  avatarDragDepth.value += 1
+  avatarDropActive.value = true
+}
+
+function onAvatarDragOver () {
+  if (loading.value) return
+  avatarDropActive.value = true
+}
+
+function onAvatarDragLeave () {
+  avatarDragDepth.value = Math.max(0, avatarDragDepth.value - 1)
+  if (avatarDragDepth.value === 0) {
+    avatarDropActive.value = false
   }
 }
-async function uploadAvatar () {
-  if (avatarLoading.value) return
-  if (!selectedAvatarFile.value) {
-    avatarError.value = 'アイコン画像を選択してください'
+
+function onAvatarDrop (event: DragEvent) {
+  avatarDragDepth.value = 0
+  avatarDropActive.value = false
+  if (loading.value) return
+  const file = event.dataTransfer?.files?.[0] ?? null
+  applyAvatarFile(file)
+}
+
+function resetAvatarToDefault () {
+  if (loading.value || !canResetAvatar.value) return
+  avatarError.value = null
+  submitError.value = null
+  selectedAvatarFile.value = null
+  avatarResetPending.value = Boolean(avatarCurrentUrl.value)
+  avatarImageFailed.value = false
+  revokeLocalPreview()
+  avatarPreviewUrl.value = null
+  if (avatarFileInputRef.value) {
+    avatarFileInputRef.value.value = ''
+  }
+}
+
+watch(nameDraft, () => {
+  if (nameError.value) nameError.value = null
+  if (submitError.value) submitError.value = null
+})
+watch(emailDraft, () => {
+  if (emailError.value) emailError.value = null
+  if (submitError.value) submitError.value = null
+})
+
+async function save () {
+  if (loading.value) return
+
+  const nameValidation = requiredTextFieldError(nameDraft.value, '表示名', USER_NAME_MAX_LENGTH)
+  const emailValidation = emailFieldError(emailDraft.value)
+  nameError.value = nameValidation
+  emailError.value = emailValidation
+  avatarError.value = null
+  submitError.value = null
+  if (nameValidation || emailValidation) {
     return
   }
-  avatarError.value = null
-  avatarLoading.value = true
-  setMessage('', 'ok')
+
+  const name = nameDraft.value.trim()
+  const email = emailDraft.value.trim()
+  loading.value = true
+
   try {
-    const body = new FormData()
-    body.append('avatar', selectedAvatarFile.value)
-    const res = await api<{ avatar_url: string | null }>('/me/avatar', {
-      method: 'POST',
-      body,
+    let nextAvatarUrl: string | null = avatarCurrentUrl.value
+
+    if (avatarResetPending.value) {
+      const res = await api<{ avatar_url: string | null }>('/me/avatar', { method: 'DELETE' })
+      nextAvatarUrl = res.avatar_url ?? null
+      avatarResetPending.value = false
+    } else if (selectedAvatarFile.value) {
+      const body = new FormData()
+      body.append('avatar', selectedAvatarFile.value)
+      const res = await api<{ avatar_url: string | null }>('/me/avatar', {
+        method: 'POST',
+        body,
+      })
+      nextAvatarUrl = res.avatar_url
+      selectedAvatarFile.value = null
+      revokeLocalPreview()
+    }
+
+    const res = await api<{ name?: string | null; email?: string | null; avatar_url?: string | null }>('/me', {
+      method: 'PATCH',
+      body: { name, email },
     })
-    avatarPreviewUrl.value = res.avatar_url
-    selectedAvatarFile.value = null
-    setMessage('アイコンを更新しました。', 'ok')
-    notifyProfileUpdated({ name: nameCurrent.value, avatar_url: res.avatar_url })
+
+    const savedName = (res.name || '').trim()
+    const savedEmail = (res.email || '').trim()
+    nameCurrent.value = savedName
+    nameDraft.value = savedName
+    emailCurrent.value = savedEmail
+    emailDraft.value = savedEmail
+    avatarCurrentUrl.value = res.avatar_url ?? nextAvatarUrl
+    avatarPreviewUrl.value = avatarCurrentUrl.value
+
+    await notifyProfileUpdated({ name: savedName, avatar_url: avatarCurrentUrl.value })
+    emit('update:modelValue', false)
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'アイコン更新に失敗しました'
-    setMessage(msg, 'err')
+    const msg = e instanceof Error ? e.message : 'プロフィールの更新に失敗しました'
+    submitError.value = msg
   } finally {
-    avatarLoading.value = false
+    loading.value = false
   }
 }
-async function deleteAvatar () {
-  avatarLoading.value = true
-  setMessage('', 'ok')
-  try {
-    await api('/me/avatar', { method: 'DELETE' })
-    avatarPreviewUrl.value = null
-    selectedAvatarFile.value = null
-    setMessage('アイコンを削除しました。', 'ok')
-    notifyProfileUpdated({ name: nameCurrent.value, avatar_url: null })
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'アイコン削除に失敗しました'
-    setMessage(msg, 'err')
-  } finally {
-    avatarLoading.value = false
-  }
-}
+
 watch(
   () => props.modelValue,
   (open) => {
@@ -206,5 +387,9 @@ watch(
     }
   },
 )
+
+onBeforeUnmount(() => {
+  revokeLocalPreview()
+})
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/modals/ProfileSettingsModal.scss"></style>

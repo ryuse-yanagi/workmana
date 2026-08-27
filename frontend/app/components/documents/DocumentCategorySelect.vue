@@ -71,6 +71,9 @@ import {
   standardColorSurfaceBackground,
 } from '../../constants/colorPresets'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
+import { isScrollInsideRoot } from '../../utils/uiInteraction'
+import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, POPOVER_SCROLLBAR_GUTTER_VAR, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
 import type { TaskFormCategory } from '../../composables/useTaskFormHelpers'
 import LabelStrip from '../ui/LabelStrip.vue'
 
@@ -92,12 +95,10 @@ const emit = defineEmits<{
 const DROPDOWN_GAP = 6
 const VIEWPORT_PAD = 8
 const DROPDOWN_VERTICAL_PADDING = 12
-let activeCloseDropdown: (() => void) | null = null
-
 const triggerRef = ref<HTMLElement | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
-const dropdownPosition = ref<{ top: number; left: number } | null>(null)
+const dropdownPosition = ref<{ top: number; left: number; scrollbarGutter: number } | null>(null)
 const listMaxHeight = ref<number | null>(null)
 
 const currentCategory = computed(() => props.category ?? null)
@@ -112,9 +113,8 @@ const listStyle = computed(() => {
   if (listMaxHeight.value == null) {
     return {}
   }
-  return {
-    maxHeight: `${listMaxHeight.value}px`,
-  }
+  const scrollbarGutter = dropdownPosition.value?.scrollbarGutter ?? 0
+  return popoverMaxHeightStyle(listMaxHeight.value, scrollbarGutter)
 })
 
 const dropdownStyle = computed(() => {
@@ -123,11 +123,12 @@ const dropdownStyle = computed(() => {
       visibility: 'hidden',
     } as Record<string, string>
   }
-  const { top, left } = dropdownPosition.value
+  const { top, left, scrollbarGutter } = dropdownPosition.value
   return {
     top: `${top}px`,
     left: `${left}px`,
     visibility: 'visible',
+    ...popoverScrollbarGutterStyle(scrollbarGutter),
   }
 })
 
@@ -150,16 +151,6 @@ function closeDropdown () {
   isOpen.value = false
   dropdownPosition.value = null
   listMaxHeight.value = null
-  if (activeCloseDropdown === closeDropdown) {
-    activeCloseDropdown = null
-  }
-}
-
-function claimActiveDropdown () {
-  if (activeCloseDropdown && activeCloseDropdown !== closeDropdown) {
-    activeCloseDropdown()
-  }
-  activeCloseDropdown = closeDropdown
 }
 
 function positionDropdown () {
@@ -170,25 +161,32 @@ function positionDropdown () {
     return
   }
   const rect = trigger.getBoundingClientRect()
-  const dropdownWidth = dropdownRef.value?.offsetWidth ?? 128
-  let left = rect.right + DROPDOWN_GAP
-  const top = Math.max(VIEWPORT_PAD, rect.top)
-  if (left + dropdownWidth > window.innerWidth - VIEWPORT_PAD) {
-    left = rect.left - dropdownWidth - DROPDOWN_GAP
+  const dropdown = dropdownRef.value
+  if (dropdown) {
+    dropdown.style.setProperty(POPOVER_SCROLLBAR_GUTTER_VAR, '0px')
   }
-  left = Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - dropdownWidth - VIEWPORT_PAD))
+  const list = dropdown?.querySelector('.document-category-select__list')
+  const top = Math.max(VIEWPORT_PAD, rect.top)
   listMaxHeight.value = Math.max(
     0,
     window.innerHeight - VIEWPORT_PAD - top - DROPDOWN_VERTICAL_PADDING,
   )
-  dropdownPosition.value = { top, left }
+  const scrollbarGutter = list instanceof HTMLElement && listMaxHeight.value != null
+    ? resolvePopoverScrollbarGutter(list, listMaxHeight.value)
+    : 0
+  const dropdownWidth = (dropdown?.offsetWidth ?? 128) + popoverWidthExtraForGutter(scrollbarGutter)
+  let left = rect.right + DROPDOWN_GAP
+  if (left + dropdownWidth > window.innerWidth - VIEWPORT_PAD) {
+    left = rect.left - dropdownWidth - DROPDOWN_GAP
+  }
+  left = Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - dropdownWidth - VIEWPORT_PAD))
+  dropdownPosition.value = { top, left, scrollbarGutter }
 }
 
 function openDropdown () {
   if (props.disabled || props.pending || !props.categories.length) {
     return
   }
-  claimActiveDropdown()
   isOpen.value = true
   nextTick(() => {
     positionDropdown()
@@ -256,8 +254,11 @@ function onWindowResize () {
   positionDropdown()
 }
 
-function onWindowScroll () {
+function onWindowScroll (event: Event) {
   if (!isOpen.value) {
+    return
+  }
+  if (isScrollInsideRoot(event, dropdownRef.value)) {
     return
   }
   if (!isTriggerVisible()) {
@@ -303,12 +304,10 @@ watch(isOpen, (open) => {
 })
 
 onBeforeUnmount(() => {
-  if (activeCloseDropdown === closeDropdown) {
-    activeCloseDropdown = null
-  }
   unbindGlobalListeners()
 })
 
 useDropdownEscapeClose(isOpen, closeDropdown)
+useExclusivePopover(isOpen, closeDropdown)
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/documents/DocumentCategorySelect.scss"></style>

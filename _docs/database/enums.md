@@ -53,13 +53,14 @@
 | `priority_changed` | 優先度変更 |
 | `assignee_changed` | 担当者変更 |
 | `due_date_changed` | 期限変更 |
+| `list_changed` | カンバン列（`list_id`）変更 |
 | `comment_added` | コメント追加 |
 | `comment_edited` | コメント編集 |
 | `comment_deleted` | コメント論理削除 |
 
 記録のルール（二重記録の禁止）:
 
-- **`status`・`priority`・`assignee_id`・`due_date` の変更**は、**上表の専用 `event_type`（`status_changed` 等）を用いる**。
+- **`status`・`priority`・`list_id`・`due_date` の変更**は、**上表の専用 `event_type`（`status_changed` / `list_changed` 等）を用いる**。
 - **`title`・`description` の変更**専用の `event_type` は定義しない。**`task_updated`** とし、差分は **`field_name`・`before_value`・`after_value`** で表す（`field_name` の取りうる値は `docs/api` で列挙する）。
 
 ## 説明

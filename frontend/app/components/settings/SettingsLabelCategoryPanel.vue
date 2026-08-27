@@ -1,6 +1,6 @@
 <template>
   <div class="label-category-panel">
-    <p v-if="message" class="settings-msg" :class="{ 'settings-msg--err': messageKind === 'err' }">
+    <p v-if="message" class="settings-msg">
       {{ message }}
     </p>
     <p v-if="!loading && !categories.length" class="label-category-panel__empty">
@@ -39,7 +39,7 @@
               <button type="button" class="label-action-btn label-action-btn--edit" @click="openEditCategory(category)">
                 編集
               </button>
-              <button type="button" class="label-action-btn label-action-btn--delete" @click="deleteCategory(category)">
+              <button type="button" class="label-action-btn label-action-btn--delete" @click="openDeleteCategory(category)">
                 削除
               </button>
               <button type="button" class="label-action-btn label-action-btn--primary" @click="openCreateLabel(category)">
@@ -77,7 +77,7 @@
                   <button type="button" class="label-action-btn label-action-btn--edit" @click="openEditLabel(label)">
                     編集
                   </button>
-                  <button type="button" class="label-action-btn label-action-btn--delete" @click="deleteLabel(label)">
+                  <button type="button" class="label-action-btn label-action-btn--delete" @click="openDeleteLabel(label)">
                     削除
                   </button>
                 </div>
@@ -88,6 +88,7 @@
       </template>
     </draggable>
     <LabelCategoryNameModal
+      ref="categoryModalRef"
       v-model="categoryModalOpen"
       :title="categoryModalMode === 'create' ? 'カテゴリの作成' : 'カテゴリの編集'"
       :submit-label="categoryModalMode === 'create' ? '作成' : '保存'"
@@ -96,18 +97,34 @@
       @submit="submitCategory"
     />
     <LabelCreateModal
+      ref="labelCreateModalRef"
       v-model="labelCreateModalOpen"
       :title="labelCreateTitle"
       :loading="loading"
       @submit="createLabel"
     />
     <LabelEditModal
+      ref="labelEditModalRef"
       v-model="labelEditModalOpen"
       title="ラベルの編集"
       :initial-name="editingLabel?.name ?? ''"
       :initial-color-index="editingLabel?.color_index"
       :loading="loading"
       @submit="updateLabel"
+    />
+    <LabelDeleteModal
+      ref="labelDeleteModalRef"
+      v-model="labelDeleteModalOpen"
+      :label-name="labelDeleteTarget?.name ?? ''"
+      :loading="labelDeletePending"
+      @confirm="confirmDeleteLabel"
+    />
+    <LabelCategoryDeleteModal
+      ref="categoryDeleteModalRef"
+      v-model="categoryDeleteModalOpen"
+      :category-name="categoryDeleteTarget?.name ?? ''"
+      :loading="categoryDeletePending"
+      @confirm="confirmDeleteCategory"
     />
   </div>
 </template>
@@ -119,6 +136,8 @@ import { useApi } from '../../composables/useApi'
 import LabelCategoryNameModal from '../modals/LabelCategoryNameModal.vue'
 import LabelCreateModal from '../modals/LabelCreateModal.vue'
 import LabelEditModal from '../modals/LabelEditModal.vue'
+import LabelDeleteModal from '../modals/LabelDeleteModal.vue'
+import LabelCategoryDeleteModal from '../modals/LabelCategoryDeleteModal.vue'
 import type { SettingsLabelCategory, SettingsLabelItem, SettingsLabelTabKey } from './types'
 import { normalizeSettingsLabelCategories } from './labelCategoryNormalize'
 import { resolveLabelColors, withResolvedLabelColor } from '../../utils/colorPresetResolution'
@@ -136,13 +155,24 @@ const reordering = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
 const categoryModalOpen = ref(false)
+const categoryModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const categoryModalMode = ref<'create' | 'edit'>('create')
 const editingCategoryId = ref<number | null>(null)
 const editingCategoryName = ref('')
 const labelCreateModalOpen = ref(false)
+const labelCreateModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const labelCreateCategoryId = ref<number | null>(null)
 const labelEditModalOpen = ref(false)
+const labelEditModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const editingLabel = ref<SettingsLabelItem | null>(null)
+const labelDeleteModalOpen = ref(false)
+const labelDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const labelDeleteTarget = ref<SettingsLabelItem | null>(null)
+const labelDeletePending = ref(false)
+const categoryDeleteModalOpen = ref(false)
+const categoryDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const categoryDeleteTarget = ref<SettingsLabelCategory | null>(null)
+const categoryDeletePending = ref(false)
 const categoryApiBase = computed(() => {
   if (props.labelKind === 'workspace') return 'workspace-label-categories'
   if (props.labelKind === 'task') return 'task-label-categories'
@@ -283,40 +313,44 @@ async function submitCategory (name: string) {
         method: 'POST',
         body: { name },
       })
-      setMessage('カテゴリを作成しました。', 'ok')
     } else if (editingCategoryId.value !== null) {
       await api(`/orgs/${props.orgSlug}/${categoryApiBase.value}/${editingCategoryId.value}`, {
         method: 'PATCH',
         body: { name },
       })
-      setMessage('カテゴリを更新しました。', 'ok')
     }
     categoryModalOpen.value = false
     await load({ refresh: true })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'カテゴリの保存に失敗しました'
     setMessage(msg, 'err')
+    categoryModalRef.value?.setSubmitError(msg)
   } finally {
     loading.value = false
   }
 }
-async function deleteCategory (category: SettingsLabelCategory) {
-  if (!import.meta.client) return
-  const confirmed = window.confirm(`カテゴリ「${category.name}」を削除しますか？配下のラベルも削除されます。`)
-  if (!confirmed) return
-  loading.value = true
+function openDeleteCategory (category: SettingsLabelCategory) {
+  categoryDeleteTarget.value = category
+  categoryDeleteModalOpen.value = true
+}
+async function confirmDeleteCategory () {
+  const category = categoryDeleteTarget.value
+  if (!category || categoryDeletePending.value) return
+  categoryDeletePending.value = true
   setMessage('', 'ok')
   try {
     await api(`/orgs/${props.orgSlug}/${categoryApiBase.value}/${category.id}`, {
       method: 'DELETE',
     })
-    setMessage('カテゴリを削除しました。', 'ok')
+    categoryDeleteModalOpen.value = false
+    categoryDeleteTarget.value = null
     await load({ refresh: true })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'カテゴリの削除に失敗しました'
     setMessage(msg, 'err')
+    categoryDeleteModalRef.value?.setSubmitError(msg)
   } finally {
-    loading.value = false
+    categoryDeletePending.value = false
   }
 }
 function openCreateLabel (category: SettingsLabelCategory) {
@@ -337,11 +371,11 @@ async function createLabel (payload: { name: string; color_index: number }) {
       },
     })
     labelCreateModalOpen.value = false
-    setMessage('ラベルを作成しました。', 'ok')
     await load({ refresh: true })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'ラベルの作成に失敗しました'
     setMessage(msg, 'err')
+    labelCreateModalRef.value?.setSubmitError(msg)
   } finally {
     loading.value = false
   }
@@ -362,32 +396,37 @@ async function updateLabel (payload: { name: string; color_index: number }) {
     withResolvedLabelColor(updated)
     labelEditModalOpen.value = false
     editingLabel.value = null
-    setMessage('ラベルを更新しました。', 'ok')
     await load({ refresh: true })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'ラベルの更新に失敗しました'
     setMessage(msg, 'err')
+    labelEditModalRef.value?.setSubmitError(msg)
   } finally {
     loading.value = false
   }
 }
-async function deleteLabel (label: SettingsLabelItem) {
-  if (!import.meta.client) return
-  const confirmed = window.confirm(`ラベル「${label.name}」を削除しますか？`)
-  if (!confirmed) return
-  loading.value = true
+function openDeleteLabel (label: SettingsLabelItem) {
+  labelDeleteTarget.value = label
+  labelDeleteModalOpen.value = true
+}
+async function confirmDeleteLabel () {
+  const label = labelDeleteTarget.value
+  if (!label || labelDeletePending.value) return
+  labelDeletePending.value = true
   setMessage('', 'ok')
   try {
     await api(`/orgs/${props.orgSlug}/${labelApiBase.value}/${label.id}`, {
       method: 'DELETE',
     })
-    setMessage('ラベルを削除しました。', 'ok')
+    labelDeleteModalOpen.value = false
+    labelDeleteTarget.value = null
     await load({ refresh: true })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'ラベルの削除に失敗しました'
     setMessage(msg, 'err')
+    labelDeleteModalRef.value?.setSubmitError(msg)
   } finally {
-    loading.value = false
+    labelDeletePending.value = false
   }
 }
 onMounted(() => {

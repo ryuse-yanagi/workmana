@@ -74,8 +74,6 @@ export type TaskBoardCardTask = {
   start_date?: string | null
   due_date?: string | null
   effort_hours?: number | string | null
-  effort_value?: number | string | null
-  effort_unit?: string | null
   labels?: TaskBoardCardLabel[]
   assignees?: TaskBoardCardMember[]
   parent_task_id?: number | null

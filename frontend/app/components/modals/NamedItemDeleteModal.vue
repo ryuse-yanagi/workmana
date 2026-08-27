@@ -9,14 +9,9 @@
   >
     <div class="named-item-delete-modal-body">
       <p class="named-item-delete-modal-message">
-        <template v-if="itemName">
-          「{{ itemName }}」を削除しますか？<br>
-          この操作は取り消せません。
-        </template>
-        <template v-else>
-          この{{ itemKind }}を削除しますか？<br>
-          この操作は取り消せません。
-        </template>
+        この{{ itemKind }}を削除します。よろしいですか？
+        <template v-if="itemName"><br>【対象】 {{ itemName }}</template>
+        <template v-if="extraMessage"><br>※{{ extraMessage }}</template>
       </p>
       <p v-if="submitError" class="err">{{ submitError }}</p>
       <div class="actions">
@@ -39,9 +34,12 @@ const props = withDefaults(defineProps<{
   title: string
   itemKind: string
   itemName?: string
+  /** 確認文の後に出す追記（例: 配下ラベルも削除される旨） */
+  extraMessage?: string
   loading?: boolean
 }>(), {
   itemName: '',
+  extraMessage: '',
   loading: false,
 })
 const emit = defineEmits<{

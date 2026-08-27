@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TaskCommentReaction extends Model
 {
+    /**
+     * @var list<string>
+     */
+    protected $touches = ['comment'];
+
     protected $fillable = [
         'task_comment_id',
         'user_id',

@@ -1,6 +1,9 @@
 <template>
-  <section class="task-hierarchy">
-    <header class="task-hierarchy__header">
+  <section
+    class="task-hierarchy"
+    :class="{ 'task-hierarchy--compact': !showHeader }"
+  >
+    <header v-if="showHeader" class="task-hierarchy__header">
       <span class="task-hierarchy__icon" aria-hidden="true">
         <Network :size="20" :stroke-width="2.25" />
       </span>
@@ -12,17 +15,10 @@
         v-if="parentTask"
         type="button"
         class="task-hierarchy__row task-hierarchy__row--parent"
-        :class="{ 'task-hierarchy__row--current': isCurrentTask(parentTask.id) }"
-        :disabled="isCurrentTask(parentTask.id)"
-        :aria-current="isCurrentTask(parentTask.id) ? 'page' : undefined"
         @click="onSelect(parentTask.id)"
       >
         <span class="task-hierarchy__row-main">
           <span class="task-hierarchy__row-title">{{ parentTask.title }}</span>
-          <span
-            v-if="isCurrentTask(parentTask.id)"
-            class="task-hierarchy__current-label"
-          >現在</span>
         </span>
         <span
           v-if="parentTask.list_name"
@@ -31,6 +27,7 @@
         >
           {{ parentTask.list_name }}
         </span>
+        <span class="task-hierarchy__chevron" aria-hidden="true" />
       </button>
       <p v-else class="task-hierarchy__empty">親タスクはありません</p>
     </div>
@@ -44,17 +41,10 @@
           <button
             type="button"
             class="task-hierarchy__row task-hierarchy__row--child"
-            :class="{ 'task-hierarchy__row--current': isCurrentTask(child.id) }"
-            :disabled="isCurrentTask(child.id)"
-            :aria-current="isCurrentTask(child.id) ? 'page' : undefined"
             @click="onSelect(child.id)"
           >
             <span class="task-hierarchy__row-main">
               <span class="task-hierarchy__row-title">{{ child.title }}</span>
-              <span
-                v-if="isCurrentTask(child.id)"
-                class="task-hierarchy__current-label"
-              >現在</span>
             </span>
             <span
               v-if="formatHierarchyDueDate(child.due_date)"
@@ -70,6 +60,7 @@
             >
               {{ child.list_name }}
             </span>
+            <span class="task-hierarchy__chevron" aria-hidden="true" />
           </button>
         </li>
       </ul>
@@ -107,25 +98,19 @@ export type TaskHierarchyChild = {
 const props = withDefaults(defineProps<{
   parentTask: TaskHierarchyParent | null
   childTasks: TaskHierarchyChild[]
-  currentTaskId?: number | null
   workspaceLists?: WorkspaceListOption[]
+  /** false のとき見出しを出さない（ポップオーバー内など） */
+  showHeader?: boolean
 }>(), {
-  currentTaskId: null,
   workspaceLists: () => [],
+  showHeader: true,
 })
 
 const emit = defineEmits<{
   select: [taskId: number]
 }>()
 
-function isCurrentTask (taskId: number) {
-  return props.currentTaskId === taskId
-}
-
 function onSelect (taskId: number) {
-  if (isCurrentTask(taskId)) {
-    return
-  }
   emit('select', taskId)
 }
 

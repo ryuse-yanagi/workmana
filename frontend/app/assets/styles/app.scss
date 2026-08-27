@@ -2,6 +2,9 @@
 :root {
   --tm-global-header-height: 56px;
   --tm-page-header-height: 48px;
+  /** 画面別ヘッダー(125)・タスク編集ポップオーバー(130)より上。モーダル外操作を遮断する */
+  --tm-z-modal: 200;
+  --tm-z-modal-popover: 210;
 }
 html,
 body {
@@ -12,6 +15,7 @@ html {
   font-synthesis: none;
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
+  @include mixin.app-canvas-background;
 }
 body {
   margin: 0;
@@ -21,7 +25,27 @@ body {
   font-synthesis: inherit;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f5f6fa;
+  background: transparent;
+}
+/* Teleport 先でも効くよう、ポップオーバータイトルはグローバル指定 */
+.popover-shell__title,
+.document-label-select__title,
+.workspace-status-select__title {
+  @include mixin.popover-title-text;
+}
+/* ポップオーバー本体の文字太さの既定値 */
+.popover,
+.popover-shell,
+.floating-menu,
+.workspace-status-select__dropdown,
+.document-label-select__dropdown,
+.document-category-select__dropdown,
+.board-filter-dropdown,
+.global-header .dropdown,
+.comment-item__delete-menu,
+.comment-item__reaction-menu,
+.mention-menu {
+  font-weight: mixin.$popover-font-weight;
 }
 html.workspace-view-page-root,
 body.workspace-view-page-root {
@@ -30,9 +54,18 @@ body.workspace-view-page-root {
 }
 .app-shell {
   min-height: 100%;
+  background: transparent;
+}
+.app-shell--auth {
+  --tm-auth-chrome-offset: 0px;
+  /* 認証画面は AuthGateShell が全面を塗る。本編キャンバスが覗かないようにする */
+  background: #07111f;
 }
 .app-shell__page {
   padding-top: 3.5px;
+}
+.app-shell__page--auth {
+  padding-top: 0;
 }
 .global-header,
 .page-header {
@@ -46,8 +79,24 @@ body.workspace-view-page-root {
 }
 /* 初回データ取得前のプレースホルダー（文言は出さない） */
 .page-await-spacer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: min(42vh, 392px);
   width: 100%;
+}
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid mixin.$spinner-track;
+  border-top-color: mixin.$spinner-accent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 /* 初回読み込み失敗・タイムアウト */
 .load-fatal-panel {
@@ -55,8 +104,8 @@ body.workspace-view-page-root {
   max-width: 504px;
   margin: 28px auto;
   padding: 21px 17.5px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(148, 163, 184, 0.55);
+  background: mixin.white-a(0.95);
+  border: 1px solid mixin.placeholder-a(0.55);
   border-radius: 12px;
   text-align: center;
 }
@@ -67,14 +116,14 @@ body.workspace-view-page-root {
   font-size: 13.3px;
 }
 .load-fatal-retry {
-  border: 1px solid #0f172a;
+  border: 1px solid mixin.$ink;
   border-radius: 8px;
   padding: 7px 15.4px;
   font-size: 12.6px;
   font-weight: 700;
   cursor: pointer;
-  background: #0f172a;
-  color: #fff;
+  background: mixin.$ink;
+  color: mixin.$white;
 }
 input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']),
 textarea,

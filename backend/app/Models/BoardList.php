@@ -10,6 +10,11 @@ class BoardList extends Model
 {
     protected $table = 'lists';
 
+    /**
+     * @var list<string>
+     */
+    protected $touches = ['workspace'];
+
     protected $fillable = [
         'workspace_id',
         'name',

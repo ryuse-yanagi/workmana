@@ -192,6 +192,7 @@ API ルートは `cognito` ミドルウェア配下です（[`backend/routes/api
 - `COGNITO_BYPASS=false`
 - Cognitoの必須設定がすべて存在し、`COGNITO_AUDIENCE=COGNITO_CLIENT_ID`
 - `APP_URL`、CORS許可オリジン、Cognito・コールバック・フロントエンドのURLがすべてHTTPS
+- 招待メールは Amazon SES（`MAIL_MAILER=ses` または `ses-v2`）。`MAIL_FROM_ADDRESS` はプレースホルダ以外の検証済みアドレス。`AWS_DEFAULT_REGION` 必須（認証は IAM ロールまたはアクセスキー）
 
 #### ローカル（バイパス）
 
@@ -220,7 +221,7 @@ COGNITO_BYPASS_USER_ID=1
 |----------|------|
 | `ORGANIZATION_INVITE_EXPIRES_DAYS` | 招待リンクの有効日数（既定 7） |
 | `COGNITO_USER_POOL_ID` / `COGNITO_REGION` | AdminCreateUser による登録（AWS 認証情報も必要）。未設定時は Client SignUp API |
-| `MAIL_*` | 招待メール送信（ローカル既定は `log`） |
+| `MAIL_*` | 招待メール送信。ローカル既定は `log`。**本番は Amazon SES**（`MAIL_MAILER=ses`） |
 
 DB には平文トークンを保存せず、SHA-256 ハッシュを `organization_invites.token` に格納します。
 
@@ -260,7 +261,7 @@ DB には平文トークンを保存せず、SHA-256 ハッシュを `organizati
 [ Browser ]
     │  HTTP (REST)                    WebSocket
     ▼                                 ▼
-[ Nuxt :3000 ] ──proxy /api──▶ [ Laravel :8000 ] ──SQL──▶ [ PostgreSQL ]
+[ Nuxt :3000 ] ──proxy /api,/storage──▶ [ Laravel :8000 ] ──SQL──▶ [ PostgreSQL ]
                                     │
                                     │ broadcast (BROADCAST_CONNECTION=reverb)
                                     ▼
@@ -380,7 +381,9 @@ Reverb を使う場合は `NUXT_PUBLIC_REVERB_*` を backend の値に合わせ�
 | `REVERB_APP_ID` / `KEY` / `SECRET` / `HOST` / `PORT` / `SCHEME` | WebSocket サーバー設定 |
 | `QUEUE_CONNECTION` | ローカル既定 `database` |
 | `FILESYSTEM_DISK` | 既定 `local` |
-| `MAIL_*` | 招待メール等。ローカル既定は `log`（`storage/logs` に出力） |
+| `MAIL_*` | 招待メール。ローカル既定は `log`。本番は `MAIL_MAILER=ses` と SES 検証済みの `MAIL_FROM_ADDRESS` が必須 |
+| `AWS_DEFAULT_REGION` | SES（および Cognito Admin / S3 等）のリージョン。本番 SES で必須 |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | SES をキー方式で使う場合。IAM タスクロールなら不要 |
 | `COGNITO_JWKS_URL` / `ISSUER` / `AUDIENCE` | JWT検証。すべて必須で、`AUDIENCE`は`CLIENT_ID`と一致させる |
 | `COGNITO_DOMAIN` / `CLIENT_ID` / `CLIENT_SECRET` | Hosted UI と認可コードフロー（シークレットは任意） |
 | `COGNITO_REDIRECT_URI` / `LOGOUT_REDIRECT_URI` | ブラウザから見たコールバック URL・ログアウト後の戻り先 |
@@ -552,8 +555,9 @@ composer test
 | 要件（認証・招待） | [`_docs/requirements/auth.md`](_docs/requirements/auth.md) |
 | 要件（プロジェクト／リスト） | [`_docs/requirements/projects.md`](_docs/requirements/projects.md) |
 | 要件（タスク） | [`_docs/requirements/tasks.md`](_docs/requirements/tasks.md) |
-| DB 索引 | [`_docs/database/README.md`](_docs/database/README.md) |
 | 列挙値 | [`_docs/database/enums.md`](_docs/database/enums.md) |
+| スキーマ（認証・組織） | [`_docs/database/schema-auth.md`](_docs/database/schema-auth.md) |
+| 機能仕様（通知など） | [`_docs/features/notification.md`](_docs/features/notification.md) |
 | リアルタイム構成 | [`_docs/architecture/realtime-sync.md`](_docs/architecture/realtime-sync.md) |
 | ADR（Reverb 採用） | [`_docs/decisions/realtime-sync.md`](_docs/decisions/realtime-sync.md) |
 

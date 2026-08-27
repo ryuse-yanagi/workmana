@@ -19,7 +19,6 @@
   margin-left: -14px;
   margin-right: -14px;
   @include mixin.page-header-shell;
-  padding: 0 14px;
 }
 .page-header > * {
   width: 100%;
@@ -28,7 +27,7 @@
 .subheader {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   height: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -39,8 +38,11 @@
   display: none;
 }
 .subheader-title {
-  @include mixin.page-header-title;
-  letter-spacing: 0.05em;
+  @include mixin.page-header-list-title;
+}
+.subheader-title__icon {
+  @include mixin.page-header-list-title-icon;
+  color: mixin.$green;
 }
 .subheader-filters {
   display: flex;
@@ -55,8 +57,8 @@
   border-radius: 8px;
   padding: 0 8px;
   font-size: 11.48px;
-  background: #fff;
-  color: #0f172a;
+  background: mixin.$white;
+  color: mixin.$text;
   box-sizing: border-box;
   height: 32px;
   line-height: 32px;
@@ -67,7 +69,7 @@
   max-width: 252px;
 }
 .header-search::placeholder {
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
 }
 .header-search:focus,
 .header-sort:focus {
@@ -75,7 +77,8 @@
 }
 .header-sort {
   flex-shrink: 0;
-  width: 94.5px;
+  width: auto;
+  min-width: 94.5px;
   padding-right: 21px;
   cursor: pointer;
 }
@@ -83,8 +86,14 @@
   margin: 0;
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: mixin.$text-muted;
   white-space: nowrap;
+  flex-shrink: 0;
+}
+.subheader-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
 .table-card {
@@ -113,7 +122,7 @@
 .document-table td {
   text-align: left;
   padding: 0;
-  color: #1e293b;
+  color: mixin.$text-heading;
 }
 .document-table tbody tr {
   height: 80px;
@@ -122,7 +131,7 @@
   height: 24px;
   box-sizing: border-box;
   background: none;
-  color: #64748b;
+  color: mixin.$text-muted;
   font-size: 14px;
   letter-spacing: 0.02em;
   vertical-align: middle;
@@ -161,10 +170,10 @@
   position: relative;
   height: 80px;
   box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #edf2f7;
+  background: mixin.$white;
+  border: 1px solid mixin.$border;
   border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 4px mixin.black-a(0.05);
   overflow: hidden;
 }
 .document-card__labels {
@@ -242,11 +251,11 @@
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: #64748b;
+  color: mixin.$text-muted;
   cursor: pointer;
 }
 .document-card__menu-btn:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid mixin.$main;
   outline-offset: 2px;
 }
 .clickable-row {
@@ -274,7 +283,7 @@
   }
 }
 .clickable-row:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid mixin.$main;
   outline-offset: -2px;
 }
 .name-text {
@@ -295,13 +304,13 @@
   text-overflow: ellipsis;
   line-height: 1.4;
   max-height: calc(1.4em * 2);
-  color: #475569;
+  color: mixin.$text-sub;
   word-break: break-word;
   white-space: pre-line;
 }
 .empty {
   text-align: center;
-  color: #64748b;
+  color: mixin.$text-muted;
   padding: 14px;
 }
 .primary-btn {
@@ -324,7 +333,7 @@
 }
 button:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .err {
   margin-top: 0;

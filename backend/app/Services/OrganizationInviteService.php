@@ -7,6 +7,7 @@ use App\Mail\OrganizationInviteMail;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
+use App\Support\FieldLengthLimits;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use RuntimeException;
@@ -170,7 +171,6 @@ class OrganizationInviteService
             if (! $alreadyMember) {
                 $organization->members()->attach($user->id, [
                     'role' => $invite->role,
-                    'invited_by' => null,
                 ]);
             }
 
@@ -201,11 +201,11 @@ class OrganizationInviteService
         $organization = $resolved['organization'];
 
         $name = trim($name);
-        if ($name === '') {
-            throw new RuntimeException('名前を入力してください。');
+        if (mb_strlen($name) < FieldLengthLimits::REQUIRED_TEXT_MIN || mb_strlen($name) > FieldLengthLimits::USER_NAME) {
+            throw new RuntimeException(FieldLengthLimits::requiredLengthMessage('名前', FieldLengthLimits::USER_NAME));
         }
-        if (mb_strlen($password) < 8) {
-            throw new RuntimeException('パスワードは8文字以上にしてください。');
+        if (mb_strlen($password) < FieldLengthLimits::PASSWORD_MIN || mb_strlen($password) > FieldLengthLimits::PASSWORD) {
+            throw new RuntimeException(FieldLengthLimits::requiredLengthMessage('パスワード', FieldLengthLimits::PASSWORD, FieldLengthLimits::PASSWORD_MIN));
         }
 
         return DB::transaction(function () use ($invite, $organization, $name, $password) {
@@ -245,7 +245,6 @@ class OrganizationInviteService
 
                     $organization->members()->attach($user->id, [
                         'role' => $invite->role,
-                        'invited_by' => null,
                     ]);
                 }
             } else {
@@ -253,14 +252,12 @@ class OrganizationInviteService
                 $user = User::query()->create([
                     'email' => $email,
                     'name' => $name,
-                    'password' => $password,
                     'cognito_sub' => $sub,
                     'email_verified_at' => now(),
                 ]);
 
                 $organization->members()->attach($user->id, [
                     'role' => $invite->role,
-                    'invited_by' => null,
                 ]);
             }
 

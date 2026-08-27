@@ -8,6 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TaskChecklist extends Model
 {
+    /**
+     * @var list<string>
+     */
+    protected $touches = ['task'];
+
     protected $fillable = [
         'task_id',
         'organization_id',

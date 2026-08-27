@@ -1,11 +1,30 @@
 export type SettingsTabKey =
-  | 'default_board_lists'
-  | 'workspace_statuses'
-  | 'document_categories'
-  | 'labels'
+  | 'organization'
   | 'members'
+  | 'workspace_labels'
+  | 'workspace_statuses'
+  | 'default_board_lists'
+  | 'task_labels'
+  | 'document_labels'
+  | 'document_categories'
+
+export type SettingsMenuItem = {
+  key: SettingsTabKey
+  label: string
+}
+
+export type SettingsMenuSection = {
+  title: string
+  items: SettingsMenuItem[]
+}
 
 export type SettingsLabelTabKey = 'workspace' | 'task' | 'document'
+
+export const SETTINGS_LABEL_TAB_BY_KEY: Partial<Record<SettingsTabKey, SettingsLabelTabKey>> = {
+  workspace_labels: 'workspace',
+  task_labels: 'task',
+  document_labels: 'document',
+}
 
 export type SettingsLabelItem = {
   id: number
@@ -29,6 +48,10 @@ export type DefaultNamedColorItem = {
 }
 
 export type OrgSettingsResponse = {
+  id?: number
+  name?: string | null
+  slug?: string | null
+  icon_url?: string | null
   role?: string | null
   default_board_list_names?: Array<DefaultNamedColorItem | string> | null
   default_workspace_status_names?: Array<DefaultNamedColorItem | string> | null
@@ -92,7 +115,9 @@ function normalizeDefaultNamedColorItems (
   return result
 }
 
-function serializeDefaultNamedColorItems (items: DefaultNamedColorItem[]): DefaultNamedColorItem[] {
+function serializeDefaultNamedColorItems (
+  items: DefaultNamedColorItem[],
+): DefaultNamedColorItem[] {
   return items
     .map(item => ({
       name: item.name.trim(),

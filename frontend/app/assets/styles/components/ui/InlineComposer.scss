@@ -12,7 +12,7 @@
   padding: 7.7px 9.8px;
   font: inherit;
   font-size: 12.6px;
-  background: #fff;
+  background: mixin.$white;
 }
 .inline-composer__textarea {
   resize: vertical;

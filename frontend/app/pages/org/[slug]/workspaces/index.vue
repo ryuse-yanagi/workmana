@@ -6,56 +6,84 @@
     <template v-if="fatalLoadError">
       <PageLoadFatal :message="fatalLoadError" @retry="retryInitialLoad" />
     </template>
-    <template v-else-if="pageReady">
+    <template v-else>
       <header class="page-header">
             <div class="subheader">
-              <p class="subheader-title">Workspaces</p>
+              <p class="subheader-title">
+                <FolderOpen :size="20" :stroke-width="2.25" class="subheader-title__icon" aria-hidden="true" />
+                Workspaces
+              </p>
               <div class="subheader-filters">
-                <select v-model="labelFilterId" class="header-sort" aria-label="ラベル絞り込み">
-                  <option value="">全ラベル</option>
-                  <option v-for="label in orgLabels" :key="label.id" :value="String(label.id)">
-                    {{ label.name }}
-                  </option>
-                </select>
-                <select v-model="sortMode" class="header-sort" aria-label="並び順">
-                  <option value="newest">ID降順</option>
-                  <option value="oldest">ID昇順</option>
+                <select
+                  v-model="sortMode"
+                  class="header-sort"
+                  aria-label="並び順"
+                  :disabled="!pageReady"
+                >
+                  <option value="created">作成日時順</option>
+                  <option value="updated">更新日時順</option>
                   <option value="name">名前順</option>
                 </select>
-                <p class="subheader-count" aria-live="polite">{{ visibleWorkspaces.length }} 件</p>
+                <p class="subheader-count" aria-live="polite">{{ pageReady ? `${visibleWorkspaces.length} 件` : '' }}</p>
                 <input
                   v-model.trim="searchQuery"
                   class="header-search"
                   type="search"
-                  :placeholder="'スペース名で検索'"
+                  :placeholder="'スペース名を検索...'"
                   aria-label="検索"
+                  :disabled="!pageReady"
                 />
               </div>
               <button
-                class="ghost-btn"
-                type="button"
-                :disabled="pending"
-                @click="archivedWorkspacesOpen = true"
-              >
-                <Archive :size="18" :stroke-width="2.25" aria-hidden="true" />
-                アーカイブ済み
-              </button>
-              <button
                 class="primary-btn"
                 type="button"
-                :disabled="pending"
+                :disabled="pending || !pageReady"
                 @click="openWorkspaceCreateModal"
               >
                 <FolderPlus :size="20" :stroke-width="2.25" aria-hidden="true" />
                 スペース作成
               </button>
+              <div class="subheader-actions" data-subheader-actions-root>
+                <button
+                  ref="listFilterTriggerRef"
+                  type="button"
+                  class="subheader-menu-btn"
+                  :aria-expanded="listFilterOpen"
+                  aria-haspopup="dialog"
+                  aria-label="絞り込み"
+                  :disabled="pending || !pageReady"
+                  @click.stop="toggleListFilter"
+                >
+                  <ListFilter :size="18" :stroke-width="2.25" aria-hidden="true" />
+                </button>
+                <button
+                  ref="subheaderMenuTriggerRef"
+                  type="button"
+                  class="subheader-menu-btn"
+                  :aria-expanded="subheaderMenuOpen"
+                  aria-haspopup="menu"
+                  aria-label="メニュー"
+                  :disabled="pending || !pageReady"
+                  @click.stop="toggleSubheaderMenu"
+                >
+                  <Ellipsis :size="18" :stroke-width="2.25" aria-hidden="true" />
+                </button>
+              </div>
             </div>
       </header>
       <div class="page-shell-fade">
           <!-- エラー表示 -->
           <p v-if="error" class="err">{{ error }}</p>
           <section class="table-card">
-            <div class="table-wrap">
+            <div
+              v-if="!pageReady"
+              class="page-await-spacer"
+              aria-busy="true"
+              aria-label="読み込み中"
+            >
+              <div class="spinner" />
+            </div>
+            <div v-else class="table-wrap">
               <table class="workspace-table">
                 <thead>
                   <tr>
@@ -155,21 +183,151 @@
             </div>
           </section>
       </div>
+      <Teleport to="body">
+        <div
+          v-if="listFilterOpen && listFilterPosition"
+          ref="listFilterDropdownRef"
+          class="board-filter-dropdown"
+          role="dialog"
+          aria-label="絞り込み"
+          :style="listFilterStyle"
+          @click.stop
+        >
+          <section class="board-filter-section">
+            <h3 class="board-filter-section-title">担当者</h3>
+            <ul class="board-filter-options">
+              <li>
+                <label class="board-filter-option">
+                  <input
+                    type="checkbox"
+                    :checked="isAssigneeFilterSelected('unset')"
+                    @change="setAssigneeFilter('unset', $event)"
+                  >
+                  <span>未設定</span>
+                </label>
+              </li>
+              <li v-for="member in orgMembers" :key="member.id">
+                <label class="board-filter-option">
+                  <input
+                    type="checkbox"
+                    :checked="isAssigneeFilterSelected(String(member.id))"
+                    @change="setAssigneeFilter(String(member.id), $event)"
+                  >
+                  <MemberAvatar
+                    :member="member"
+                    size="xs"
+                    class="board-filter-option-avatar"
+                  />
+                  <span>{{ memberDisplayName(member) }}</span>
+                </label>
+              </li>
+            </ul>
+          </section>
+          <section class="board-filter-section">
+            <h3 class="board-filter-section-title">ラベル</h3>
+            <ul class="board-filter-options">
+              <li>
+                <label class="board-filter-option">
+                  <input
+                    type="checkbox"
+                    :checked="isLabelFilterSelected('unset')"
+                    @change="toggleLabelFilter('unset')"
+                  >
+                  <span>未設定</span>
+                </label>
+              </li>
+            </ul>
+            <div
+              v-for="category in labelFilterCategories"
+              :key="category.id"
+              class="board-filter-label-group"
+            >
+              <p class="board-filter-category-title">{{ category.name }}</p>
+              <ul class="board-filter-options">
+                <li v-for="label in category.labels" :key="label.id">
+                  <label class="board-filter-option">
+                    <input
+                      type="checkbox"
+                      :checked="isLabelFilterSelected(String(label.id))"
+                      @change="toggleLabelFilter(String(label.id))"
+                    >
+                    <span
+                      class="board-filter-label-bar"
+                      :style="{
+                        backgroundColor: label.color,
+                        color: labelBarTextColor(label.color),
+                      }"
+                    >{{ label.name }}</span>
+                  </label>
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="board-filter-section">
+            <h3 class="board-filter-section-title">ステータス</h3>
+            <ul class="board-filter-options">
+              <li>
+                <label class="board-filter-option">
+                  <input
+                    type="checkbox"
+                    :checked="isStatusFilterSelected('unset')"
+                    @change="toggleStatusFilter('unset')"
+                  >
+                  <span>未設定</span>
+                </label>
+              </li>
+            </ul>
+            <div class="board-filter-label-group">
+              <ul class="board-filter-options">
+                <li v-for="status in workspaceStatuses" :key="status.name">
+                  <label class="board-filter-option">
+                    <input
+                      type="checkbox"
+                      :checked="isStatusFilterSelected(status.name)"
+                      @change="toggleStatusFilter(status.name)"
+                    >
+                    <span
+                      class="board-filter-label-bar"
+                      :style="{
+                        backgroundColor: status.color,
+                        color: labelBarTextColor(status.color),
+                      }"
+                    >{{ status.name }}</span>
+                  </label>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </Teleport>
+      <FloatingMenu
+        :open="Boolean(subheaderMenuOpen && subheaderMenuPosition)"
+        density="compact"
+        :flush="false"
+        :style="subheaderMenuStyle"
+        :disabled="pending"
+        :items="subheaderMenuItems"
+        @select="onSubheaderMenuSelect"
+        @close="closeSubheaderMenu"
+      />
       <FloatingMenu
         :open="Boolean(openMenuWorkspace && workspaceMenuPosition)"
         :style="workspaceMenuStyle"
         :disabled="pending"
         :items="workspaceMenuItems"
         @select="onWorkspaceMenuSelect"
+        @close="closeWorkspaceMenu"
       />
       <!-- 作成・編集モーダル（オーバーレイのためフェード対象外） -->
       <WorkspaceCreateModal
+        ref="workspaceFormModalRef"
         v-model="workspaceFormModalOpen"
         :mode="workspaceFormMode"
         :title="workspaceFormMode === 'edit' ? 'スペースの編集' : 'スペースの作成'"
         :initial-values="workspaceFormInitialValues"
         :org-slug="slug"
         :labels="orgLabels"
+        :label-categories="orgLabelCategories"
         :org-members="orgMembers"
         :statuses="workspaceStatuses"
         :loading="pending"
@@ -178,8 +336,11 @@
       <ConfirmModal
         v-model="workspaceArchiveConfirmOpen"
         title="スペースのアーカイブ確認"
-        :message="workspaceArchiveTarget ? `「${workspaceArchiveTarget.name}」をアーカイブしますか？` : ''"
+        :message="workspaceArchiveTarget
+          ? buildDestructiveConfirmMessage('スペース', 'アーカイブ', workspaceArchiveTarget.name)
+          : ''"
         confirm-text="アーカイブ"
+        variant="danger"
         :loading="archivePending"
         @confirm="confirmWorkspaceArchive"
       />
@@ -196,7 +357,7 @@
   </main>
 </template>
 <script setup lang="ts">
-import { Archive, Ellipsis, FolderPlus } from 'lucide-vue-next'
+import { Ellipsis, FolderOpen, FolderPlus, ListFilter } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import { useApi } from '../../../../composables/useApi'
@@ -206,10 +367,12 @@ import {
   type OrgWorkspaceStatus,
 } from '../../../../composables/useOrgWorkspaceIndexPageData'
 import type { TaskFormMember } from '../../../../composables/useTaskFormHelpers'
+import type { LabelCategoryGroup } from '../../../../composables/useLabelCategories'
 import { useWorkspaceBoardPageData } from '../../../../composables/useWorkspaceBoardPageData'
 import { prefetchWorkspaceDetail, warmWorkspaceDetailCache, invalidateWorkspaceDetailMeta } from '../../../../composables/useWorkspaceDetailMeta'
 import { DEFAULT_WORKSPACE_STATUS_ITEMS } from '../../../../components/settings/types'
 import { resolveStandardColors } from '../../../../utils/colorPresetResolution'
+import { buildDestructiveConfirmMessage } from '../../../../utils/destructiveConfirmMessage'
 import {
   getTopmostModalOverlay,
   isKeyboardShortcutBlockedTarget,
@@ -220,7 +383,12 @@ import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
 import WorkspaceAssigneeSelect from '../../../../components/workspace/WorkspaceAssigneeSelect.vue'
 import WorkspaceStatusSelect from '../../../../components/workspace/WorkspaceStatusSelect.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
+import { useDropdownEscapeClose } from '../../../../composables/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../../../composables/useExclusivePopover'
+import { popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../../../utils/popoverScrollbar'
+import { memberDisplayName } from '../../../../composables/useMemberDisplay'
 import { useOrgRole } from '../../../../composables/useOrgRole'
+import { labelBarTextColor } from '../../../../composables/useTaskFormHelpers'
 definePageMeta({
   name: 'org-slug-workspaces',
   key: route => route.fullPath,
@@ -235,6 +403,8 @@ type Workspace = {
   status?: WorkspaceStatus | null
   labels?: Label[]
   assignees?: TaskFormMember[]
+  created_at?: string
+  updated_at?: string
 }
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
@@ -249,7 +419,7 @@ const {
 } = useOrgWorkspaceIndexPageData()
 const { warmWorkspaceBoardCache, prefetch, invalidateCached: invalidateWorkspaceBoardCached } = useWorkspaceBoardPageData()
 const workspaces = ref<Workspace[]>([])
-/** 初回取得成功まで UI を出さない */
+/** 初回取得成功まで一覧を出さない（ヘッダーは先に表示） */
 const pageReady = ref(false)
 /** 初回のみ：タイムアウト／API 失敗時にブロッキング表示 */
 const fatalLoadError = ref<string | null>(null)
@@ -258,8 +428,9 @@ const error = ref<string | null>(null)
 const searchQuery = ref('')
 const debouncedSearchQuery = ref('')
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
-const sortMode = ref<'newest' | 'oldest' | 'name'>('newest')
+const sortMode = ref<'created' | 'updated' | 'name'>('created')
 const workspaceFormModalOpen = ref(false)
+const workspaceFormModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const workspaceFormMode = ref<'create' | 'edit'>('create')
 const workspaceEditTarget = ref<Workspace | null>(null)
 const workspaceArchiveConfirmOpen = ref(false)
@@ -269,10 +440,23 @@ const archivePending = ref(false)
 const openMenuWorkspaceId = ref<number | null>(null)
 const workspaceMenuPosition = ref<{ top: number; left: number } | null>(null)
 const WORKSPACE_MENU_MIN_WIDTH = 160
+const subheaderMenuOpen = ref(false)
+const subheaderMenuTriggerRef = ref<HTMLElement | null>(null)
+const subheaderMenuPosition = ref<{ top: number; left: number } | null>(null)
+const SUBHEADER_MENU_MIN_WIDTH = 220
+const listFilterOpen = ref(false)
+const listFilterTriggerRef = ref<HTMLElement | null>(null)
+const listFilterDropdownRef = ref<HTMLElement | null>(null)
+const listFilterPosition = ref<{ top: number; left: number; scrollbarGutter: number } | null>(null)
+const LIST_FILTER_WIDTH = 384
+const LIST_FILTER_BOTTOM_OFFSET = 12
 const orgLabels = ref<Label[]>([])
+const orgLabelCategories = ref<LabelCategoryGroup[]>([])
 const orgMembers = ref<TaskFormMember[]>([])
 const workspaceStatuses = ref<WorkspaceStatus[]>([])
-const labelFilterId = ref('')
+const assigneeFilterSelected = ref<string[]>([])
+const labelFilterSelected = ref(new Set<string>())
+const statusFilterSelected = ref(new Set<string>())
 const justCreatedWorkspaceIds = reactive<Record<number, true>>({})
 const loadingWorkspaceId = ref<number | null>(null)
 const updatingStatusWorkspaceId = ref<number | null>(null)
@@ -301,17 +485,35 @@ const visibleWorkspaces = computed(() => {
     : searchQuery.value.trim()
       ? workspaces.value.filter(workspace => workspace.name.toLowerCase().includes(searchQuery.value.trim().toLowerCase()))
       : [...workspaces.value]
-  const labelFiltered = labelFilterId.value
-    ? filtered.filter(workspace => (workspace.labels ?? []).some(l => String(l.id) === labelFilterId.value))
-    : filtered
+  const sorted = filtered.filter(workspace => (
+    matchesAssigneeFilter(workspace)
+    && matchesLabelFilter(workspace)
+    && matchesStatusFilter(workspace)
+  ))
   if (sortMode.value === 'name') {
-    return [...labelFiltered].sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+    return sorted.sort((a, b) => a.name.localeCompare(b.name, 'ja') || b.id - a.id)
   }
-  if (sortMode.value === 'oldest') {
-    return [...labelFiltered].sort((a, b) => a.id - b.id)
+  if (sortMode.value === 'updated') {
+    return sorted.sort((a, b) => compareTimestampDesc(a.updated_at, b.updated_at) || b.id - a.id)
   }
-  return [...labelFiltered].sort((a, b) => b.id - a.id)
+  return sorted.sort((a, b) => compareTimestampDesc(a.created_at, b.created_at) || b.id - a.id)
 })
+function compareTimestampDesc (a?: string | null, b?: string | null): number {
+  const aTime = a ? Date.parse(a) : Number.NaN
+  const bTime = b ? Date.parse(b) : Number.NaN
+  const aValid = Number.isFinite(aTime)
+  const bValid = Number.isFinite(bTime)
+  if (aValid && bValid) {
+    return bTime - aTime
+  }
+  if (aValid) {
+    return -1
+  }
+  if (bValid) {
+    return 1
+  }
+  return 0
+}
 const openMenuWorkspace = computed(() => {
   const id = openMenuWorkspaceId.value
   if (id == null) return null
@@ -330,6 +532,110 @@ const workspaceMenuStyle = computed(() => {
     zIndex: 80,
   }
 })
+const subheaderMenuStyle = computed(() => {
+  if (!subheaderMenuPosition.value) {
+    return undefined
+  }
+  const { top, left } = subheaderMenuPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    minWidth: `${SUBHEADER_MENU_MIN_WIDTH}px`,
+    zIndex: 80,
+  }
+})
+const listFilterStyle = computed(() => {
+  if (!listFilterPosition.value) {
+    return {}
+  }
+  const { top, left, scrollbarGutter } = listFilterPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    bottom: `${LIST_FILTER_BOTTOM_OFFSET}px`,
+    width: `${LIST_FILTER_WIDTH + popoverWidthExtraForGutter(scrollbarGutter)}px`,
+    zIndex: 1000,
+    ...popoverScrollbarGutterStyle(scrollbarGutter),
+  }
+})
+const labelFilterCategories = computed(() =>
+  orgLabelCategories.value.filter(category => category.labels.length > 0),
+)
+function matchesAssigneeFilter (workspace: Workspace): boolean {
+  const selected = assigneeFilterSelected.value
+  if (selected.length === 0) {
+    return true
+  }
+  const assigneeIds = (workspace.assignees ?? []).map(member => member.id)
+  const selectedMemberIds = selected.filter(key => key !== 'unset')
+  const includesUnset = selected.includes('unset')
+  const matchesUnset = includesUnset && assigneeIds.length === 0
+  const matchesMember = selectedMemberIds.length > 0
+    && assigneeIds.some(id => selectedMemberIds.includes(String(id)))
+  return matchesUnset || matchesMember
+}
+function matchesLabelFilter (workspace: Workspace): boolean {
+  if (labelFilterSelected.value.size === 0) {
+    return true
+  }
+  const labels = workspace.labels ?? []
+  if (labelFilterSelected.value.has('unset') && labels.length === 0) {
+    return true
+  }
+  return labels.some(label => labelFilterSelected.value.has(String(label.id)))
+}
+function matchesStatusFilter (workspace: Workspace): boolean {
+  if (statusFilterSelected.value.size === 0) {
+    return true
+  }
+  const statusName = workspace.status?.name
+  if (statusFilterSelected.value.has('unset') && !statusName) {
+    return true
+  }
+  return Boolean(statusName && statusFilterSelected.value.has(statusName))
+}
+function isAssigneeFilterSelected (key: string): boolean {
+  return assigneeFilterSelected.value.includes(key)
+}
+function setAssigneeFilter (key: string, event: Event) {
+  const input = event.target
+  if (!(input instanceof HTMLInputElement)) {
+    return
+  }
+  const selected = new Set(assigneeFilterSelected.value)
+  if (input.checked) {
+    selected.add(key)
+  } else {
+    selected.delete(key)
+  }
+  assigneeFilterSelected.value = [...selected]
+}
+function isLabelFilterSelected (key: string): boolean {
+  return labelFilterSelected.value.has(key)
+}
+function toggleLabelFilter (key: string) {
+  const next = new Set(labelFilterSelected.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  labelFilterSelected.value = next
+}
+function isStatusFilterSelected (key: string): boolean {
+  return statusFilterSelected.value.has(key)
+}
+function toggleStatusFilter (key: string) {
+  const next = new Set(statusFilterSelected.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  statusFilterSelected.value = next
+}
 const workspaceFormInitialValues = computed(() => {
   if (workspaceFormMode.value !== 'edit' || !workspaceEditTarget.value) {
     return null
@@ -362,6 +668,90 @@ function closeWorkspaceMenu () {
   openMenuWorkspaceId.value = null
   workspaceMenuPosition.value = null
 }
+function closeSubheaderMenu () {
+  subheaderMenuOpen.value = false
+  subheaderMenuPosition.value = null
+}
+function closeListFilter () {
+  listFilterOpen.value = false
+  listFilterPosition.value = null
+}
+useExclusivePopover(listFilterOpen, closeListFilter)
+useDropdownEscapeClose(listFilterOpen, closeListFilter)
+function positionSubheaderMenu () {
+  const anchor = subheaderMenuTriggerRef.value
+  if (!anchor || !import.meta.client) {
+    subheaderMenuPosition.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const pad = 8
+  const gap = 6
+  let left = rect.right - SUBHEADER_MENU_MIN_WIDTH
+  left = Math.max(pad, Math.min(left, window.innerWidth - SUBHEADER_MENU_MIN_WIDTH - pad))
+  subheaderMenuPosition.value = {
+    top: rect.bottom + gap,
+    left,
+  }
+}
+function toggleSubheaderMenu () {
+  if (subheaderMenuOpen.value) {
+    closeSubheaderMenu()
+    return
+  }
+  closeWorkspaceMenu()
+  closeListFilter()
+  subheaderMenuOpen.value = true
+  nextTick(() => positionSubheaderMenu())
+}
+function positionListFilter () {
+  const anchor = listFilterTriggerRef.value
+  if (!anchor || !import.meta.client) {
+    listFilterPosition.value = null
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const pad = 8
+  const gap = 6
+  const top = rect.bottom + gap
+  const maxHeight = Math.max(0, window.innerHeight - top - LIST_FILTER_BOTTOM_OFFSET)
+  const el = listFilterDropdownRef.value
+  const scrollbarGutter = el
+    ? resolvePopoverScrollbarGutter(el, maxHeight)
+    : 0
+  const width = LIST_FILTER_WIDTH + popoverWidthExtraForGutter(scrollbarGutter)
+  let left = rect.right - width
+  left = Math.max(pad, Math.min(left, window.innerWidth - width - pad))
+  listFilterPosition.value = {
+    top,
+    left,
+    scrollbarGutter,
+  }
+}
+function openListFilter () {
+  if (listFilterOpen.value) {
+    return
+  }
+  closeWorkspaceMenu()
+  closeSubheaderMenu()
+  listFilterOpen.value = true
+  nextTick(() => {
+    positionListFilter()
+    requestAnimationFrame(() => positionListFilter())
+  })
+}
+function toggleListFilter () {
+  if (listFilterOpen.value) {
+    closeListFilter()
+    return
+  }
+  openListFilter()
+}
+function openArchivedWorkspacesModal () {
+  closeSubheaderMenu()
+  closeListFilter()
+  archivedWorkspacesOpen.value = true
+}
 function positionWorkspaceMenu (anchor: HTMLElement) {
   if (!import.meta.client) {
     workspaceMenuPosition.value = null
@@ -385,6 +775,8 @@ function openWorkspaceMenu (workspaceId: number, anchor: HTMLElement) {
     closeWorkspaceMenu()
     return
   }
+  closeSubheaderMenu()
+  closeListFilter()
   positionWorkspaceMenu(anchor)
   openMenuWorkspaceId.value = workspaceId
 }
@@ -409,6 +801,8 @@ function onWorkspaceContextMenu (workspaceId: number, event: MouseEvent) {
 }
 function openWorkspaceCreateModal () {
   closeWorkspaceMenu()
+  closeSubheaderMenu()
+  closeListFilter()
   workspaceFormMode.value = 'create'
   workspaceEditTarget.value = null
   workspaceFormModalOpen.value = true
@@ -425,6 +819,8 @@ function canUseWorkspaceListKeyboardShortcut (): boolean {
     || workspaceArchiveConfirmOpen.value
     || archivedWorkspacesOpen.value
     || openMenuWorkspaceId.value !== null
+    || subheaderMenuOpen.value
+    || listFilterOpen.value
     || pending.value
     || archivePending.value
   ) {
@@ -434,7 +830,7 @@ function canUseWorkspaceListKeyboardShortcut (): boolean {
 }
 function onWorkspaceListKeydown (event: KeyboardEvent) {
   const key = event.key
-  if (key !== 'n' && key !== 'N') {
+  if (key !== 'n' && key !== 'N' && key !== 'f' && key !== 'F') {
     return
   }
   if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
@@ -444,6 +840,11 @@ function onWorkspaceListKeydown (event: KeyboardEvent) {
     return
   }
   if (!canUseWorkspaceListKeyboardShortcut()) {
+    return
+  }
+  if (key === 'f' || key === 'F') {
+    event.preventDefault()
+    openListFilter()
     return
   }
   event.preventDefault()
@@ -461,9 +862,17 @@ function openWorkspaceArchiveConfirm (workspace: Workspace) {
   workspaceArchiveConfirmOpen.value = true
 }
 const workspaceMenuItems: FloatingMenuItem[] = [
-  { key: 'edit', label: '編集' },
-  { key: 'archive', label: 'アーカイブ' },
+  { key: 'edit', label: 'スペースの編集' },
+  { key: 'archive', label: 'スペースのアーカイブ', danger: true },
 ]
+const subheaderMenuItems: FloatingMenuItem[] = [
+  { key: 'archived', label: 'アーカイブ済みスペース' },
+]
+function onSubheaderMenuSelect (item: FloatingMenuItem) {
+  if (item.key === 'archived') {
+    openArchivedWorkspacesModal()
+  }
+}
 function onWorkspaceMenuSelect (item: FloatingMenuItem) {
   const workspace = openMenuWorkspace.value
   if (!workspace) return
@@ -482,18 +891,29 @@ function onGlobalClick (ev: Event) {
     if (el?.closest('.workspace-card__menu-btn')) {
       return
     }
+    if (el?.closest('[data-subheader-actions-root]')) {
+      return
+    }
     if (el?.closest('[data-floating-menu]')) {
+      return
+    }
+    if (el?.closest('.board-filter-dropdown')) {
       return
     }
   }
   closeWorkspaceMenu()
+  closeSubheaderMenu()
+  closeListFilter()
 }
 function onWindowResize () {
   closeWorkspaceMenu()
+  closeSubheaderMenu()
+  closeListFilter()
 }
 function applyOrgWorkspaceIndexSnapshot (snapshot: OrgWorkspaceIndexPageSnapshot) {
   workspaces.value = snapshot.workspaces
   orgLabels.value = snapshot.orgLabels
+  orgLabelCategories.value = snapshot.orgLabelCategories ?? []
   orgMembers.value = snapshot.orgMembers ?? []
   workspaceStatuses.value = snapshot.workspaceStatuses ?? resolveStandardColors(DEFAULT_WORKSPACE_STATUS_ITEMS)
 }
@@ -652,7 +1072,9 @@ async function createWorkspace (payload: {
       markWorkspaceAsJustCreated(createdWorkspace.id)
     })
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : '作成に失敗しました'
+    const message = e instanceof Error ? e.message : '作成に失敗しました'
+    error.value = message
+    workspaceFormModalRef.value?.setSubmitError(message)
   } finally {
     pending.value = false
   }
@@ -687,7 +1109,9 @@ async function updateWorkspace (payload: {
       await load({ refresh: true })
     })
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : '更新に失敗しました'
+    const message = e instanceof Error ? e.message : '更新に失敗しました'
+    error.value = message
+    workspaceFormModalRef.value?.setSubmitError(message)
   } finally {
     pending.value = false
   }
@@ -793,6 +1217,8 @@ async function goToWorkspace (workspaceId: number) {
       prefetchWorkspaceDetail(slug.value, workspaceId),
     ])
     await navigateTo(`/org/${slug.value}/workspaces/${workspaceId}`)
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : 'スペースを開けませんでした'
   } finally {
     if (loadingWorkspaceId.value === workspaceId) {
       loadingWorkspaceId.value = null
@@ -880,10 +1306,15 @@ onBeforeMount(() => {
   }
 })
 onActivated(() => {
+  const wasReady = pageReady.value
   const cached = getOrgWorkspaceIndexCached(slug.value)
   if (cached) {
     applyOrgWorkspaceIndexSnapshot(cached)
     pageReady.value = true
+  }
+  // Re-fetch so 更新日時順 reflects task/board activity while away from this page.
+  if (wasReady) {
+    void load({ refresh: true })
   }
   if (import.meta.client) {
     document.addEventListener('keydown', onWorkspaceListKeydown)
@@ -891,6 +1322,8 @@ onActivated(() => {
 })
 onDeactivated(() => {
   closeWorkspaceMenu()
+  closeSubheaderMenu()
+  closeListFilter()
   if (import.meta.client) {
     document.removeEventListener('keydown', onWorkspaceListKeydown)
   }
@@ -928,6 +1361,8 @@ onBeforeUnmount(() => {
   globalHeaderObserver?.disconnect()
   globalHeaderObserver = null
   closeWorkspaceMenu()
+  closeSubheaderMenu()
+  closeListFilter()
 })
 </script>
 <style lang="scss" scoped src="~/assets/styles/pages/org/slug/workspaces/index.scss"></style>

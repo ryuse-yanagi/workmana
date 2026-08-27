@@ -9,3 +9,26 @@
   min-height: 0;
   min-width: 0;
 }
+.project-page-root__error {
+  margin: 24px auto;
+  padding: 16px 20px;
+  max-width: 480px;
+  border-radius: 10px;
+  background: mixin.$danger-surface;
+  color: mixin.$danger;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.project-page-root__retry {
+  display: inline-block;
+  margin-left: 10px;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: mixin.$white;
+  color: mixin.$text-emphasis;
+  font-weight: 700;
+  cursor: pointer;
+}
+

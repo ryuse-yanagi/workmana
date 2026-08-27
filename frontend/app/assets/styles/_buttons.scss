@@ -1,4 +1,15 @@
 /**
+ * disabled 時も禁止カーソルにしない。
+ * （押下直後に loading で disabled になると、カーソル下で not-allowed に切り替わって見えるため）
+ */
+button:disabled,
+input[type='button']:disabled,
+input[type='submit']:disabled,
+input[type='reset']:disabled {
+  cursor: pointer;
+}
+
+/**
  * 全ボタン共通: hover 時は色を変えず opacity のみ下げる。
  * （モーダルの開始日など .action-btn は従来どおり背景色変更のため除外）
  */
@@ -50,7 +61,8 @@ select:hover:not(:disabled),
  * - 160px x 40px
  * - 中央寄せ
  * - キャンセル: 薄い灰色 / 濃い灰色
- * - 実行系（作成・更新・削除・追加など）: main / white
+ * - 実行系（作成・更新・追加など）: main / white
+ * - 削除系（削除・アーカイブなど）: danger / white
  */
 .base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions),
 .modal-card :is(.actions, .modal-footer, .confirm-modal-actions) {
@@ -73,22 +85,59 @@ select:hover:not(:disabled),
 
 .base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .ghost-btn,
 .modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .ghost-btn {
-  background: #e5e7eb;
-  color: #475569;
+  background: mixin.$border;
+  color: mixin.$text-sub;
   border-color: transparent;
 }
 
-.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > :is(.primary-btn, .danger-btn),
-.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > :is(.primary-btn, .danger-btn) {
+.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .primary-btn,
+.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .primary-btn {
   background: mixin.$main;
   color: mixin.$white;
   border-color: transparent;
 }
 
+.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .danger-btn,
+.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .danger-btn {
+  background: mixin.$danger;
+  color: mixin.$white;
+  border-color: transparent;
+}
+
+/**
+ * 画面別ヘッダーの「・・・」/ フィルターなど — アイコンのみの操作ボタン。
+ * スペース一覧・資料一覧・ボード・資料詳細で共通。
+ */
+.subheader-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: mixin.$surface-hover;
+  color: mixin.$text-muted;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.subheader-menu-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.subheader-menu-btn:disabled {
+  opacity: 0.55;
+  cursor: pointer;
+}
+
 .field-error {
   margin: 4px 0 0;
   color: mixin.$danger;
-  font-size: 12.04px;
+  font-size: mixin.$modal-field-font-size;
   font-weight: 700;
   line-height: 1.35;
 }

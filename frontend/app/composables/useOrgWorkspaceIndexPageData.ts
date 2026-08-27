@@ -1,12 +1,18 @@
 import { useApi } from './useApi'
 import { resolveLabelColors, resolveStandardColors } from '../utils/colorPresetResolution'
 import {
-  DEFAULT_WORKSPACE_STATUS_ITEMS,
   normalizeDefaultWorkspaceStatusItems,
   type OrgSettingsResponse,
 } from '../components/settings/types'
+import { useOrgSettingsResource } from './useOrgSettingsResource'
 
 import type { TaskFormMember } from './useTaskFormHelpers'
+import {
+  flattenLabelCategories,
+  normalizeLabelCategories,
+  type LabelCategoryGroup,
+} from './useLabelCategories'
+import { sortMembersByDisplayName } from './useMemberDisplay'
 
 export type OrgWorkspaceLabel = {
   id: number
@@ -39,11 +45,14 @@ export type OrgWorkspaceItem = {
   related_workspaces?: OrgWorkspaceRelatedItem[]
   related_documents?: OrgWorkspaceRelatedItem[]
   archived_at?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
 export type OrgWorkspaceIndexPageSnapshot = {
   workspaces: OrgWorkspaceItem[]
   orgLabels: OrgWorkspaceLabel[]
+  orgLabelCategories: LabelCategoryGroup[]
   orgMembers: OrgWorkspaceAssignee[]
   workspaceStatuses: OrgWorkspaceStatus[]
 }
@@ -56,6 +65,10 @@ export function clearAllOrgWorkspaceIndexPageCaches (): void {
   inflightBySlug.clear()
 }
 
+export function getOrgWorkspaceIndexCacheMap (): Map<string, OrgWorkspaceIndexPageSnapshot> {
+  return cacheBySlug
+}
+
 function resolveWorkspaceStatuses (
   raw: OrgSettingsResponse['default_workspace_status_names'],
 ): OrgWorkspaceStatus[] {
@@ -64,6 +77,7 @@ function resolveWorkspaceStatuses (
 
 export function useOrgWorkspaceIndexPageData () {
   const { api } = useApi()
+  const { fetchOrgSettings } = useOrgSettingsResource()
 
   async function fetchSnapshot (orgSlug: string): Promise<OrgWorkspaceIndexPageSnapshot> {
     const slug = orgSlug.trim()
@@ -73,20 +87,23 @@ export function useOrgWorkspaceIndexPageData () {
     }
 
     const job = (async () => {
-      const [workspacesRes, labelsRes, membersRes, settingsRes] = await Promise.all([
+      const [workspacesRes, labelCategoriesRes, membersRes, settingsRes] = await Promise.all([
         api<{ data: OrgWorkspaceItem[] }>(`/orgs/${slug}/workspaces`),
-        api<{ data: OrgWorkspaceLabel[] }>(`/orgs/${slug}/workspace-labels`),
+        api<{ data: LabelCategoryGroup[] }>(`/orgs/${slug}/workspace-label-categories`),
         api<{ data: OrgWorkspaceAssignee[] }>(`/orgs/${slug}/members`),
-        api<OrgSettingsResponse>(`/orgs/${slug}/settings`),
+        fetchOrgSettings(slug),
       ])
+      const orgLabelCategories = normalizeLabelCategories(labelCategoriesRes.data ?? [])
       const snapshot: OrgWorkspaceIndexPageSnapshot = {
         workspaces: workspacesRes.data.map(workspace => ({
           ...workspace,
           labels: workspace.labels ? resolveLabelColors(workspace.labels) : workspace.labels,
           status: workspace.status ? resolveStandardColors([workspace.status])[0] ?? workspace.status : workspace.status,
+          assignees: sortMembersByDisplayName(workspace.assignees ?? []),
         })),
-        orgLabels: resolveLabelColors(labelsRes.data),
-        orgMembers: membersRes.data,
+        orgLabels: flattenLabelCategories(orgLabelCategories),
+        orgLabelCategories,
+        orgMembers: sortMembersByDisplayName(membersRes.data),
         workspaceStatuses: resolveWorkspaceStatuses(settingsRes.default_workspace_status_names),
       }
       cacheBySlug.set(slug, snapshot)
@@ -160,7 +177,7 @@ export function useOrgWorkspaceIndexPageData () {
       ...cached,
       workspaces: cached.workspaces.map(workspace => (
         workspace.id === workspaceId
-          ? { ...workspace, assignees }
+          ? { ...workspace, assignees: sortMembersByDisplayName(assignees) }
           : workspace
       )),
     })

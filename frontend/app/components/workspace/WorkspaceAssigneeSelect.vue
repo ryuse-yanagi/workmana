@@ -40,6 +40,9 @@
 
 <script setup lang="ts">
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
+import { isScrollInsideRoot } from '../../utils/uiInteraction'
+import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
 import type { TaskFormMember } from '../../composables/useTaskFormHelpers'
 import WorkspaceMemberPickerPopover from './WorkspaceMemberPickerPopover.vue'
 
@@ -67,12 +70,11 @@ const VIEWPORT_PAD = 8
 const DROPDOWN_VERTICAL_PADDING = 12
 const DROPDOWN_WIDTH = 273
 const DROPDOWN_MIN_HEIGHT = 120
-let activeCloseDropdown: (() => void) | null = null
 
 const triggerRef = ref<HTMLElement | null>(null)
 const dropdownRef = ref<{ rootRef: HTMLElement | null } | null>(null)
 const isOpen = ref(false)
-const dropdownPosition = ref<{ top: number; left: number; maxHeight: number } | null>(null)
+const dropdownPosition = ref<{ top: number; left: number; maxHeight: number; scrollbarGutter: number } | null>(null)
 const memberSearchQuery = ref('')
 
 const assigneeCount = computed(() => props.assignees.length)
@@ -90,12 +92,13 @@ const dropdownStyle = computed(() => {
       visibility: 'hidden',
     } as Record<string, string>
   }
-  const { top, left, maxHeight } = dropdownPosition.value
+  const { top, left, maxHeight, scrollbarGutter } = dropdownPosition.value
   return {
     top: `${top}px`,
     left: `${left}px`,
-    maxHeight: `${maxHeight}px`,
     visibility: 'visible',
+    ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
+    ...popoverScrollbarGutterStyle(scrollbarGutter),
   }
 })
 
@@ -103,16 +106,6 @@ function closeDropdown () {
   isOpen.value = false
   dropdownPosition.value = null
   memberSearchQuery.value = ''
-  if (activeCloseDropdown === closeDropdown) {
-    activeCloseDropdown = null
-  }
-}
-
-function claimActiveDropdown () {
-  if (activeCloseDropdown && activeCloseDropdown !== closeDropdown) {
-    activeCloseDropdown()
-  }
-  activeCloseDropdown = closeDropdown
 }
 
 function positionDropdown () {
@@ -122,27 +115,29 @@ function positionDropdown () {
     return
   }
   const rect = trigger.getBoundingClientRect()
-  const dropdownWidth = dropdownRef.value?.rootRef?.offsetWidth ?? DROPDOWN_WIDTH
+  const popover = dropdownRef.value?.rootRef ?? null
+  const top = Math.max(VIEWPORT_PAD, rect.top)
+  const maxHeight = Math.max(
+    DROPDOWN_MIN_HEIGHT,
+    window.innerHeight - VIEWPORT_PAD - top - DROPDOWN_VERTICAL_PADDING,
+  )
+  const scrollbarGutter = popover
+    ? resolvePopoverScrollbarGutter(popover, maxHeight)
+    : 0
+  const dropdownWidth = (popover?.offsetWidth ?? DROPDOWN_WIDTH) + popoverWidthExtraForGutter(scrollbarGutter)
   let left = rect.right + DROPDOWN_GAP
   if (left + dropdownWidth > window.innerWidth - VIEWPORT_PAD) {
     left = rect.left - dropdownWidth - DROPDOWN_GAP
   }
   left = Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - dropdownWidth - VIEWPORT_PAD))
 
-  const top = Math.max(VIEWPORT_PAD, rect.top)
-  const maxHeight = Math.max(
-    DROPDOWN_MIN_HEIGHT,
-    window.innerHeight - VIEWPORT_PAD - top - DROPDOWN_VERTICAL_PADDING,
-  )
-
-  dropdownPosition.value = { top, left, maxHeight }
+  dropdownPosition.value = { top, left, maxHeight, scrollbarGutter }
 }
 
 function openDropdown () {
   if (props.disabled || props.pending) {
     return
   }
-  claimActiveDropdown()
   memberSearchQuery.value = ''
   isOpen.value = true
   nextTick(() => {
@@ -212,8 +207,11 @@ function onWindowResize () {
   positionDropdown()
 }
 
-function onWindowScroll () {
+function onWindowScroll (event: Event) {
   if (!isOpen.value) {
+    return
+  }
+  if (isScrollInsideRoot(event, dropdownRef.value?.rootRef)) {
     return
   }
   if (!isTriggerVisible()) {
@@ -259,13 +257,11 @@ watch(isOpen, (open) => {
 })
 
 onBeforeUnmount(() => {
-  if (activeCloseDropdown === closeDropdown) {
-    activeCloseDropdown = null
-  }
   unbindGlobalListeners()
 })
 
 useDropdownEscapeClose(isOpen, closeDropdown)
+useExclusivePopover(isOpen, closeDropdown)
 </script>
 
 <style lang="scss" scoped src="~/assets/styles/components/workspace/WorkspaceAssigneeSelect.scss"></style>

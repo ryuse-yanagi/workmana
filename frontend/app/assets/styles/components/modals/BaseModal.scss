@@ -1,7 +1,7 @@
 .base-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: mixin.ink-a(0.45);
   display: flex;
   justify-content: center;
   overflow-y: auto;
@@ -12,27 +12,26 @@
   flex-shrink: 0;
   max-height: calc(100dvh - 200px);
   overflow: hidden;
-  background: #fff;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  background: mixin.$white;
+  box-shadow: 0 16px 40px mixin.ink-a(0.18);
 }
 .base-modal-header {
   @include mixin.modal-header-bar;
 }
 .base-modal-title {
   margin: 0;
-  font-size: 14.7px;
   line-height: 1;
 }
 .base-modal-close {
   @include mixin.modal-close-hit-area;
   background: transparent;
   border: none;
-  color: #fff;
+  color: mixin.$white;
   font-size: 19.6px;
   line-height: 1;
   cursor: pointer;
 }
 .base-modal-close:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }

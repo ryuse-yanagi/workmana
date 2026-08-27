@@ -11,7 +11,7 @@
   gap: 6.3px;
 }
 .field-label {
-  font-size: 11.48px;
+  font-size: mixin.$modal-field-font-size;
   font-weight: 700;
   color: mixin.$text-sub;
 }
@@ -31,15 +31,15 @@
   @include mixin.input-border-default;
   border-radius: 8px;
   padding: 8.68px 10.5px;
-  font-size: 14px;
+  font-size: mixin.$modal-field-font-size;
   font-weight: 400;
   line-height: 1.35;
-  background: #fff;
+  background: mixin.$white;
 }
 .task-form-pane--relaxed-title .title-input-placeholder {
   left: 10.5px;
   right: 10.5px;
-  font-size: 14px;
+  font-size: mixin.$modal-field-font-size;
   font-weight: 400;
   line-height: 1.35;
 }
@@ -56,7 +56,7 @@
   padding: 7px 8.4px;
   font-size: 25.2px;
   font-weight: 800;
-  color: #0f172a;
+  color: mixin.$text;
   background: transparent;
   width: 100%;
   box-sizing: border-box;
@@ -78,7 +78,7 @@
   transform: translateY(-50%);
   font-size: 25.2px;
   line-height: 1.25;
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
   pointer-events: none;
   white-space: nowrap;
   overflow: hidden;
@@ -100,21 +100,21 @@
   border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 5.32px 9.8px;
-  font-size: 11.76px;
+  font-size: mixin.$modal-action-btn-font-size;
   font-weight: 600;
-  color: #334155;
-  background: #f8fafc;
+  color: mixin.$text-strong;
+  background: mixin.$list-column-bg;
   cursor: pointer;
 }
 .action-btn:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #94a3b8;
+  background: mixin.$surface-muted;
+  border-color: mixin.$text-placeholder;
 }
 .action-btn--active,
 .action-btn--active:hover:not(:disabled) {
   background: color-mix(in srgb, mixin.$main 12%, mixin.$white);
   border-color: mixin.$main;
-  color: mixin.$main-hover;
+  color: mixin.$main;
 }
 .action-btn-icon {
   display: inline-flex;
@@ -131,7 +131,7 @@
 .popover-layer--portal {
   position: fixed;
   inset: 0;
-  z-index: 75;
+  z-index: var(--tm-z-modal-popover);
   pointer-events: none;
 }
 .popover-layer--portal .popover {
@@ -142,31 +142,31 @@
 .popover {
   position: absolute;
   z-index: 10;
-  width: min(259px, calc(100vw - 21px));
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.2);
-  border: 1px solid #e2e8f0;
-  padding: 10.5px;
+  @include mixin.popover-panel-width(259px);
+  background: mixin.$white;
+  border-radius: mixin.$popover-border-radius;
+  box-shadow: 0 10px 32px mixin.ink-a(0.2);
+  border: 1px solid mixin.$gray;
+  padding: mixin.$popover-padding;
   display: flex;
   flex-direction: column;
   gap: 9.1px;
 }
 .popover--date {
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 8.4px;
+  @include mixin.popover-scroller;
+  padding: mixin.$popover-padding;
+  @include mixin.popover-scroller-overlay-pad(#{mixin.$popover-padding});
   gap: 7px;
 }
 .popover--members {
-  width: min(273px, calc(100vw - 21px));
+  @include mixin.popover-panel-width(273px);
   min-height: 0;
   overflow: hidden;
   padding: 0;
   gap: 0;
 }
 .popover--labels {
-  width: min(252px, calc(100vw - 21px));
+  @include mixin.popover-panel-width(252px);
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -174,53 +174,54 @@
 }
 .popover--members .empty-text,
 .popover--members .err {
-  margin-left: 9.1px;
-  margin-right: 9.1px;
+  margin-left: mixin.$popover-padding;
+  margin-right: mixin.$popover-padding;
 }
 .popover-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  @include mixin.popover-scroller;
+  @include mixin.popover-scroller-overlay-pad(0px);
 }
 .popover-header--labels {
   position: relative;
   justify-content: center;
-  padding: 9.1px 28px 7.7px;
-  border-bottom: 1px solid #dfe1e6;
+  padding: mixin.$popover-padding 28px mixin.$popover-padding;
+  border-bottom: 1px solid mixin.$border;
+}
+:deep(.popover-shell__title) {
+  @include mixin.popover-title-text;
 }
 .popover-header--labels .popover-close {
   position: absolute;
-  right: 6.3px;
+  right: mixin.$popover-padding;
   top: 50%;
   transform: translateY(-50%);
 }
 .label-search-input {
   display: block;
-  width: calc(100% - 18.2px);
-  margin: 7.7px 9.1px 6.3px;
+  width: calc(100% - #{mixin.$popover-padding * 2});
+  margin: mixin.$popover-padding mixin.$popover-padding 6.3px;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
   border-radius: 6px;
   padding: 6.3px 7.7px;
   font-size: 12.32px;
-  color: #172b4d;
+  color: mixin.$text-on-surface;
 }
 .label-search-input:focus {
   @include mixin.input-focus-ring;
 }
 .label-section-heading {
-  margin: 2.1px 9.1px 4.9px;
-  font-size: 10.92px;
-  font-weight: 700;
-  color: #5e6c84;
+  margin: 2.1px mixin.$popover-padding 4.9px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-subtle;
 }
 .label-picker-list {
   list-style: none;
   margin: 0;
-  padding: 0 7px 9.1px;
+  padding: 0 mixin.$popover-padding mixin.$popover-padding;
   display: flex;
   flex-direction: column;
   gap: 2.8px;
@@ -235,24 +236,26 @@
   background: transparent;
   padding: 2.1px 0;
   text-align: left;
+  font-weight: mixin.$popover-font-weight;
+
 }
 .label-picker-checkbox {
   width: 14px;
   height: 14px;
-  border: 2px solid #8590a2;
+  border: 1px solid mixin.$border-checkbox;
   border-radius: 3px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 10.08px;
-  font-weight: 800;
-  color: #fff;
-  background: #fff;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$white;
+  background: mixin.$white;
 }
 .label-picker-checkbox--checked {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: mixin.$main;
+  border-color: mixin.$main;
 }
 .label-picker-bar {
   flex: 0 0 200px;
@@ -262,8 +265,8 @@
   min-height: 38px;
   border-radius: 4px;
   padding: 5.32px 7.7px;
-  font-size: 12.32px;
-  font-weight: 700;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
   line-height: 1.25;
   display: flex;
   align-items: center;
@@ -273,18 +276,20 @@
   border: 1px solid currentColor;
 }
 .member-picker-bar {
-  background: #fff;
-  color: #172b4d;
+  background: mixin.$white;
+  color: mixin.$text-on-surface;
   gap: 7px;
   transition: background 0.12s ease;
 }
 .label-picker-row.member-picker-row--workspace {
   border-radius: 4px;
   padding: 0 7.7px;
+  min-width: 0;
   transition: background 0.12s ease;
 }
 .member-picker-row--workspace .member-picker-bar {
   flex: 1;
+  min-width: 0;
   background: transparent;
   padding-left: 0;
   padding-right: 0;
@@ -296,20 +301,17 @@
   justify-content: center;
   min-height: 28px;
   padding: 0 2.1px;
-  color: #2563eb;
+  color: mixin.$main;
 }
 .member-picker-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  @include mixin.popover-member-name;
 }
 .label-picker-empty {
-  padding: 0 9.1px 10.5px;
+  padding: 0 mixin.$popover-padding mixin.$popover-padding;
 }
 .popover--member-detail {
   padding: 0;
-  width: min(238px, calc(100% - 21px));
+  @include mixin.popover-panel-width(238px, calc(100% - 21px));
   overflow: hidden;
   gap: 0;
 }
@@ -319,17 +321,17 @@
 }
 .member-detail-header {
   position: relative;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  padding: 14px 11.9px 16.8px;
-  color: #fff;
+  background: mixin.$main;
+  padding: 14px mixin.$popover-padding 16.8px;
+  color: mixin.$white;
 }
 .member-detail-close {
   position: absolute;
-  top: 6.3px;
-  right: 6.3px;
+  top: mixin.$popover-padding;
+  right: mixin.$popover-padding;
   border: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.92);
+  color: mixin.white-a(0.92);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -348,48 +350,48 @@
   height: 38.5px;
   border-radius: 999px;
   flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.35);
+  border: 2px solid mixin.white-a(0.35);
   object-fit: cover;
 }
 .member-detail-initial {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #a67c52;
-  color: #fff;
+  background: mixin.$bg-gray;
+  color: mixin.$text;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: mixin.$popover-font-weight;
 }
 .member-detail-name {
   margin: 0;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: mixin.$popover-font-weight;
   line-height: 1.25;
 }
 .member-detail-email {
   margin: 2.8px 0 0;
   font-size: 11.48px;
-  color: rgba(255, 255, 255, 0.88);
+  color: mixin.white-a(0.88);
   line-height: 1.3;
   word-break: break-all;
 }
 .member-detail-body {
-  background: #fff;
+  background: mixin.$white;
 }
 .member-detail-remove {
   width: 100%;
   border: none;
-  background: #fff;
-  padding: 11.2px 12.6px;
+  background: mixin.$white;
+  padding: mixin.$popover-padding;
   text-align: left;
   font-size: 12.6px;
-  font-weight: 600;
-  color: #334155;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-strong;
   cursor: pointer;
 }
 .member-detail-error {
   margin: 0;
-  padding: 7px 10.5px 10.5px;
+  padding: mixin.$popover-padding;
 }
 .popover-fade-enter-active,
 .popover-fade-leave-active {
@@ -442,15 +444,15 @@
 }
 .detail-item--effort .detail-value-btn:disabled {
   opacity: 1;
-  color: #0f172a;
+  color: mixin.$text;
   cursor: default;
 }
 .detail-item--effort .detail-value-btn--editing {
   cursor: pointer;
 }
 .popover--effort {
-  width: min(252px, calc(100vw - 21px));
-  padding: 8.4px;
+  @include mixin.popover-panel-width(252px);
+  padding: mixin.$popover-padding;
   gap: 7px;
 }
 .effort-input-row {
@@ -465,9 +467,9 @@
   border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 6.3px 8.4px;
-  font-size: 13.16px;
-  color: #0f172a;
-  background: #fff;
+  font-size: mixin.$modal-field-font-size;
+  color: mixin.$text;
+  background: mixin.$white;
   @include mixin.hide-number-spin-buttons;
 }
 .popover--effort .effort-input:focus {
@@ -478,8 +480,8 @@
   box-sizing: border-box;
   padding: 6.3px 7px;
   font-size: 12.32px;
-  font-weight: 700;
-  color: #64748b;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
   white-space: nowrap;
 }
 .popover-field-actions {
@@ -491,13 +493,13 @@
   min-width: 49px;
   height: 24.5px;
   padding: 0 9.1px;
-  border: 1px solid mixin.$border-light;
+  border: 1px solid mixin.$border;
   border-radius: 6px;
-  background: #fff;
+  background: mixin.$white;
   color: mixin.$text-sub;
   font: inherit;
   font-size: 10.92px;
-  font-weight: 600;
+  font-weight: mixin.$popover-font-weight;
   cursor: pointer;
 }
 .popover-field-clear-btn:disabled {
@@ -510,9 +512,9 @@
   gap: 4.9px;
 }
 .detail-item-label {
-  font-size: 10.92px;
+  font-size: mixin.$modal-field-font-size;
   font-weight: 700;
-  color: #64748b;
+  color: mixin.$text-muted;
 }
 .detail-value-btn {
   align-self: flex-start;
@@ -521,8 +523,8 @@
   padding: 4.9px 7.7px;
   font-size: 12.88px;
   font-weight: 700;
-  color: #0f172a;
-  background: #fff;
+  color: mixin.$text;
+  background: mixin.$white;
   cursor: pointer;
 }
 .popover--date .calendar {
@@ -552,10 +554,10 @@
   font-size: 11.2px;
 }
 .calendar {
-  border: 1px solid #e2e8f0;
+  border: 1px solid mixin.$gray;
   border-radius: 10px;
   padding: 10.5px;
-  background: #f8fafc;
+  background: mixin.$list-column-bg;
 }
 .calendar-nav {
   display: flex;
@@ -568,16 +570,16 @@
   height: 28px;
   border: 1px solid mixin.$border;
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: mixin.$white;
+  color: mixin.$text-strong;
   font-size: 15.4px;
   cursor: pointer;
   line-height: 1;
 }
 .calendar-month-label {
   font-size: 13.3px;
-  font-weight: 800;
-  color: #0f172a;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text;
 }
 .calendar-weekdays {
   display: grid;
@@ -588,8 +590,8 @@
 .calendar-weekday {
   text-align: center;
   font-size: 10.08px;
-  font-weight: 700;
-  color: #64748b;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
 }
 .calendar-grid {
   display: grid;
@@ -600,14 +602,14 @@
   aspect-ratio: 1;
   border: 1px solid transparent;
   border-radius: 6px;
-  background: #fff;
-  color: #0f172a;
+  background: mixin.$white;
+  color: mixin.$text;
   font-size: 12.04px;
-  font-weight: 600;
+  font-weight: mixin.$popover-font-weight;
   cursor: pointer;
 }
 .calendar-day--outside {
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
   background: transparent;
 }
 .calendar-day--today {
@@ -633,7 +635,7 @@
   padding: 0 7.7px;
   border: none;
   border-radius: 6px;
-  font-size: 10.92px;
+  font-size: mixin.$modal-action-btn-font-size;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -650,8 +652,8 @@
   border: 1px solid mixin.$border;
   border-radius: 6px;
   padding: 0;
-  background: #fff;
-  color: #64748b;
+  background: mixin.$white;
+  color: mixin.$text-muted;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -666,7 +668,7 @@
 .empty-text {
   margin: 0;
   font-size: 11.76px;
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
 }
 .description-block {
   flex-shrink: 0;
@@ -676,11 +678,11 @@
   margin: 0;
   color: mixin.$danger;
   font-weight: 700;
-  font-size: 12.04px;
+  font-size: mixin.$modal-field-font-size;
 }
 button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-picker-row) {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .member-avatar-list {
   display: flex;
@@ -704,8 +706,8 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
 }
 .member-avatar-btn--add {
   border: 1px solid mixin.$border;
-  background: #fff;
-  color: #64748b;
+  background: mixin.$white;
+  color: mixin.$text-muted;
 }
 .member-avatar-btn-plus {
   font-size: 16.8px;
@@ -713,7 +715,7 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
   line-height: 1;
 }
 .member-avatar-btn--active {
-  box-shadow: 0 0 0 2px #2563eb;
+  box-shadow: 0 0 0 2px mixin.$main;
 }
 .member-avatar-btn-image {
   width: 100%;
@@ -727,8 +729,8 @@ button:disabled:not(.label-picker-row):not(.parent-task-picker-row):not(.member-
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #dbeafe;
-  color: #1e3a8a;
+  background: mixin.$bg-gray;
+  color: mixin.$text;
   font-size: 10.92px;
   font-weight: 800;
   border-radius: 999px;

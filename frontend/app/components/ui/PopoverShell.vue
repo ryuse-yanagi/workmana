@@ -9,7 +9,7 @@
     @click.stop
   >
     <header class="popover-shell__header" :class="headerClass">
-      <h4 class="popover-shell__title">{{ title }}</h4>
+      <p class="popover-shell__title">{{ title }}</p>
       <div class="popover-shell__header-end">
         <slot name="header-end" />
         <button

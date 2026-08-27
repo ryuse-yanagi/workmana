@@ -5,7 +5,7 @@
 }
 
 .muted {
-  color: #64748b;
+  color: mixin.$text-muted;
   font-size: 13.3px;
   line-height: 1.5;
 }
@@ -13,22 +13,15 @@
 .card {
   margin-top: 14px;
   padding: 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid mixin.$gray;
   border-radius: 8px;
-  background: #fff;
+  background: mixin.$white;
 }
 
 .err {
   color: mixin.$danger;
   margin-bottom: 10.5px;
   font-size: 13.3px;
-}
-
-.ok {
-  color: #166534;
-  margin-bottom: 10.5px;
-  font-size: 13.3px;
-  font-weight: 700;
 }
 
 .form {
@@ -45,41 +38,41 @@
 .label {
   font-size: 12.6px;
   font-weight: 700;
-  color: #334155;
+  color: mixin.$text-strong;
 }
 
 .input {
   box-sizing: border-box;
   width: 100%;
   height: 40px;
-  border: 1px solid #dbe3ee;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
   padding: 0 12px;
   font-size: 13.3px;
-  color: #0f2945;
-  background: #fff;
+  color: mixin.$text-emphasis;
+  background: mixin.$white;
 }
 
 .input[readonly] {
-  background: #f8fafc;
-  color: #475569;
+  background: mixin.$list-column-bg;
+  color: mixin.$text-sub;
 }
 
 .input:focus {
   outline: none;
-  border-color: #0f2945;
-  box-shadow: 0 0 0 2px rgba(15, 41, 69, 0.12);
+  border-color: mixin.$text-emphasis;
+  box-shadow: 0 0 0 2px mixin.emphasis-a(0.12);
 }
 
 .hint {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: mixin.$text-muted;
 }
 
 .field-error {
   margin: 0;
-  font-size: 12px;
+  font-size: mixin.$modal-field-font-size;
   font-weight: 700;
   color: mixin.$danger;
 }
@@ -92,8 +85,8 @@ button,
   padding: 7px 14px;
   border-radius: 6px;
   border: none;
-  background: #0f172a;
-  color: white;
+  background: mixin.$ink;
+  color: mixin.$white;
   cursor: pointer;
   font-size: 12.6px;
   font-weight: 700;
@@ -103,7 +96,7 @@ button,
 
 button:disabled {
   opacity: 0.5;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 .link-btn {

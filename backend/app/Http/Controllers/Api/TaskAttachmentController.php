@@ -24,6 +24,29 @@ class TaskAttachmentController extends ApiController
         'zip',
     ];
 
+    public function workspaceIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    {
+        $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
+
+        $attachments = TaskAttachment::query()
+            ->whereHas('task', fn ($query) => $query
+                ->where('workspace_id', $workspace->id)
+                ->notArchived())
+            ->orderByDesc('created_at')
+            ->get();
+
+        $grouped = [];
+        foreach ($attachments->groupBy('task_id') as $taskId => $taskAttachments) {
+            $grouped[(string) $taskId] = $taskAttachments
+                ->map(fn (TaskAttachment $attachment) => $this->attachmentPayload($attachment))
+                ->values()
+                ->all();
+        }
+
+        return response()->json(['data' => $grouped]);
+    }
+
     public function index(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);

@@ -6,21 +6,17 @@ export type TaskFormMember = {
   email: string | null
   avatar_url: string | null
 }
-export type TaskFormEffortUnit = 'hour'
 export type TaskFormDraft = {
   title: string
   description: string
   start_date: string | null
   due_date: string | null
-  effort_value: number | string | null
   effort_hours: number | string | null
-  effort_unit: TaskFormEffortUnit | null
   assignees: TaskFormMember[]
   labels: TaskFormLabel[]
   category: TaskFormCategory | null
   status: TaskFormCategory | null
 }
-export const FIXED_EFFORT_UNIT: TaskFormEffortUnit = 'hour'
 export const EFFORT_UNIT_LABEL = '時間'
 export function createEmptyTaskFormDraft (): TaskFormDraft {
   return {
@@ -28,9 +24,7 @@ export function createEmptyTaskFormDraft (): TaskFormDraft {
     description: '',
     start_date: null,
     due_date: null,
-    effort_value: null,
     effort_hours: null,
-    effort_unit: null,
     assignees: [],
     labels: [],
     category: null,
@@ -65,53 +59,27 @@ export function formatDateDisplay (iso: string | null | undefined): string {
   if (!y || !m || !d) return value
   return `${y}/${m}/${d}`
 }
-export function normalizeEffortUnit (_value?: TaskFormEffortUnit | string | null): TaskFormEffortUnit {
-  return FIXED_EFFORT_UNIT
-}
-export function resolveEffortUnit (
-  _taskUnit?: TaskFormEffortUnit | string | null,
-  _orgUnit?: TaskFormEffortUnit | string | null,
-): TaskFormEffortUnit {
-  return FIXED_EFFORT_UNIT
-}
-export function effortUnitLabel (_unit?: TaskFormEffortUnit | string | null): string {
-  return EFFORT_UNIT_LABEL
-}
-export function hoursToUnitValue (hours: number, _unit?: TaskFormEffortUnit): number {
-  return hours
-}
-export function unitValueToHours (value: number, _unit?: TaskFormEffortUnit): number {
-  return value
-}
 export function normalizeEffortHours (value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === '') return null
   const num = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(num) || num < 0) return null
   return Math.round(num * 1000000) / 1000000
 }
-export function normalizeEffortValue (value: number | string | null | undefined): number | null {
-  if (value === null || value === undefined || value === '') return null
-  const num = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(num) || num < 0) return null
-  return Math.round(num * 10000) / 10000
-}
-export function resolveStoredEffortValue (draft: Pick<TaskFormDraft, 'effort_value' | 'effort_hours' | 'effort_unit'>): number | null {
-  const hours = normalizeEffortHours(draft.effort_hours)
-  if (hours !== null) return normalizeEffortValue(hours)
-  return normalizeEffortValue(draft.effort_value)
+export function resolveStoredEffortValue (draft: Pick<TaskFormDraft, 'effort_hours'>): number | null {
+  return normalizeEffortHours(draft.effort_hours)
 }
 export function formatEffortAmount (value: number): string {
   return Number.isInteger(value)
     ? String(value)
     : value.toFixed(2).replace(/\.?0+$/, '')
 }
-export function effortValueToDraft (draft: Pick<TaskFormDraft, 'effort_value' | 'effort_hours' | 'effort_unit'>): string {
+export function effortValueToDraft (draft: Pick<TaskFormDraft, 'effort_hours'>): string {
   const value = resolveStoredEffortValue(draft)
   if (value === null) return ''
   return formatEffortAmount(value)
 }
 export function formatEffortDisplay (
-  draft: Pick<TaskFormDraft, 'effort_value' | 'effort_hours' | 'effort_unit'>,
+  draft: Pick<TaskFormDraft, 'effort_hours'>,
 ): string {
   const value = resolveStoredEffortValue(draft)
   if (value === null) return ''
@@ -165,6 +133,7 @@ export function parseEffortDraft (raw: string | number | null | undefined): numb
 }
 export function labelBarTextColor (hex: string): string {
   const normalized = hex.replace('#', '')
+  // mixin.$text-on-surface / $white — 輝度判定は JS のため SCSS 変数を直接参照できない
   if (normalized.length !== 6) return '#172b4d'
   const r = Number.parseInt(normalized.slice(0, 2), 16)
   const g = Number.parseInt(normalized.slice(2, 4), 16)
@@ -181,9 +150,7 @@ export function memberEmailLine (member: TaskFormMember): string {
 export type TaskFormDefaultsSource = {
   start_date?: string | null
   due_date?: string | null
-  effort_value?: number | string | null
   effort_hours?: number | string | null
-  effort_unit?: TaskFormEffortUnit | string | null
   assignees?: TaskFormMember[]
   labels?: TaskFormLabel[]
 }
@@ -197,16 +164,11 @@ export function applyTaskDefaultsToDraft (
   draft: TaskFormDraft,
   source: TaskFormDefaultsSource,
 ): TaskFormDraft {
-  const effortValue = source.effort_value ?? null
   return {
     ...draft,
     start_date: normalizeDraftDate(source.start_date),
     due_date: normalizeDraftDate(source.due_date),
-    effort_value: effortValue,
     effort_hours: source.effort_hours ?? null,
-    effort_unit: effortValue === null
-      ? null
-      : FIXED_EFFORT_UNIT,
     assignees: [...(source.assignees ?? [])],
     labels: [...(source.labels ?? [])],
   }
@@ -218,9 +180,7 @@ export function clearTaskDraftDefaults (draft: TaskFormDraft): TaskFormDraft {
     ...draft,
     start_date: empty.start_date,
     due_date: empty.due_date,
-    effort_value: empty.effort_value,
     effort_hours: empty.effort_hours,
-    effort_unit: empty.effort_unit,
     assignees: [...empty.assignees],
     labels: [...empty.labels],
     category: empty.category,
@@ -236,16 +196,13 @@ export function buildTaskCreateBody (
   },
 ) {
   const title = draft.title.trim()
-  const effortValue = resolveStoredEffortValue(draft)
   return {
     title,
     description: draft.description.trim() === '' ? null : draft.description,
     list_id: opts.listId,
-    status: 'todo',
     start_date: draft.start_date,
     due_date: draft.due_date,
-    effort_value: effortValue,
-    effort_unit: effortValue === null ? null : FIXED_EFFORT_UNIT,
+    effort_hours: resolveStoredEffortValue(draft),
     assignee_ids: draft.assignees.map(member => member.id),
     label_ids: draft.labels.map(label => label.id),
     is_parent_task: opts.createAsParent,

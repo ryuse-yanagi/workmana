@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,8 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'cognito_sub', 'avatar_path', 'email_verified_at', 'last_organization_id'])]
-#[Hidden(['password', 'remember_token'])]
+#[Fillable(['name', 'email', 'cognito_sub', 'avatar_path', 'email_verified_at', 'last_organization_id'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -23,7 +21,6 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
         ];
     }
 
@@ -35,7 +32,7 @@ class User extends Authenticatable
     public function organizations(): BelongsToMany
     {
         return $this->belongsToMany(Organization::class, 'memberships')
-            ->withPivot(['role', 'invited_by'])
+            ->withPivot(['role'])
             ->withTimestamps();
     }
 

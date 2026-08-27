@@ -31,6 +31,7 @@
               v-model="draft"
               :org-slug="orgSlug"
               :org-labels="labels"
+              :label-categories="labelCategories"
               :document-categories="categories"
               :workspace-members="[]"
               :disabled="loading"
@@ -73,8 +74,8 @@ import {
   type TaskFormDraft,
   type TaskFormLabel,
 } from '../../composables/useTaskFormHelpers'
+import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
-import { DOCUMENT_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { documentNameFieldError } from '../../utils/formValidation'
 import { createOverlayBackdropClose, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
 
@@ -102,12 +103,14 @@ const props = withDefaults(defineProps<{
   initialValues?: DocumentCreateInitialValues | null
   orgSlug: string
   labels: DocumentCreateLabel[]
+  labelCategories?: LabelCategoryGroup[]
   categories: DocumentCreateCategory[]
   loading?: boolean
 }>(), {
   title: '',
   mode: 'create',
   initialValues: null,
+  labelCategories: () => [],
   loading: false,
 })
 
@@ -207,11 +210,8 @@ function submit () {
     titleError.value = validationError
     return
   }
-  if (name.length > DOCUMENT_NAME_MAX_LENGTH) {
-    titleError.value = `資料名は${DOCUMENT_NAME_MAX_LENGTH}文字以内で入力してください`
-    return
-  }
   titleError.value = null
+  submitError.value = null
   const description = draft.value.description.trim()
   emit('submit', {
     name,
@@ -220,6 +220,11 @@ function submit () {
     label_ids: draft.value.labels.map(label => label.id),
   })
 }
+
+function setSubmitError (message: string) {
+  submitError.value = message
+}
+defineExpose({ setSubmitError })
 
 watch(
   () => draft.value.title,

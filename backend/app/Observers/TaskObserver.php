@@ -27,32 +27,30 @@ class TaskObserver
     {
         $actorId = auth()->id();
 
-        foreach (['status' => TaskHistoryEventType::StatusChanged, 'priority' => TaskHistoryEventType::PriorityChanged] as $field => $event) {
-            if ($task->wasChanged($field)) {
-                TaskHistory::query()->create([
-                    'task_id' => $task->id,
-                    'organization_id' => $task->organization_id,
-                    'workspace_id' => $task->workspace_id,
-                    'actor_id' => $actorId,
-                    'event_type' => $event->value,
-                    'field_name' => $field,
-                    'before_value' => (string) $task->getOriginal($field),
-                    'after_value' => (string) $task->getAttribute($field),
-                    'created_at' => now(),
-                ]);
-            }
-        }
-
-        if ($task->wasChanged('assignee_id')) {
+        if ($task->wasChanged('priority')) {
             TaskHistory::query()->create([
                 'task_id' => $task->id,
                 'organization_id' => $task->organization_id,
                 'workspace_id' => $task->workspace_id,
                 'actor_id' => $actorId,
-                'event_type' => TaskHistoryEventType::AssigneeChanged->value,
-                'field_name' => 'assignee_id',
-                'before_value' => $task->getOriginal('assignee_id') !== null ? (string) $task->getOriginal('assignee_id') : null,
-                'after_value' => $task->assignee_id !== null ? (string) $task->assignee_id : null,
+                'event_type' => TaskHistoryEventType::PriorityChanged->value,
+                'field_name' => 'priority',
+                'before_value' => (string) $task->getOriginal('priority'),
+                'after_value' => (string) $task->getAttribute('priority'),
+                'created_at' => now(),
+            ]);
+        }
+
+        if ($task->wasChanged('list_id')) {
+            TaskHistory::query()->create([
+                'task_id' => $task->id,
+                'organization_id' => $task->organization_id,
+                'workspace_id' => $task->workspace_id,
+                'actor_id' => $actorId,
+                'event_type' => TaskHistoryEventType::ListChanged->value,
+                'field_name' => 'list_id',
+                'before_value' => $task->getOriginal('list_id') !== null ? (string) $task->getOriginal('list_id') : null,
+                'after_value' => $task->list_id !== null ? (string) $task->list_id : null,
                 'created_at' => now(),
             ]);
         }

@@ -11,10 +11,10 @@
   min-width: 80px;
   max-width: 80px;
   padding: 0;
-  border: 1px solid #000;
+  border: 1px solid mixin.$text;
   border-radius: 999px;
-  background: #f0f0f0;
-  color: #000;
+  background: mixin.$surface-hover;
+  color: mixin.$text;
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
@@ -23,15 +23,15 @@
   white-space: nowrap;
 }
 .workspace-assignee-select__btn--empty {
-  border-color: #cbd5e1;
-  background: #f1f5f9;
-  color: #64748b;
+  border-color: mixin.$border;
+  background: mixin.$surface-muted;
+  color: mixin.$text-muted;
 }
 .workspace-assignee-select__btn:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid mixin.$main;
   outline-offset: 2px;
 }
 .workspace-assignee-select__btn:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }

@@ -2,10 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\TaskEffortUnit;
 use App\Enums\TaskHistoryEventType;
 use App\Enums\TaskPriority;
-use App\Enums\TaskStatus;
 use App\Events\TaskArchived;
 use App\Events\TaskCreated;
 use App\Events\TaskDeleted;
@@ -70,15 +68,11 @@ class TaskController extends ApiController
             'parent_task_id',
             'title',
             'description',
-            'status',
             'priority',
             'start_date',
             'due_date',
             'gantt_bar_color',
             'effort_hours',
-            'effort_value',
-            'effort_unit',
-            'assignee_id',
             'reporter_id',
             'created_at',
         ];
@@ -135,15 +129,11 @@ class TaskController extends ApiController
                 'parent_task_id',
                 'title',
                 'description',
-                'status',
                 'priority',
                 'start_date',
                 'due_date',
                 'gantt_bar_color',
                 'effort_hours',
-                'effort_value',
-                'effort_unit',
-                'assignee_id',
                 'reporter_id',
                 'created_at',
             ]);
@@ -232,6 +222,7 @@ class TaskController extends ApiController
                         'parent_task_id' => $item['parent_task_id'],
                     ]);
             }
+            $workspace->recordActivity();
         });
 
         SafeBroadcast::toOthers(new WbsTasksReordered((int) $workspace->id, $items));
@@ -284,15 +275,11 @@ class TaskController extends ApiController
                 'id',
                 'list_id',
                 'title',
-                'status',
                 'priority',
                 'start_date',
                 'due_date',
                 'gantt_bar_color',
                 'effort_hours',
-                'effort_value',
-                'effort_unit',
-                'assignee_id',
                 'reporter_id',
                 'archived_at',
                 'created_at',
@@ -313,15 +300,11 @@ class TaskController extends ApiController
             'title' => ['required', 'string', 'max:'.FieldLengthLimits::TASK_TITLE],
             'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
             'list_id' => ['required', 'integer', 'exists:lists,id'],
-            'status' => ['nullable', 'string', Rule::in(TaskStatus::values())],
             'priority' => ['nullable', 'string', Rule::in(TaskPriority::values())],
             'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'gantt_bar_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'effort_hours' => ['nullable', 'numeric', 'min:0', 'max:99999.99'],
-            'effort_value' => ['nullable', 'numeric', 'min:0', 'max:9999999.9999'],
-            'effort_unit' => ['nullable', 'string', Rule::in(TaskEffortUnit::values())],
-            'assignee_id' => ['nullable', 'integer', 'exists:users,id'],
             'assignee_ids' => ['nullable', 'array'],
             'assignee_ids.*' => ['integer', 'distinct'],
             'label_ids' => ['nullable', 'array'],
@@ -379,11 +362,9 @@ class TaskController extends ApiController
                 'parent_task_id' => $parentTaskId,
                 'title' => $title,
                 'description' => $validated['description'] ?? null,
-                'status' => $validated['status'] ?? TaskStatus::Todo->value,
                 'priority' => $validated['priority'] ?? TaskPriority::Medium->value,
                 'start_date' => $validated['start_date'] ?? null,
                 'due_date' => $validated['due_date'] ?? null,
-                'assignee_id' => $assigneeIds[0] ?? null,
                 'reporter_id' => $user->id,
             ]);
 
@@ -443,15 +424,11 @@ class TaskController extends ApiController
             'title' => ['sometimes', 'string', 'max:'.FieldLengthLimits::TASK_TITLE],
             'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
             'list_id' => ['sometimes', 'integer', 'exists:lists,id'],
-            'status' => ['sometimes', 'string', Rule::in(TaskStatus::values())],
             'priority' => ['sometimes', 'string', Rule::in(TaskPriority::values())],
             'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'gantt_bar_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'effort_hours' => ['nullable', 'numeric', 'min:0', 'max:99999.99'],
-            'effort_value' => ['nullable', 'numeric', 'min:0', 'max:9999999.9999'],
-            'effort_unit' => ['nullable', 'string', Rule::in(TaskEffortUnit::values())],
-            'assignee_id' => ['nullable', 'integer', 'exists:users,id'],
             'assignee_ids' => ['nullable', 'array'],
             'assignee_ids.*' => ['integer', 'distinct'],
             'label_ids' => ['nullable', 'array'],
@@ -477,6 +454,7 @@ class TaskController extends ApiController
         if (array_key_exists('description', $validated)) {
             $task->description = $validated['description'];
         }
+
         if (array_key_exists('list_id', $validated)) {
             $list = BoardList::query()->find($validated['list_id']);
             if ($list === null || (int) $list->workspace_id !== (int) $workspace->id) {
@@ -485,9 +463,7 @@ class TaskController extends ApiController
             // 並び順はドラッグ操作でのみ変更する。リスト変更では sort_order を維持する。
             $task->list_id = $list->id;
         }
-        if (array_key_exists('status', $validated)) {
-            $task->status = $validated['status'];
-        }
+
         if (array_key_exists('priority', $validated)) {
             $task->priority = $validated['priority'];
         }
@@ -503,9 +479,8 @@ class TaskController extends ApiController
         $this->applyEffortFields($task, $validated);
 
         $assigneeIdsToSync = null;
-        if (array_key_exists('assignee_ids', $validated) || array_key_exists('assignee_id', $validated)) {
+        if (array_key_exists('assignee_ids', $validated)) {
             $assigneeIdsToSync = $this->resolveAssigneeIds($workspace, $validated);
-            $task->assignee_id = $assigneeIdsToSync[0] ?? null;
         }
 
         if (array_key_exists('is_parent_task', $validated) || array_key_exists('parent_task_id', $validated)) {
@@ -533,7 +508,13 @@ class TaskController extends ApiController
             }
 
             if ($labelIds !== null) {
+                $beforeLabelIds = $task->labels()->pluck('task_labels.id')->sort()->values()->all();
                 $task->labels()->sync($labelIds);
+                $afterLabelIds = $labelIds;
+                sort($afterLabelIds);
+                if ($beforeLabelIds !== $afterLabelIds) {
+                    $task->touch();
+                }
             }
 
             if (array_key_exists('checklists', $validated)) {
@@ -658,15 +639,11 @@ class TaskController extends ApiController
             'child_tasks' => $childTasks,
             'title' => $task->title,
             'description' => $task->description,
-            'status' => $task->status,
             'priority' => $task->priority,
             'start_date' => $task->start_date,
             'due_date' => $task->due_date,
             'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
-            'effort_value' => $task->effort_value,
-            'effort_unit' => $task->effort_unit,
-            'assignee_id' => $task->assignee_id,
             'assignees' => $this->formatAssignees($task->assignees),
             'reporter_id' => $task->reporter_id,
             'archived_at' => $task->archived_at,
@@ -690,15 +667,11 @@ class TaskController extends ApiController
             'parent_task_id' => $task->parent_task_id,
             'title' => $task->title,
             'description' => $task->description,
-            'status' => $task->status,
             'priority' => $task->priority,
             'start_date' => $task->start_date,
             'due_date' => $task->due_date,
             'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
-            'effort_value' => $task->effort_value,
-            'effort_unit' => $task->effort_unit,
-            'assignee_id' => $task->assignee_id,
             'assignees' => $this->formatAssignees($task->assignees),
             'reporter_id' => $task->reporter_id,
             'archived_at' => $task->archived_at,
@@ -773,12 +746,19 @@ class TaskController extends ApiController
      */
     private function formatAssignees(Collection $assignees): array
     {
-        return $assignees->map(fn (User $user) => [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'avatar_url' => $this->avatarUrl($user->avatar_path),
-        ])->values()->all();
+        return $assignees
+            ->sortBy([
+                fn (User $user) => mb_strtolower((string) ($user->name ?: $user->email ?: '')),
+                fn (User $user) => $user->id,
+            ])
+            ->values()
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'avatar_url' => $this->avatarUrl($user->avatar_path),
+            ])
+            ->all();
     }
 
     /**
@@ -789,14 +769,6 @@ class TaskController extends ApiController
     {
         if (array_key_exists('assignee_ids', $validated)) {
             return $this->validateAssigneeIds($workspace, $validated['assignee_ids'] ?? []);
-        }
-
-        if (array_key_exists('assignee_id', $validated) && $validated['assignee_id'] !== null) {
-            return $this->validateAssigneeIds($workspace, [(int) $validated['assignee_id']]);
-        }
-
-        if (array_key_exists('assignee_id', $validated) && $validated['assignee_id'] === null) {
-            return [];
         }
 
         return [];
@@ -837,6 +809,8 @@ class TaskController extends ApiController
         if ($before === $after) {
             return [];
         }
+
+        $task->touch();
 
         TaskHistory::query()->create([
             'task_id' => $task->id,
@@ -919,39 +893,17 @@ class TaskController extends ApiController
      */
     private function applyEffortFields(Task $task, array $validated): void
     {
-        if (array_key_exists('effort_value', $validated) || array_key_exists('effort_unit', $validated)) {
-            if (($validated['effort_value'] ?? null) === null) {
-                $task->effort_value = null;
-                $task->effort_unit = null;
-                $task->effort_hours = null;
-
-                return;
-            }
-
-            $hours = round((float) $validated['effort_value'], 6);
-            $task->effort_value = round($hours, 4);
-            $task->effort_unit = TaskEffortUnit::Hour->value;
-            $task->effort_hours = $hours;
-
-            return;
-        }
-
         if (! array_key_exists('effort_hours', $validated)) {
             return;
         }
 
         if ($validated['effort_hours'] === null) {
             $task->effort_hours = null;
-            $task->effort_value = null;
-            $task->effort_unit = null;
 
             return;
         }
 
-        $hours = round((float) $validated['effort_hours'], 6);
-        $task->effort_hours = $hours;
-        $task->effort_unit = TaskEffortUnit::Hour->value;
-        $task->effort_value = round($hours, 4);
+        $task->effort_hours = round((float) $validated['effort_hours'], 6);
     }
 
     /**

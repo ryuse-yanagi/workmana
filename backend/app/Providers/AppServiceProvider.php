@@ -34,7 +34,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * 本番環境を危険な認証設定のまま起動させない。
+     * 本番環境を危険な認証・メール設定のまま起動させない。
      */
     private function validateProductionSecurityConfiguration(): void
     {
@@ -113,9 +113,24 @@ class AppServiceProvider extends ServiceProvider
             }
         }
 
+        $mailer = (string) config('mail.default', '');
+        if (! in_array($mailer, ['ses', 'ses-v2'], true)) {
+            $errors[] = 'MAIL_MAILER must be ses or ses-v2 (organization invites are sent via Amazon SES)';
+        }
+
+        $fromAddress = (string) config('mail.from.address', '');
+        if ($fromAddress === '' || strcasecmp($fromAddress, 'hello@example.com') === 0) {
+            $errors[] = 'MAIL_FROM_ADDRESS must be a SES-verified sender address (not the Laravel placeholder)';
+        }
+
+        $awsRegion = (string) config('services.ses.region', '');
+        if ($awsRegion === '') {
+            $errors[] = 'AWS_DEFAULT_REGION is required for Amazon SES';
+        }
+
         if ($errors !== []) {
             throw new RuntimeException(
-                "Unsafe production authentication configuration:\n- ".implode("\n- ", $errors)
+                "Unsafe production configuration:\n- ".implode("\n- ", $errors)
             );
         }
     }

@@ -191,7 +191,6 @@ memberships
 - user_id
 - organization_id
 - role
-- invited_by
 - created_at
 - updated_at
 

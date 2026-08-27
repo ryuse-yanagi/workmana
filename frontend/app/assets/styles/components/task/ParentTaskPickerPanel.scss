@@ -1,22 +1,21 @@
 .popover-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  @include mixin.popover-scroller;
+  @include mixin.popover-scroller-overlay-pad(0px);
 }
 .parent-task-loading {
-  margin: 8px;
+  margin: mixin.$popover-padding;
 }
 .parent-task-empty {
   margin: 0;
-  padding: 28px 8px;
+  padding: 28px mixin.$popover-padding;
   text-align: center;
 }
 .parent-task-picker-list {
   list-style: none;
   margin: 0;
-  padding: 6.4px 8px 3.2px;
+  padding: mixin.$popover-padding mixin.$popover-padding 0;
   display: flex;
   flex-direction: column;
   gap: 2.8px;
@@ -25,19 +24,19 @@
   display: flex;
   justify-content: flex-end;
   margin-top: 0;
-  padding: 4.8px 8px 8px;
+  padding: 4.8px mixin.$popover-padding mixin.$popover-padding;
 }
 .popover-field-clear-btn {
   min-width: 48px;
   height: 24px;
   padding: 0 8px;
-  border: 1px solid mixin.$border-light;
+  border: 1px solid mixin.$border;
   border-radius: 6px;
-  background: #fff;
+  background: mixin.$white;
   color: mixin.$text-sub;
   font: inherit;
   font-size: 10.4px;
-  font-weight: 600;
+  font-weight: mixin.$popover-font-weight;
   cursor: pointer;
 }
 .popover-field-clear-btn:disabled {
@@ -62,13 +61,13 @@
 .parent-task-picker-radio {
   width: 14px;
   height: 14px;
-  border: 2px solid #8590a2;
+  border: 2px solid mixin.$border;
   border-radius: 50%;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: mixin.$white;
 }
 .parent-task-picker-radio--checked {
   border-color: mixin.$main;
@@ -77,7 +76,7 @@
 .parent-task-picker-radio--checked::after {
   content: '✓';
   font-size: 8px;
-  font-weight: 800;
+  font-weight: mixin.$popover-font-weight;
   line-height: 1;
   color: mixin.$white;
 }
@@ -85,7 +84,7 @@
   flex: 1;
   min-width: 0;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: mixin.$popover-font-weight;
   line-height: 1.35;
   color: mixin.$text;
   overflow-wrap: anywhere;
@@ -94,11 +93,11 @@
 .empty-text {
   margin: 0;
   font-size: 11.2px;
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
 }
 .err {
-  margin: 6.4px 8px;
+  margin: mixin.$popover-padding;
   color: mixin.$danger;
-  font-weight: 700;
-  font-size: 12.04px;
+  font-weight: mixin.$popover-font-weight;
+  font-size: mixin.$modal-field-font-size;
 }

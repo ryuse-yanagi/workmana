@@ -1,8 +1,58 @@
 import { extractApiErrorMessage } from '../utils/apiError'
 import { deepNormalizeColorIndexedPayload } from '../utils/colorPresetResolution'
+import { resolveAvatarUrl } from '../utils/resolveAvatarUrl'
 import { ensureXsrfToken, readXsrfToken } from '../utils/csrf'
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+function isRecord (value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** API レスポンス内の avatar_url / icon_url をフロントから読める URL に解決する */
+function deepNormalizeAvatarUrls<T> (payload: T, apiBaseUrl: string): T {
+  if (payload === null || payload === undefined) {
+    return payload
+  }
+  if (Array.isArray(payload)) {
+    return payload.map(item => deepNormalizeAvatarUrls(item, apiBaseUrl)) as T
+  }
+  if (!isRecord(payload)) {
+    return payload
+  }
+  const normalized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(payload)) {
+    if (key === 'avatar_url' || key === 'icon_url') {
+      if (typeof value === 'string' || value === null) {
+        normalized[key] = resolveAvatarUrl(value, apiBaseUrl)
+        continue
+      }
+    }
+    normalized[key] = deepNormalizeAvatarUrls(value, apiBaseUrl)
+  }
+  return normalized as T
+}
+
+function readHttpStatus (error: unknown): number | null {
+  if (!error || typeof error !== 'object') {
+    return null
+  }
+  const record = error as { statusCode?: unknown; status?: unknown; response?: { status?: unknown } }
+  if (typeof record.statusCode === 'number') {
+    return record.statusCode
+  }
+  if (typeof record.status === 'number') {
+    return record.status
+  }
+  if (typeof record.response?.status === 'number') {
+    return record.response.status
+  }
+  return null
+}
+
+type ApiRequestOptions = Record<string, unknown> & {
+  __csrfRetried?: boolean
+}
 
 export function useApi () {
   const config = useRuntimeConfig()
@@ -19,11 +69,11 @@ export function useApi () {
       return ''
     }
   }
-  async function api<T> (path: string, opts: Record<string, unknown> = {}): Promise<T> {
+  async function api<T> (path: string, opts: ApiRequestOptions = {}): Promise<T> {
     const url = path.startsWith('http') ? path : `${apiBase}/${path.replace(/^\//, '')}`
     const method = String(opts.method || 'GET').toUpperCase()
     const headers: Record<string, string> = {
-      Accept: 'application/json',
+      Accept: opts.responseType === 'blob' ? '*/*' : 'application/json',
       ...(opts.headers as Record<string, string> | undefined),
     }
     const xsrfToken = READ_METHODS.has(method)
@@ -43,8 +93,23 @@ export function useApi () {
         // 認証は HttpOnly のセッション Cookie で行うため、必ず Cookie を送る
         credentials: 'include',
       })
-      return deepNormalizeColorIndexedPayload(result)
+      if (typeof Blob !== 'undefined' && result instanceof Blob) {
+        return result
+      }
+      return deepNormalizeAvatarUrls(
+        deepNormalizeColorIndexedPayload(result),
+        apiBase || '/api',
+      )
     } catch (error: unknown) {
+      // セッションと CSRF Cookie の不整合時は一度だけトークンを取り直して再試行する
+      if (
+        !READ_METHODS.has(method)
+        && readHttpStatus(error) === 419
+        && !opts.__csrfRetried
+      ) {
+        await ensureXsrfToken(apiBase, { force: true })
+        return api<T>(path, { ...opts, __csrfRetried: true })
+      }
       throw new Error(extractApiErrorMessage(error))
     }
   }

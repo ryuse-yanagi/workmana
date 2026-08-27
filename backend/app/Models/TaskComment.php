@@ -10,6 +10,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class TaskComment extends Model
 {
     use SoftDeletes;
+
+    /**
+     * @var list<string>
+     */
+    protected $touches = ['task'];
+
     protected $fillable = [
         'task_id',
         'organization_id',

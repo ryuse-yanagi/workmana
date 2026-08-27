@@ -56,7 +56,7 @@
           <template v-if="!wbsEditMode">
             <button
               type="button"
-              class="document-header-action-btn document-header-action-btn--primary document-header-action-btn--edit"
+              class="document-header-action-btn document-header-action-btn--edit"
               :disabled="!wbsBoardRef || wbsEditSaving"
               @click="onStartWbsEditClick"
             >

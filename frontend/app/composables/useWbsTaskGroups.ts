@@ -12,15 +12,12 @@ export type WbsTask = {
   title: string
   description?: string | null
   created_at?: string | null
-  status?: string
   list_id: number | null
   list_name?: string | null
   start_date?: string | null
   due_date?: string | null
   gantt_bar_color?: string | null
   effort_hours?: number | string | null
-  effort_value?: number | string | null
-  effort_unit?: string | null
   labels?: WbsTaskLabel[]
   assignees?: WbsTaskMember[]
   checklists?: TaskChecklist[]

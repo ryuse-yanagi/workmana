@@ -3,7 +3,6 @@
 namespace App\Support;
 
 use App\Models\Task;
-use Illuminate\Support\Facades\Storage;
 
 final class TaskBoardBroadcast
 {
@@ -24,26 +23,27 @@ final class TaskBoardBroadcast
             'is_parent_task' => (bool) $task->is_parent_task,
             'parent_task_id' => $task->parent_task_id,
             'title' => $task->title,
-            'status' => $task->status,
             'start_date' => $task->start_date,
             'due_date' => $task->due_date,
             'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
-            'effort_value' => $task->effort_value,
-            'effort_unit' => $task->effort_unit,
             'labels' => $task->labels->map(fn ($l) => [
                 'id' => $l->id,
                 'name' => $l->name,
                 'color_index' => $l->color_index,
             ])->all(),
-            'assignees' => $task->assignees->map(fn ($u) => [
-                'id' => $u->id,
-                'name' => $u->name,
-                'email' => $u->email,
-                'avatar_url' => $u->avatar_path
-                    ? Storage::disk('public')->url($u->avatar_path)
-                    : null,
-            ])->all(),
+            'assignees' => $task->assignees
+                ->sortBy([
+                    fn ($u) => mb_strtolower((string) ($u->name ?: $u->email ?: '')),
+                    fn ($u) => $u->id,
+                ])
+                ->values()
+                ->map(fn ($u) => [
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'email' => $u->email,
+                    'avatar_url' => MediaUrl::avatar($u->avatar_path),
+                ])->all(),
         ];
     }
 

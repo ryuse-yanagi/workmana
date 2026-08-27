@@ -15,11 +15,12 @@
           v-model.trim="name"
           type="text"
           :maxlength="LABEL_CATEGORY_NAME_MAX_LENGTH"
-          placeholder="カテゴリ名を入力してください"
+          placeholder="カテゴリ名を入力..."
           :disabled="loading"
         />
         <p v-if="nameError" class="field-error">{{ nameError }}</p>
       </label>
+      <p v-if="submitError" class="err">{{ submitError }}</p>
       <div class="actions">
         <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">キャンセル</button>
         <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading">{{ submitLabel }}</button>
@@ -47,12 +48,14 @@ const emit = defineEmits<{
 }>()
 const name = ref('')
 const nameError = ref<string | null>(null)
+const submitError = ref<string | null>(null)
 watch(
   () => [props.modelValue, props.initialName] as const,
   ([open, initialName]) => {
     if (open) {
       name.value = initialName
       nameError.value = null
+      submitError.value = null
     }
   },
   { immediate: true },
@@ -61,6 +64,9 @@ watch(name, () => {
   if (nameError.value) {
     nameError.value = null
   }
+  if (submitError.value) {
+    submitError.value = null
+  }
 })
 function close () {
   if (props.loading) return
@@ -68,14 +74,19 @@ function close () {
 }
 function submit () {
   if (props.loading) return
-  const validationError = requiredTextFieldError(name.value, 'カテゴリ名を入力してください')
+  const validationError = requiredTextFieldError(name.value, 'カテゴリ名', LABEL_CATEGORY_NAME_MAX_LENGTH)
   if (validationError) {
     nameError.value = validationError
     return
   }
   const trimmed = name.value.trim()
   nameError.value = null
+  submitError.value = null
   emit('submit', trimmed)
 }
+function setSubmitError (message: string) {
+  submitError.value = message
+}
+defineExpose({ setSubmitError })
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/modals/LabelCategoryNameModal.scss"></style>

@@ -37,6 +37,14 @@ final class BidirectionalRelationSync
                     ->whereIn('workspace_id', $removedIds)
                     ->delete();
             }
+
+            $touchedIds = array_values(array_unique([...$addedIds, ...$removedIds]));
+            if ($touchedIds !== []) {
+                Workspace::query()
+                    ->whereIn('id', $touchedIds)
+                    ->get()
+                    ->each(fn (Workspace $item) => $item->recordActivity());
+            }
         });
     }
 
@@ -45,6 +53,7 @@ final class BidirectionalRelationSync
         DB::transaction(function () use ($workspace, $relatedWorkspace) {
             $workspace->relatedWorkspaces()->detach($relatedWorkspace->id);
             $relatedWorkspace->relatedWorkspaces()->detach($workspace->id);
+            $relatedWorkspace->recordActivity();
         });
     }
 

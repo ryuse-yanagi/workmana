@@ -44,9 +44,9 @@
   height: 21px;
   margin: 0;
   padding: 0;
-  border: 1px solid mixin.$border-light;
+  border: 1px solid mixin.$border;
   border-radius: 4px;
-  background: #fff;
+  background: mixin.$white;
   color: mixin.$text-sub;
   cursor: pointer;
   touch-action: none;

@@ -21,7 +21,7 @@ body.app-loading-cursor-active * {
   height: 20px;
   margin: -1px 0 0 -1px;
   pointer-events: none;
-  color: mixin.$main-aqua;
+  color: mixin.$main;
 }
 .app-loading-cursor__ring {
   display: block;

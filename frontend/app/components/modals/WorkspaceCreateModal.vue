@@ -31,6 +31,7 @@
               v-model="draft"
               :org-slug="orgSlug"
               :org-labels="labels"
+              :label-categories="labelCategories"
               :workspace-members="orgMembers"
               :workspace-statuses="statuses"
               :disabled="loading"
@@ -74,8 +75,8 @@ import {
   type TaskFormLabel,
   type TaskFormMember,
 } from '../../composables/useTaskFormHelpers'
+import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
-import { WORKSPACE_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { workspaceNameFieldError } from '../../utils/formValidation'
 import { createOverlayBackdropClose, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
 
@@ -104,6 +105,7 @@ const props = withDefaults(defineProps<{
   initialValues?: WorkspaceCreateInitialValues | null
   orgSlug: string
   labels: WorkspaceCreateLabel[]
+  labelCategories?: LabelCategoryGroup[]
   orgMembers: TaskFormMember[]
   statuses?: WorkspaceCreateStatus[]
   loading?: boolean
@@ -112,6 +114,7 @@ const props = withDefaults(defineProps<{
   mode: 'create',
   initialValues: null,
   statuses: () => [],
+  labelCategories: () => [],
   loading: false,
 })
 
@@ -213,11 +216,8 @@ function submit () {
     titleError.value = validationError
     return
   }
-  if (name.length > WORKSPACE_NAME_MAX_LENGTH) {
-    titleError.value = `スペース名は${WORKSPACE_NAME_MAX_LENGTH}文字以内で入力してください`
-    return
-  }
   titleError.value = null
+  submitError.value = null
   const description = draft.value.description.trim()
   emit('submit', {
     name,
@@ -227,6 +227,11 @@ function submit () {
     assignee_ids: draft.value.assignees.map(member => member.id),
   })
 }
+
+function setSubmitError (message: string) {
+  submitError.value = message
+}
+defineExpose({ setSubmitError })
 
 watch(
   () => draft.value.title,

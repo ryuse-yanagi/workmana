@@ -60,7 +60,7 @@ const props = withDefaults(defineProps<{
   focusPrimaryInputOnOpen: false,
   width: 'min(576px, 100%)',
   borderRadius: '10px',
-  zIndex: 70,
+  zIndex: 200,
 })
 const emit = defineEmits<{
   'update:modelValue': [boolean]

@@ -12,7 +12,7 @@
       </button>
     </template>
     <div class="named-color-items-panel">
-      <p v-if="message" class="settings-msg" :class="{ 'settings-msg--err': messageKind === 'err' }">
+      <p v-if="message" class="settings-msg">
         {{ message }}
       </p>
       <p v-if="!loading && !items.length" class="named-color-items-panel__empty">
@@ -74,10 +74,11 @@
       </draggable>
     </div>
     <DefaultNamedColorItemEditModal
+      ref="editModalRef"
       v-model="editModalOpen"
       :mode="editModalMode"
       :name-label="`${itemKind}名`"
-      :name-placeholder="`${itemKind}名を入力してください`"
+      :name-placeholder="`${itemKind}名を入力...`"
       :create-title="createModalTitle"
       :edit-title="editModalTitle"
       :initial-values="editingItem"
@@ -85,6 +86,7 @@
       @submit="submitEdit"
     />
     <DefaultNamedColorItemDeleteModal
+      ref="deleteModalRef"
       v-model="deleteModalOpen"
       :title="deleteModalTitle"
       :item-kind="itemKind"
@@ -100,6 +102,7 @@ import draggable from 'vuedraggable'
 import { Equal } from 'lucide-vue-next'
 import { useApi } from '../../composables/useApi'
 import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
+import { useOrgSettingsResource } from '../../composables/useOrgSettingsResource'
 import DefaultNamedColorItemDeleteModal from '../modals/DefaultNamedColorItemDeleteModal.vue'
 import DefaultNamedColorItemEditModal from '../modals/DefaultNamedColorItemEditModal.vue'
 import SettingsPanel from './SettingsPanel.vue'
@@ -131,12 +134,12 @@ const props = defineProps<{
   createModalTitle: string
   editModalTitle: string
   deleteModalTitle: string
-  saveSuccessMessage: string
   saveErrorMessage: string
 }>()
 
 const { api } = useApi()
 const { patchOrgSettingsCache } = useOrgSettingsPageData()
+const { fetchOrgSettings } = useOrgSettingsResource()
 let nextItemKey = 1
 const items = ref<DraftItem[]>(attachKeys(props.initialItems))
 const loading = ref(false)
@@ -144,10 +147,12 @@ const reordering = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
 const editModalOpen = ref(false)
+const editModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const editModalMode = ref<'create' | 'edit'>('create')
 const editingIndex = ref<number | null>(null)
 const editingItem = ref<{ name: string; color_index: number } | null>(null)
 const deleteModalOpen = ref(false)
+const deleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const deletingIndex = ref<number | null>(null)
 const deletingItemName = computed(() => {
   if (deletingIndex.value === null) return ''
@@ -185,7 +190,10 @@ function normalizeFromResponse (res: OrgSettingsResponse): DefaultNamedColorItem
 }
 
 function serializeItems (source: DraftItem[]): DefaultNamedColorItem[] {
-  const plain = source.map(({ name, color_index }) => ({ name, color_index }))
+  const plain = source.map(({ name, color_index }) => ({
+    name,
+    color_index,
+  }))
   if (props.settingsField === 'default_board_list_names') {
     return serializeDefaultBoardListItems(plain)
   }
@@ -195,7 +203,7 @@ function serializeItems (source: DraftItem[]): DefaultNamedColorItem[] {
   return serializeDefaultWorkspaceStatusItems(plain)
 }
 
-async function persistItems (successMessage?: string) {
+async function persistItems () {
   const payload = serializeItems(items.value)
   loading.value = true
   setMessage('', 'ok')
@@ -208,7 +216,6 @@ async function persistItems (successMessage?: string) {
     items.value = saved
     patchOrgSettingsCache(props.orgSlug, res)
     if (successMessage) {
-      setMessage(successMessage, 'ok')
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : props.saveErrorMessage
@@ -224,7 +231,7 @@ async function load () {
   loading.value = true
   setMessage('', 'ok')
   try {
-    const res = await api<OrgSettingsResponse>(`/orgs/${props.orgSlug}/settings`)
+    const res = await fetchOrgSettings(props.orgSlug, { refresh: true })
     items.value = attachKeys(normalizeFromResponse(res))
     patchOrgSettingsCache(props.orgSlug, res)
   } catch (e: unknown) {
@@ -273,7 +280,10 @@ function openEdit (index: number) {
   if (!item) return
   editModalMode.value = 'edit'
   editingIndex.value = index
-  editingItem.value = { name: item.name, color_index: item.color_index }
+  editingItem.value = {
+    name: item.name,
+    color_index: item.color_index,
+  }
   editModalOpen.value = true
 }
 
@@ -283,7 +293,10 @@ function openDelete (index: number) {
   deleteModalOpen.value = true
 }
 
-async function submitEdit (payload: { name: string; color_index: number }) {
+async function submitEdit (payload: {
+  name: string
+  color_index: number
+}) {
   if (!props.canManage) return
   const draft = cloneItems(items.value)
   if (editModalMode.value === 'create') {
@@ -305,12 +318,13 @@ async function submitEdit (payload: { name: string; color_index: number }) {
   items.value = draft
   loading.value = true
   try {
-    await persistItems(props.saveSuccessMessage)
+    await persistItems()
     editModalOpen.value = false
     editingIndex.value = null
     editingItem.value = null
-  } catch {
-    // persistItems already surfaced the error
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : props.saveErrorMessage
+    editModalRef.value?.setSubmitError(msg)
   }
 }
 
@@ -322,11 +336,12 @@ async function confirmDelete () {
   items.value = draft
   loading.value = true
   try {
-    await persistItems(props.saveSuccessMessage)
+    await persistItems()
     deleteModalOpen.value = false
     deletingIndex.value = null
-  } catch {
-    // persistItems already surfaced the error
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : props.saveErrorMessage
+    deleteModalRef.value?.setSubmitError(msg)
   }
 }
 

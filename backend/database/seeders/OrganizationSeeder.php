@@ -36,7 +36,6 @@ class OrganizationSeeder extends Seeder
         if (! $admin->organizations()->where('organizations.id', $org->id)->exists()) {
             $admin->organizations()->attach($org->id, [
                 'role' => MembershipRole::Admin->value,
-                'invited_by' => null,
             ]);
         }
 
@@ -53,7 +52,6 @@ class OrganizationSeeder extends Seeder
 
             $user->organizations()->attach($org->id, [
                 'role' => MembershipRole::Member->value,
-                'invited_by' => $admin->id,
             ]);
         }
     }

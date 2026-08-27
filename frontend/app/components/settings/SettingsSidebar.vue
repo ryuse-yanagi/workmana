@@ -1,22 +1,29 @@
 <template>
   <aside class="settings-sidebar">
-    <button
-      v-for="item in items"
-      :key="item.key"
-      type="button"
-      class="menu-item"
-      :class="{ 'menu-item--active': activeTab === item.key }"
-      @click="emit('select', item.key)"
+    <div
+      v-for="section in sections"
+      :key="section.title"
+      class="menu-section"
     >
-      <span>{{ item.label }}</span>
-      <span class="menu-arrow">›</span>
-    </button>
+      <p class="menu-section__title">{{ section.title }}</p>
+      <button
+        v-for="item in section.items"
+        :key="item.key"
+        type="button"
+        class="menu-item"
+        :class="{ 'menu-item--active': activeTab === item.key }"
+        @click="emit('select', item.key)"
+      >
+        <span>{{ item.label }}</span>
+        <span class="menu-arrow">›</span>
+      </button>
+    </div>
   </aside>
 </template>
 <script setup lang="ts">
-import type { SettingsTabKey } from './types'
+import type { SettingsMenuSection, SettingsTabKey } from './types'
 defineProps<{
-  items: Array<{ key: SettingsTabKey; label: string }>
+  sections: SettingsMenuSection[]
   activeTab: SettingsTabKey
 }>()
 const emit = defineEmits<{

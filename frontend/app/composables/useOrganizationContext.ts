@@ -6,6 +6,7 @@ export type OrganizationSummary = {
   name: string
   slug: string
   role?: string
+  icon_url?: string | null
 }
 
 /**

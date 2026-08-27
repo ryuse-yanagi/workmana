@@ -25,7 +25,6 @@ docsディレクトリでは、業務管理アプリの設計・仕様書を管�
 
 **DB設計**
 
-- [README（索引・方針）](./database/README.md)
 - [列挙値](./database/enums.md)
 - [スキーマ: 認証・組織・招待](./database/schema-auth.md)
 - [スキーマ: プロジェクト](./database/schema-projects.md)
@@ -49,7 +48,27 @@ docsディレクトリでは、業務管理アプリの設計・仕様書を管�
 - CI/CD
 - サーバー設定
 
+## features ディレクトリ
+
+**機能設計・仕様**（E2E。現行実装ベース）
+
+- [認証・セッション](./features/auth.md)
+- [組織・メンバー・招待](./features/organization.md)
+- [組織設定・マスタ](./features/organization-settings.md)
+- [プロフィール・アバター](./features/profile.md)
+- [スペース](./features/workspaces.md)
+- [ボード](./features/board.md)
+- [タスク](./features/tasks.md)
+- [WBS／ガント](./features/wbs.md)
+- [資料](./features/documents.md)
+- [タスクコメント](./features/task-comments.md)
+- [タスク添付](./features/task-attachments.md)
+- [タスク履歴](./features/task-history.md)
+- [アプリ内通知](./features/notification.md)
+
 ## notifications ディレクトリ
+
+通知の現行設計・仕様は [features/notification.md](./features/notification.md) を参照。
 
 ## permissions ディレクトリ
 

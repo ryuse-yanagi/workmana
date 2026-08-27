@@ -1,15 +1,25 @@
 import type { TaskDetail, TaskDetailMember } from '../components/modals/TaskDetailModal.vue'
 import type { TaskChecklist } from '../components/task/TaskDetailChecklistBlock.vue'
+import type { TaskAttachmentsByTaskId } from '../components/task/taskAttachmentTypes'
 import type { TaskCommentsByTaskId } from '../components/task/taskCommentTypes'
 import { useApi } from './useApi'
 import { useCurrentUser } from './useCurrentUser'
+import {
+  flattenLabelCategories,
+  normalizeLabelCategories,
+  type LabelCategoryGroup,
+} from './useLabelCategories'
 import { resolveLabelColors, resolveListColors } from '../utils/colorPresetResolution'
+import { sortMembersByDisplayName } from './useMemberDisplay'
 export type WorkspaceBoardLabel = {
   id: number
   name: string
   color: string
   color_index?: number
+  category_id?: number
+  sort_order?: number
 }
+export type WorkspaceBoardLabelCategory = LabelCategoryGroup<WorkspaceBoardLabel>
 export type WorkspaceBoardParentTask = {
   id: number
   title: string
@@ -18,7 +28,6 @@ export type WorkspaceBoardTask = {
   id: number
   title: string
   description?: string | null
-  status: string
   list_id: number | null
   is_parent_task?: boolean
   parent_task_id?: number | null
@@ -27,8 +36,6 @@ export type WorkspaceBoardTask = {
   due_date?: string | null
   gantt_bar_color?: string | null
   effort_hours?: number | string | null
-  effort_value?: number | string | null
-  effort_unit?: string | null
   labels?: WorkspaceBoardLabel[]
   assignees?: Array<{
     id: number
@@ -49,24 +56,23 @@ export type WorkspaceBoardPageSnapshot = {
   lists: WorkspaceBoardListRow[]
   tasks: WorkspaceBoardTask[]
   orgLabels: WorkspaceBoardLabel[]
+  orgLabelCategories: WorkspaceBoardLabelCategory[]
   workspaceMembers: TaskDetailMember[]
   parentTasks: WorkspaceBoardParentTask[]
   taskCommentsByTaskId: TaskCommentsByTaskId
+  taskAttachmentsByTaskId: TaskAttachmentsByTaskId
 }
 export function boardTaskToTaskDetail (task: WorkspaceBoardTask): TaskDetail {
   return {
     id: task.id,
     title: task.title,
     description: task.description ?? null,
-    status: task.status,
     list_id: task.list_id,
     sort_order: task.sort_order,
     start_date: task.start_date ?? null,
     due_date: task.due_date ?? null,
     effort_hours: task.effort_hours ?? null,
-    effort_value: task.effort_value ?? null,
-    effort_unit: task.effort_unit ?? null,
-    assignees: (task.assignees ?? []) as TaskDetailMember[],
+    assignees: sortMembersByDisplayName((task.assignees ?? []) as TaskDetailMember[]),
     labels: task.labels ? resolveLabelColors(task.labels) : [],
     checklists: task.checklists ?? [],
     is_parent_task: task.is_parent_task,
@@ -84,6 +90,10 @@ export function clearAllWorkspaceBoardPageCaches (): void {
   cacheByKey.clear()
   staleCacheKeys.clear()
   inflightByKey.clear()
+}
+
+export function getWorkspaceBoardCacheMap (): Map<string, WorkspaceBoardPageSnapshot> {
+  return cacheByKey
 }
 
 export function useWorkspaceBoardPageData () {
@@ -104,29 +114,35 @@ export function useWorkspaceBoardPageData () {
       const [
         listsRes,
         tasksRes,
-        labelsRes,
+        labelCategoriesRes,
         membersRes,
         parentTasksRes,
         commentsRes,
+        attachmentsRes,
       ] = await Promise.all([
         api<{ data: WorkspaceBoardListRow[] }>(`/orgs/${slug}/workspaces/${id}/lists`),
         api<{ data: WorkspaceBoardTask[] }>(`/orgs/${slug}/workspaces/${id}/tasks`),
-        api<{ data: WorkspaceBoardLabel[] }>(`/orgs/${slug}/task-labels`),
+        api<{ data: WorkspaceBoardLabelCategory[] }>(`/orgs/${slug}/task-label-categories`),
         api<{ data: TaskDetailMember[] }>(`/orgs/${slug}/workspaces/${id}/members`),
         api<{ data: WorkspaceBoardParentTask[] }>(`/orgs/${slug}/workspaces/${id}/tasks/parents`),
         api<{ data: TaskCommentsByTaskId }>(`/orgs/${slug}/workspaces/${id}/tasks/comments`),
+        api<{ data: TaskAttachmentsByTaskId }>(`/orgs/${slug}/workspaces/${id}/tasks/attachments`),
         ensureCurrentUser(),
       ])
+      const orgLabelCategories = normalizeLabelCategories(labelCategoriesRes.data ?? [])
       const snapshot: WorkspaceBoardPageSnapshot = {
-        lists: resolveListColors(listsRes.data),
-        tasks: tasksRes.data.map(task => ({
+        lists: resolveListColors(listsRes.data ?? []),
+        tasks: (tasksRes.data ?? []).map(task => ({
           ...task,
+          assignees: sortMembersByDisplayName(task.assignees ?? []),
           labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
         })),
-        orgLabels: resolveLabelColors(labelsRes.data),
-        workspaceMembers: membersRes.data,
-        parentTasks: parentTasksRes.data,
+        orgLabels: flattenLabelCategories(orgLabelCategories),
+        orgLabelCategories,
+        workspaceMembers: sortMembersByDisplayName(membersRes.data ?? []),
+        parentTasks: parentTasksRes.data ?? [],
         taskCommentsByTaskId: commentsRes.data ?? {},
+        taskAttachmentsByTaskId: attachmentsRes.data ?? {},
       }
       cacheByKey.set(key, snapshot)
       clearCachedStale(slug, id)
@@ -206,8 +222,6 @@ export function useWorkspaceBoardPageData () {
       due_date?: string | null
       gantt_bar_color?: string | null
       effort_hours?: number | string | null
-      effort_value?: number | string | null
-      effort_unit?: string | null
       labels?: WorkspaceBoardLabel[]
       assignees?: WorkspaceBoardTask['assignees']
       checklists?: TaskChecklist[]
@@ -236,8 +250,6 @@ export function useWorkspaceBoardPageData () {
         ...(patch.due_date !== undefined ? { due_date: patch.due_date } : {}),
         ...(patch.gantt_bar_color !== undefined ? { gantt_bar_color: patch.gantt_bar_color } : {}),
         ...(patch.effort_hours !== undefined ? { effort_hours: patch.effort_hours } : {}),
-        ...(patch.effort_value !== undefined ? { effort_value: patch.effort_value } : {}),
-        ...(patch.effort_unit !== undefined ? { effort_unit: patch.effort_unit } : {}),
         ...(patch.labels !== undefined ? { labels: resolveLabelColors(patch.labels) } : {}),
         ...(patch.assignees !== undefined ? { assignees: patch.assignees } : {}),
         ...(patch.checklists !== undefined ? { checklists: patch.checklists } : {}),

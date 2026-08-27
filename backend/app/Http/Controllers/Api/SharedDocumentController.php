@@ -32,7 +32,7 @@ class SharedDocumentController extends ApiController
             ->orderByDesc('created_at');
 
         $viewer = $request->user();
-        $result = ListQuery::paginate(
+        $result = ListQuery::all(
             $query,
             $request,
             fn (SharedDocument $document) => $this->documentPayload($document, $organization, $viewer),
@@ -210,7 +210,18 @@ class SharedDocumentController extends ApiController
             $organization,
             $validated['workspace_ids'] ?? [],
         );
+        $previousIds = $document->relatedWorkspaces()->pluck('workspaces.id')->map(fn ($id) => (int) $id)->all();
         $document->relatedWorkspaces()->sync($workspaceIds);
+        $changedIds = array_values(array_unique([
+            ...array_diff($workspaceIds, $previousIds),
+            ...array_diff($previousIds, $workspaceIds),
+        ]));
+        if ($changedIds !== []) {
+            Workspace::query()
+                ->whereIn('id', $changedIds)
+                ->get()
+                ->each(fn (Workspace $item) => $item->recordActivity());
+        }
         $document->load([
             'relatedWorkspaces:id,name,description,organization_id,archived_at',
         ]);
@@ -262,6 +273,7 @@ class SharedDocumentController extends ApiController
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
 
         $document->relatedWorkspaces()->detach($workspace->id);
+        $workspace->recordActivity();
         $document->load([
             'relatedWorkspaces:id,name,description,organization_id,archived_at',
         ]);

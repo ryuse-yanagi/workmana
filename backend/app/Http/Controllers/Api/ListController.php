@@ -9,8 +9,8 @@ use App\Events\ListUpdated;
 use App\Events\TasksReordered;
 use App\Models\BoardList;
 use App\Models\Organization;
-use App\Models\Workspace;
 use App\Models\Task;
+use App\Models\Workspace;
 use App\Support\BoardListColors;
 use App\Support\FieldLengthLimits;
 use App\Support\SafeBroadcast;
@@ -60,12 +60,7 @@ class ListController extends ApiController
 
         SafeBroadcast::toOthers(new ListCreated($list));
 
-        return response()->json([
-            'id' => $list->id,
-            'name' => $list->name,
-            'color_index' => $list->color_index,
-            'sort_order' => $list->sort_order,
-        ], 201);
+        return response()->json($this->listPayload($list), 201);
     }
 
     public function update(Request $request, Organization $organization, Workspace $workspace, BoardList $boardList): JsonResponse
@@ -101,16 +96,12 @@ class ListController extends ApiController
             }
             $boardList->color_index = $colorIndex;
         }
+
         $boardList->save();
 
         SafeBroadcast::toOthers(new ListUpdated($boardList));
 
-        return response()->json([
-            'id' => $boardList->id,
-            'name' => $boardList->name,
-            'color_index' => $boardList->color_index,
-            'sort_order' => $boardList->sort_order,
-        ]);
+        return response()->json($this->listPayload($boardList));
     }
 
     public function destroy(Request $request, Organization $organization, Workspace $workspace, BoardList $boardList): JsonResponse
@@ -203,6 +194,8 @@ class ListController extends ApiController
                 ->update(['sort_order' => $index]);
         }
 
+        $workspace->recordActivity();
+
         SafeBroadcast::toOthers(new ListsReordered((int) $workspace->id, $listIds));
 
         return response()->json(['data' => ['ok' => true]]);
@@ -251,6 +244,8 @@ class ListController extends ApiController
                 ->update(['sort_order' => $index]);
         }
 
+        $workspace->recordActivity();
+
         SafeBroadcast::toOthers(new TasksReordered(
             (int) $workspace->id,
             (int) $boardList->id,
@@ -258,5 +253,18 @@ class ListController extends ApiController
         ));
 
         return response()->json(['data' => ['ok' => true]]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function listPayload(BoardList $list): array
+    {
+        return [
+            'id' => $list->id,
+            'name' => $list->name,
+            'color_index' => $list->color_index,
+            'sort_order' => $list->sort_order,
+        ];
     }
 }

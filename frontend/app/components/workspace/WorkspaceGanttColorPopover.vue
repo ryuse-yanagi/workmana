@@ -29,6 +29,8 @@
 <script setup lang="ts">
 import ColorPresetPicker from '../ui/ColorPresetPicker.vue'
 import PopoverShell from '../ui/PopoverShell.vue'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
+import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
 const props = defineProps<{
   open: boolean
   modelValue: string
@@ -39,6 +41,10 @@ const emit = defineEmits<{
   close: []
   select: [string]
 }>()
+useExclusivePopover(
+  () => props.open,
+  () => emit('close'),
+)
 const shellRef = ref<InstanceType<typeof PopoverShell> | null>(null)
 const positionStyle = computed(() => {
   if (!props.anchor) {
@@ -49,29 +55,37 @@ const positionStyle = computed(() => {
   const pad = 12
   const topPad = 200
   const gap = 6
-  const width = 240
+  const baseWidth = 240
   const anchorRight = props.anchor.right ?? props.anchor.left
   const anchorLeft = props.anchor.left
   let left = anchorRight + gap
   let top = Math.max(topPad, Math.round(props.anchor.top))
   if (import.meta.client) {
-    if (left + width > window.innerWidth - pad) {
-      left = anchorLeft - gap - width
-    }
-    left = Math.max(pad, Math.min(left, window.innerWidth - width - pad))
     top = Math.max(topPad, Math.min(top, window.innerHeight - pad - 40))
   }
   const maxHeight = import.meta.client
     ? Math.max(120, Math.floor(window.innerHeight - top - pad))
     : 280
+  const shell = shellRef.value?.rootRef ?? null
+  const extra = shell && import.meta.client
+    ? resolvePopoverScrollbarGutter(shell, maxHeight)
+    : 0
+  const width = baseWidth + popoverWidthExtraForGutter(extra)
+  if (import.meta.client) {
+    if (left + width > window.innerWidth - pad) {
+      left = anchorLeft - gap - width
+    }
+    left = Math.max(pad, Math.min(left, window.innerWidth - width - pad))
+  }
   return {
     position: 'fixed',
     top: `${top}px`,
     left: `${Math.round(left)}px`,
     width: `${width}px`,
-    maxHeight: `${maxHeight}px`,
     zIndex: '1',
     visibility: 'visible',
+    ...popoverMaxHeightStyle(maxHeight, extra),
+    ...popoverScrollbarGutterStyle(extra),
   }
 })
 function onBackdropPointerDown (event: PointerEvent) {

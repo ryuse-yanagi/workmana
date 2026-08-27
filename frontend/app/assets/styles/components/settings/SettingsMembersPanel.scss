@@ -2,7 +2,7 @@
 
 .invite-readonly {
   margin: 0 0 14px;
-  color: #64748b;
+  color: mixin.$text-muted;
   font-size: 13.3px;
 }
 
@@ -14,12 +14,12 @@
   margin: 0 0 10px;
   font-size: 14px;
   font-weight: 700;
-  color: #0f2945;
+  color: mixin.$text-emphasis;
 }
 
 .invite-section__empty {
   margin: 0;
-  color: #64748b;
+  color: mixin.$text-muted;
   font-size: 12.6px;
 }
 
@@ -37,9 +37,9 @@
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid mixin.$gray;
   border-radius: 8px;
-  background: #fff;
+  background: mixin.$white;
 }
 
 .invite-list__main {
@@ -52,7 +52,7 @@
 .invite-list__email {
   font-size: 13.3px;
   font-weight: 700;
-  color: #0f2945;
+  color: mixin.$text-emphasis;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -62,8 +62,8 @@
   flex-shrink: 0;
   font-size: 11.2px;
   font-weight: 700;
-  color: #475569;
-  background: #f1f5f9;
+  color: mixin.$text-sub;
+  background: mixin.$surface-muted;
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -71,7 +71,7 @@
 .invite-list__meta {
   flex-shrink: 0;
   font-size: 12px;
-  color: #64748b;
+  color: mixin.$text-muted;
 }
 
 .invite-list__actions {
@@ -82,10 +82,10 @@
 }
 
 .invite-list__btn {
-  border: 1px solid #dbe3ee;
+  border: 1px solid mixin.$border;
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: mixin.$white;
+  color: mixin.$text-strong;
   font-size: 12px;
   font-weight: 700;
   padding: 4px 10px;
@@ -94,17 +94,17 @@
 
 .invite-list__btn--edit {
   color: mixin.$main;
-  border-color: color-mix(in srgb, mixin.$main 35%, #dbe3ee);
+  border-color: color-mix(in srgb, mixin.$main 35%, mixin.$border);
 }
 
 .invite-list__btn--danger {
   color: mixin.$danger;
-  border-color: color-mix(in srgb, mixin.$danger 35%, #dbe3ee);
+  border-color: color-mix(in srgb, mixin.$danger 35%, mixin.$border);
 }
 
 .invite-list__btn:disabled {
   opacity: 0.5;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 @media (max-width: 720px) {

@@ -102,7 +102,7 @@
   font-weight: 400;
   line-height: 1;
   transform: translateY(-0.08em);
-  color: #64748b;
+  color: mixin.$text-muted;
 }
 
 .workspace-wbs__avatar-pill {
@@ -111,7 +111,7 @@
 }
 
 .workspace-wbs__cell-btn:focus-visible .workspace-wbs__avatar-pill :deep(.member-avatar) {
-  border-color: rgba(37, 99, 235, 0.35);
+  border-color: mixin.main-a(0.35);
 }
 
 .workspace-wbs__avatar-pill :deep(.member-avatar) {

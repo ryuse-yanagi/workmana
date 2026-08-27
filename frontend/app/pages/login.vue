@@ -1,26 +1,29 @@
 <template>
-  <main class="page">
-    <h1>ログイン</h1>
-    <p class="muted">
-      組織ページへ進むには、Cognito でログインしてください。
+  <AuthGateShell
+    title="ログイン"
+    subtitle="組織のスペースへ進むには、アカウントでサインインしてください。"
+    :busy="checking"
+    busy-label="ログイン状態を確認しています…"
+  >
+    <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
+    <p v-if="!isConfigured" class="auth-err" role="alert">
+      Cognito 設定が不足しています。バックエンドの COGNITO_* を設定してください。
     </p>
-    <section class="card">
-      <p v-if="errorMessage" class="err">
-        {{ errorMessage }}
-      </p>
-      <p v-if="!checking && !isConfigured" class="err">
-        Cognito 設定が不足しています。バックエンドの `COGNITO_*` を設定してください。
-      </p>
-      <button type="button" :disabled="checking || !isConfigured" @click="startLogin(nextPath)">
-        Cognito でログイン
-      </button>
-      <p class="footer-link">
-        アカウントをお持ちでない方は
-        <NuxtLink to="/register">アカウント作成</NuxtLink>
-      </p>
-    </section>
-  </main>
+    <button
+      type="button"
+      class="auth-btn auth-btn--block"
+      :disabled="!isConfigured"
+      @click="startLogin(nextPath)"
+    >
+      Cognito でログイン
+    </button>
+    <template #footer>
+      アカウントをお持ちでない方は
+      <NuxtLink to="/register">アカウント作成</NuxtLink>
+    </template>
+  </AuthGateShell>
 </template>
+
 <script setup lang="ts">
 import { safeInternalPath } from '../utils/safeInternalPath'
 import { useOrganizationContext } from '../composables/useOrganizationContext'
@@ -39,6 +42,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 const isConfigured = ref(true)
 const checking = ref(true)
+const loadError = ref<string | null>(null)
 
 const nextPath = computed(() => {
   const raw = route.query.next
@@ -55,37 +59,33 @@ const nextPath = computed(() => {
 })
 
 const errorMessage = computed(() => {
+  if (loadError.value) {
+    return loadError.value
+  }
   const code = typeof route.query.error === 'string' ? route.query.error : ''
   return code ? (ERROR_MESSAGES[code] ?? 'ログインに失敗しました。') : ''
 })
 
 onMounted(async () => {
-  const session = await fetchSession()
-  isConfigured.value = session.configured
-  checking.value = false
-  if (session.authenticated) {
-    if (import.meta.client) {
-      sessionStorage.removeItem('tm:pending_invite')
-    }
-    if (nextPath.value === '/post-login' || nextPath.value === '/') {
-      const path = await resolvePostLoginPath(session.user)
-      await navigateTo(path)
+  try {
+    const session = await fetchSession()
+    isConfigured.value = session.configured
+    if (session.authenticated) {
+      if (import.meta.client) {
+        sessionStorage.removeItem('tm:pending_invite')
+      }
+      if (nextPath.value === '/post-login' || nextPath.value === '/') {
+        const path = await resolvePostLoginPath(session.user)
+        await navigateTo(path)
+        return
+      }
+      await navigateTo(nextPath.value)
       return
     }
-    await navigateTo(nextPath.value)
+    checking.value = false
+  } catch (e: unknown) {
+    checking.value = false
+    loadError.value = e instanceof Error ? e.message : 'ログイン状態の確認に失敗しました'
   }
 })
 </script>
-<style lang="scss" scoped src="~/assets/styles/pages/login.scss"></style>
-<style lang="scss" scoped>
-.footer-link {
-  margin-top: 14px;
-  font-size: 12.6px;
-  color: #64748b;
-}
-.footer-link a {
-  color: #0f2945;
-  font-weight: 700;
-}
-button { display: block; }
-</style>

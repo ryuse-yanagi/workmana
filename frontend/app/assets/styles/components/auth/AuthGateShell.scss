@@ -1,0 +1,224 @@
+.auth-gate {
+  --auth-ink: #07111f;
+  --auth-panel: rgba(255, 255, 255, 0.94);
+  --auth-line: rgba(15, 41, 69, 0.1);
+  --auth-accent: #{mixin.$main};
+  --auth-accent-soft: #{mixin.main-a(0.18)};
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100dvh - var(--tm-auth-chrome-offset, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(28px, 6vh, 56px) 20px;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: mixin.$text-emphasis;
+  background: var(--auth-ink);
+}
+
+.auth-gate__atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.auth-gate__wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 55% at 18% 12%, rgba(12, 102, 228, 0.34), transparent 58%),
+    radial-gradient(ellipse 70% 50% at 88% 78%, rgba(14, 165, 160, 0.22), transparent 55%),
+    linear-gradient(165deg, #050b14 0%, #0a1628 48%, #07111f 100%);
+}
+
+.auth-gate__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(8px);
+  opacity: 0.85;
+  animation: auth-orb-drift 18s ease-in-out infinite;
+}
+
+.auth-gate__orb--a {
+  width: min(42vw, 340px);
+  height: min(42vw, 340px);
+  top: -8%;
+  right: -4%;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.35), transparent 68%);
+}
+
+.auth-gate__orb--b {
+  width: min(48vw, 380px);
+  height: min(48vw, 380px);
+  bottom: -14%;
+  left: -8%;
+  background: radial-gradient(circle, rgba(12, 102, 228, 0.4), transparent 70%);
+  animation-delay: -7s;
+  animation-duration: 22s;
+}
+
+.auth-gate__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 20%, transparent 75%);
+  animation: auth-grid-shift 28s linear infinite;
+}
+
+.auth-gate__stage {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 420px);
+  display: grid;
+  gap: 22px;
+  animation: auth-stage-enter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.auth-gate--narrow .auth-gate__stage {
+  width: min(100%, 380px);
+}
+
+.auth-gate__brand {
+  text-align: center;
+  color: mixin.$white;
+}
+
+.auth-gate__mark {
+  margin: 0 0 14px;
+  font-family: "Source Sans 3", mixin.$font-family;
+  font-size: clamp(2rem, 5vw, 2.55rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  color: mixin.$white;
+  text-shadow: 0 10px 40px rgba(12, 102, 228, 0.35);
+}
+
+.auth-gate__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.auth-gate__lede {
+  margin: 8px auto 0;
+  max-width: 32ch;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.auth-gate__panel {
+  padding: 26px 24px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: var(--auth-panel);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 24px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  animation: auth-panel-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+}
+
+.auth-gate__busy {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 18px 8px;
+  color: mixin.$text-muted;
+  font-size: 0.92rem;
+}
+
+.auth-gate__spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2.5px solid mixin.main-a(0.2);
+  border-top-color: mixin.$main;
+  animation: auth-spin 0.75s linear infinite;
+}
+
+.auth-gate__footer {
+  margin: 0;
+  text-align: center;
+  font-size: 0.86rem;
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.auth-gate__footer :deep(a) {
+  color: #bfdbfe;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(191, 219, 254, 0.35);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.auth-gate__footer :deep(a:hover) {
+  color: mixin.$white;
+  border-bottom-color: rgba(255, 255, 255, 0.7);
+}
+
+@keyframes auth-stage-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-panel-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes auth-orb-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-18px, 14px, 0) scale(1.06);
+  }
+}
+
+@keyframes auth-grid-shift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(48px, 24px, 0);
+  }
+}
+
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-gate__orb,
+  .auth-gate__grid,
+  .auth-gate__stage,
+  .auth-gate__panel,
+  .auth-gate__spinner {
+    animation: none !important;
+  }
+}

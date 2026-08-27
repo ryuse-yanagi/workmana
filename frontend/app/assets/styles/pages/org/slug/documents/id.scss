@@ -18,7 +18,6 @@
   margin-left: -14px;
   margin-right: -14px;
   @include mixin.page-header-shell;
-  padding: 0 14px;
 }
 .page-header > * {
   width: 100%;
@@ -58,7 +57,7 @@
   padding: 0 12px;
   border: 1px solid mixin.$main;
   border-radius: 6px;
-  background: #fff;
+  background: mixin.$white;
   color: mixin.$main;
   font-size: 14px;
   font-weight: 700;
@@ -77,7 +76,7 @@
 }
 .document-header-action-btn:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .document-header-action-btn:focus-visible {
   outline: 2px solid mixin.$main;
@@ -85,39 +84,21 @@
 }
 .document-header-action-btn--muted {
   border-color: transparent;
-  background: #e5e7eb;
-  color: #475569;
+  background: mixin.$border;
+  color: mixin.$text-sub;
+}
+.document-header-action-btn--edit {
+  background: mixin.$info-surface;
+  color: mixin.$main;
+  border-color: mixin.$info-border;
 }
 .document-header-action-btn--primary {
   background: mixin.$main;
-  color: #fff;
+  color: mixin.$white;
+  border-color: mixin.$main;
 }
 .document-header-menu {
   position: relative;
-  flex-shrink: 0;
-}
-.document-header-menu-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: 32px;
-  height: 32px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: #f0f0f0;
-  color: #64748b;
-  cursor: pointer;
-}
-.document-header-menu-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
-.document-header-menu-btn :deep(svg) {
-  width: 18px;
-  height: 18px;
   flex-shrink: 0;
 }
 .subheader-title {
@@ -130,7 +111,7 @@
   padding: 8px 0;
   margin: -8px 0;
   text-decoration: none;
-  color: mixin.$main;
+  color: mixin.$green;
   letter-spacing: 0.05em;
   line-height: 1.1;
   transition: opacity 0.16s ease;
@@ -160,7 +141,7 @@
   white-space: nowrap;
   font-size: 14px;
   font-weight: 500;
-  color: #64748b;
+  color: mixin.$text-muted;
   letter-spacing: 0.02em;
 }
 .document-show-body {
@@ -172,6 +153,27 @@
   margin-right: -14px;
   overflow: hidden;
 }
+.document-sidebar-slot {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 400px;
+  min-height: 0;
+  overflow: hidden;
+  transition: width 0.28s ease;
+}
+.document-sidebar-slot--closed {
+  width: 0;
+}
+.document-sidebar-slot .document-sidebar {
+  width: 400px;
+  height: 100%;
+  max-width: none;
+  transform: translateX(0);
+  transition: transform 0.28s ease;
+}
+.document-sidebar-slot--closed .document-sidebar {
+  transform: translateX(-100%);
+}
 .document-sidebar {
   position: relative;
   z-index: 1;
@@ -182,12 +184,12 @@
   flex-shrink: 0;
   box-sizing: border-box;
   padding: 20px;
-  background: #fff;
-  box-shadow: 2px 0 10px rgba(15, 23, 42, 0.08);
+  background: mixin.$white;
+  box-shadow: 2px 0 10px mixin.ink-a(0.08);
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: #0f172a1a transparent;
+  scrollbar-color: mixin.$scrollbar-thumb transparent;
 }
 .document-sidebar::-webkit-scrollbar {
   width: 3px;
@@ -196,7 +198,7 @@
   background: transparent;
 }
 .document-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.08);
+  background: mixin.ink-a(0.08);
   border-radius: 999px;
 }
 .document-sidebar__category {
@@ -218,7 +220,7 @@
   font-weight: 700;
   font-family: inherit;
   line-height: 1.35;
-  color: #0f172a;
+  color: mixin.$text;
   padding: 8px 12px;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -246,7 +248,7 @@
   inset: 0;
   display: block;
   background: transparent;
-  caret-color: #0f172a;
+  caret-color: mixin.$text;
   appearance: none;
   -webkit-appearance: none;
   resize: none;
@@ -278,7 +280,7 @@
   margin: 0;
   font-size: 13px;
   font-weight: 700;
-  color: #64748b;
+  color: mixin.$text-muted;
   letter-spacing: 0.04em;
 }
 .document-sidebar__labels :deep(.label-strip) {
@@ -320,9 +322,9 @@
   min-height: 40px;
   max-height: 40px;
   padding: 0 4px 0 0;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 8px;
-  background: #fff;
+  background: mixin.$white;
   min-width: 0;
 }
 .document-sidebar__related-link {
@@ -339,7 +341,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #0f172a;
+  color: mixin.$text;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.2;
@@ -361,12 +363,12 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #64748b;
+  color: mixin.$text-muted;
   cursor: pointer;
 }
 .document-sidebar__related-menu-btn:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .document-sidebar__related-menu-btn:focus-visible {
   outline: 2px solid mixin.$main;
@@ -384,7 +386,7 @@
   padding: 0 16px;
   border: 1px solid mixin.$main;
   border-radius: 999px;
-  background: #fff;
+  background: mixin.$white;
   color: mixin.$main;
   font-size: 14px;
   font-weight: 700;
@@ -394,7 +396,7 @@
 }
 .document-sidebar__related-edit-btn:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .document-sidebar__related-edit-btn:focus-visible {
   outline: 2px solid mixin.$main;
@@ -421,7 +423,7 @@
   font-weight: 400;
   /* 小数 line-height だと Chromium の選択ハイライトに隙間が出るため整数 px にする */
   line-height: 28px;
-  color: #334155;
+  color: mixin.$text-strong;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -438,7 +440,7 @@
   pointer-events: none;
 }
 .document-sidebar__description--placeholder {
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
 }
 .document-sidebar__description-field--editing .document-sidebar__description {
   pointer-events: none;
@@ -448,7 +450,7 @@
   position: absolute;
   inset: 0;
   height: 100%;
-  caret-color: #334155;
+  caret-color: mixin.$text-strong;
   appearance: none;
   -webkit-appearance: none;
   resize: none;
@@ -498,11 +500,11 @@
   box-sizing: border-box;
   padding: 56px 48px 56px;
   border: 1px solid transparent;
-  background: #fff;
-  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
+  background: mixin.$white;
+  box-shadow: 0 2px 12px mixin.ink-a(0.1), 0 1px 3px mixin.ink-a(0.06);
 }
 .document-viewer__page--editing {
-  border-color: mixin.$edit-border;
+  border-color: mixin.$border-edit;
 }
 .document-viewer__mode-tabs {
   position: absolute;
@@ -537,7 +539,7 @@
   margin: 0;
   font-size: 14px;
   line-height: 1.8;
-  color: #1e293b;
+  color: mixin.$text-heading;
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -545,7 +547,7 @@
   @include mixin.markdown-preview-content;
 }
 .document-viewer__body--empty {
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
 }
 .document-viewer textarea.document-viewer__body-input {
   display: block;
@@ -557,7 +559,7 @@
   border: none;
   border-radius: 0;
   background: transparent;
-  color: #1e293b;
+  color: mixin.$text-heading;
   font-size: 14px;
   font-family: inherit;
   font-weight: 400;
@@ -592,9 +594,20 @@
     flex-direction: column;
     overflow: visible;
   }
+  .document-sidebar-slot {
+    width: 100%;
+    align-self: auto;
+  }
+  .document-sidebar-slot--closed {
+    width: 0;
+  }
+  .document-sidebar-slot .document-sidebar {
+    width: 100%;
+    height: auto;
+  }
   .document-sidebar {
     width: 100%;
-    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 2px 10px mixin.ink-a(0.08);
   }
   .document-viewer {
     min-height: 50vh;
@@ -632,7 +645,7 @@
   padding: 8px 10px;
   border: 1px solid mixin.$border;
   border-radius: 8px;
-  background: #f8fafc;
+  background: mixin.$list-column-bg;
   color: mixin.$text;
   font: inherit;
   font-size: 13px;

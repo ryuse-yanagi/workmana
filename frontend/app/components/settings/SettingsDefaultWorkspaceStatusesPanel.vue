@@ -12,7 +12,6 @@
     create-modal-title="ステータスの作成"
     edit-modal-title="ステータスの編集"
     delete-modal-title="ステータスの削除"
-    save-success-message="ステータス設定を更新しました。"
     save-error-message="ステータス設定の更新に失敗しました"
   />
 </template>

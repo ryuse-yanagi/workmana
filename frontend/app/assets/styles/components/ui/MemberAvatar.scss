@@ -5,7 +5,7 @@
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
-  background: #cbd5e1;
+  background: mixin.$bg-gray;
   border: none;
   padding: 0;
 }
@@ -31,7 +31,7 @@
 }
 .member-avatar__initial {
   font-weight: 700;
-  color: mixin.$text-sub;
+  color: mixin.$text;
   line-height: 1;
 }
 .member-avatar--xs .member-avatar__initial {

@@ -1,23 +1,39 @@
+@use "~/assets/styles/mixin" as mixin;
+
 .settings-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 18px;
   width: 320px;
   max-width: 100%;
+}
+.menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.menu-section__title {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 11.2px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: mixin.$text-muted;
+  line-height: 1.2;
 }
 .menu-item {
   box-sizing: border-box;
   width: 320px;
   max-width: 100%;
   height: 48px;
-  border: 1px solid #dbe3ee;
-  background: #fff;
+  border: 1px solid mixin.$border;
+  background: mixin.$white;
   border-radius: 9px;
   padding: 0 12.6px;
   text-align: left;
   font-size: 13.3px;
   font-weight: 700;
-  color: #0f2945;
+  color: mixin.$text-emphasis;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -28,7 +44,7 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, mixin.$main 15%, transparent);
 }
 .menu-arrow {
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
   font-size: 15.4px;
 }
 @media (max-width: 1240px) {

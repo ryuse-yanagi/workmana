@@ -5,6 +5,12 @@ import {
   type OrgSettingsResponse,
 } from '../components/settings/types'
 import type { TaskFormCategory, TaskFormLabel } from './useTaskFormHelpers'
+import {
+  flattenLabelCategories,
+  normalizeLabelCategories,
+  type LabelCategoryGroup,
+} from './useLabelCategories'
+import { useOrgSettingsResource } from './useOrgSettingsResource'
 
 export type OrgDocumentLabel = {
   id: number
@@ -39,6 +45,7 @@ export type OrgDocumentsPageSnapshot = {
   documents: OrgDocument[]
   documentCategories: OrgDocumentCategory[]
   documentLabels: TaskFormLabel[]
+  documentLabelCategories: LabelCategoryGroup[]
 }
 const cacheBySlug = new Map<string, OrgDocumentsPageSnapshot>()
 const documentCacheByKey = new Map<string, OrgDocument>()
@@ -106,6 +113,7 @@ export function patchDocumentRelatedCached (
 
 export function useOrgDocumentsPageData () {
   const { api } = useApi()
+  const { fetchOrgSettings } = useOrgSettingsResource()
   async function fetchSnapshot (orgSlug: string): Promise<OrgDocumentsPageSnapshot> {
     const slug = orgSlug.trim()
     const inflight = inflightBySlug.get(slug)
@@ -113,18 +121,20 @@ export function useOrgDocumentsPageData () {
       return inflight
     }
     const job = (async () => {
-      const [documentsRes, labelsRes, settingsRes] = await Promise.all([
+      const [documentsRes, labelCategoriesRes, settingsRes] = await Promise.all([
         api<{ data: OrgDocument[] }>(`/orgs/${slug}/documents`),
-        api<{ data: OrgDocumentLabel[] }>(`/orgs/${slug}/document-labels`),
-        api<OrgSettingsResponse>(`/orgs/${slug}/settings`),
+        api<{ data: LabelCategoryGroup[] }>(`/orgs/${slug}/document-label-categories`),
+        fetchOrgSettings(slug),
       ])
+      const documentLabelCategories = normalizeLabelCategories(labelCategoriesRes.data ?? [])
       const snapshot: OrgDocumentsPageSnapshot = {
         documents: documentsRes.data.map(document => ({
           ...document,
           labels: resolveLabelColors(document.labels ?? []),
         })),
         documentCategories: resolveDocumentCategories(settingsRes.default_document_category_names),
-        documentLabels: resolveLabelColors(labelsRes.data),
+        documentLabels: flattenLabelCategories(documentLabelCategories),
+        documentLabelCategories,
       }
       cacheBySlug.set(slug, snapshot)
       return snapshot

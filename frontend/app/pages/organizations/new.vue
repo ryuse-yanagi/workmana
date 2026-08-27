@@ -57,7 +57,7 @@ async function submit () {
   if (submitting.value) return
   submitting.value = true
   errorMessage.value = ''
-  nameError.value = requiredTextFieldError(name.value, '組織名を入力してください。')
+  nameError.value = requiredTextFieldError(name.value, '組織名', ORGANIZATION_NAME_MAX_LENGTH)
   if (nameError.value) {
     submitting.value = false
     return

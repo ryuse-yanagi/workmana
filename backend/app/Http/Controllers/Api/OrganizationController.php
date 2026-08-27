@@ -14,6 +14,7 @@ use App\Support\OrganizationSlug;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use RuntimeException;
 
@@ -40,7 +41,7 @@ class OrganizationController extends ApiController
 
         $name = trim($validated['name']);
         if ($name === '') {
-            return response()->json(['message' => '組織名を入力してください。'], 422);
+            return response()->json(['message' => FieldLengthLimits::requiredLengthMessage('組織名', FieldLengthLimits::ORGANIZATION_NAME)], 422);
         }
 
         $user = $request->user();
@@ -55,7 +56,6 @@ class OrganizationController extends ApiController
 
             $org->members()->attach($user->id, [
                 'role' => 'admin',
-                'invited_by' => null,
             ]);
 
             $this->organizationContext->remember($user, $org);
@@ -134,10 +134,51 @@ class OrganizationController extends ApiController
             'id' => $organization->id,
             'name' => $organization->name,
             'slug' => $organization->slug,
+            'icon_url' => $this->iconUrl($organization->icon_path),
             'role' => $pivot->role ?? null,
             'default_board_list_names' => DefaultBoardLists::itemsForOrganization($organization),
             'default_workspace_status_names' => DefaultWorkspaceStatuses::itemsForOrganization($organization),
             'default_document_category_names' => DefaultDocumentCategories::itemsForOrganization($organization),
+        ]);
+    }
+
+    public function uploadIcon(Request $request, Organization $organization): JsonResponse
+    {
+        $this->assertOrganizationAdmin($request);
+
+        $validated = $request->validate([
+            'icon' => ['required', 'image', 'max:2048'],
+        ]);
+
+        $oldPath = $organization->icon_path;
+        $newPath = $validated['icon']->store('org-icons', 'public');
+
+        $organization->icon_path = $newPath;
+        $organization->save();
+
+        if ($oldPath && Storage::disk('public')->exists($oldPath)) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        return response()->json([
+            'icon_url' => $this->iconUrl($organization->icon_path),
+        ]);
+    }
+
+    public function deleteIcon(Request $request, Organization $organization): JsonResponse
+    {
+        $this->assertOrganizationAdmin($request);
+
+        $oldPath = $organization->icon_path;
+        $organization->icon_path = null;
+        $organization->save();
+
+        if ($oldPath && Storage::disk('public')->exists($oldPath)) {
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        return response()->json([
+            'icon_url' => null,
         ]);
     }
 
@@ -177,6 +218,7 @@ class OrganizationController extends ApiController
         return response()->json([
             'id' => $organization->id,
             'slug' => $organization->slug,
+            'icon_url' => $this->iconUrl($organization->icon_path),
             'default_board_list_names' => DefaultBoardLists::itemsForOrganization($organization),
             'default_workspace_status_names' => DefaultWorkspaceStatuses::itemsForOrganization($organization),
             'default_document_category_names' => DefaultDocumentCategories::itemsForOrganization($organization),

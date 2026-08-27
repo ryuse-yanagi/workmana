@@ -106,7 +106,7 @@ function close () {
 }
 function submit () {
   if (props.loading) return
-  const validationError = requiredTextFieldError(name.value, `${props.nameLabel}を入力してください`)
+  const validationError = requiredTextFieldError(name.value, props.nameLabel, DEFAULT_NAMED_ITEM_NAME_MAX_LENGTH)
   if (validationError) {
     nameError.value = validationError
     return
@@ -114,7 +114,10 @@ function submit () {
   const trimmed = name.value.trim()
   nameError.value = null
   submitError.value = null
-  emit('submit', { name: trimmed, color_index: standardColorIndexFromHex(color.value) })
+  emit('submit', {
+    name: trimmed,
+    color_index: standardColorIndexFromHex(color.value),
+  })
 }
 function onFormKeydown (event: KeyboardEvent) {
   if (!isCtrlEnterKeydown(event)) return

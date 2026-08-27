@@ -39,4 +39,13 @@ final class FieldLengthLimits
 
     /** 組織設定の既定リスト／ステータス／カテゴリ名 */
     public const DEFAULT_NAMED_ITEM_NAME = 255;
+
+    public const REQUIRED_TEXT_MIN = 1;
+
+    public const PASSWORD_MIN = 8;
+
+    public static function requiredLengthMessage(string $label, int $max, int $min = self::REQUIRED_TEXT_MIN): string
+    {
+        return $label.'は'.$min.'文字以上'.$max.'文字以下で入力してください';
+    }
 }

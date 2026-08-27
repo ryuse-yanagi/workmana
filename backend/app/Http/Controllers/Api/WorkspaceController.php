@@ -46,7 +46,7 @@ class WorkspaceController extends ApiController
         }
 
         $viewer = $request->user();
-        $result = ListQuery::paginate(
+        $result = ListQuery::all(
             $query,
             $request,
             fn (Workspace $workspace) => $this->workspacePayload($workspace, $organization, $viewer),
@@ -214,6 +214,7 @@ class WorkspaceController extends ApiController
             allowEmpty: true,
         );
         BidirectionalRelationSync::syncRelatedWorkspaces($workspace, $relatedIds);
+        $workspace->recordActivity();
         $workspace->load([
             'relatedWorkspaces:id,name,description,organization_id,archived_at',
         ]);
@@ -246,6 +247,7 @@ class WorkspaceController extends ApiController
             $validated['document_ids'] ?? [],
         );
         $workspace->relatedDocuments()->sync($documentIds);
+        $workspace->recordActivity();
         $workspace->load([
             'relatedDocuments:id,name,description,organization_id',
         ]);
@@ -272,6 +274,7 @@ class WorkspaceController extends ApiController
 
         $this->ensureWorkspaceBelongsToOrganization($relatedWorkspace, $organization);
         BidirectionalRelationSync::detachRelatedWorkspace($workspace, $relatedWorkspace);
+        $workspace->recordActivity();
         $workspace->load([
             'relatedWorkspaces:id,name,description,organization_id,archived_at',
         ]);
@@ -303,6 +306,7 @@ class WorkspaceController extends ApiController
         }
 
         $workspace->relatedDocuments()->detach($document->id);
+        $workspace->recordActivity();
         $workspace->load([
             'relatedDocuments:id,name,description,organization_id',
         ]);
@@ -364,6 +368,11 @@ class WorkspaceController extends ApiController
             }
             if ($assigneeIds !== null) {
                 $workspace->assignees()->sync($assigneeIds);
+            }
+
+            // Pivot-only updates do not dirty the workspace row; still count as activity.
+            if ($labelIds !== null || $assigneeIds !== null) {
+                $workspace->recordActivity();
             }
         });
 
@@ -589,13 +598,21 @@ class WorkspaceController extends ApiController
                 ? $workspace->labels
                 : $workspace->labels()->get(['workspace_labels.id', 'workspace_labels.name', 'workspace_labels.color_index']),
             'assignees' => $workspace->relationLoaded('assignees')
-                ? $workspace->assignees->map(fn ($user) => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'avatar_url' => $this->avatarUrl($user->avatar_path),
-                ])->values()
+                ? $workspace->assignees
+                    ->sortBy([
+                        fn ($user) => mb_strtolower((string) ($user->name ?: $user->email ?: '')),
+                        fn ($user) => $user->id,
+                    ])
+                    ->values()
+                    ->map(fn ($user) => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'avatar_url' => $this->avatarUrl($user->avatar_path),
+                    ])
                 : $workspace->assignees()
+                    ->orderBy('users.name')
+                    ->orderBy('users.id')
                     ->get(['users.id', 'users.name', 'users.email', 'users.avatar_path'])
                     ->map(fn ($user) => [
                         'id' => $user->id,

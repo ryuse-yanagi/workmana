@@ -1,11 +1,11 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: mixin.ink-a(0.45);
   display: flex;
   justify-content: center;
   padding: 100px 14px;
-  z-index: 70;
+  z-index: var(--tm-z-modal);
   overflow-y: auto;
 }
 .modal-overlay--popover-open {
@@ -19,30 +19,25 @@
   flex-shrink: 0;
   border-radius: 12px;
   overflow: visible;
-  background: #fff;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  background: mixin.$white;
+  box-shadow: 0 16px 40px mixin.ink-a(0.18);
 }
 .modal-header {
   @include mixin.modal-header-bar;
   border-radius: 12px 12px 0 0;
 }
-.modal-header h3 {
-  margin: 0;
-  font-size: 14.7px;
-  line-height: 1;
-}
 .icon-close {
   @include mixin.modal-close-hit-area;
   background: transparent;
   border: none;
-  color: #fff;
+  color: mixin.$white;
   font-size: 19.6px;
   line-height: 1;
   cursor: pointer;
 }
 .modal-body {
   position: relative;
-  padding: 16.8px 18.9px 18.9px;
+  padding: 16.8px 18.9px 0;
   display: flex;
   flex-direction: column;
   gap: 15.4px;
@@ -106,7 +101,7 @@
   width: 36.4px;
   height: 20.3px;
   border-radius: 999px;
-  background: #cbd5e1;
+  background: mixin.$border;
   padding: 2.1px;
   box-sizing: border-box;
   transition: background 0.15s ease;
@@ -118,8 +113,8 @@
   width: 16.1px;
   height: 16.1px;
   border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  background: mixin.$white;
+  box-shadow: 0 1px 3px mixin.ink-a(0.2);
   transform: translateX(0);
   transition: transform 0.15s ease;
 }
@@ -134,7 +129,7 @@
 .popover-layer--portal {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: var(--tm-z-modal-popover);
   pointer-events: none;
 }
 .popover-layer--portal .popover {
@@ -145,37 +140,39 @@
 .popover {
   position: absolute;
   z-index: 10;
-  width: min(259px, calc(100vw - 21px));
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.2);
-  border: 1px solid #e2e8f0;
-  padding: 10.5px;
+  @include mixin.popover-panel-width(259px);
+  background: mixin.$white;
+  border-radius: mixin.$popover-border-radius;
+  box-shadow: 0 10px 32px mixin.ink-a(0.2);
+  border: 1px solid mixin.$gray;
+  padding: mixin.$popover-padding;
   display: flex;
   flex-direction: column;
   gap: 9.1px;
 }
+:deep(.popover-shell__title) {
+  @include mixin.popover-title-text;
+}
 .popover--parent-task {
-  width: min(273px, calc(100vw - 21px));
+  @include mixin.popover-panel-width(273px);
   padding: 0;
   gap: 0;
 }
 .popover--list {
-  width: min(273px, calc(100vw - 21px));
+  @include mixin.popover-panel-width(273px);
   padding: 0;
   gap: 0;
 }
 .popover-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  @include mixin.popover-scroller;
+  @include mixin.popover-scroller-overlay-pad(0px);
 }
 .list-picker-list {
   list-style: none;
   margin: 0;
-  padding: 7px 9.1px 9.1px;
+  padding: mixin.$popover-padding;
   display: flex;
   flex-direction: column;
   gap: 2.8px;
@@ -192,6 +189,8 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
+  font-weight: mixin.$popover-font-weight;
+
 }
 .list-picker-row--selected {
   background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
@@ -199,7 +198,7 @@
 .list-picker-radio {
   width: 14px;
   height: 14px;
-  border: 2px solid #8590a2;
+  border: 2px solid mixin.$border;
   border-radius: 50%;
   flex-shrink: 0;
   display: inline-flex;
@@ -219,17 +218,17 @@
 }
 .list-picker-label {
   font-size: 12.32px;
-  font-weight: 600;
-  color: #172b4d;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-on-surface;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .list-picker-empty,
 .empty-text {
-  margin: 0 9.1px 9.1px;
+  margin: 0 mixin.$popover-padding mixin.$popover-padding;
   font-size: 12.04px;
-  color: #64748b;
+  color: mixin.$text-muted;
 }
 .popover-fade-enter-active,
 .popover-fade-leave-active {
@@ -256,9 +255,9 @@
   flex: 1 1 0;
 }
 .detail-item-label {
-  font-size: 10.92px;
+  font-size: mixin.$modal-field-font-size;
   font-weight: 700;
-  color: #64748b;
+  color: mixin.$text-muted;
 }
 .detail-value-btn {
   align-self: flex-start;
@@ -267,8 +266,8 @@
   padding: 4.9px 7.7px;
   font-size: 12.88px;
   font-weight: 700;
-  color: #0f172a;
-  background: #fff;
+  color: mixin.$text;
+  background: mixin.$white;
   cursor: pointer;
   text-align: left;
 }
@@ -282,7 +281,7 @@
 }
 .detail-item--parent .detail-value-btn:disabled {
   opacity: 1;
-  color: #0f172a;
+  color: mixin.$text;
   cursor: default;
 }
 .detail-item--list .detail-value-btn:disabled {
@@ -293,10 +292,7 @@
   cursor: pointer;
 }
 .modal-footer {
-  display: flex;
-  justify-content: center;
-  gap: 7px;
-  padding-top: 3.5px;
+  @include mixin.modal-footer-actions;
 }
 .primary-btn,
 .ghost-btn {
@@ -312,17 +308,17 @@
   color: mixin.$white;
 }
 .ghost-btn {
-  border-color: #cbd5e1;
+  border-color: mixin.$border;
   color: mixin.$text-sub;
-  background: #f1f5f9;
+  background: mixin.$surface-muted;
 }
 .err {
   margin: 0;
   color: mixin.$danger;
   font-weight: 700;
-  font-size: 12.04px;
+  font-size: mixin.$modal-field-font-size;
 }
 button:disabled:not(.parent-task-picker-row):not(.list-picker-row):not(.detail-value-btn) {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }

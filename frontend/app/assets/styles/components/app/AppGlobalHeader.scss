@@ -1,12 +1,13 @@
 .global-header {
   @include mixin.header-font;
-  --global-header-bg: #28384a;
+  // CSS custom property へ SCSS 変数を渡すときは補間が必要
+  --global-header-bg: #{mixin.$global-header-bg};
   position: sticky;
   top: 0;
   z-index: 50;
   height: var(--tm-global-header-height, 56px);
   box-sizing: border-box;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid mixin.white-a(0.12);
   background: var(--global-header-bg);
 }
 
@@ -43,15 +44,15 @@
 .global-header__divider {
   flex-shrink: 0;
   width: 1.2px;
-  height: 28px;
+  height: 32px;
   margin: 0 15.4px;
-  background: rgba(255, 255, 255, 0.38);
+  background: mixin.white-a(0.38);
 }
 
 .nav-btn {
   border: none;
   background: var(--global-header-bg);
-  color: #f8fafc;
+  color: mixin.$list-column-bg;
   border-radius: 999px;
   padding: 4.9px 9.8px;
   min-height: 28px;
@@ -70,11 +71,13 @@
 }
 
 .nav-btn--icon {
-  width: 28px;
-  height: 28px;
-  min-height: 28px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
   padding: 0;
   justify-content: center;
+  align-items: center;
+  line-height: 0;
 }
 
 .nav-btn:disabled {
@@ -89,7 +92,7 @@
 .profile-trigger {
   border: none;
   background: var(--global-header-bg);
-  color: #f8fafc;
+  color: mixin.$list-column-bg;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -107,7 +110,7 @@
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid mixin.white-a(0.35);
   padding: 0;
   overflow: hidden;
   background: var(--global-header-bg);
@@ -118,7 +121,7 @@
   font-size: 14px;
   font-weight: 700;
   line-height: 1.1;
-  color: #f8fafc;
+  color: mixin.$list-column-bg;
   white-space: nowrap;
   min-width: 0;
   max-width: 100%;
@@ -140,7 +143,8 @@
   width: 100%;
   height: 100%;
   font-weight: 900;
-  color: #f8fafc;
+  color: mixin.$text;
+  background: mixin.$bg-gray;
 }
 
 .dropdown {
@@ -148,11 +152,11 @@
   right: 0;
   top: calc(100% + 6.3px);
   width: 220px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
-  padding: 4.9px;
+  background: mixin.$white;
+  border: 1px solid mixin.$gray;
+  border-radius: mixin.$popover-border-radius;
+  box-shadow: 0 10px 30px mixin.ink-a(0.12);
+  padding: mixin.$popover-padding;
   max-height: min(420px, calc(100dvh - 80px));
   overflow-y: auto;
 }
@@ -160,16 +164,26 @@
 .dropdown-section {
   padding-bottom: 4px;
   margin-bottom: 4px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid mixin.$gray;
 }
 
 .dropdown-section__label {
   margin: 0;
   padding: 6px 9.1px 4px;
   font-size: 11px;
-  font-weight: 800;
-  color: #64748b;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
   letter-spacing: 0.04em;
+}
+
+.dropdown-section__error {
+  margin: 0 9.1px 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: mixin.$danger-surface;
+  font-size: 11px;
+  font-weight: 600;
+  color: mixin.$danger;
 }
 
 .dropdown-item {
@@ -179,13 +193,26 @@
   background: transparent;
   padding: 7.7px 9.1px;
   border-radius: 8px;
-  font-weight: 800;
-  color: #0f172a;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text;
   cursor: pointer;
 }
 
+.dropdown-item--org {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dropdown-item--org span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dropdown-item--active {
-  background: #f1f5f9;
+  background: mixin.$surface-muted;
   color: mixin.$main;
 }
 
@@ -199,10 +226,18 @@
 
 .notifications {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
 }
 
 .notifications-trigger {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .notifications-badge {
@@ -213,88 +248,164 @@
   height: 16px;
   padding: 0 4px;
   border-radius: 999px;
-  background: #ef4444;
-  color: #fff;
+  background: mixin.$danger;
+  color: mixin.$white;
   font-size: 10px;
   font-weight: 800;
   line-height: 16px;
   text-align: center;
 }
 
-.notifications-dropdown {
-  width: min(320px, calc(100vw - 24px));
-  max-height: min(420px, calc(100dvh - 80px));
-  overflow: hidden;
+.notifications-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--tm-z-modal);
+  background-color: mixin.ink-a(0.4);
   display: flex;
-  flex-direction: column;
-  padding: 0;
+  justify-content: flex-end;
 }
 
-.notifications-dropdown__header {
+.notifications-drawer {
+  width: min(360px, 100vw);
+  height: 100%;
+  background: mixin.$white;
+  box-shadow: -8px 0 28px mixin.ink-a(0.14);
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+
+.notifications-drawer-enter-active,
+.notifications-drawer-leave-active {
+  transition: background-color 0.22s ease;
+}
+
+.notifications-drawer-enter-active .notifications-drawer,
+.notifications-drawer-leave-active .notifications-drawer {
+  transition: transform 0.22s ease;
+}
+
+.notifications-drawer-enter-from,
+.notifications-drawer-leave-to {
+  background-color: mixin.ink-a(0);
+}
+
+.notifications-drawer-enter-from .notifications-drawer,
+.notifications-drawer-leave-to .notifications-drawer {
+  transform: translateX(100%);
+}
+
+.notifications-drawer__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid #e2e8f0;
-  font-size: 12px;
-  font-weight: 800;
-  color: #0f172a;
+  gap: 12px;
+  flex-shrink: 0;
+  min-height: 56px;
+  padding: 0 16px 0 20px;
+  border-bottom: 1px solid mixin.$border;
 }
 
-.notifications-dropdown__read-all {
-  border: none;
-  background: transparent;
-  color: mixin.$main;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  padding: 4px;
-}
-
-.notifications-dropdown__read-all:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.notifications-dropdown__state {
+.notifications-drawer__title {
   margin: 0;
-  padding: 12px;
-  font-size: 12px;
-  color: #64748b;
+  font-size: 16px;
+  font-weight: 700;
+  color: mixin.$text-ink-soft;
+  line-height: 1.2;
+}
+
+.notifications-drawer__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-right: -6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: mixin.$text-soft;
+  cursor: pointer;
+}
+
+.notifications-drawer__close:hover {
+  background: mixin.$surface-subtle;
+  color: mixin.$text-ink-soft;
+}
+
+.notifications-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.notifications-drawer__state {
+  margin: 0;
+  padding: 24px 20px;
+  font-size: 13px;
+  color: mixin.$text-soft;
+}
+
+.notifications-drawer__state--error {
+  color: mixin.$danger;
 }
 
 .notifications-list {
   list-style: none;
   margin: 0;
-  padding: 4px;
-  overflow-y: auto;
+  padding: 0;
 }
 
 .notifications-item {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-align: left;
   border: none;
+  border-bottom: 1px solid mixin.$border;
   background: transparent;
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 14px 16px 14px 20px;
   cursor: pointer;
+}
+
+.notifications-item:hover {
+  background: mixin.$surface-faint;
+}
+
+.notifications-item--unread {
+  background: mixin.$list-column-bg;
+}
+
+.notifications-item--unread:hover {
+  background: mixin.$surface-muted;
+}
+
+.notifications-item__main {
+  flex: 1;
+  min-width: 0;
   display: grid;
   gap: 4px;
 }
 
-.notifications-item--unread {
-  background: #f8fafc;
+.notifications-item__time {
+  font-size: 12px;
+  line-height: 1.3;
+  color: mixin.$text-faint;
 }
 
 .notifications-item__text {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  color: #0f172a;
-  line-height: 1.35;
+  color: mixin.$text-ink-soft;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
-.notifications-item__time {
-  font-size: 11px;
-  color: #64748b;
+.notifications-item__chevron {
+  flex-shrink: 0;
+  color: mixin.$text-disabled;
 }

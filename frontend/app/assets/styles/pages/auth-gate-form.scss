@@ -1,0 +1,150 @@
+/* AuthGateShell 内のフォーム・ボタン共通 */
+
+.auth-err {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: mixin.$danger-surface;
+  color: mixin.$danger;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: mixin.$text-strong;
+}
+
+.auth-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  border: 1px solid mixin.$border;
+  border-radius: 11px;
+  padding: 0 14px;
+  font-size: 0.95rem;
+  color: mixin.$text-emphasis;
+  background: mixin.$white;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.auth-input[readonly] {
+  background: mixin.$surface-panel;
+  color: mixin.$text-sub;
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: mixin.$main;
+  box-shadow: 0 0 0 3px mixin.main-a(0.16);
+}
+
+.auth-input:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.auth-hint {
+  margin: -4px 0 0;
+  font-size: 0.78rem;
+  color: mixin.$text-muted;
+}
+
+.auth-field-error {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: mixin.$danger;
+}
+
+.auth-copy {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: mixin.$text-sub;
+}
+
+.auth-copy--strong {
+  margin: 12px 0 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: mixin.$text-emphasis;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 11px;
+  border: none;
+  background: linear-gradient(180deg, #1a75e8 0%, mixin.$main 100%);
+  color: mixin.$white;
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  box-shadow: 0 10px 24px mixin.main-a(0.28);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+.auth-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 14px 28px mixin.main-a(0.34);
+}
+
+.auth-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.auth-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.auth-btn--block {
+  width: 100%;
+}
+
+.auth-btn--secondary {
+  background: mixin.$white;
+  color: mixin.$text-emphasis;
+  border: 1px solid mixin.$border;
+  box-shadow: none;
+}
+
+.auth-btn--secondary:hover:not(:disabled) {
+  filter: none;
+  background: mixin.$surface-faint;
+  box-shadow: none;
+}
+
+.auth-success {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}

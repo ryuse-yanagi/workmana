@@ -14,10 +14,10 @@
 }
 .document-category-select__trigger:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .document-category-select__trigger:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid mixin.$main;
   outline-offset: 2px;
   border-radius: 999px;
 }
@@ -30,10 +30,10 @@
   height: 30px;
   min-width: 96px;
   max-width: 96px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid mixin.$border;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #64748b;
+  background: mixin.$surface-muted;
+  color: mixin.$text-muted;
   font-size: 14px;
   font-weight: 700;
   line-height: 1;
@@ -60,18 +60,21 @@
   position: fixed;
   z-index: 120;
   box-sizing: border-box;
-  min-width: 128px;
-  padding: 6px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  min-width: calc(128px + var(#{mixin.$popover-scrollbar-gutter-var}, 0px));
+  padding: mixin.$popover-padding;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$popover-border-radius;
+  background: mixin.$white;
+  box-shadow: 0 8px 24px mixin.ink-a(0.14);
 }
 .document-category-select__list {
   margin: 0;
   padding: 0;
   list-style: none;
-  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  @include mixin.popover-scroller;
+  @include mixin.popover-scroller-overlay-pad(0px);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -93,11 +96,11 @@
   cursor: pointer;
 }
 .document-category-select__option--selected {
-  background: #f1f5f9;
+  background: mixin.$surface-muted;
 }
 .document-category-select__option:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .document-category-select__option :deep(.label-strip) {
   box-sizing: border-box;
@@ -114,6 +117,6 @@
   border: 1px solid currentColor;
   padding: 0 8px;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: mixin.$popover-font-weight;
   line-height: 1;
 }

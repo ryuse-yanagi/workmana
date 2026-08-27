@@ -1,8 +1,6 @@
 export type TaskCardScheduleFields = {
   start_date?: string | null
   due_date?: string | null
-  effort_value?: number | string | null
-  effort_unit?: string | null
   effort_hours?: number | string | null
 }
 const EFFORT_UNIT_LABEL = '時間'
@@ -71,16 +69,6 @@ export function formatTaskCardSingleDate (
   const currentYear = referenceDate.getFullYear()
   return `${formatMonthDay(parts)}${yearSuffix(parts.year, currentYear)}`
 }
-function normalizeEffortValue (value: number | string | null | undefined): number | null {
-  if (value === null || value === undefined || value === '') {
-    return null
-  }
-  const num = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(num) || num < 0) {
-    return null
-  }
-  return Math.round(num * 10000) / 10000
-}
 function normalizeEffortHours (value: number | string | null | undefined): number | null {
   if (value === null || value === undefined || value === '') {
     return null
@@ -97,11 +85,7 @@ function formatEffortAmount (value: number): string {
     : value.toFixed(2).replace(/\.?0+$/, '')
 }
 function resolveStoredEffortValue (task: TaskCardScheduleFields): number | null {
-  const hours = normalizeEffortHours(task.effort_hours)
-  if (hours !== null) {
-    return normalizeEffortValue(hours)
-  }
-  return normalizeEffortValue(task.effort_value)
+  return normalizeEffortHours(task.effort_hours)
 }
 export function formatTaskCardEffort (task: TaskCardScheduleFields): string | null {
   const value = resolveStoredEffortValue(task)

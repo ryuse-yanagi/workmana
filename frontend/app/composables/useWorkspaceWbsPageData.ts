@@ -2,10 +2,17 @@ import type { WorkspaceListOption } from './useTaskPopoverEditor'
 import type { TaskFormLabel, TaskFormMember } from './useTaskFormHelpers'
 import type { WbsTask } from './useWbsTaskGroups'
 import { useApi } from './useApi'
+import {
+  flattenLabelCategories,
+  normalizeLabelCategories,
+  type LabelCategoryGroup,
+} from './useLabelCategories'
 import { resolveLabelColors, resolveListColors } from '../utils/colorPresetResolution'
+import { sortMembersByDisplayName } from './useMemberDisplay'
 export type WorkspaceWbsPageSnapshot = {
   tasks: WbsTask[]
   orgLabels: TaskFormLabel[]
+  orgLabelCategories: LabelCategoryGroup[]
   workspaceMembers: TaskFormMember[]
   workspaceLists: WorkspaceListOption[]
 }
@@ -18,6 +25,10 @@ const inflightByKey = new Map<string, Promise<WorkspaceWbsPageSnapshot>>()
 export function clearAllWorkspaceWbsPageCaches (): void {
   cacheByKey.clear()
   inflightByKey.clear()
+}
+
+export function getWorkspaceWbsCacheMap (): Map<string, WorkspaceWbsPageSnapshot> {
+  return cacheByKey
 }
 
 export function useWorkspaceWbsPageData () {
@@ -34,12 +45,12 @@ export function useWorkspaceWbsPageData () {
       return inflight
     }
     const job = (async () => {
-      const [tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
+      const [tasksRes, labelCategoriesRes, membersRes, listsRes] = await Promise.all([
         api<{ data: WbsTask[] }>(
           `/orgs/${slug}/workspaces/${id}/tasks/wbs`,
         ),
-        api<{ data: TaskFormLabel[] }>(
-          `/orgs/${slug}/task-labels`,
+        api<{ data: LabelCategoryGroup[] }>(
+          `/orgs/${slug}/task-label-categories`,
         ),
         api<{ data: TaskFormMember[] }>(
           `/orgs/${slug}/workspaces/${id}/members`,
@@ -48,13 +59,16 @@ export function useWorkspaceWbsPageData () {
           `/orgs/${slug}/workspaces/${id}/lists`,
         ),
       ])
+      const orgLabelCategories = normalizeLabelCategories(labelCategoriesRes.data ?? [])
       const snapshot: WorkspaceWbsPageSnapshot = {
         tasks: (tasksRes.data ?? []).map(task => ({
           ...task,
+          assignees: sortMembersByDisplayName(task.assignees ?? []),
           labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
         })),
-        orgLabels: resolveLabelColors(labelsRes.data ?? []),
-        workspaceMembers: membersRes.data ?? [],
+        orgLabels: flattenLabelCategories(orgLabelCategories),
+        orgLabelCategories,
+        workspaceMembers: sortMembersByDisplayName(membersRes.data ?? []),
         workspaceLists: resolveListColors([...(listsRes.data ?? [])]).sort(
           (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
         ),
@@ -96,6 +110,10 @@ export function useWorkspaceWbsPageData () {
     cacheByKey.set(cacheKey(orgSlug, workspaceId), {
       tasks: snapshot.tasks.map(task => ({ ...task })),
       orgLabels: snapshot.orgLabels.map(label => ({ ...label })),
+      orgLabelCategories: (snapshot.orgLabelCategories ?? []).map(category => ({
+        ...category,
+        labels: category.labels.map(label => ({ ...label })),
+      })),
       workspaceMembers: snapshot.workspaceMembers.map(member => ({ ...member })),
       workspaceLists: snapshot.workspaceLists.map(list => ({ ...list })),
     })

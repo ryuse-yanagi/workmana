@@ -1,23 +1,33 @@
 import type { Ref } from 'vue'
+import type { LabelCategoryGroup } from './useLabelCategories'
+import { filterLabelCategories, labelCategoriesFromFlat } from './useLabelCategories'
 import { dismissPopoverFromOutsidePointer } from '../utils/uiInteraction'
+import { popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../utils/popoverScrollbar'
+import { useExclusivePopover } from './useExclusivePopover'
 import { useApi } from './useApi'
 import {
   type TaskFormDraft,
   type TaskFormLabel,
   type TaskFormMember,
-  FIXED_EFFORT_UNIT,
-  effortUnitLabel,
+  EFFORT_UNIT_LABEL,
   effortValueToDraft,
   labelBarTextColor,
   memberEmailLine,
-  normalizeEffortValue,
+  normalizeEffortHours,
   parseEffortDraft,
   resolveStoredEffortValue,
   sanitizeEffortDraftInput,
   toDateInputValue,
 } from './useTaskFormHelpers'
+import { sortMembersByDisplayName } from './useMemberDisplay'
 import { resolveLabelColors } from '../utils/colorPresetResolution'
-export type WorkspaceListOption = { id: number; name: string; color: string; sort_order?: number }
+export type WorkspaceListOption = {
+  id: number
+  name: string
+  color: string
+  sort_order?: number
+  color_index?: number
+}
 export type TaskPopoverEditable = {
   id: number
   title: string
@@ -27,9 +37,7 @@ export type TaskPopoverEditable = {
   sort_order?: number
   start_date?: string | null
   due_date?: string | null
-  effort_value?: number | string | null
   effort_hours?: number | string | null
-  effort_unit?: string | null
   assignees?: TaskFormMember[]
   labels?: TaskFormLabel[]
 }
@@ -58,8 +66,6 @@ type TaskPatchResponse = {
   start_date: string | null
   due_date: string | null
   effort_hours: number | string | null
-  effort_value?: number | string | null
-  effort_unit?: string | null
   assignees: TaskFormMember[]
   labels: TaskFormLabel[]
 }
@@ -67,6 +73,7 @@ type UseTaskPopoverEditorOptions = {
   orgSlug: string
   workspaceId: string
   orgLabels: Ref<TaskFormLabel[]>
+  labelCategories?: Ref<LabelCategoryGroup[]>
   workspaceMembers: Ref<TaskFormMember[]>
   workspaceLists: Ref<WorkspaceListOption[]>
   task: Ref<TaskPopoverEditable | null>
@@ -84,12 +91,9 @@ const POPOVER_DEFAULT_WIDTH_PX = 312
 const DESCRIPTION_POPOVER_MAX_WIDTH = 600
 function effortSource (
   task: TaskPopoverEditable,
-): Pick<TaskFormDraft, 'effort_value' | 'effort_hours' | 'effort_unit'> {
-  const effortValue = task.effort_value ?? null
+): Pick<TaskFormDraft, 'effort_hours'> {
   return {
-    effort_value: effortValue,
     effort_hours: task.effort_hours ?? null,
-    effort_unit: effortValue === null ? null : FIXED_EFFORT_UNIT,
   }
 }
 export function resolveListName (
@@ -122,10 +126,8 @@ function patchToEditable (
     sort_order: patch.sort_order !== undefined ? patch.sort_order : previous.sort_order,
     start_date: patch.start_date,
     due_date: patch.due_date,
-    effort_value: patch.effort_value ?? null,
     effort_hours: patch.effort_hours,
-    effort_unit: patch.effort_unit ?? null,
-    assignees: patch.assignees,
+    assignees: sortMembersByDisplayName(patch.assignees),
     labels: patch.labels !== undefined
       ? resolveLabelColors(patch.labels)
       : previous.labels,
@@ -158,6 +160,12 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const query = labelSearchQuery.value.trim().toLowerCase()
     if (!query) return options.orgLabels.value
     return options.orgLabels.value.filter(label => label.name.toLowerCase().includes(query))
+  })
+  const filteredLabelCategories = computed(() => {
+    return filterLabelCategories(
+      labelCategoriesFromFlat(options.labelCategories?.value, options.orgLabels.value),
+      labelSearchQuery.value,
+    )
   })
   const activeCalendarDate = computed(() => {
     const task = options.task.value
@@ -307,10 +315,6 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const descriptionWidth = isDescription
       ? resolveDescriptionPopoverWidth()
       : null
-    const measuredWidth = descriptionWidth
-      ?? (popover.offsetWidth || popover.getBoundingClientRect().width)
-    const popoverWidth = measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX
-    const left = resolveSideLeft(anchorRect, popoverWidth, pad, gap)
     const bottomLimit = window.innerHeight - pad
     let top: number
     let maxHeight: number
@@ -396,14 +400,23 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       forceHeight = true
     }
 
+    const scrollbarGutter = resolvePopoverScrollbarGutter(popover, maxHeight)
+    const measuredWidth = descriptionWidth
+      ?? (popover.offsetWidth || popover.getBoundingClientRect().width)
+    const popoverWidth = (measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX) + popoverWidthExtraForGutter(scrollbarGutter)
+    const left = resolveSideLeft(anchorRect, popoverWidth, pad, gap)
+
     popoverStyle.value = {
       position: 'fixed',
       top: `${Math.round(top)}px`,
       left: `${Math.round(left)}px`,
       maxHeight: `${maxHeight}px`,
-      ...(forceHeight || isDescriptionEdit ? { height: `${maxHeight}px` } : {}),
+      ...(forceHeight || isDescriptionEdit || scrollbarGutter > 0
+        ? { height: `${maxHeight}px` }
+        : {}),
       zIndex: String(popoverZIndex),
-      ...(descriptionWidth != null ? { width: `${descriptionWidth}px` } : {}),
+      ...(descriptionWidth != null ? { width: `${descriptionWidth + popoverWidthExtraForGutter(scrollbarGutter)}px` } : {}),
+      ...popoverScrollbarGutterStyle(scrollbarGutter),
     }
   }
   function updatePopoverPosition () {
@@ -464,12 +477,10 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (!task) return
     const parsed = parseEffortDraft(effortDraft.value)
     if (parsed === 'invalid') return
-    const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
+    const effortHours = parsed === null ? null : normalizeEffortHours(parsed)
     options.onUpdated({
       ...task,
-      effort_value: effortValue,
-      effort_hours: effortValue,
-      effort_unit: effortValue === null ? null : FIXED_EFFORT_UNIT,
+      effort_hours: effortHours,
     })
   }
   async function applyPatchResponse (updated: TaskPatchResponse) {
@@ -482,45 +493,40 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   async function saveEffort () {
     const task = options.task.value
     const endpoint = taskEndpoint()
-    if (!task || !endpoint || effortSaving.value) return
+    if (!task || !endpoint || effortSaving.value) return false
     const parsed = parseEffortDraft(effortDraft.value)
     if (parsed === 'invalid') {
       popoverError.value = '工数は0以上の数値で入力してください'
       effortDraft.value = effortValueToDraft(effortSource(task))
-      return
+      return false
     }
-    const effortValue = parsed === null ? null : normalizeEffortValue(parsed)
-    const effortUnit = effortValue === null ? null : FIXED_EFFORT_UNIT
+    const effortHours = parsed === null ? null : normalizeEffortHours(parsed)
     const currentValue = resolveStoredEffortValue(effortSource(task))
-    if (effortValue === currentValue) {
+    if (effortHours === currentValue) {
       popoverError.value = null
-      return
+      return true
     }
-    const previousValue = task.effort_value ?? null
     const previousHours = task.effort_hours ?? null
-    const previousUnit = task.effort_unit ?? null
     patchLocalTask({
-      effort_value: effortValue,
-      effort_hours: effortValue,
-      effort_unit: effortUnit,
+      effort_hours: effortHours,
     })
     effortSaving.value = true
     popoverError.value = null
     try {
       const updated = await api<TaskPatchResponse>(endpoint, {
         method: 'PATCH',
-        body: { effort_value: effortValue, effort_unit: effortUnit },
+        body: { effort_hours: effortHours },
       })
       await applyPatchResponse(updated)
       effortDraft.value = effortValueToDraft(effortSource(options.task.value ?? task))
+      return true
     } catch (e: unknown) {
       patchLocalTask({
-        effort_value: previousValue,
         effort_hours: previousHours,
-        effort_unit: previousUnit,
       })
       effortDraft.value = effortValueToDraft(effortSource(task))
       popoverError.value = e instanceof Error ? e.message : '工数の更新に失敗しました'
+      return false
     } finally {
       effortSaving.value = false
     }
@@ -534,7 +540,10 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     }
     popoverError.value = null
     if (parsed !== null) {
-      await saveEffort()
+      const saved = await saveEffort()
+      if (!saved) {
+        return
+      }
     }
     dismissPopover()
   }
@@ -551,7 +560,10 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       dismissPopover()
       return
     }
-    await saveEffort()
+    const saved = await saveEffort()
+    if (!saved) {
+      return
+    }
     dismissPopover()
   }
   async function saveDescription () {
@@ -591,6 +603,10 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     }
     dismissPopover()
   }
+  useExclusivePopover(
+    () => activePopover.value != null,
+    () => { void closePopover() },
+  )
   function shouldIgnorePopoverOutsideClose (target: Node): boolean {
     const el = target instanceof Element ? target : target.parentElement
     if (!el) {
@@ -895,7 +911,10 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     const previousListName = task.list_name ?? null
     const previousSortOrder = task.sort_order
     const nextListName = resolveListName(listId, options.workspaceLists.value)
-    patchLocalTask({ list_id: listId, list_name: nextListName })
+    patchLocalTask({
+      list_id: listId,
+      list_name: nextListName,
+    })
     popoverError.value = null
     try {
       const updated = await api<TaskPatchResponse>(endpoint, {
@@ -932,9 +951,11 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       ? currentIds.filter(id => id !== member.id)
       : [...currentIds, member.id]
     patchLocalTask({
-      assignees: isAssigned
-        ? previousAssignees.filter(m => m.id !== member.id)
-        : [...previousAssignees, member],
+      assignees: sortMembersByDisplayName(
+        isAssigned
+          ? previousAssignees.filter(m => m.id !== member.id)
+          : [...previousAssignees, member],
+      ),
     })
     popoverError.value = null
     try {
@@ -988,7 +1009,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     }
   }
   return {
-    effortUnitLabel,
+    EFFORT_UNIT_LABEL,
     activePopover,
     selectedMember,
     popoverError,
@@ -1002,6 +1023,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     descriptionSaving,
     weekdayLabels,
     filteredOrgLabels,
+    filteredLabelCategories,
     activeCalendarDate,
     canClearCalendarDate,
     canClearEffort,

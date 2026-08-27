@@ -1,11 +1,15 @@
 <template>
-  <main class="page">
-    <h1>移動中…</h1>
-    <section class="card">
-      <p class="muted">{{ message }}</p>
-      <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
-    </section>
-  </main>
+  <AuthGateShell
+    title="移動中"
+    :subtitle="errorMessage ? 'ログイン後の画面へ進めませんでした。' : 'ログイン後の画面へ移動しています…'"
+    :busy="!errorMessage"
+    :busy-label="message"
+  >
+    <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
+    <NuxtLink v-if="errorMessage" to="/login" class="auth-btn auth-btn--block">
+      ログイン画面へ
+    </NuxtLink>
+  </AuthGateShell>
 </template>
 
 <script setup lang="ts">
@@ -37,5 +41,3 @@ onMounted(async () => {
   }
 })
 </script>
-
-<style lang="scss" scoped src="~/assets/styles/pages/invite.scss"></style>

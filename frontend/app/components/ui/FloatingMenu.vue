@@ -45,6 +45,7 @@
 </template>
 <script setup lang="ts">
 import type { Component, CSSProperties } from 'vue'
+import { useExclusivePopover } from '../../composables/useExclusivePopover'
 
 export type FloatingMenuItem = {
   key: string
@@ -74,7 +75,13 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   select: [item: FloatingMenuItem]
+  close: []
 }>()
+
+useExclusivePopover(
+  () => props.open,
+  () => emit('close'),
+)
 
 function onItemClick (item: FloatingMenuItem) {
   if (props.disabled || item.disabled) return

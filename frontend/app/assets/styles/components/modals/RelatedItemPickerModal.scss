@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px 18px 18px;
+  padding: 16px 18px 0;
   box-sizing: border-box;
 }
 .related-item-picker-modal__search {
@@ -14,8 +14,8 @@
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
-  color: #172b4d;
-  background: #fff;
+  color: mixin.$text-on-surface;
+  background: mixin.$white;
 }
 .related-item-picker-modal__search:focus {
   @include mixin.input-focus-ring;
@@ -26,12 +26,12 @@
   list-style: none;
   max-height: min(360px, 50vh);
   overflow-y: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid mixin.$gray;
   border-radius: 8px;
   scrollbar-width: thin;
 }
 .related-item-picker-modal__item {
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid mixin.$surface-muted;
 }
 .related-item-picker-modal__item:last-child {
   border-bottom: none;
@@ -50,13 +50,13 @@
 }
 .related-item-picker-modal__option:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .related-item-picker-modal__checkbox {
   width: 16px;
   height: 16px;
   margin-top: 2px;
-  border: 2px solid #8590a2;
+  border: 2px solid mixin.$border-checkbox;
   border-radius: 3px;
   flex-shrink: 0;
   display: inline-flex;
@@ -64,13 +64,13 @@
   justify-content: center;
   font-size: 11px;
   font-weight: 800;
-  color: #fff;
-  background: #fff;
+  color: mixin.$white;
+  background: mixin.$white;
   box-sizing: border-box;
 }
 .related-item-picker-modal__checkbox--checked {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: mixin.$main;
+  border-color: mixin.$main;
 }
 .related-item-picker-modal__text {
   min-width: 0;
@@ -81,14 +81,14 @@
 .related-item-picker-modal__name {
   font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
+  color: mixin.$text;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 .related-item-picker-modal__description {
   font-size: 12px;
   line-height: 1.4;
-  color: #64748b;
+  color: mixin.$text-muted;
   overflow-wrap: anywhere;
   word-break: break-word;
   display: -webkit-box;
@@ -106,9 +106,25 @@
   line-height: 1.4;
 }
 .related-item-picker-modal__empty {
-  color: #94a3b8;
+  color: mixin.$text-placeholder;
   text-align: center;
 }
 .related-item-picker-modal__error {
   color: mixin.$danger;
 }
+.actions {
+  @include mixin.modal-footer-actions;
+}
+.ghost-btn,
+.primary-btn {
+  @include mixin.btn-base;
+  @include mixin.btn-pill;
+  font-size: 16px;
+}
+.ghost-btn {
+  @include mixin.btn-ghost;
+}
+.primary-btn {
+  @include mixin.btn-primary;
+}
+

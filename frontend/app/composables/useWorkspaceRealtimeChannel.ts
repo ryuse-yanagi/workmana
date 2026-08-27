@@ -1,9 +1,10 @@
 import type { Ref } from 'vue'
 import { resolveLabelColors } from '../utils/colorPresetResolution'
+import { resolveAvatarUrl } from '../utils/resolveAvatarUrl'
+import { sortMembersByDisplayName } from './useMemberDisplay'
 export type RealtimeBoardTask = {
   id: number
   title: string
-  status: string
   list_id: number | null
   sort_order?: number
   is_parent_task?: boolean
@@ -13,22 +14,17 @@ export type RealtimeBoardTask = {
   due_date?: string | null
   gantt_bar_color?: string | null
   effort_hours?: number | string | null
-  effort_value?: number | string | null
-  effort_unit?: string | null
   labels?: Array<{ id: number; name: string; color_index?: number; color: string }>
   assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
 }
 export type RealtimeArchivedTask = {
   id: number
   title: string
-  status: string
   list_id: number | null
   archived_at?: string | null
   start_date?: string | null
   due_date?: string | null
   effort_hours?: number | string | null
-  effort_value?: number | string | null
-  effort_unit?: string | null
   labels?: Array<{ id: number; name: string; color_index?: number; color: string }>
   assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
 }
@@ -61,7 +57,12 @@ export type ProjectRealtimeHandlers = {
   onTasksReordered?: (payload: { list_id: number; task_ids: number[] }) => void
   onWbsTasksReordered?: (tasks: RealtimeWbsReorderItem[]) => void
   onListCreated?: () => void
-  onListUpdated?: (list: { id: number; name: string; color_index: number; sort_order: number }) => void
+  onListUpdated?: (list: {
+    id: number
+    name: string
+    color_index: number
+    sort_order: number
+  }) => void
   onListDeleted?: (listId: number) => void
   onListsReordered?: (payload: { list_ids: number[] }) => void
 }
@@ -69,24 +70,40 @@ export function useWorkspaceRealtimeChannel (
   workspaceId: Ref<string>,
   handlers: ProjectRealtimeHandlers,
 ) {
+  const config = useRuntimeConfig()
+  const apiBase = String(config.public.apiBaseUrl || '/api')
   let channelName: string | null = null
   let subscribed = false
-  function normalizeRealtimeTask (task: RealtimeBoardTask): RealtimeBoardTask {
-    if (!task.labels?.length) {
+  function withResolvedAssigneeAvatars<T extends { assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }> }> (task: T): T {
+    if (!task.assignees?.length) {
       return task
     }
     return {
       ...task,
-      labels: resolveLabelColors(task.labels),
+      assignees: sortMembersByDisplayName(task.assignees.map(assignee => ({
+        ...assignee,
+        avatar_url: resolveAvatarUrl(assignee.avatar_url, apiBase),
+      }))),
+    }
+  }
+  function normalizeRealtimeTask (task: RealtimeBoardTask): RealtimeBoardTask {
+    const withAvatars = withResolvedAssigneeAvatars(task)
+    if (!withAvatars.labels?.length) {
+      return withAvatars
+    }
+    return {
+      ...withAvatars,
+      labels: resolveLabelColors(withAvatars.labels),
     }
   }
   function normalizeRealtimeArchivedTask (task: RealtimeArchivedTask): RealtimeArchivedTask {
-    if (!task.labels?.length) {
-      return task
+    const withAvatars = withResolvedAssigneeAvatars(task)
+    if (!withAvatars.labels?.length) {
+      return withAvatars
     }
     return {
-      ...task,
-      labels: resolveLabelColors(task.labels),
+      ...withAvatars,
+      labels: resolveLabelColors(withAvatars.labels),
     }
   }
   function bindListeners (channel: EchoChannel) {

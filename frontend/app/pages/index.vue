@@ -9,7 +9,7 @@
       <div class="actions">
         <button type="button" class="secondary" @click="testConnection">接続テスト(GET /me)</button>
       </div>
-      <p v-if="statusMessage" class="status" :class="statusKind">{{ statusMessage }}</p>
+      <p v-if="statusMessage && statusKind === 'err'" class="status err">{{ statusMessage }}</p>
     </section>
     <section class="card">
       <h2>ユーザーアイコン</h2>
@@ -34,7 +34,7 @@
           </div>
         </div>
       </div>
-      <p v-if="avatarMessage" class="status" :class="avatarStatusKind">{{ avatarMessage }}</p>
+      <p v-if="avatarMessage && avatarStatusKind === 'err'" class="status err">{{ avatarMessage }}</p>
     </section>
     <section class="card">
       <h2>組織の URL</h2>
@@ -75,18 +75,17 @@ function onAvatarFileChange (event: Event) {
   selectedAvatarFile.value = file
   if (file) {
     avatarPreviewUrl.value = URL.createObjectURL(file)
-    setAvatarStatus('選択した画像を確認して保存してください。', 'ok')
   }
 }
 async function testConnection () {
   if (!import.meta.client) {
     return
   }
-  setStatus('確認中...', 'ok')
+  setStatus('', 'ok')
   try {
     const me = await api<{ email?: string; avatar_url?: string | null }>('/me')
     avatarPreviewUrl.value = me.avatar_url || null
-    setStatus(`接続成功: ${me.email ?? JSON.stringify(me)}`, 'ok')
+    setStatus('', 'ok')
   } catch (e: unknown) {
     const msg = e && typeof e === 'object' && 'message' in e
       ? String((e as { message: string }).message)
@@ -109,7 +108,7 @@ async function uploadAvatar () {
     })
     avatarPreviewUrl.value = res.avatar_url
     selectedAvatarFile.value = null
-    setAvatarStatus('アイコンを更新しました。', 'ok')
+    setAvatarStatus('', 'ok')
   } catch (e: unknown) {
     const msg = e && typeof e === 'object' && 'message' in e
       ? String((e as { message: string }).message)
@@ -128,7 +127,7 @@ async function deleteAvatar () {
     })
     avatarPreviewUrl.value = null
     selectedAvatarFile.value = null
-    setAvatarStatus('アイコンを削除しました。', 'ok')
+    setAvatarStatus('', 'ok')
   } catch (e: unknown) {
     const msg = e && typeof e === 'object' && 'message' in e
       ? String((e as { message: string }).message)

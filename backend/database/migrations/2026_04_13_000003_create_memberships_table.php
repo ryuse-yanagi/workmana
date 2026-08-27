@@ -13,7 +13,6 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('organization_id')->constrained()->cascadeOnDelete();
             $table->string('role', 32);
-            $table->foreignId('invited_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
             $table->primary(['user_id', 'organization_id']);
         });

@@ -15,7 +15,6 @@
   flex-shrink: 0;
   width: 100%;
   @include mixin.page-header-shell;
-  padding: 0 19.6px 0 12.6px;
 }
 .page-header > * {
   width: 100%;
@@ -68,7 +67,7 @@
   white-space: nowrap;
   font-size: 14px;
   font-weight: 500;
-  color: #64748b;
+  color: mixin.$text-muted;
   letter-spacing: 0.02em;
   flex-shrink: 1;
 }
@@ -93,7 +92,7 @@
   padding: 0 12px;
   border: 1px solid mixin.$main;
   border-radius: 6px;
-  background: #fff;
+  background: mixin.$white;
   color: mixin.$main;
   font-size: 14px;
   font-weight: 700;
@@ -112,18 +111,21 @@
 }
 .document-header-action-btn--edit {
   min-width: 96px;
+  background: mixin.$info-surface;
+  color: mixin.$main;
+  border-color: mixin.$info-border;
 }
 .document-header-action-btn--task-add {
   min-width: 112px;
 }
 .document-header-action-btn--display-items {
   min-width: 96px;
-  background: #fff;
+  background: mixin.$white;
   color: mixin.$main;
 }
 .document-header-action-btn:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 .document-header-action-btn:focus-visible {
   outline: 2px solid mixin.$main;
@@ -131,12 +133,13 @@
 }
 .document-header-action-btn--muted {
   border-color: transparent;
-  background: #e5e7eb;
-  color: #475569;
+  background: mixin.$border;
+  color: mixin.$text-sub;
 }
 .document-header-action-btn--primary {
   background: mixin.$main;
-  color: #fff;
+  color: mixin.$white;
+  border-color: mixin.$main;
 }
 .workspace-view-page__body {
   flex: 1;
@@ -147,7 +150,7 @@
 }
 .workspace-view-page--wbs .workspace-view-page__body {
   padding: 0;
-  background: #fff;
+  background: mixin.$white;
 }
 .workspace-view-page__body > :deep(*) {
   flex: 1;

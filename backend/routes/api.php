@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InviteAcceptController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\NotificationController;
@@ -25,11 +26,17 @@ use Illuminate\Support\Facades\Route;
 | API Routes（プレフィックス: /api）
 |--------------------------------------------------------------------------
 |
-| 認証まわりと招待の確認・受諾だけは未ログインでも叩ける。
+| 認証まわり・ヘルスチェック・招待の確認・受諾だけは未ログインでも叩ける。
 | それ以外は cognito ミドルウェア（セッション Cookie）必須。
 | 組織配下（/orgs/{organization}/...）はさらに org.member で所属チェックする。
 |
 */
+
+// =============================================================================
+// ヘルスチェック（認証不要・外部依存なし）
+// =============================================================================
+// ALB ターゲットグループのヘルスチェック用。アプリが応答できることだけを返す。
+Route::get('/health', [HealthController::class, 'index']);
 
 // =============================================================================
 // 認証関連（Cognito Hosted UI + セッション Cookie）
@@ -96,6 +103,8 @@ Route::middleware(['cognito'])->group(function () {
         Route::delete('/invites/{invite}', [OrganizationInviteController::class, 'destroy']);
         Route::get('/settings', [OrganizationController::class, 'settings']);
         Route::patch('/settings', [OrganizationController::class, 'updateSettings']);
+        Route::post('/icon', [OrganizationController::class, 'uploadIcon']);
+        Route::delete('/icon', [OrganizationController::class, 'deleteIcon']);
 
         // =====================================================================
         // ラベル関連
@@ -198,6 +207,7 @@ Route::middleware(['cognito'])->group(function () {
         Route::get('/workspaces/{workspace}/tasks/parents', [TaskController::class, 'parentTasksIndex']);
         Route::get('/workspaces/{workspace}/tasks/archived', [TaskController::class, 'archivedIndex']);
         Route::get('/workspaces/{workspace}/tasks/comments', [TaskCommentController::class, 'workspaceIndex']);
+        Route::get('/workspaces/{workspace}/tasks/attachments', [TaskAttachmentController::class, 'workspaceIndex']);
 
         /**
          * WBSの一覧取得・並び替え

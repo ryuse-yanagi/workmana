@@ -22,10 +22,14 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    /*
+    | 本番の招待メール送信は Amazon SES 前提（MAIL_MAILER=ses）。
+    | 認証は IAM タスクロール推奨。キー方式のときのみ key / secret を設定する。
+    */
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
-        'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+        'region' => env('AWS_DEFAULT_REGION', 'ap-northeast-1'),
     ],
 
     'slack' => [

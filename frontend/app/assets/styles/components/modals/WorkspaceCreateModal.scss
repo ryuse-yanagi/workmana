@@ -1,11 +1,11 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: mixin.ink-a(0.45);
   display: flex;
   justify-content: center;
   padding: 100px 14px;
-  z-index: 70;
+  z-index: var(--tm-z-modal);
   overflow-y: auto;
 }
 .modal-overlay--popover-open {
@@ -19,30 +19,25 @@
   flex-shrink: 0;
   border-radius: 12px;
   overflow: visible;
-  background: #fff;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  background: mixin.$white;
+  box-shadow: 0 16px 40px mixin.ink-a(0.18);
 }
 .modal-header {
   @include mixin.modal-header-bar;
   border-radius: 12px 12px 0 0;
 }
-.modal-header h3 {
-  margin: 0;
-  font-size: 14.7px;
-  line-height: 1;
-}
 .icon-close {
   @include mixin.modal-close-hit-area;
   background: transparent;
   border: none;
-  color: #fff;
+  color: mixin.$white;
   font-size: 19.6px;
   line-height: 1;
   cursor: pointer;
 }
 .modal-body {
   position: relative;
-  padding: 16.8px 18.9px 18.9px;
+  padding: 16.8px 18.9px 0;
   display: flex;
   flex-direction: column;
   gap: 15.4px;
@@ -54,10 +49,7 @@
   min-width: 0;
 }
 .modal-footer {
-  display: flex;
-  justify-content: center;
-  gap: 7px;
-  padding-top: 3.5px;
+  @include mixin.modal-footer-actions;
 }
 .primary-btn,
 .ghost-btn {
@@ -73,17 +65,17 @@
   color: mixin.$white;
 }
 .ghost-btn {
-  border-color: #cbd5e1;
+  border-color: mixin.$border;
   color: mixin.$text-sub;
-  background: #f1f5f9;
+  background: mixin.$surface-muted;
 }
 .err {
   margin: 0;
   color: mixin.$danger;
   font-weight: 700;
-  font-size: 12.04px;
+  font-size: mixin.$modal-field-font-size;
 }
 button:disabled {
   opacity: 0.55;
-  cursor: not-allowed;
+  cursor: pointer;
 }

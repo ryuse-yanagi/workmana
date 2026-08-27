@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Organization;
+use App\Models\OrganizationInvite;
+use App\Models\User;
 use App\Services\OrganizationContextService;
 use App\Support\FieldLengthLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use RuntimeException;
 
 class MeController extends ApiController
@@ -93,12 +96,23 @@ class MeController extends ApiController
 
     public function update(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $email = OrganizationInvite::normalizeEmail((string) $request->input('email', ''));
+        $request->merge(['email' => $email]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:'.FieldLengthLimits::USER_NAME],
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:'.FieldLengthLimits::EMAIL,
+                Rule::unique(User::class, 'email')->ignore($user->id),
+            ],
         ]);
 
-        $user = $request->user();
         $user->name = trim($validated['name']);
+        $user->email = $validated['email'];
         $user->save();
 
         return response()->json([

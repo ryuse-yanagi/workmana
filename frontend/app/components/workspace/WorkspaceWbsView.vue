@@ -538,6 +538,7 @@
       :org-slug="orgSlug"
       :workspace-id="workspaceId"
       :org-labels="orgLabels"
+      :label-categories="orgLabelCategories"
       :workspace-members="workspaceMembers"
       :workspace-lists="workspaceLists"
       :allow-member-remove="editMode"
@@ -551,6 +552,7 @@
       :workspace-id="workspaceId"
       :list-id="taskCreateListId"
       :org-labels="orgLabels"
+      :label-categories="orgLabelCategories"
       :workspace-members="workspaceMembers"
       :workspace-lists="workspaceLists"
       @created="onTaskCreatedFromModal"
@@ -606,7 +608,17 @@ import {
   resolveListColor,
 } from '../../composables/useTaskPopoverEditor'
 import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFormHelpers'
+import {
+  flattenLabelCategories,
+  normalizeLabelCategories,
+  type LabelCategoryGroup,
+} from '../../composables/useLabelCategories'
 import { memberDisplayName } from '../../composables/useMemberDisplay'
+import {
+  applyUserProfileToMembers,
+  applyUserProfileToTasks,
+  useOnUserProfileUpdated,
+} from '../../composables/userProfileUpdated'
 import { useApi } from '../../composables/useApi'
 import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import {
@@ -649,6 +661,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const tasks = ref<WbsTask[]>([])
 const orgLabels = ref<TaskFormLabel[]>([])
+const orgLabelCategories = ref<LabelCategoryGroup[]>([])
 const workspaceMembers = ref<TaskFormMember[]>([])
 const workspaceLists = ref<WorkspaceListOption[]>([])
 const collapsedParentIds = ref<Set<number>>(new Set())
@@ -1206,14 +1219,11 @@ function createdTaskToWbsTask (created: CreatedTask): WbsTask {
     title: created.title,
     description: created.description ?? null,
     created_at: created.created_at ?? null,
-    status: created.status,
     list_id: listId,
     list_name: workspaceLists.value.find(list => list.id === listId)?.name ?? null,
     start_date: created.start_date ?? null,
     due_date: created.due_date ?? null,
     effort_hours: created.effort_hours ?? null,
-    effort_value: created.effort_value ?? null,
-    effort_unit: created.effort_unit ?? null,
     labels: created.labels ? resolveLabelColors(created.labels) : [],
     assignees: created.assignees ?? [],
     sort_order: created.sort_order,
@@ -1226,7 +1236,6 @@ function createdTaskToBoardTask (created: CreatedTask): WorkspaceBoardTask {
     id: created.id,
     title: created.title,
     description: created.description ?? null,
-    status: created.status,
     list_id: created.list_id ?? null,
     is_parent_task: created.is_parent_task,
     parent_task_id: created.parent_task_id ?? null,
@@ -1234,8 +1243,6 @@ function createdTaskToBoardTask (created: CreatedTask): WorkspaceBoardTask {
     start_date: created.start_date ?? null,
     due_date: created.due_date ?? null,
     effort_hours: created.effort_hours ?? null,
-    effort_value: created.effort_value ?? null,
-    effort_unit: created.effort_unit ?? null,
     labels: created.labels ? resolveLabelColors(created.labels) : [],
     assignees: created.assignees ?? [],
   }
@@ -1381,9 +1388,7 @@ function syncTaskUpdate (updated: TaskPopoverEditable) {
     start_date: nextStart,
     due_date: nextDue,
     ...(colorChanged ? { gantt_bar_color: nextColor } : {}),
-    effort_value: updated.effort_value,
     effort_hours: updated.effort_hours,
-    effort_unit: updated.effort_unit,
     assignees: updated.assignees,
     labels: updated.labels,
   }
@@ -1396,9 +1401,7 @@ function syncTaskUpdate (updated: TaskPopoverEditable) {
     start_date: nextStart,
     due_date: nextDue,
     ...(colorChanged ? { gantt_bar_color: nextColor } : {}),
-    effort_value: updated.effort_value,
     effort_hours: updated.effort_hours,
-    effort_unit: updated.effort_unit,
     assignees: updated.assignees,
     labels: updated.labels,
   }])
@@ -1465,9 +1468,6 @@ function openGanttColorPopover (taskId: number, clientX: number, clientY: number
   colorPopoverOpen.value = true
 }
 function closeColorPopover () {
-  if (colorSaving.value) {
-    return
-  }
   colorPopoverOpen.value = false
   colorPopoverAnchor.value = null
   colorPopoverTaskId.value = null
@@ -1514,6 +1514,7 @@ function applyWbsSnapshot (snapshot: WorkspaceWbsPageSnapshot) {
   unsavedGanttBarColorByTaskId.clear()
   tasks.value = snapshot.tasks
   orgLabels.value = snapshot.orgLabels
+  orgLabelCategories.value = snapshot.orgLabelCategories ?? []
   workspaceMembers.value = snapshot.workspaceMembers
   workspaceLists.value = snapshot.workspaceLists
 }
@@ -1521,6 +1522,7 @@ function buildWbsSnapshot (): WorkspaceWbsPageSnapshot {
   return {
     tasks: tasks.value,
     orgLabels: orgLabels.value,
+    orgLabelCategories: orgLabelCategories.value,
     workspaceMembers: workspaceMembers.value,
     workspaceLists: workspaceLists.value,
   }
@@ -1652,12 +1654,12 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
   }
   error.value = null
   try {
-    const [tasksRes, labelsRes, membersRes, listsRes] = await Promise.all([
+    const [tasksRes, labelCategoriesRes, membersRes, listsRes] = await Promise.all([
       api<{ data: WbsTask[] }>(
         `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/wbs`,
       ),
-      api<{ data: TaskFormLabel[] }>(
-        `/orgs/${props.orgSlug}/task-labels`,
+      api<{ data: LabelCategoryGroup[] }>(
+        `/orgs/${props.orgSlug}/task-label-categories`,
       ),
       api<{ data: TaskFormMember[] }>(
         `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/members`,
@@ -1666,12 +1668,14 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
         `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/lists`,
       ),
     ])
+    const orgLabelCategoriesNext = normalizeLabelCategories(labelCategoriesRes.data ?? [])
     if (generation !== wbsLoadGeneration) {
       return
     }
     // サイレント再取得中に編集が始まった場合はタスク並びを上書きしない
     if (opts?.silent && editMode.value) {
-      orgLabels.value = resolveLabelColors(labelsRes.data ?? [])
+      orgLabels.value = flattenLabelCategories(orgLabelCategoriesNext)
+      orgLabelCategories.value = orgLabelCategoriesNext
       workspaceMembers.value = membersRes.data ?? []
       workspaceLists.value = resolveListColors([...(listsRes.data ?? [])]).sort(
         (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
@@ -1682,7 +1686,8 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
       ...task,
       labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
     }))
-    orgLabels.value = resolveLabelColors(labelsRes.data ?? [])
+    orgLabels.value = flattenLabelCategories(orgLabelCategoriesNext)
+    orgLabelCategories.value = orgLabelCategoriesNext
     workspaceMembers.value = membersRes.data ?? []
     workspaceLists.value = resolveListColors([...(listsRes.data ?? [])]).sort(
       (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
@@ -1696,6 +1701,7 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
       error.value = e instanceof Error ? e.message : 'WBSの読み込みに失敗しました'
       tasks.value = []
       orgLabels.value = []
+      orgLabelCategories.value = []
       workspaceMembers.value = []
       workspaceLists.value = []
     }
@@ -1750,15 +1756,12 @@ function realtimeTaskToWbsTask (task: RealtimeBoardTask): WbsTask {
     id: task.id,
     title: task.title,
     description: task.description ?? null,
-    status: task.status,
     list_id: listId,
     list_name: workspaceLists.value.find(list => list.id === listId)?.name ?? null,
     start_date: task.start_date ?? null,
     due_date: task.due_date ?? null,
     gantt_bar_color: task.gantt_bar_color ?? null,
     effort_hours: task.effort_hours ?? null,
-    effort_value: task.effort_value ?? null,
-    effort_unit: task.effort_unit ?? null,
     labels: task.labels ? resolveLabelColors(task.labels) : [],
     assignees: task.assignees ?? [],
     sort_order: task.sort_order,
@@ -1921,6 +1924,14 @@ defineExpose({
   confirmEdit,
   openTaskCreate,
   openDisplayItems,
+})
+useOnUserProfileUpdated((detail) => {
+  const nextTasks = applyUserProfileToTasks(tasks.value, detail)
+  if (nextTasks !== tasks.value) {
+    tasks.value = nextTasks
+  }
+  workspaceMembers.value = applyUserProfileToMembers(workspaceMembers.value, detail)
+  persistWbsCache()
 })
 watch(loading, async () => {
   await nextTick()

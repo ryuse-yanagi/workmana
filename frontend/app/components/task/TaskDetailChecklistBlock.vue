@@ -105,7 +105,7 @@
         type="text"
         class="task-checklist__composer-input"
         :maxlength="CHECKLIST_ITEM_TEXT_MAX_LENGTH"
-        placeholder="項目を追加"
+        placeholder="項目を追加..."
         aria-label="チェックリスト項目"
         @keydown.enter.prevent="submitAddItem"
         @keydown.escape.prevent="cancelAddItem"
@@ -230,7 +230,12 @@ function createItemId (): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
-  return `checklist-item-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+  // crypto.randomUUID が使えない環境向けの RFC4122 v4 互換フォールバック
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16)
+    const value = char === 'x' ? random : ((random & 0x3) | 0x8)
+    return value.toString(16)
+  })
 }
 function toggleItem (itemId: string) {
   emit('update', {

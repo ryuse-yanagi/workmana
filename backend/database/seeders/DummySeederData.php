@@ -100,4 +100,24 @@ class DummySeederData
             ],
         ];
     }
+
+    /**
+     * 親タスクタイトル → 配置するボードリスト名。
+     *
+     * @return array<string, string>
+     */
+    public static function taskListNamesByParent(): array
+    {
+        return [
+            'ログイン画面' => '未着手',
+            'タスク一覧画面' => '進行中',
+            '設定画面' => '完了',
+        ];
+    }
+
+    public static function taskListNameForParent(string $parentTitle): string
+    {
+        return self::taskListNamesByParent()[$parentTitle]
+            ?? throw new \InvalidArgumentException('Unknown parent task title: '.$parentTitle);
+    }
 }

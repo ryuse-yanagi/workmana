@@ -1,6 +1,10 @@
 <template>
   <div class="project-page-root">
-    <KeepAlive :max="2">
+    <p v-if="archiveCheckError" class="project-page-root__error" role="alert">
+      {{ archiveCheckError }}
+      <button type="button" class="project-page-root__retry" @click="retryArchiveCheck">再試行</button>
+    </p>
+    <KeepAlive v-else-if="archiveGateReady" :max="2">
       <WorkspaceProjectView
         :key="displayedView"
         ref="viewRef"
@@ -29,7 +33,10 @@ useWorkspaceViewPageRoot()
 const route = useRoute()
 const slug = computed(() => route.params.slug as string)
 const workspaceId = computed(() => route.params.id as string)
-async function redirectIfWorkspaceArchived () {
+const archiveGateReady = ref(false)
+const archiveCheckError = ref<string | null>(null)
+async function redirectIfWorkspaceArchived (): Promise<boolean> {
+  archiveCheckError.value = null
   try {
     const meta = await prefetchWorkspaceDetail(slug.value, workspaceId.value)
     if (!meta.workspace.archived_at) {
@@ -38,13 +45,31 @@ async function redirectIfWorkspaceArchived () {
     invalidateWorkspaceDetailMeta(slug.value, workspaceId.value)
     await navigateTo(`/org/${slug.value}/workspaces`)
     return true
-  } catch {
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'スペース情報の取得に失敗しました'
+    // 削除済み・権限なしなどはボードを出さず一覧へ戻す
+    if (/No query results|not found|見つかりません|404/i.test(message)) {
+      invalidateWorkspaceDetailMeta(slug.value, workspaceId.value)
+      await navigateTo(`/org/${slug.value}/workspaces`)
+      return true
+    }
+    archiveCheckError.value = message
     return false
   }
 }
+async function ensureActiveWorkspaceGate () {
+  archiveGateReady.value = false
+  const redirected = await redirectIfWorkspaceArchived()
+  if (!redirected && !archiveCheckError.value) {
+    archiveGateReady.value = true
+  }
+}
+async function retryArchiveCheck () {
+  await ensureActiveWorkspaceGate()
+}
 onBeforeMount(() => {
   warmWorkspaceDetailCache(slug.value, workspaceId.value)
-  void redirectIfWorkspaceArchived()
+  void ensureActiveWorkspaceGate()
 })
 const { activeView } = useWorkspaceViewRoutes(() => slug.value, () => workspaceId.value)
 const viewRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
@@ -57,6 +82,11 @@ function resolveProjectView (view: string): WorkspaceViewKey {
 const displayedView = ref<WorkspaceViewKey>(resolveProjectView(activeView.value))
 let viewSwitchSeq = 0
 function syncViewFromRoute () {
+  // タスク deep link がある場合はボードで詳細モーダルを開く
+  if (route.query.task != null && route.query.task !== '') {
+    displayedView.value = 'board'
+    return
+  }
   displayedView.value = resolveProjectView(activeView.value)
 }
 /** 表示は待たず、切替後にバックグラウンドで最新化 */
@@ -70,6 +100,11 @@ function refreshActiveViewInBackground () {
   })
 }
 watch(activeView, (view) => {
+  if (route.query.task != null && route.query.task !== '') {
+    displayedView.value = 'board'
+    refreshActiveViewInBackground()
+    return
+  }
   if (view !== 'board' && view !== 'wbs') {
     return
   }
@@ -77,17 +112,23 @@ watch(activeView, (view) => {
   refreshActiveViewInBackground()
 }, { immediate: true })
 watch(
+  () => route.query.task,
+  () => {
+    syncViewFromRoute()
+  },
+)
+watch(
   () => [slug.value, workspaceId.value] as const,
   ([nextSlug, nextWorkspaceId]) => {
     syncViewFromRoute()
     warmWorkspaceDetailCache(nextSlug, nextWorkspaceId)
-    void redirectIfWorkspaceArchived()
+    void ensureActiveWorkspaceGate()
   },
 )
 onActivated(() => {
   syncViewFromRoute()
   warmWorkspaceDetailCache(slug.value, workspaceId.value)
-  void redirectIfWorkspaceArchived()
+  void ensureActiveWorkspaceGate()
   refreshActiveViewInBackground()
 })
 </script>

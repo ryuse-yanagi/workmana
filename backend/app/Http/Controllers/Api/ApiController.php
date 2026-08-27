@@ -6,9 +6,9 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Http\Controllers\Controller;
+use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 
 abstract class ApiController extends Controller
 {
@@ -65,11 +65,12 @@ abstract class ApiController extends Controller
 
     protected function avatarUrl(?string $avatarPath): ?string
     {
-        if (! $avatarPath) {
-            return null;
-        }
+        return MediaUrl::avatar($avatarPath);
+    }
 
-        return Storage::disk('public')->url($avatarPath);
+    protected function iconUrl(?string $iconPath): ?string
+    {
+        return MediaUrl::publicPath($iconPath);
     }
 
     /**
@@ -90,12 +91,13 @@ abstract class ApiController extends Controller
                 'name' => $o->name,
                 'slug' => $o->slug,
                 'role' => $o->pivot->role,
+                'icon_url' => $this->iconUrl($o->icon_path),
             ]),
         ];
     }
 
     /**
-     * @return array{id: int, name: string, slug: string}
+     * @return array{id: int, name: string, slug: string, icon_url: ?string}
      */
     protected function organizationPayload(Organization $organization): array
     {
@@ -103,6 +105,7 @@ abstract class ApiController extends Controller
             'id' => $organization->id,
             'name' => $organization->name,
             'slug' => $organization->slug,
+            'icon_url' => $this->iconUrl($organization->icon_path),
         ];
     }
 

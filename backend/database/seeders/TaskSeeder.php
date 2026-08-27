@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Enums\TaskPriority;
-use App\Enums\TaskStatus;
 use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Task;
@@ -49,16 +48,28 @@ class TaskSeeder extends Seeder
         Workspace $workspace,
         User $reporter,
     ): void {
-        $list = $this->resolveDefaultList($workspace);
-        if ($list === null) {
-            $this->command?->warn('Default board list not found in workspace "'.DummySeederData::WORKSPACE_NAME.'".');
+        $listsByName = $workspace->lists()
+            ->whereIn('name', DefaultBoardLists::DEFAULT_NAMES)
+            ->get()
+            ->keyBy('name');
 
-            return;
+        foreach (DefaultBoardLists::DEFAULT_NAMES as $listName) {
+            if (! $listsByName->has($listName)) {
+                $this->command?->warn(
+                    'Board list "'.$listName.'" not found in workspace "'.DummySeederData::WORKSPACE_NAME.'".'
+                );
+
+                return;
+            }
         }
 
         $parentSortOrder = 0;
 
         foreach (DummySeederData::taskTree() as $parentTitle => $childTitles) {
+            $listName = DummySeederData::taskListNameForParent($parentTitle);
+            /** @var BoardList $list */
+            $list = $listsByName->get($listName);
+
             $parent = Task::query()->updateOrCreate(
                 [
                     'workspace_id' => $workspace->id,
@@ -71,7 +82,6 @@ class TaskSeeder extends Seeder
                     'is_parent_task' => true,
                     'parent_task_id' => null,
                     'description' => null,
-                    'status' => TaskStatus::Todo->value,
                     'priority' => TaskPriority::Medium->value,
                     'reporter_id' => $reporter->id,
                 ],
@@ -90,7 +100,6 @@ class TaskSeeder extends Seeder
                         'sort_order' => $childSortOrder + 1,
                         'is_parent_task' => false,
                         'description' => null,
-                        'status' => TaskStatus::Todo->value,
                         'priority' => TaskPriority::Medium->value,
                         'reporter_id' => $reporter->id,
                     ],
@@ -99,13 +108,5 @@ class TaskSeeder extends Seeder
 
             $parentSortOrder++;
         }
-    }
-
-    private function resolveDefaultList (Workspace $workspace): ?BoardList
-    {
-        return $workspace->lists()
-            ->where('name', DefaultBoardLists::DEFAULT_NAMES[0])
-            ->orderBy('sort_order')
-            ->first();
     }
 }

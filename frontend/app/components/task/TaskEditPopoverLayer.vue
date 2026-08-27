@@ -84,7 +84,7 @@
               min="0"
               step="0.01"
               class="effort-input"
-              placeholder="工数を入力してください"
+              placeholder="工数を入力..."
               aria-label="工数"
               :disabled="disabled"
               @input="updateEffortDraft(($event.target as HTMLInputElement).value)"
@@ -92,7 +92,7 @@
               @keydown.escape.prevent="void finalizeEffortPopover()"
               @click.stop
             />
-            <span class="effort-unit-label">{{ effortUnitLabel() }}</span>
+            <span class="effort-unit-label">{{ EFFORT_UNIT_LABEL }}</span>
           </div>
           <div class="popover-field-actions">
             <button
@@ -126,8 +126,8 @@
               >✕</button>
               <div class="member-detail-profile">
                 <img
-                  v-if="selectedMember.avatar_url"
-                  :src="selectedMember.avatar_url"
+                  v-if="selectedMember && memberAvatarSrc(selectedMember)"
+                  :src="memberAvatarSrc(selectedMember)!"
                   alt=""
                   class="member-detail-avatar"
                 />
@@ -186,40 +186,14 @@
             :disabled="disabled"
             @click.stop
           />
-          <p class="label-section-heading">ラベル</p>
           <div class="popover-scroll">
-            <ul class="label-picker-list">
-              <li v-for="label in filteredOrgLabels" :key="label.id">
-                <button
-                  type="button"
-                  class="label-picker-row"
-                  @click.stop="toggleLabel(label)"
-                >
-                  <span
-                    class="label-picker-checkbox"
-                    :class="{ 'label-picker-checkbox--checked': isLabelSelected(label.id) }"
-                    aria-hidden="true"
-                  >
-                    <span v-if="isLabelSelected(label.id)">✓</span>
-                  </span>
-                  <span
-                    class="label-picker-bar"
-                    :style="{
-                      backgroundColor: label.color,
-                      color: labelBarTextColor(label.color),
-                    }"
-                  >
-                    {{ label.name }}
-                  </span>
-                </button>
-              </li>
-            </ul>
-            <p v-if="!orgLabels.length" class="empty-text label-picker-empty">
-              ラベルは設定画面で作成できます。
-            </p>
-            <p v-else-if="!filteredOrgLabels.length" class="empty-text label-picker-empty">
-              該当するラベルがありません。
-            </p>
+            <LabelPickerGroupedList
+              :categories="filteredLabelCategories"
+              :selected-ids="(taskRef?.labels ?? []).map(label => label.id)"
+              :has-source-labels="orgLabels.length > 0"
+              :disabled="disabled"
+              @toggle="toggleLabel"
+            />
             <p v-if="popoverError" class="err">{{ popoverError }}</p>
           </div>
         </PopoverShell>
@@ -363,13 +337,18 @@ import {
 import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFormHelpers'
 import { TASK_DESCRIPTION_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
+import { resolveDisplayAvatarUrl } from '../../composables/userProfileUpdated'
+import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
 import { renderMarkdownToSafeHtml } from '../../utils/renderMarkdown'
 import PopoverShell from '../ui/PopoverShell.vue'
 import WorkspaceMemberPickerPopover from '../workspace/WorkspaceMemberPickerPopover.vue'
+import LabelPickerGroupedList from './LabelPickerGroupedList.vue'
+import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
 const props = withDefaults(defineProps<{
   orgSlug: string
   workspaceId: string
   orgLabels: TaskFormLabel[]
+  labelCategories?: LabelCategoryGroup[]
   workspaceMembers: TaskFormMember[]
   workspaceLists: WorkspaceListOption[]
   disabled?: boolean
@@ -380,6 +359,7 @@ const props = withDefaults(defineProps<{
   disabled: false,
   allowMemberRemove: true,
   readonlyDescription: false,
+  labelCategories: () => [],
 })
 const emit = defineEmits<{
   updated: [TaskPopoverEditable]
@@ -389,6 +369,13 @@ const emit = defineEmits<{
     memberId: number | null
   }]
 }>()
+const config = useRuntimeConfig()
+function memberAvatarSrc (member: { id: number; avatar_url?: string | null }): string | null {
+  return resolveAvatarUrl(
+    resolveDisplayAvatarUrl(member),
+    String(config.public.apiBaseUrl || '/api'),
+  )
+}
 const taskRef = ref<TaskPopoverEditable | null>(null)
 const memberSearchQuery = ref('')
 type DescriptionViewMode = 'preview' | 'markdown'
@@ -400,7 +387,7 @@ function bindTask (task: TaskPopoverEditable | null) {
   taskRef.value = task
 }
 const {
-  effortUnitLabel,
+  EFFORT_UNIT_LABEL,
   activePopover,
   selectedMember,
   popoverError,
@@ -413,11 +400,10 @@ const {
   descriptionInputRef,
   descriptionSaving,
   weekdayLabels,
-  filteredOrgLabels,
+  filteredLabelCategories,
   activeCalendarDate,
   calendarMonthLabel,
   calendarCells,
-  labelBarTextColor,
   memberEmailLine,
   pendingDate,
   dateSaving,
@@ -441,7 +427,6 @@ const {
   openListPicker,
   listSaving,
   selectList,
-  isLabelSelected,
   toggleMember,
   removeMember,
   toggleLabel,
@@ -451,6 +436,7 @@ const {
   orgSlug: props.orgSlug,
   workspaceId: props.workspaceId,
   orgLabels: toRef(props, 'orgLabels'),
+  labelCategories: toRef(props, 'labelCategories'),
   workspaceMembers: toRef(props, 'workspaceMembers'),
   workspaceLists: toRef(props, 'workspaceLists'),
   task: taskRef,

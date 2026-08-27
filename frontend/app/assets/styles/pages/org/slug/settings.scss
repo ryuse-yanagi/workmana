@@ -19,6 +19,14 @@
   min-height: 308px;
 }
 
+.settings-content-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 308px;
+  width: 100%;
+}
+
 @media (max-width: 1240px) {
   .settings-layout {
     grid-template-columns: 1fr;

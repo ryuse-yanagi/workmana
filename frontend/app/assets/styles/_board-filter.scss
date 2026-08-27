@@ -1,0 +1,108 @@
+/**
+ * 画面別ヘッダーの絞り込みドロップダウン（スペース一覧 / 資料一覧 / ボード共通）
+ */
+.board-filter-dropdown {
+  @include mixin.popover-scroller;
+  box-sizing: border-box;
+  background: mixin.$white;
+  border: 1px solid mixin.$gray;
+  border-radius: mixin.$popover-border-radius;
+  box-shadow: 0 10px 30px mixin.ink-a(0.12);
+  padding: mixin.$popover-padding 0;
+  @include mixin.popover-scroller-overlay-pad(0px);
+}
+.board-filter-section + .board-filter-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid mixin.$border;
+}
+.board-filter-section-title {
+  margin: 0;
+  padding: 4px mixin.$popover-padding 6px;
+  font-size: mixin.$popover-title-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
+  letter-spacing: 0.04em;
+}
+.board-filter-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.board-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 7.7px;
+  margin: 0 mixin.$popover-padding;
+  padding: 6px 6px;
+  border-radius: 8px;
+  font-size: mixin.$popover-list-font-size;
+  color: mixin.$text;
+  cursor: pointer;
+}
+.board-filter-option input[type='checkbox'] {
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1.5px solid mixin.$border-checkbox;
+  border-radius: 3px;
+  background: mixin.$white;
+  cursor: pointer;
+
+  &:checked {
+    border-color: mixin.$main;
+    background-color: mixin.$main;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 12px 12px;
+  }
+}
+.board-filter-option .board-filter-option-avatar {
+  width: 24px;
+  height: 24px;
+}
+.board-filter-option .board-filter-option-avatar .member-avatar__initial {
+  font-size: 10px;
+}
+.board-filter-label-group {
+  margin-top: 8px;
+}
+.board-filter-label-group .board-filter-options {
+  gap: 8px;
+}
+.board-filter-label-group .board-filter-option {
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1;
+  align-items: center;
+}
+.board-filter-category-title {
+  margin: 0;
+  padding: 4px mixin.$popover-padding 6px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text;
+}
+.board-filter-label-bar {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  min-height: 32px;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  line-height: 1;
+}

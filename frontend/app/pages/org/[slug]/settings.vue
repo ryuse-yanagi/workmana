@@ -4,45 +4,61 @@
       <PageLoadFatal :message="settingsFatalError" @retry="retrySettingsLoad" />
     </template>
 
-    <template v-else-if="settingsPageReady && settingsSnapshot">
+    <template v-else>
       <div class="settings-main">
         <section class="settings-layout">
           <SettingsSidebar
-            :items="menuItems"
+            :sections="menuSections"
             :active-tab="activeTab"
             @select="selectTab"
           />
 
           <section class="settings-content">
-            <SettingsDefaultBoardListsPanel
-              v-show="activeTab === 'default_board_lists'"
-              :org-slug="slug"
-              :initial-items="defaultBoardListItemsFromSnapshot"
-              :can-manage="canManageSettings"
-            />
-            <SettingsDefaultWorkspaceStatusesPanel
-              v-show="activeTab === 'workspace_statuses'"
-              :org-slug="slug"
-              :initial-items="defaultWorkspaceStatusItemsFromSnapshot"
-              :can-manage="canManageSettings"
-            />
-            <SettingsDefaultDocumentCategoriesPanel
-              v-show="activeTab === 'document_categories'"
-              :org-slug="slug"
-              :initial-items="defaultDocumentCategoryItemsFromSnapshot"
-              :can-manage="canManageSettings"
-            />
-            <SettingsLabelsPanel
-              v-show="activeTab === 'labels'"
-              :org-slug="slug"
-              :initial-label-tab="initialLabelTab"
-              :can-manage="canManageSettings"
-            />
-            <SettingsMembersPanel
-              v-show="activeTab === 'members'"
-              :org-slug="slug"
-              :can-manage="canManageSettings"
-            />
+            <div
+              v-if="!settingsPageReady || !settingsSnapshot"
+              class="settings-content-loading"
+              aria-busy="true"
+              aria-label="読み込み中"
+            >
+              <div class="spinner" />
+            </div>
+            <template v-else>
+              <SettingsOrganizationPanel
+                v-show="activeTab === 'organization'"
+                :org-slug="slug"
+                :initial-icon-url="settingsSnapshot.orgSettings.icon_url"
+                :can-manage="canManageSettings"
+              />
+              <SettingsMembersPanel
+                v-show="activeTab === 'members'"
+                :org-slug="slug"
+                :can-manage="canManageSettings"
+              />
+              <SettingsLabelsPanel
+                v-show="activeLabelTab !== null"
+                :org-slug="slug"
+                :label-tab="activeLabelTab ?? 'workspace'"
+                :can-manage="canManageSettings"
+              />
+              <SettingsDefaultWorkspaceStatusesPanel
+                v-show="activeTab === 'workspace_statuses'"
+                :org-slug="slug"
+                :initial-items="defaultWorkspaceStatusItemsFromSnapshot"
+                :can-manage="canManageSettings"
+              />
+              <SettingsDefaultBoardListsPanel
+                v-show="activeTab === 'default_board_lists'"
+                :org-slug="slug"
+                :initial-items="defaultBoardListItemsFromSnapshot"
+                :can-manage="canManageSettings"
+              />
+              <SettingsDefaultDocumentCategoriesPanel
+                v-show="activeTab === 'document_categories'"
+                :org-slug="slug"
+                :initial-items="defaultDocumentCategoryItemsFromSnapshot"
+                :can-manage="canManageSettings"
+              />
+            </template>
           </section>
         </section>
       </div>
@@ -60,12 +76,15 @@ import SettingsDefaultWorkspaceStatusesPanel from '../../../components/settings/
 import SettingsDefaultDocumentCategoriesPanel from '../../../components/settings/SettingsDefaultDocumentCategoriesPanel.vue'
 import SettingsLabelsPanel from '../../../components/settings/SettingsLabelsPanel.vue'
 import SettingsMembersPanel from '../../../components/settings/SettingsMembersPanel.vue'
+import SettingsOrganizationPanel from '../../../components/settings/SettingsOrganizationPanel.vue'
 import SettingsSidebar from '../../../components/settings/SettingsSidebar.vue'
 import {
   normalizeDefaultBoardListItems,
   normalizeDefaultDocumentCategoryItems,
   normalizeDefaultWorkspaceStatusItems,
+  SETTINGS_LABEL_TAB_BY_KEY,
   type SettingsLabelTabKey,
+  type SettingsMenuSection,
   type SettingsPageSnapshot,
   type SettingsTabKey,
 } from '../../../components/settings/types'
@@ -86,20 +105,46 @@ const {
 } = useOrgSettingsPageData()
 const { ensureCurrentUser } = useCurrentUser()
 
-const menuItems: Array<{ key: SettingsTabKey; label: string }> = [
-  { key: 'default_board_lists', label: 'リスト設定' },
-  { key: 'workspace_statuses', label: 'ステータス設定' },
-  { key: 'document_categories', label: '資料カテゴリ設定' },
-  { key: 'labels', label: 'ラベル設定' },
-  { key: 'members', label: 'ユーザー設定' },
+const menuSections: SettingsMenuSection[] = [
+  {
+    title: '共通',
+    items: [
+      { key: 'members', label: 'ユーザー設定' },
+      { key: 'organization', label: '組織設定' },
+    ],
+  },
+  {
+    title: 'スペース設定',
+    items: [
+      { key: 'workspace_labels', label: 'ラベル設定' },
+      { key: 'workspace_statuses', label: 'ステータス設定' },
+      { key: 'default_board_lists', label: 'リスト設定' },
+    ],
+  },
+  {
+    title: 'タスク設定',
+    items: [
+      { key: 'task_labels', label: 'ラベル設定' },
+    ],
+  },
+  {
+    title: '資料設定',
+    items: [
+      { key: 'document_labels', label: 'ラベル設定' },
+      { key: 'document_categories', label: 'カテゴリ設定' },
+    ],
+  },
 ]
 
-const activeTab = ref<SettingsTabKey>('default_board_lists')
-const initialLabelTab = ref<SettingsLabelTabKey>('workspace')
+const activeTab = ref<SettingsTabKey>('members')
 const settingsPageReady = ref(false)
 const settingsFatalError = ref<string | null>(null)
 const settingsSnapshot = ref<SettingsPageSnapshot | null>(null)
 const loadedForUserId = ref<number | null>(null)
+
+const activeLabelTab = computed<SettingsLabelTabKey | null>(() => {
+  return SETTINGS_LABEL_TAB_BY_KEY[activeTab.value] ?? null
+})
 
 const defaultBoardListItemsFromSnapshot = computed(() => {
   return normalizeDefaultBoardListItems(settingsSnapshot.value?.orgSettings.default_board_list_names)
@@ -170,12 +215,20 @@ function retrySettingsLoad () {
 function applyTabFromRoute () {
   const raw = route.query.tab
   const tab = typeof raw === 'string' ? raw.trim() : ''
-  if (tab === 'default_board_lists') {
-    activeTab.value = 'default_board_lists'
+  if (tab === 'organization') {
+    activeTab.value = 'organization'
+    return
+  }
+  if (tab === 'members' || tab === 'invites') {
+    activeTab.value = 'members'
     return
   }
   if (tab === 'workspace_statuses') {
     activeTab.value = 'workspace_statuses'
+    return
+  }
+  if (tab === 'default_board_lists') {
+    activeTab.value = 'default_board_lists'
     return
   }
   if (tab === 'document_categories') {
@@ -183,30 +236,24 @@ function applyTabFromRoute () {
     return
   }
   if (tab === 'task_labels') {
-    activeTab.value = 'labels'
-    initialLabelTab.value = 'task'
+    activeTab.value = 'task_labels'
     return
   }
   if (tab === 'document_labels') {
-    activeTab.value = 'labels'
-    initialLabelTab.value = 'document'
+    activeTab.value = 'document_labels'
     return
   }
   if (tab === 'workspace_labels' || tab === 'project_labels' || tab === 'labels') {
-    activeTab.value = 'labels'
+    activeTab.value = 'workspace_labels'
     const labelTab = route.query.labelTab
-    initialLabelTab.value = labelTab === 'task'
-      ? 'task'
-      : labelTab === 'document'
-        ? 'document'
-        : 'workspace'
+    if (labelTab === 'task') {
+      activeTab.value = 'task_labels'
+    } else if (labelTab === 'document') {
+      activeTab.value = 'document_labels'
+    }
     return
   }
-  if (tab === 'members' || tab === 'invites') {
-    activeTab.value = 'members'
-    return
-  }
-  activeTab.value = 'default_board_lists'
+  activeTab.value = 'members'
 }
 
 function selectTab (tab: SettingsTabKey) {

@@ -1,8 +1,8 @@
 <template>
   <BaseModal
     :model-value="modelValue"
-    :title="`アーカイブ済み${itemKind}一覧`"
-    :aria-label="`アーカイブ済み${itemKind}一覧`"
+    :title="`アーカイブ済み${itemKind}`"
+    :aria-label="`アーカイブ済み${itemKind}`"
     width="min(672px, 100%)"
     :close-disabled="pendingId !== null"
     @update:model-value="emit('update:modelValue', $event)"
@@ -61,7 +61,7 @@
     <ConfirmModal
       v-model="deleteConfirmOpen"
       :title="`${itemKind}の完全削除`"
-      message="完全削除は取り消せません。"
+      :message="deleteConfirmMessage"
       confirm-text="完全削除"
       variant="danger"
       :loading="pendingId !== null"
@@ -72,6 +72,7 @@
 
 <script setup lang="ts">
 import { useApi } from '../../composables/useApi'
+import { buildDestructiveConfirmMessage } from '../../utils/destructiveConfirmMessage'
 
 export type ArchivedNamedItem = {
   id: number
@@ -113,6 +114,9 @@ const deleteConfirmOpen = computed({
     if (!open) deleteTarget.value = null
   },
 })
+const deleteConfirmMessage = computed(() =>
+  buildDestructiveConfirmMessage(props.itemKind, '削除', deleteTarget.value?.name),
+)
 
 async function load () {
   error.value = null

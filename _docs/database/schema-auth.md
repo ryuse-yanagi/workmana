@@ -47,7 +47,6 @@
 | user_id | bigint FK → users.id | NO | |
 | organization_id | bigint FK → organizations.id | NO | |
 | role | ENUM('admin','project_leader','member') | NO | [enums.md](./enums.md) の `membership.role` と同一集合 |
-| invited_by | bigint FK → users.id | YES | 招待者 |
 | created_at | timestamp | NO | |
 | updated_at | timestamp | NO | |
 

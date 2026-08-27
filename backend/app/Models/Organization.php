@@ -12,6 +12,7 @@ class Organization extends Model
     protected $fillable = [
         'name',
         'slug',
+        'icon_path',
         'default_board_list_names',
         'default_workspace_status_names',
         'default_document_category_names',
@@ -40,7 +41,7 @@ class Organization extends Model
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'memberships')
-            ->withPivot(['role', 'invited_by'])
+            ->withPivot(['role'])
             ->withTimestamps();
     }
 

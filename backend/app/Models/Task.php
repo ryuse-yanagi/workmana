@@ -12,6 +12,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Task extends Model
 {
     use SoftDeletes;
+
+    /**
+     * Task mutations bump the parent workspace so list "更新日時順" reflects in-space activity.
+     *
+     * @var list<string>
+     */
+    protected $touches = ['workspace'];
+
     protected $fillable = [
         'organization_id',
         'workspace_id',
@@ -21,15 +29,11 @@ class Task extends Model
         'parent_task_id',
         'title',
         'description',
-        'status',
         'priority',
         'start_date',
         'due_date',
         'gantt_bar_color',
         'effort_hours',
-        'effort_value',
-        'effort_unit',
-        'assignee_id',
         'reporter_id',
         'archived_at',
     ];
@@ -41,7 +45,6 @@ class Task extends Model
             'start_date' => 'datetime',
             'due_date' => 'datetime',
             'effort_hours' => 'decimal:6',
-            'effort_value' => 'decimal:4',
             'archived_at' => 'datetime',
         ];
     }
@@ -69,11 +72,6 @@ class Task extends Model
     public function childTasks(): HasMany
     {
         return $this->hasMany(Task::class, 'parent_task_id');
-    }
-
-    public function assignee(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'assignee_id');
     }
 
     public function assignees(): BelongsToMany

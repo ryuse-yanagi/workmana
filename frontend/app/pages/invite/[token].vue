@@ -1,54 +1,59 @@
 <template>
-  <main class="page">
-    <h1>組織への参加</h1>
-
-    <section v-if="loading" class="card">
-      <p class="muted">招待情報を確認しています…</p>
-    </section>
-
-    <section v-else-if="status !== 'active'" class="card">
-      <p class="err">{{ statusMessage }}</p>
-      <p class="muted">
+  <AuthGateShell
+    :title="shellTitle"
+    :subtitle="shellSubtitle"
+    :busy="loading"
+    busy-label="招待情報を確認しています…"
+  >
+    <template v-if="status !== 'active'">
+      <p class="auth-err" role="alert">{{ statusMessage }}</p>
+      <p class="auth-copy">
         新しい招待が必要な場合は、組織の管理者に連絡してください。
       </p>
-      <NuxtLink to="/login" class="link-btn">ログインへ</NuxtLink>
-    </section>
+      <div class="auth-actions">
+        <NuxtLink to="/login" class="auth-btn">ログインへ</NuxtLink>
+      </div>
+    </template>
 
-    <section v-else-if="completed" class="card">
-      <p class="ok">{{ completedMessage }}</p>
-      <p v-if="!joinAuthenticated" class="muted">
-        Cognito でログインすると、組織「{{ organizationName }}」を利用できます。
-      </p>
-      <button
-        v-if="joinAuthenticated"
-        type="button"
-        class="link-btn"
-        @click="goJoinedOrg"
-      >
-        組織へ進む
-      </button>
-      <NuxtLink
-        v-else
-        :to="loginPath"
-        class="link-btn"
-      >
-        ログインへ
-      </NuxtLink>
-    </section>
+    <template v-else-if="completed">
+      <div class="auth-success">
+        <p v-if="!joinAuthenticated" class="auth-copy">
+          Cognito でログインすると、組織「{{ organizationName }}」を利用できます。
+        </p>
+        <p v-else class="auth-copy">
+          組織「{{ organizationName }}」への参加が完了しました。
+        </p>
+        <button
+          v-if="joinAuthenticated"
+          type="button"
+          class="auth-btn auth-btn--block"
+          @click="goJoinedOrg"
+        >
+          組織へ進む
+        </button>
+        <NuxtLink
+          v-else
+          :to="loginPath"
+          class="auth-btn auth-btn--block"
+        >
+          ログインへ
+        </NuxtLink>
+      </div>
+    </template>
 
     <!-- 既存アカウント: ログイン済み・メール一致 → 参加確認 -->
-    <section v-else-if="requiresAuthentication && sessionChecked && sessionMatchesInvite" class="card">
-      <p class="muted">
+    <template v-else-if="requiresAuthentication && sessionChecked && sessionMatchesInvite">
+      <p class="auth-copy">
         「{{ organizationName }}」へ招待されています（{{ email }}）。
       </p>
-      <p class="confirm-question">
+      <p class="auth-copy auth-copy--strong">
         「{{ organizationName }}」へ参加しますか？
       </p>
-      <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
-      <div class="actions">
+      <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
+      <div class="auth-actions">
         <button
           type="button"
-          class="link-btn"
+          class="auth-btn"
           :disabled="accepting"
           @click="acceptAuthenticated"
         >
@@ -56,104 +61,104 @@
         </button>
         <button
           type="button"
-          class="secondary-btn"
+          class="auth-btn auth-btn--secondary"
           :disabled="accepting"
           @click="declineJoin"
         >
           キャンセル
         </button>
       </div>
-    </section>
+    </template>
 
     <!-- 既存アカウント: 別ユーザーでログイン中 -->
-    <section v-else-if="requiresAuthentication && sessionChecked && sessionAuthenticated && !sessionMatchesInvite" class="card">
-      <p class="muted">
+    <template v-else-if="requiresAuthentication && sessionChecked && sessionAuthenticated && !sessionMatchesInvite">
+      <p class="auth-copy">
         「{{ organizationName }}」へ招待されています（{{ email }}）。
       </p>
-      <p class="err">
+      <p class="auth-err" role="alert">
         別のアカウント（{{ sessionEmail }}）でログイン中です。
         招待されたメールアドレスのアカウントに切り替えるか、一度ログアウトしてください。
       </p>
-      <div class="actions">
-        <button type="button" class="link-btn" @click="logoutAndRelogin">
+      <div class="auth-actions">
+        <button type="button" class="auth-btn" @click="logoutAndRelogin">
           ログアウトして招待アカウントでログイン
         </button>
-        <NuxtLink to="/login" class="secondary-btn">ログイン画面へ</NuxtLink>
+        <NuxtLink to="/login" class="auth-btn auth-btn--secondary">ログイン画面へ</NuxtLink>
       </div>
-    </section>
+    </template>
 
     <!-- 既存アカウント: 未ログイン -->
-    <section v-else-if="requiresAuthentication" class="card">
-      <p class="muted">
+    <template v-else-if="requiresAuthentication">
+      <p class="auth-copy">
         「{{ organizationName }}」へ招待されています（{{ email }}）。
       </p>
-      <p class="confirm-question">
+      <p class="auth-copy auth-copy--strong">
         既存アカウントです。招待されたメールでログインしたあと、参加確認が表示されます。
       </p>
-      <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
+      <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
       <button
         type="button"
-        class="link-btn"
+        class="auth-btn auth-btn--block"
         @click="goLoginToAccept"
       >
         ログインして参加確認へ
       </button>
-    </section>
+    </template>
 
     <!-- 新規ユーザー登録 -->
-    <section v-else class="card">
-      <p class="muted">
+    <template v-else>
+      <p class="auth-copy">
         「{{ organizationName }}」へ招待されています。
         パスワードと名前を入力して登録を完了してください。
       </p>
 
-      <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
+      <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
 
-      <form class="form" novalidate @submit.prevent="submitRegistration">
-        <label class="field">
-          <span class="label">メールアドレス</span>
+      <form class="auth-form" novalidate @submit.prevent="submitRegistration">
+        <label class="auth-field">
+          <span class="auth-label">メールアドレス</span>
           <input
             :value="email"
             type="text"
             inputmode="email"
-            class="input"
+            class="auth-input"
             readonly
             tabindex="-1"
           >
         </label>
-        <label class="field">
-          <span class="label">名前</span>
+        <label class="auth-field">
+          <span class="auth-label">名前</span>
           <input
             v-model="name"
             type="text"
-            class="input"
+            class="auth-input"
             :maxlength="USER_NAME_MAX_LENGTH"
             autocomplete="name"
             aria-required="true"
             :disabled="submitting"
           >
-          <p v-if="nameError" class="field-error">{{ nameError }}</p>
+          <p v-if="nameError" class="auth-field-error">{{ nameError }}</p>
         </label>
-        <label class="field">
-          <span class="label">パスワード</span>
+        <label class="auth-field">
+          <span class="auth-label">パスワード</span>
           <input
             v-model="password"
             type="password"
-            class="input"
+            class="auth-input"
             :maxlength="PASSWORD_MAX_LENGTH"
             autocomplete="new-password"
             aria-required="true"
             :disabled="submitting"
           >
-          <p v-if="passwordError" class="field-error">{{ passwordError }}</p>
+          <p v-if="passwordError" class="auth-field-error">{{ passwordError }}</p>
         </label>
-        <p class="hint">パスワードは8文字以上にしてください。</p>
-        <button type="submit" :disabled="submitting">
+        <p class="auth-hint">パスワードは8文字以上にしてください。</p>
+        <button type="submit" class="auth-btn auth-btn--block" :disabled="submitting">
           {{ submitting ? '登録中…' : '登録して参加' }}
         </button>
       </form>
-    </section>
-  </main>
+    </template>
+  </AuthGateShell>
 </template>
 
 <script setup lang="ts">
@@ -161,7 +166,7 @@ import { useAuth } from '../../composables/useAuth'
 import { useApi } from '../../composables/useApi'
 import { useOrganizationContext } from '../../composables/useOrganizationContext'
 import { PASSWORD_MAX_LENGTH, USER_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
-import { requiredTextFieldError } from '../../utils/formValidation'
+import { passwordFieldError, requiredTextFieldError } from '../../utils/formValidation'
 import { clearSessionScopedCaches } from '../../composables/useSessionScopedCaches'
 
 type InviteStatus = 'active' | 'used' | 'expired' | 'invalid' | 'error'
@@ -207,7 +212,6 @@ const errorMessage = ref('')
 const nameError = ref<string | null>(null)
 const passwordError = ref<string | null>(null)
 const completed = ref(false)
-const completedMessage = ref('参加が完了しました。')
 const joinAuthenticated = ref(false)
 const sessionChecked = ref(false)
 const sessionAuthenticated = ref(false)
@@ -219,6 +223,24 @@ const loginPath = computed(() => {
     ? orgTopPath(organizationSlug.value)
     : '/post-login'
   return { path: '/login', query: { next } }
+})
+
+const shellTitle = computed(() => {
+  if (loading.value) return '組織への参加'
+  if (completed.value) return '参加完了'
+  if (status.value !== 'active') return '招待を確認できません'
+  return '組織への参加'
+})
+
+const shellSubtitle = computed(() => {
+  if (loading.value) return '招待リンクの内容を確認しています。'
+  if (completed.value && organizationName.value) {
+    return `「${organizationName.value}」への手続きが完了しました。`
+  }
+  if (status.value === 'active' && organizationName.value) {
+    return `「${organizationName.value}」からの招待です。`
+  }
+  return '招待リンクの状態を確認してください。'
 })
 
 function applyPreview (preview: InvitePreview) {
@@ -267,7 +289,6 @@ async function acceptAuthenticated () {
       { method: 'POST', body: {} },
     )
     completed.value = true
-    completedMessage.value = res.message || '参加が完了しました。'
     joinAuthenticated.value = res.authenticated === true
     if (res.organization?.name) {
       organizationName.value = res.organization.name
@@ -352,12 +373,8 @@ async function submitRegistration () {
   if (submitting.value) return
   submitting.value = true
   errorMessage.value = ''
-  nameError.value = requiredTextFieldError(name.value, '名前を入力してください。')
-  if (password.value.length < 8) {
-    passwordError.value = 'パスワードは8文字以上にしてください。'
-  } else {
-    passwordError.value = null
-  }
+  nameError.value = requiredTextFieldError(name.value, '名前', USER_NAME_MAX_LENGTH)
+  passwordError.value = passwordFieldError(password.value)
   if (nameError.value || passwordError.value) {
     submitting.value = false
     return
@@ -379,7 +396,6 @@ async function submitRegistration () {
       },
     )
     completed.value = true
-    completedMessage.value = res.message || '参加が完了しました。'
     joinAuthenticated.value = false
     if (res.organization?.name) {
       organizationName.value = res.organization.name
@@ -419,36 +435,3 @@ watch(token, () => {
   void loadInvite()
 })
 </script>
-
-<style lang="scss" scoped src="~/assets/styles/pages/invite.scss"></style>
-<style lang="scss" scoped>
-.confirm-question {
-  margin: 12px 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: #0f2945;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.secondary-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 14px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #0f172a;
-  cursor: pointer;
-  font-size: 12.6px;
-  font-weight: 700;
-  text-decoration: none;
-  width: fit-content;
-}
-</style>

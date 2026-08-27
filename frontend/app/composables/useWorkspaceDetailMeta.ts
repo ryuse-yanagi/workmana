@@ -6,16 +6,20 @@ import {
   type OrgWorkspaceStatus,
 } from './useOrgWorkspaceIndexPageData'
 import { resolveLabelColors, resolveStandardColors } from '../utils/colorPresetResolution'
+import type { LabelCategoryGroup } from './useLabelCategories'
+import { sortMembersByDisplayName } from './useMemberDisplay'
 
 export type WorkspaceDetailMeta = {
   workspace: OrgWorkspaceItem
   orgLabels: OrgWorkspaceLabel[]
+  orgLabelCategories: LabelCategoryGroup[]
   workspaceStatuses: OrgWorkspaceStatus[]
 }
 
 type SharedEntry = {
   workspace: OrgWorkspaceItem | null
   orgLabels: OrgWorkspaceLabel[]
+  orgLabelCategories: LabelCategoryGroup[]
   workspaceStatuses: OrgWorkspaceStatus[]
   loaded: boolean
   detailFetched: boolean
@@ -29,6 +33,39 @@ export function clearAllWorkspaceDetailMetaCaches (): void {
     delete sharedByKey[key]
   }
   inflightByKey.clear()
+}
+
+/** 自分のプロフィール更新を、保持中のワークスペース担当者表示へ反映する */
+export function patchAllWorkspaceDetailMetaUserProfiles (detail: {
+  id: number
+  name?: string
+  avatar_url?: string | null
+}): void {
+  for (const entry of Object.values(sharedByKey)) {
+    const workspace = entry.workspace
+    if (!workspace?.assignees?.length) {
+      continue
+    }
+    let changed = false
+    const assignees = workspace.assignees.map((member) => {
+      if (member.id !== detail.id) {
+        return member
+      }
+      changed = true
+      return {
+        ...member,
+        ...('avatar_url' in detail ? { avatar_url: detail.avatar_url ?? null } : {}),
+        ...(detail.name !== undefined ? { name: detail.name } : {}),
+      }
+    })
+    if (!changed) {
+      continue
+    }
+    const nextAssignees = detail.name !== undefined
+      ? sortMembersByDisplayName(assignees)
+      : assignees
+    entry.workspace = normalizeWorkspace({ ...workspace, assignees: nextAssignees })
+  }
 }
 
 export function invalidateWorkspaceDetailMeta (
@@ -49,6 +86,7 @@ function ensureEntry (key: string): SharedEntry {
     sharedByKey[key] = {
       workspace: null,
       orgLabels: [],
+      orgLabelCategories: [],
       workspaceStatuses: [],
       loaded: false,
       detailFetched: false,
@@ -173,6 +211,7 @@ function hydrateFromIndexCache (
 
   entry.workspace = normalizeWorkspace(listItem)
   entry.orgLabels = resolveLabelColors(indexCached.orgLabels)
+  entry.orgLabelCategories = indexCached.orgLabelCategories ?? []
   entry.workspaceStatuses = resolveStandardColors(indexCached.workspaceStatuses)
   entry.loaded = true
   return true
@@ -207,7 +246,8 @@ export function warmWorkspaceDetailCache (
   if (entry?.detailFetched && entry.workspace) {
     return
   }
-  void prefetchWorkspaceDetail(slug, id)
+  // 削除済み等で失敗しても warm 用途なので握りつぶす（呼び出し側の gate が正式に扱う）
+  void prefetchWorkspaceDetail(slug, id).catch(() => {})
 }
 
 async function fetchWorkspaceDetailMeta (
@@ -230,6 +270,7 @@ async function fetchWorkspaceDetailMeta (
     return {
       workspace: existing.workspace,
       orgLabels: existing.orgLabels,
+      orgLabelCategories: existing.orgLabelCategories,
       workspaceStatuses: existing.workspaceStatuses,
     }
   }
@@ -251,11 +292,13 @@ async function fetchWorkspaceDetailMeta (
     const meta: WorkspaceDetailMeta = {
       workspace: normalizeWorkspace(workspaceRes),
       orgLabels: indexSnapshot?.orgLabels ?? existing?.orgLabels ?? [],
+      orgLabelCategories: indexSnapshot?.orgLabelCategories ?? existing?.orgLabelCategories ?? [],
       workspaceStatuses: indexSnapshot?.workspaceStatuses ?? existing?.workspaceStatuses ?? [],
     }
     const target = ensureEntry(k)
     target.workspace = meta.workspace
     target.orgLabels = resolveLabelColors(meta.orgLabels)
+    target.orgLabelCategories = meta.orgLabelCategories
     target.workspaceStatuses = resolveStandardColors(meta.workspaceStatuses)
     target.loaded = true
     target.detailFetched = true
@@ -290,6 +333,7 @@ export function useWorkspaceDetailMeta (
 
   const workspace = computed(() => entry.value.workspace)
   const orgLabels = computed(() => entry.value.orgLabels)
+  const orgLabelCategories = computed(() => entry.value.orgLabelCategories ?? [])
   const workspaceStatuses = computed(() => entry.value.workspaceStatuses)
   const loaded = computed(() => entry.value.loaded)
   const detailFetched = computed(() => entry.value.detailFetched)
@@ -298,6 +342,7 @@ export function useWorkspaceDetailMeta (
     const target = ensureEntry(targetKey)
     target.workspace = normalizeWorkspace(meta.workspace)
     target.orgLabels = resolveLabelColors(meta.orgLabels)
+    target.orgLabelCategories = meta.orgLabelCategories ?? []
     target.workspaceStatuses = resolveStandardColors(meta.workspaceStatuses)
     target.loaded = true
     target.detailFetched = true
@@ -363,6 +408,7 @@ export function useWorkspaceDetailMeta (
   return {
     workspace,
     orgLabels,
+    orgLabelCategories,
     workspaceStatuses,
     loaded,
     detailFetched,

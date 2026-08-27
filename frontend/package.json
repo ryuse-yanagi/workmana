@@ -39,7 +39,9 @@
     "@oxc-minify/binding-linux-x64-gnu": "0.131.0",
     "@oxc-parser/binding-linux-x64-gnu": "0.131.0",
     "@oxc-transform/binding-linux-x64-gnu": "0.131.0",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^25.6.0",
+    "playwright": "^1.62.1",
     "sass": "^1.99.0"
   }
 }
