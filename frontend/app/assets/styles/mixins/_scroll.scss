@@ -1,0 +1,89 @@
+@use "tokens" as *;
+
+/** 薄いスクロールバー（縦・横共通） */
+@mixin thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: $scrollbar-thumb transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: ink-a(0.22);
+    border-radius: 999px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: ink-a(0.36);
+  }
+}
+
+/**
+ * スクロールバー出現で内容幅が変わらないようにする一式。
+ * 使い方: parent → scroller(-expand) → body(-cqw)
+ * $axis: end = 右レーン / start = 左レーン
+ */
+@mixin scroll-preserve-scroller($axis: end) {
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  @include thin-scrollbar;
+
+  @if $axis == start {
+    direction: rtl;
+  }
+}
+
+/** レーン分だけ広げ、バーを隣接余白側へ逃がす */
+@mixin scroll-preserve-scroller-expand($axis: end, $lane: $scrollbar-lane) {
+  @include scroll-preserve-scroller($axis);
+  width: calc(100% + #{$lane});
+  margin-inline-end: calc(-1 * #{$lane});
+}
+
+/** 内容幅を固定し、バーは空いたレーンに載せる */
+@mixin scroll-preserve-body($content-width, $axis: end) {
+  box-sizing: border-box;
+  width: $content-width;
+  min-width: $content-width;
+  max-width: $content-width;
+
+  @if $axis == start {
+    direction: ltr;
+  }
+}
+
+/** expand スクロールと組み合わせるとき用（親に container-type が必要） */
+@mixin scroll-preserve-body-cqw($axis: end) {
+  @include scroll-preserve-body(100cqw, $axis);
+}
+
+/** インラインサイズコンテナ。expand 時は $reserve-lane でレーン用 padding を確保 */
+@mixin scroll-preserve-parent($reserve-lane: null) {
+  container-type: inline-size;
+
+  @if $reserve-lane == end or $reserve-lane == start {
+    box-sizing: border-box;
+  }
+
+  @if $reserve-lane == end {
+    padding-inline-end: $scrollbar-lane;
+  } @else if $reserve-lane == start {
+    padding-inline-start: $scrollbar-lane;
+  }
+}
+
+/** ヘッダー等をレーンへ食い込ませて全幅に見せる */
+@mixin scroll-preserve-chrome-bleed($lane: $scrollbar-lane) {
+  box-sizing: border-box;
+  width: calc(100% + #{$lane});
+  max-width: none;
+  margin-inline-end: calc(-1 * #{$lane});
+}

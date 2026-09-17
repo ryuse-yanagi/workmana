@@ -1,15 +1,22 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="modelValue"
-      ref="overlayRef"
-      class="modal-overlay"
-      :class="{ 'modal-overlay--popover-open': anyPopoverOpen }"
-      role="presentation"
-      @mousedown="onOverlayMouseDown"
-    >
+    <Transition name="modal-fade">
+      <div
+        v-if="modelValue"
+        ref="overlayRef"
+        class="modal-overlay"
+        :class="{ 'modal-overlay--popover-open': anyPopoverOpen }"
+        role="presentation"
+        @mousedown="onOverlayMouseDown"
+      >
         <section
+          ref="modalCardRef"
           class="modal-card"
+          :class="{
+            'modal-card--content-pending': !contentReady,
+            'modal-card--fade-in': contentShouldFadeIn,
+          }"
+          :style="modalScrollbarStyle"
           role="dialog"
           aria-modal="true"
           aria-label="タスクの追加"
@@ -22,7 +29,13 @@
               :disabled="submitting"
               aria-label="閉じる"
               @click="close"
-            >✕</button>
+            >
+              <X
+                :size="20"
+                :stroke-width="2.25"
+                aria-hidden="true"
+              />
+            </button>
           </header>
           <div class="modal-body">
             <section class="parent-section">
@@ -47,10 +60,11 @@
                   </button>
                 </div>
                 <p class="parent-toggle-card__hint">
-                  OFFの場合、既存の親タスクに紐づく子タスクとして作成されます
+                  OFFの場合、親タスクを指定すると子タスクとして作成されます
                 </p>
               </div>
               <div
+                v-if="!createAsParent"
                 ref="metaPickerRootRef"
                 class="parent-picker-block"
               >
@@ -58,7 +72,6 @@
                   class="detail-meta-row"
                 >
                   <section
-                    v-if="!createAsParent"
                     class="detail-item detail-item--parent"
                   >
                     <span class="detail-item-label">親タスク</span>
@@ -70,22 +83,6 @@
                       @click.stop="toggleParentPicker($event)"
                     >
                       {{ selectedParentTaskTitle }}
-                    </button>
-                  </section>
-                  <section
-                    v-if="selectedListId !== null"
-                    class="detail-item detail-item--list"
-                  >
-                    <span class="detail-item-label">リスト</span>
-                    <button
-                      type="button"
-                      class="detail-value-btn detail-value-btn--list"
-                      :class="{ 'detail-value-btn--editing': listPickerOpen }"
-                      :style="selectedListValueStyle"
-                      :disabled="submitting"
-                      @click.stop="toggleListPicker($event)"
-                    >
-                      {{ selectedListName }}
                     </button>
                   </section>
                 </div>
@@ -103,7 +100,38 @@
                 :title-error="titleError"
                 relaxed-title-padding
                 auto-focus-title
-              />
+              >
+                <template
+                  v-if="selectedListId !== null"
+                  #after-title
+                >
+                  <div class="detail-meta-row detail-meta-row--list">
+                    <button
+                      ref="listPickerBtnRef"
+                      type="button"
+                      class="task-detail-list-btn"
+                      data-popover-trigger
+                      :class="{
+                        'task-detail-list-btn--placeholder': !selectedListOption,
+                        'task-detail-list-btn--open': listPickerOpen,
+                      }"
+                      :style="selectedListValueStyle"
+                      :disabled="submitting"
+                      :aria-label="`リスト: ${selectedListName}`"
+                      :aria-expanded="listPickerOpen"
+                      @click.stop="toggleListPicker($event)"
+                    >
+                      <span class="task-detail-list-btn__name">{{ selectedListName }}</span>
+                      <ChevronDown
+                        class="task-detail-list-btn__chevron"
+                        :size="14"
+                        :stroke-width="2.5"
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
+                </template>
+              </TaskFormPane>
             </div>
             <p v-if="submitError" class="err">{{ submitError }}</p>
             <footer class="modal-footer">
@@ -127,6 +155,7 @@
           </div>
         </section>
     </div>
+    </Transition>
   </Teleport>
   <Teleport to="body">
     <Transition name="popover-fade" @after-enter="updateParentPickerPosition">
@@ -141,13 +170,14 @@
           title="親タスク"
           aria-label="親タスク"
           :close-disabled="submitting || parentTaskDefaultsLoading"
+          :show-clear="parentTaskId !== null"
           @close="closeParentPicker"
+          @clear="clearParentTask"
         >
           <ParentTaskPickerPanel
             :loading="parentTasksLoading"
             :parents="parentTasks"
             :selected-parent-id="parentTaskId"
-            :clear-disabled="submitting || parentTaskDefaultsLoading"
             show-unset-option
             :error="parentPickerError"
             @select="selectParentTask"
@@ -163,43 +193,20 @@
         v-if="modelValue && listPickerOpen"
         class="popover-layer popover-layer--portal"
       >
-        <PopoverShell
+        <TaskListPickerPopover
           ref="listPickerPopoverRef"
-          shell-class="popover popover--list"
           :style="listPickerStyle"
-          title="リストを選択"
-          aria-label="リストを選択"
-          :close-disabled="submitting"
+          :disabled="submitting"
+          :can-clear="selectedListId !== null"
+          :error="listPickerError"
+          :lists="workspaceLists"
+          :selected-id="selectedListId"
+          variant="bar"
+          :bar-style="listPickerBarStyle"
           @close="closeListPicker"
-        >
-          <div class="popover-scroll">
-            <ul class="list-picker-list">
-              <li
-                v-for="list in workspaceLists"
-                :key="list.id"
-              >
-                <button
-                  type="button"
-                  class="list-picker-row"
-                  :class="{ 'list-picker-row--selected': selectedListId === list.id }"
-                  :disabled="submitting"
-                  @click.stop="selectList(list.id)"
-                >
-                  <span
-                    class="list-picker-radio"
-                    :class="{ 'list-picker-radio--checked': selectedListId === list.id }"
-                    aria-hidden="true"
-                  />
-                  <span class="list-picker-label">{{ list.name }}</span>
-                </button>
-              </li>
-            </ul>
-            <p v-if="!workspaceLists.length" class="empty-text list-picker-empty">
-              リストがありません。
-            </p>
-            <p v-if="listPickerError" class="err">{{ listPickerError }}</p>
-          </div>
-        </PopoverShell>
+          @select="selectList"
+          @clear="clearList"
+        />
       </div>
     </Transition>
   </Teleport>
@@ -207,25 +214,39 @@
 <script setup lang="ts">
 import ParentTaskPickerPanel from '../task/ParentTaskPickerPanel.vue'
 import TaskFormPane from '../task/TaskFormPane.vue'
+import TaskListPickerPopover from '../task/popover/TaskListPickerPopover.vue'
 import PopoverShell from '../ui/PopoverShell.vue'
+import { ChevronDown, X } from 'lucide-vue-next'
 import { useApi } from '../../composables/useApi'
 import {
   applyTaskDefaultsToDraft,
   buildTaskCreateBody,
   clearTaskDraftDefaults,
   createEmptyTaskFormDraft,
+  listBarSurfaceStyle,
+  type TaskFormDefaultsSource,
   type TaskFormDraft,
   type TaskFormLabel,
   type TaskFormMember,
 } from '../../composables/useTaskFormHelpers'
+import type { TaskPopoverListOption } from '../../utils/taskPopoverTypes'
 import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
 import {
   resolveListColor,
   type WorkspaceListOption,
 } from '../../composables/useTaskPopoverEditor'
-import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
-import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
+import { createOverlayBackdropClose, dismissExclusivePopoverBeforeModalClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay, isCtrlEnterKeydown, isInsideFloatingPopover } from '../../utils/uiInteraction'
+import { useModalLayer } from '../../composables/useModalLayer'
+import { useModalScrollbarGutter } from '../../composables/useModalScrollbarGutter'
+import {
+  POPOVER_PANEL_BASE_WIDTH,
+  POPOVER_VIEWPORT_INSET,
+  buildAnchoredPopoverStyle,
+  computeAnchoredPopoverBelowLayout,
+  popoverPositionVisibilityStyle,
+  schedulePopoverOpenLayout,
+} from '../../utils/popoverScrollbar'
 import { useExclusivePopover } from '../../composables/useExclusivePopover'
 import { taskTitleFieldError } from '../../utils/formValidation'
 type ParentTaskOption = {
@@ -236,6 +257,7 @@ type ParentTaskDetail = {
   start_date: string | null
   due_date: string | null
   effort_hours: number | string | null
+  progress_rate: number | string | null
   assignees: TaskFormMember[]
   labels: TaskFormLabel[]
 }
@@ -251,6 +273,7 @@ export type CreatedTask = {
   start_date?: string | null
   due_date?: string | null
   effort_hours?: number | string | null
+  progress_rate?: number | string | null
   assignees?: TaskFormMember[]
   labels?: TaskFormLabel[]
   created_at?: string
@@ -271,9 +294,14 @@ const props = withDefaults(defineProps<{
   labelCategories?: LabelCategoryGroup[]
   workspaceMembers: TaskFormMember[]
   workspaceLists?: WorkspaceListOption[]
+  initialParentTaskId?: number | null
+  /** 子タスク追加時に親詳細を先読みした結果（あれば API 再取得せず適用） */
+  initialParentDefaults?: TaskFormDefaultsSource | null
 }>(), {
   workspaceLists: () => [],
   labelCategories: () => [],
+  initialParentTaskId: null,
+  initialParentDefaults: null,
 })
 const emit = defineEmits<{
   'update:modelValue': [boolean]
@@ -288,12 +316,17 @@ const parentTasks = ref<ParentTaskOption[]>([])
 const parentTasksFetched = ref(false)
 const parentTasksLoading = ref(false)
 const parentTaskDefaultsLoading = ref(false)
+const contentReady = ref(true)
+const contentShouldFadeIn = ref(false)
+let contentFadeInTimer: ReturnType<typeof setTimeout> | null = null
+let prepareOpenGeneration = 0
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
 const titleError = ref<string | null>(null)
 const parentPickerOpen = ref(false)
 const listPickerOpen = ref(false)
 const metaPickerRootRef = ref<HTMLElement | null>(null)
+const listPickerBtnRef = ref<HTMLElement | null>(null)
 const parentPickerAnchorEl = ref<HTMLElement | null>(null)
 const listPickerAnchorEl = ref<HTMLElement | null>(null)
 const parentPickerPopoverRef = ref<{ rootRef: HTMLElement | null } | null>(null)
@@ -305,12 +338,12 @@ const listPickerError = ref<string | null>(null)
 const taskFormPaneRef = ref<TaskFormPaneExpose | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
 let parentDefaultsRequestId = 0
+/** resetForm で先読み適用した直後の watch(parentTaskId) を一度だけ無視する */
+let ignoreParentDefaultsWatch = false
 let removeParentPickerResizeListener: (() => void) | null = null
 let removeListPickerResizeListener: (() => void) | null = null
-const POPOVER_VIEWPORT_PAD = 12
 const POPOVER_ANCHOR_GAP = 6
 const POPOVER_MIN_HEIGHT = 120
-const POPOVER_DEFAULT_WIDTH_PX = 312
 const selectedParentTaskTitle = computed(() => {
   if (parentTaskId.value === null) return '未設定'
   const parent = parentTasks.value.find(item => item.id === parentTaskId.value)
@@ -324,10 +357,23 @@ const selectedListOption = computed((): WorkspaceListOption | null => {
 const selectedListName = computed(() => selectedListOption.value?.name ?? 'リストを選択')
 const selectedListValueStyle = computed(() => {
   const color = resolveListColor(selectedListId.value, props.workspaceLists)
-  return color ? { color } : undefined
+  if (!color) return undefined
+  return listBarSurfaceStyle(color)
 })
+function listPickerBarStyle (list: TaskPopoverListOption) {
+  return listBarSurfaceStyle(list.color ?? '')
+}
 const panePopoverOpen = computed(() => taskFormPaneRef.value?.activePopover != null)
 const anyPopoverOpen = computed(() => panePopoverOpen.value || parentPickerOpen.value || listPickerOpen.value)
+
+const modalCardRef = ref<HTMLElement | null>(null)
+const { scrollbarStyle: modalScrollbarStyle } = useModalScrollbarGutter({
+  cardRef: modalCardRef,
+  open: () => props.modelValue,
+  scrollerSelector: '.modal-body',
+})
+
+useModalLayer(() => props.modelValue)
 function toggleCreateAsParent () {
   if (submitting.value) return
   createAsParent.value = !createAsParent.value
@@ -347,74 +393,74 @@ function captureMetaPickerAnchor (event: Event | undefined, selector: string): H
   if (fromEvent instanceof HTMLElement) return fromEvent
   return metaPickerRootRef.value?.querySelector(selector) ?? null
 }
-function updateParentPickerPosition () {
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      positionParentPicker()
-      if (!parentPickerPopoverRef.value) {
-        requestAnimationFrame(() => positionParentPicker())
-      }
-    })
-  })
-}
-function updateListPickerPosition () {
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      positionListPicker()
-      if (!listPickerPopoverRef.value) {
-        requestAnimationFrame(() => positionListPicker())
-      }
-    })
-  })
-}
 function positionAnchoredPopover (
   anchor: HTMLElement | null,
   popover: HTMLElement | null,
+  baseWidthPx: number,
+  visible = true,
 ): Record<string, string> | null {
   if (!anchor || !popover) return null
-  const pad = POPOVER_VIEWPORT_PAD
-  const gap = POPOVER_ANCHOR_GAP
-  const anchorRect = anchor.getBoundingClientRect()
-  const spaceBelow = window.innerHeight - anchorRect.bottom - pad
-  const spaceAbove = anchorRect.top - pad
-  let top: number
-  let maxHeight: number
-  if (spaceBelow >= POPOVER_MIN_HEIGHT) {
-    top = anchorRect.bottom + gap
-    maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceBelow - gap))
-  } else {
-    maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceAbove - gap))
-    top = Math.max(pad, anchorRect.top - gap - maxHeight)
-  }
-  const scrollbarGutter = resolvePopoverScrollbarGutter(popover, maxHeight)
-  const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
-  const popoverWidth = (measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX) + popoverWidthExtraForGutter(scrollbarGutter)
-  let left = anchorRect.left
-  if (left + popoverWidth > window.innerWidth - pad) {
-    left = anchorRect.right - popoverWidth
-  }
-  return {
-    position: 'fixed',
-    top: `${Math.round(top)}px`,
-    left: `${Math.round(left)}px`,
-    zIndex: '210',
-    ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
-    ...popoverScrollbarGutterStyle(scrollbarGutter),
-  }
+  const layout = computeAnchoredPopoverBelowLayout(
+    anchor.getBoundingClientRect(),
+    baseWidthPx,
+    popover,
+    {
+      pad: POPOVER_VIEWPORT_INSET,
+      gap: POPOVER_ANCHOR_GAP,
+      minHeight: POPOVER_MIN_HEIGHT,
+    },
+  )
+  return buildAnchoredPopoverStyle(layout, { zIndex: 210, visible })
 }
-function positionParentPicker () {
+function positionParentPicker (visible = true) {
   const style = positionAnchoredPopover(
     parentPickerAnchorEl.value,
     resolveParentPickerPopoverElement(),
+    POPOVER_PANEL_BASE_WIDTH.parent,
+    visible,
   )
   if (style) parentPickerStyle.value = style
 }
-function positionListPicker () {
+function positionListPicker (visible = true) {
   const style = positionAnchoredPopover(
     listPickerAnchorEl.value,
     resolveListPickerPopoverElement(),
+    POPOVER_PANEL_BASE_WIDTH.list,
+    visible,
   )
   if (style) listPickerStyle.value = style
+}
+function updateParentPickerPosition () {
+  const wasVisible = parentPickerStyle.value.visibility === 'visible'
+  if (!wasVisible) {
+    parentPickerStyle.value = popoverPositionVisibilityStyle(false)
+    nextTick(() => {
+      schedulePopoverOpenLayout(
+        () => positionParentPicker(false),
+        () => positionParentPicker(true),
+      )
+    })
+    return
+  }
+  nextTick(() => {
+    requestAnimationFrame(() => positionParentPicker(true))
+  })
+}
+function updateListPickerPosition () {
+  const wasVisible = listPickerStyle.value.visibility === 'visible'
+  if (!wasVisible) {
+    listPickerStyle.value = popoverPositionVisibilityStyle(false)
+    nextTick(() => {
+      schedulePopoverOpenLayout(
+        () => positionListPicker(false),
+        () => positionListPicker(true),
+      )
+    })
+    return
+  }
+  nextTick(() => {
+    requestAnimationFrame(() => positionListPicker(true))
+  })
 }
 async function toggleParentPicker (event?: Event) {
   if (submitting.value || parentTasksLoading.value || parentTaskDefaultsLoading.value) return
@@ -439,7 +485,10 @@ async function toggleListPicker (event?: Event) {
     return
   }
   closeParentPicker()
-  listPickerAnchorEl.value = captureMetaPickerAnchor(event, '.detail-value-btn--list')
+  const fromEvent = event?.currentTarget
+  listPickerAnchorEl.value = fromEvent instanceof HTMLElement
+    ? fromEvent
+    : listPickerBtnRef.value
   listPickerError.value = null
   listPickerOpen.value = true
   updateListPickerPosition()
@@ -447,12 +496,12 @@ async function toggleListPicker (event?: Event) {
 function closeParentPicker () {
   parentPickerOpen.value = false
   parentPickerError.value = null
-  parentPickerStyle.value = {}
+  parentPickerStyle.value = popoverPositionVisibilityStyle(false)
 }
 function closeListPicker () {
   listPickerOpen.value = false
   listPickerError.value = null
-  listPickerStyle.value = {}
+  listPickerStyle.value = popoverPositionVisibilityStyle(false)
 }
 useExclusivePopover(parentPickerOpen, closeParentPicker)
 useExclusivePopover(listPickerOpen, closeListPicker)
@@ -466,11 +515,13 @@ function clearParentTask () {
 }
 function selectList (listId: number) {
   if (selectedListId.value === listId) {
-    closeListPicker()
     return
   }
   selectedListId.value = listId
-  closeListPicker()
+}
+function clearList () {
+  if (selectedListId.value === null) return
+  selectedListId.value = null
 }
 function shouldIgnoreMetaPickerOutsideClose (target: Node, selectors: string[]): boolean {
   if (!(target instanceof Element)) return false
@@ -485,6 +536,7 @@ function onParentPickerOutsidePointerUp (event: MouseEvent) {
   if (!parentPickerOpen.value || event.button !== 0) return
   const target = event.target
   if (!(target instanceof Node)) return
+  if (isInsideFloatingPopover(target)) return
   if (resolveParentPickerPopoverElement()?.contains(target)) return
   if (shouldIgnoreMetaPickerOutsideClose(target, ['.detail-value-btn--parent'])) return
   dismissPopoverFromOutsidePointer(target, closeParentPicker)
@@ -493,8 +545,9 @@ function onListPickerOutsidePointerUp (event: MouseEvent) {
   if (!listPickerOpen.value || event.button !== 0) return
   const target = event.target
   if (!(target instanceof Node)) return
+  if (isInsideFloatingPopover(target)) return
   if (resolveListPickerPopoverElement()?.contains(target)) return
-  if (shouldIgnoreMetaPickerOutsideClose(target, ['.detail-value-btn--list'])) return
+  if (listPickerBtnRef.value?.contains(target)) return
   dismissPopoverFromOutsidePointer(target, closeListPicker)
 }
 function onParentPickerEscape (event: KeyboardEvent) {
@@ -525,6 +578,7 @@ function unbindListPickerListeners () {
 }
 function onBackdropClose () {
   if (submitting.value) return
+  if (dismissExclusivePopoverBeforeModalClose()) return
   if (parentPickerOpen.value) {
     closeParentPicker()
     return
@@ -579,10 +633,46 @@ async function fetchParentTasks () {
     parentTasksFetched.value = true
   }
 }
+function clearContentFadeInTimer () {
+  if (contentFadeInTimer === null) return
+  clearTimeout(contentFadeInTimer)
+  contentFadeInTimer = null
+}
+function triggerContentFadeIn () {
+  clearContentFadeInTimer()
+  contentShouldFadeIn.value = true
+  contentFadeInTimer = setTimeout(() => {
+    contentShouldFadeIn.value = false
+    contentFadeInTimer = null
+  }, 260)
+}
+async function prepareOpenForm () {
+  const generation = ++prepareOpenGeneration
+  resetForm()
+  const gateOnParentTitle = props.initialParentTaskId != null
+  if (!gateOnParentTitle) {
+    if (generation !== prepareOpenGeneration || !props.modelValue) return
+    contentReady.value = true
+    void fetchParentTasks()
+    return
+  }
+  // 親タスク名が解決するまでカードを隠し、「未設定」→本名のちらつきを防ぐ
+  contentReady.value = false
+  contentShouldFadeIn.value = false
+  await fetchParentTasks()
+  if (generation !== prepareOpenGeneration || !props.modelValue) return
+  contentReady.value = true
+  await nextTick()
+  if (generation !== prepareOpenGeneration || !props.modelValue) return
+  triggerContentFadeIn()
+  nextTick(() => {
+    if (generation !== prepareOpenGeneration || !props.modelValue) return
+    taskFormPaneRef.value?.focusTitleInput()
+  })
+}
 function resetForm () {
   draft.value = createEmptyTaskFormDraft()
   createAsParent.value = false
-  parentTaskId.value = null
   selectedListId.value = props.listId
   parentTasks.value = []
   parentTasksFetched.value = false
@@ -593,6 +683,23 @@ function resetForm () {
   listPickerError.value = null
   closeParentPicker()
   closeListPicker()
+  const initialParentId = props.initialParentTaskId ?? null
+  const prefetched = initialParentId != null ? props.initialParentDefaults : null
+  if (prefetched) {
+    ignoreParentDefaultsWatch = parentTaskId.value !== initialParentId
+    parentTaskId.value = initialParentId
+    draft.value = applyTaskDefaultsToDraft(draft.value, prefetched)
+    nextTick(() => {
+      taskFormPaneRef.value?.resetPaneState()
+    })
+    return
+  }
+  // 同じ親IDで再オープンすると watch(parentTaskId) が発火しないため、明示適用する
+  const parentUnchanged = parentTaskId.value === initialParentId
+  parentTaskId.value = initialParentId
+  if (parentUnchanged) {
+    void applyParentTaskDefaults(initialParentId)
+  }
 }
 async function applyParentTaskDefaults (parentId: number | null) {
   if (createAsParent.value) return
@@ -667,6 +774,10 @@ watch(createAsParent, (enabled) => {
   }
 })
 watch(parentTaskId, (parentId) => {
+  if (ignoreParentDefaultsWatch) {
+    ignoreParentDefaultsWatch = false
+    return
+  }
   void applyParentTaskDefaults(parentId)
 })
 watch(parentPickerOpen, (open) => {
@@ -709,14 +820,24 @@ watch(
     }
     if (open) {
       document.addEventListener('keydown', onDocumentKeydown, true)
-      resetForm()
-      void fetchParentTasks()
+      if (props.initialParentTaskId != null) {
+        contentReady.value = false
+        contentShouldFadeIn.value = false
+      } else {
+        contentReady.value = true
+        contentShouldFadeIn.value = false
+      }
+      void prepareOpenForm()
       return
     }
     document.removeEventListener('keydown', onDocumentKeydown, true)
     resetOverlayBackdropClose()
     closeParentPicker()
     closeListPicker()
+    clearContentFadeInTimer()
+    contentShouldFadeIn.value = false
+    contentReady.value = true
+    prepareOpenGeneration += 1
   },
 )
 onBeforeUnmount(() => {
@@ -726,6 +847,7 @@ onBeforeUnmount(() => {
   unbindListPickerListeners()
   removeParentPickerResizeListener?.()
   removeListPickerResizeListener?.()
+  clearContentFadeInTimer()
 })
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/modals/TaskCreateModal.scss"></style>

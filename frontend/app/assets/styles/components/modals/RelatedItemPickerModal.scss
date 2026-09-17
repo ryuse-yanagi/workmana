@@ -14,7 +14,7 @@
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
-  color: mixin.$text-on-surface;
+  color: mixin.$text-heading;
   background: mixin.$white;
 }
 .related-item-picker-modal__search:focus {
@@ -31,7 +31,7 @@
   scrollbar-width: thin;
 }
 .related-item-picker-modal__item {
-  border-bottom: 1px solid mixin.$surface-muted;
+  border-bottom: 1px solid mixin.$bg-muted;
 }
 .related-item-picker-modal__item:last-child {
   border-bottom: none;
@@ -106,7 +106,7 @@
   line-height: 1.4;
 }
 .related-item-picker-modal__empty {
-  color: mixin.$text-placeholder;
+  color: mixin.$text-muted;
   text-align: center;
 }
 .related-item-picker-modal__error {

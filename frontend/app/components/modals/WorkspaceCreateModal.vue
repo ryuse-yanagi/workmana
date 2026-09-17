@@ -1,72 +1,83 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="modelValue"
-      ref="overlayRef"
-      class="modal-overlay"
-      :class="{ 'modal-overlay--popover-open': panePopoverOpen }"
-      role="presentation"
-      @mousedown="onOverlayMouseDown"
-    >
-      <section
-        class="modal-card"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="modalTitle"
+    <Transition name="modal-fade">
+      <div
+        v-if="modelValue"
+        ref="overlayRef"
+        class="modal-overlay"
+        :class="{ 'modal-overlay--popover-open': panePopoverOpen }"
+        role="presentation"
+        @mousedown="onOverlayMouseDown"
       >
-        <header class="modal-header">
-          <h3>{{ modalTitle }}</h3>
-          <button
-            type="button"
-            class="icon-close"
-            :disabled="loading"
-            aria-label="閉じる"
-            @click="close"
-          >✕</button>
-        </header>
-        <div class="modal-body">
-          <div class="workspace-form-section">
-            <TaskFormPane
-              ref="formPaneRef"
-              v-model="draft"
-              :org-slug="orgSlug"
-              :org-labels="labels"
-              :label-categories="labelCategories"
-              :workspace-members="orgMembers"
-              :workspace-statuses="statuses"
-              :disabled="loading"
-              :title-error="titleError"
-              workspace-mode
-              relaxed-title-padding
-              auto-focus-title
-            />
-          </div>
-          <p v-if="submitError" class="err">{{ submitError }}</p>
-          <footer class="modal-footer">
+        <section
+          ref="modalCardRef"
+          class="modal-card"
+          :style="modalScrollbarStyle"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="modalTitle"
+        >
+          <header class="modal-header">
+            <h3>{{ modalTitle }}</h3>
             <button
               type="button"
-              class="ghost-btn"
+              class="icon-close"
               :disabled="loading"
+              aria-label="閉じる"
               @click="close"
             >
-              キャンセル
+              <X
+                :size="20"
+                :stroke-width="2.25"
+                aria-hidden="true"
+              />
             </button>
-            <button
-              type="button"
-              class="primary-btn"
-              :disabled="loading"
-              @click="submit"
-            >
-              {{ submitLabel }}
-            </button>
-          </footer>
-        </div>
-      </section>
-    </div>
+          </header>
+          <div class="modal-body">
+            <div class="workspace-form-section">
+              <TaskFormPane
+                ref="formPaneRef"
+                v-model="draft"
+                :org-slug="orgSlug"
+                :org-labels="labels"
+                :label-categories="labelCategories"
+                :workspace-members="orgMembers"
+                :workspace-statuses="statuses"
+                :disabled="loading"
+                :title-error="titleError"
+                workspace-mode
+                relaxed-title-padding
+                auto-focus-title
+              />
+            </div>
+            <p v-if="submitError" class="err">{{ submitError }}</p>
+            <footer class="modal-footer">
+              <button
+                type="button"
+                class="ghost-btn"
+                :disabled="loading"
+                @click="close"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                class="primary-btn"
+                :disabled="loading"
+                @click="submit"
+              >
+                {{ submitLabel }}
+              </button>
+            </footer>
+          </div>
+        </section>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup lang="ts">
+import { X } from 'lucide-vue-next'
 import TaskFormPane from '../task/TaskFormPane.vue'
 import {
   createEmptyTaskFormDraft,
@@ -78,7 +89,9 @@ import {
 import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
 import type { TaskFormPopoverType } from '../../composables/useTaskFormPane'
 import { workspaceNameFieldError } from '../../utils/formValidation'
-import { createOverlayBackdropClose, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
+import { createOverlayBackdropClose, dismissExclusivePopoverBeforeModalClose, getTopmostModalOverlay, isCtrlEnterKeydown } from '../../utils/uiInteraction'
+import { useModalLayer } from '../../composables/useModalLayer'
+import { useModalScrollbarGutter } from '../../composables/useModalScrollbarGutter'
 
 export type WorkspaceCreateLabel = TaskFormLabel
 export type WorkspaceCreateStatus = TaskFormCategory
@@ -134,8 +147,16 @@ const submitError = ref<string | null>(null)
 const titleError = ref<string | null>(null)
 const formPaneRef = ref<FormPaneExpose | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
+const modalCardRef = ref<HTMLElement | null>(null)
+const { scrollbarStyle: modalScrollbarStyle } = useModalScrollbarGutter({
+  cardRef: modalCardRef,
+  open: () => props.modelValue,
+  scrollerSelector: '.modal-body',
+})
 
 const panePopoverOpen = computed(() => formPaneRef.value?.activePopover != null)
+
+useModalLayer(() => props.modelValue)
 
 const modalTitle = computed(() => {
   if (props.title) return props.title
@@ -177,6 +198,7 @@ function close () {
 
 function onBackdropClose () {
   if (props.loading) return
+  if (dismissExclusivePopoverBeforeModalClose()) return
   if (panePopoverOpen.value) {
     void formPaneRef.value?.closePopover?.()
     return

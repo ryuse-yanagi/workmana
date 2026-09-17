@@ -1,8 +1,28 @@
 import type { Ref } from 'vue'
 import type { LabelCategoryGroup } from './useLabelCategories'
-import { filterLabelCategories, labelCategoriesFromFlat } from './useLabelCategories'
-import { dismissPopoverFromOutsidePointer } from '../utils/uiInteraction'
-import { popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../utils/popoverScrollbar'
+import {
+  filterLabelCategories,
+  labelCategoriesFromFlat,
+  resolveAndSortLabels,
+  sortLabelsByCatalogOrder,
+} from './useLabelCategories'
+import { dismissPopoverFromOutsidePointer, isInsideFloatingPopover, isPopoverTriggerTarget } from '../utils/uiInteraction'
+import {
+  resolvePopoverExposedInput,
+  resolvePopoverExposedRoot,
+} from '../utils/popoverComponentRef'
+import { schedulePopoverInputFocus } from '../utils/schedulePopoverInputFocus'
+import {
+  POPOVER_PANEL_BASE_WIDTH,
+  POPOVER_VIEWPORT_INSET,
+  resolveFlippedPopoverVerticalLayout,
+  popoverPositionVisibilityStyle,
+  popoverScrollbarLayoutStyle,
+  popoverStablePanelWidthStyle,
+  resolveAnchoredPopoverLayoutWidth,
+  resolvePopoverScrollbarGutter,
+  schedulePopoverOpenLayout,
+} from '../utils/popoverScrollbar'
 import { useExclusivePopover } from './useExclusivePopover'
 import { useApi } from './useApi'
 import {
@@ -10,17 +30,25 @@ import {
   type TaskFormLabel,
   type TaskFormMember,
   EFFORT_UNIT_LABEL,
+  PROGRESS_RATE_UNIT_LABEL,
   effortValueToDraft,
   labelBarTextColor,
   memberEmailLine,
   normalizeEffortHours,
+  normalizeProgressRate,
   parseEffortDraft,
+  parseProgressRateDraft,
+  progressRateValueToDraft,
   resolveStoredEffortValue,
+  resolveStoredProgressRate,
   sanitizeEffortDraftInput,
+  sanitizeProgressRateDraftInput,
   toDateInputValue,
+  buildTaskCalendarCells,
+  resolveTaskDateRangePick,
 } from './useTaskFormHelpers'
 import { sortMembersByDisplayName } from './useMemberDisplay'
-import { resolveLabelColors } from '../utils/colorPresetResolution'
+import { TASK_POPOVER_WEEKDAY_LABELS } from '../utils/taskPopoverTypes'
 export type WorkspaceListOption = {
   id: number
   name: string
@@ -38,25 +66,19 @@ export type TaskPopoverEditable = {
   start_date?: string | null
   due_date?: string | null
   effort_hours?: number | string | null
+  progress_rate?: number | string | null
   assignees?: TaskFormMember[]
   labels?: TaskFormLabel[]
 }
 export type PopoverType =
-  | 'start-date'
-  | 'due-date'
+  | 'period'
   | 'effort'
+  | 'progress-rate'
   | 'members'
   | 'member-detail'
   | 'labels'
   | 'description'
   | 'list'
-type CalendarCell = {
-  key: string
-  iso: string
-  day: number
-  inMonth: boolean
-  isToday: boolean
-}
 type TaskPatchResponse = {
   id: number
   title: string
@@ -66,6 +88,7 @@ type TaskPatchResponse = {
   start_date: string | null
   due_date: string | null
   effort_hours: number | string | null
+  progress_rate: number | string | null
   assignees: TaskFormMember[]
   labels: TaskFormLabel[]
 }
@@ -83,17 +106,42 @@ type UseTaskPopoverEditorOptions = {
   readonlyDescription?: Ref<boolean>
   zIndex?: number
 }
-const POPOVER_VIEWPORT_PAD = 12
 const POPOVER_VIEWPORT_TOP_PAD = 200
 const POPOVER_ANCHOR_GAP = 6
 const POPOVER_MIN_HEIGHT = 120
-const POPOVER_DEFAULT_WIDTH_PX = 312
 const DESCRIPTION_POPOVER_MAX_WIDTH = 600
+
+function resolvePopoverBaseWidth (type: PopoverType | null): number | null {
+  switch (type) {
+    case 'period':
+      return POPOVER_PANEL_BASE_WIDTH.date
+    case 'effort':
+      return POPOVER_PANEL_BASE_WIDTH.effort
+    case 'progress-rate':
+      return POPOVER_PANEL_BASE_WIDTH.progressRate
+    case 'members':
+    case 'member-detail':
+      return POPOVER_PANEL_BASE_WIDTH.members
+    case 'labels':
+      return POPOVER_PANEL_BASE_WIDTH.labels
+    case 'list':
+      return POPOVER_PANEL_BASE_WIDTH.list
+    default:
+      return null
+  }
+}
 function effortSource (
   task: TaskPopoverEditable,
 ): Pick<TaskFormDraft, 'effort_hours'> {
   return {
     effort_hours: task.effort_hours ?? null,
+  }
+}
+function progressRateSource (
+  task: TaskPopoverEditable,
+): Pick<TaskFormDraft, 'progress_rate'> {
+  return {
+    progress_rate: task.progress_rate ?? null,
   }
 }
 export function resolveListName (
@@ -114,6 +162,7 @@ function patchToEditable (
   patch: TaskPatchResponse,
   previous: TaskPopoverEditable,
   lists: WorkspaceListOption[],
+  catalogLabels: Array<{ id: number }> = [],
 ): TaskPopoverEditable {
   const listId = patch.list_id !== undefined ? patch.list_id : previous.list_id
   return {
@@ -127,9 +176,10 @@ function patchToEditable (
     start_date: patch.start_date,
     due_date: patch.due_date,
     effort_hours: patch.effort_hours,
+    progress_rate: patch.progress_rate,
     assignees: sortMembersByDisplayName(patch.assignees),
     labels: patch.labels !== undefined
-      ? resolveLabelColors(patch.labels)
+      ? resolveAndSortLabels(patch.labels, catalogLabels)
       : previous.labels,
   }
 }
@@ -147,15 +197,18 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   const labelSearchQuery = ref('')
   const effortDraft = ref<string | number>('')
   const effortInputRef = ref<HTMLInputElement | null>(null)
+  const progressRateDraft = ref<string | number>('')
+  const progressRateInputRef = ref<HTMLInputElement | null>(null)
   const descriptionInputRef = ref<HTMLTextAreaElement | null>(null)
   const descriptionDraft = ref('')
   const dateSaving = ref(false)
   const effortSaving = ref(false)
+  const progressRateSaving = ref(false)
   const descriptionSaving = ref(false)
   const listSaving = ref(false)
   const pickerMutationPending = ref(false)
   let removePopoverResizeListener: (() => void) | null = null
-  const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土']
+  const weekdayLabels = [...TASK_POPOVER_WEEKDAY_LABELS]
   const filteredOrgLabels = computed(() => {
     const query = labelSearchQuery.value.trim().toLowerCase()
     if (!query) return options.orgLabels.value
@@ -169,68 +222,58 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   })
   const activeCalendarDate = computed(() => {
     const task = options.task.value
-    if (!task) return null
-    if (activePopover.value === 'start-date') {
-      return toDateInputValue(task.start_date) || null
-    }
-    if (activePopover.value === 'due-date') {
-      return toDateInputValue(task.due_date) || null
-    }
-    return null
+    if (!task || activePopover.value !== 'period') return null
+    return toDateInputValue(task.start_date) || toDateInputValue(task.due_date) || null
   })
-  const canClearCalendarDate = computed(() => !!pendingDate.value)
-  const canClearEffort = computed(() => {
-    if (String(effortDraft.value ?? '').trim() !== '') {
-      return true
-    }
+  const periodRangeStartIso = computed(() => {
     const task = options.task.value
-    if (!task) {
-      return false
-    }
-    return resolveStoredEffortValue(effortSource(task)) !== null
+    if (!task || activePopover.value !== 'period') return null
+    return toDateInputValue(task.start_date) || null
+  })
+  const periodRangeEndIso = computed(() => {
+    const task = options.task.value
+    if (!task || activePopover.value !== 'period') return null
+    return toDateInputValue(task.due_date) || null
+  })
+  const canClearCalendarDate = computed(() => (
+    !!(toDateInputValue(options.task.value?.start_date) || toDateInputValue(options.task.value?.due_date))
+  ))
+  const canClearEffort = computed(() => String(effortDraft.value ?? '').trim() !== '')
+  const canClearProgressRate = computed(() => String(progressRateDraft.value ?? '').trim() !== '')
+  const canClearAssignees = computed(() => (options.task.value?.assignees ?? []).length > 0)
+  const canClearLabels = computed(() => (options.task.value?.labels ?? []).length > 0)
+  const canClearDescription = computed(() => {
+    if (options.readonlyDescription?.value) return false
+    return String(descriptionDraft.value ?? '').trim() !== ''
   })
   const calendarMonthLabel = computed(() => {
     const y = calendarCursor.value.getFullYear()
     const m = calendarCursor.value.getMonth() + 1
     return `${y}年${m}月`
   })
-  const calendarCells = computed((): CalendarCell[] => {
-    const year = calendarCursor.value.getFullYear()
-    const month = calendarCursor.value.getMonth()
-    const first = new Date(year, month, 1)
-    const startOffset = first.getDay()
-    const todayIso = toDateInputValue(new Date())
-    const cells: CalendarCell[] = []
-    const gridStart = new Date(year, month, 1 - startOffset)
-    for (let i = 0; i < 42; i++) {
-      const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i)
-      const iso = toDateInputValue(date)
-      cells.push({
-        key: `${iso}-${i}`,
-        iso,
-        day: date.getDate(),
-        inMonth: date.getMonth() === month,
-        isToday: iso === todayIso,
-      })
-    }
-    return cells
-  })
+  const calendarCells = computed(() => buildTaskCalendarCells(calendarCursor.value))
   function taskEndpoint (): string | null {
     const task = options.task.value
     if (!task) return null
     return `/orgs/${options.orgSlug}/workspaces/${options.workspaceId}/tasks/${task.id}`
   }
   function resolvePopoverElement (): HTMLElement | null {
-    const target = popoverElRef.value
-    if (!target) return null
-    if (target instanceof HTMLElement) return target
-    const root = target.rootRef
-    if (root instanceof HTMLElement) return root
-    if (root && typeof root === 'object' && 'value' in root) {
-      const el = (root as { value: unknown }).value
-      return el instanceof HTMLElement ? el : null
-    }
-    return null
+    return resolvePopoverExposedRoot(popoverElRef.value)
+  }
+  function resolveEffortInputEl (): HTMLInputElement | null {
+    const fromPopover = resolvePopoverExposedInput(popoverElRef.value)
+    if (fromPopover instanceof HTMLInputElement) return fromPopover
+    return effortInputRef.value
+  }
+  function resolveProgressRateInputEl (): HTMLInputElement | null {
+    const fromPopover = resolvePopoverExposedInput(popoverElRef.value)
+    if (fromPopover instanceof HTMLInputElement) return fromPopover
+    return progressRateInputRef.value
+  }
+  function resolveDescriptionInputEl (): HTMLTextAreaElement | null {
+    const fromPopover = resolvePopoverExposedInput(popoverElRef.value)
+    if (fromPopover instanceof HTMLTextAreaElement) return fromPopover
+    return descriptionInputRef.value
   }
   function capturePopoverAnchor (event?: Event): HTMLElement | null {
     const fromEvent = event?.currentTarget
@@ -301,11 +344,11 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     }
     return Math.max(pad, Math.min(left, window.innerWidth - pad - popoverWidth))
   }
-  function positionPopover () {
+  function positionPopover (visible = true) {
     const anchor = popoverAnchorEl.value
     const popover = resolvePopoverElement()
     if (!anchor || !popover) return
-    const pad = POPOVER_VIEWPORT_PAD
+    const pad = POPOVER_VIEWPORT_INSET
     const topPad = POPOVER_VIEWPORT_TOP_PAD
     const gap = POPOVER_ANCHOR_GAP
     const anchorRect = anchor.getBoundingClientRect()
@@ -340,8 +383,8 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
           forceHeight = true
         }
       }
-    } else if (type === 'start-date' || type === 'due-date' || type === 'effort') {
-      // カレンダー・工数: 選択枠の高さから。下に収まらなければ上へずらす
+    } else if (type === 'period' || type === 'effort' || type === 'progress-rate') {
+      // カレンダー・工数・進捗率: 選択枠の高さから。下に収まらなければ上へずらす
       const popoverHeight = measurePopoverContentHeight(popover)
       top = Math.round(anchorRect.top)
       if (top + popoverHeight > bottomLimit) {
@@ -359,25 +402,23 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       || type === 'list'
     ) {
       // 担当・ラベル・リスト（親なし独立WBS含む）:
-      // 1) 枠上端から伸ばして収まる → そこから
-      // 2) 収まらない → 下寄せ
-      // 3) 下寄せしてもボード先頭WBS上端に届く → そこで高さ固定しスクロール
+      // 枠上端から下に降る。収まらなければ下端余白を保ちつつ
+      // 内容≤480は全文／>480は最低480かつ枠上端まで到達。WBS上端を超えるならそこで固定。
       const popoverHeight = measurePopoverContentHeight(popover)
       const cellTop = Math.max(topPad, Math.round(anchorRect.top))
       const boardWbsTop = Math.max(
         topPad,
         Math.round(resolveBoardWbsTop(anchor) ?? cellTop),
       )
-      if (cellTop + popoverHeight <= bottomLimit) {
-        top = cellTop
+      const vertical = resolveFlippedPopoverVerticalLayout(cellTop, {
+        pad,
+        contentHeight: popoverHeight,
+      })
+      if (vertical.top < boardWbsTop && cellTop + popoverHeight > bottomLimit) {
+        top = boardWbsTop
+        forceHeight = true
       } else {
-        const bottomAlignedTop = bottomLimit - popoverHeight
-        if (bottomAlignedTop <= boardWbsTop) {
-          top = boardWbsTop
-          forceHeight = true
-        } else {
-          top = Math.max(topPad, Math.round(bottomAlignedTop))
-        }
+        top = Math.max(topPad, vertical.top)
       }
       maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
       if (popoverHeight > maxHeight) {
@@ -389,22 +430,39 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
     }
 
-    // 最終ガード: 画面下にはみ出さない
+    // 最終ガード: はみ出す場合は共通ロジックで下端寄せ
     if (top + maxHeight > bottomLimit) {
       maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
       forceHeight = true
     }
-    if (top > bottomLimit - POPOVER_MIN_HEIGHT) {
-      top = Math.max(topPad, bottomLimit - Math.max(maxHeight, POPOVER_MIN_HEIGHT))
-      maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(bottomLimit - top))
-      forceHeight = true
+    const contentHeight = measurePopoverContentHeight(popover)
+    if (contentHeight > 0 && top + contentHeight > bottomLimit) {
+      const vertical = resolveFlippedPopoverVerticalLayout(top, {
+        pad,
+        contentHeight,
+      })
+      top = Math.max(topPad, vertical.top)
+      maxHeight = Math.max(POPOVER_MIN_HEIGHT, vertical.maxHeight)
+      if (contentHeight > maxHeight) {
+        forceHeight = true
+      }
     }
 
-    const scrollbarGutter = resolvePopoverScrollbarGutter(popover, maxHeight)
-    const measuredWidth = descriptionWidth
-      ?? (popover.offsetWidth || popover.getBoundingClientRect().width)
-    const popoverWidth = (measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX) + popoverWidthExtraForGutter(scrollbarGutter)
-    const left = resolveSideLeft(anchorRect, popoverWidth, pad, gap)
+    const baseWidth = descriptionWidth ?? resolvePopoverBaseWidth(type)
+    const scrollbarGutter = resolvePopoverScrollbarGutter(
+      popover,
+      maxHeight,
+      baseWidth ?? POPOVER_PANEL_BASE_WIDTH.date,
+    )
+    const panelWidth = baseWidth != null
+      ? resolveAnchoredPopoverLayoutWidth(baseWidth, scrollbarGutter)
+      : null
+    const layoutWidth = panelWidth ?? resolveAnchoredPopoverLayoutWidth(
+      POPOVER_PANEL_BASE_WIDTH.date,
+      scrollbarGutter,
+    )
+    const left = resolveSideLeft(anchorRect, layoutWidth, pad, gap)
+    const useExplicitWidth = panelWidth != null
 
     popoverStyle.value = {
       position: 'fixed',
@@ -415,21 +473,25 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
         ? { height: `${maxHeight}px` }
         : {}),
       zIndex: String(popoverZIndex),
-      ...(descriptionWidth != null ? { width: `${descriptionWidth + popoverWidthExtraForGutter(scrollbarGutter)}px` } : {}),
-      ...popoverScrollbarGutterStyle(scrollbarGutter),
+      ...popoverPositionVisibilityStyle(visible),
+      ...(useExplicitWidth ? popoverStablePanelWidthStyle(panelWidth!) : {}),
+      ...popoverScrollbarLayoutStyle(scrollbarGutter, useExplicitWidth),
     }
   }
   function updatePopoverPosition () {
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        positionPopover()
-        if (!resolvePopoverElement()) {
-          requestAnimationFrame(() => positionPopover())
-        } else {
-          // 初回計測後に中身が伸びるケース向けにもう一度合わせる
-          requestAnimationFrame(() => positionPopover())
-        }
+    const wasVisible = popoverStyle.value.visibility === 'visible'
+    if (!wasVisible) {
+      popoverStyle.value = popoverPositionVisibilityStyle(false)
+      nextTick(() => {
+        schedulePopoverOpenLayout(
+          () => positionPopover(false),
+          () => positionPopover(true),
+        )
       })
+      return
+    }
+    nextTick(() => {
+      requestAnimationFrame(() => positionPopover(true))
     })
   }
   function dismissPopover () {
@@ -437,19 +499,95 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     selectedMember.value = null
     popoverError.value = null
     pendingDate.value = null
-    popoverStyle.value = {}
+    // popoverStyle は leave 完了後に消す（フェードアウトを維持）
     // 途中で失敗した更新フラグが残ると、開いても変更できなくなる
     listSaving.value = false
     pickerMutationPending.value = false
     dateSaving.value = false
     effortSaving.value = false
+    progressRateSaving.value = false
     descriptionSaving.value = false
+  }
+  let popoverLeaveResolve: (() => void) | null = null
+  function resolvePopoverLeaveWait () {
+    popoverLeaveResolve?.()
+    popoverLeaveResolve = null
+  }
+  function notifyPopoverAfterLeave () {
+    if (activePopover.value == null) {
+      popoverStyle.value = popoverPositionVisibilityStyle(false)
+    }
+    resolvePopoverLeaveWait()
+  }
+  function armPopoverLeaveWait (): Promise<void> {
+    return new Promise((resolve) => {
+      const previous = popoverLeaveResolve
+      popoverLeaveResolve = resolve
+      previous?.()
+    })
+  }
+  async function closePopover () {
+    if (activePopover.value == null) {
+      return
+    }
+    const leaveDone = armPopoverLeaveWait()
+    if (activePopover.value === 'effort') {
+      await finalizeEffortPopover()
+      if (activePopover.value != null) {
+        resolvePopoverLeaveWait()
+        return
+      }
+      await leaveDone
+      return
+    }
+    if (activePopover.value === 'progress-rate') {
+      await finalizeProgressRatePopover()
+      if (activePopover.value != null) {
+        resolvePopoverLeaveWait()
+        return
+      }
+      await leaveDone
+      return
+    }
+    if (activePopover.value === 'description') {
+      const closing = 'description'
+      // 閲覧専用表示では保存しない（編集ボタン押下などと競合させない）
+      if (!options.readonlyDescription?.value) {
+        await saveDescription()
+      }
+      if (activePopover.value !== closing) {
+        resolvePopoverLeaveWait()
+        return
+      }
+      dismissPopover()
+      await leaveDone
+      return
+    }
+    dismissPopover()
+    await leaveDone
+  }
+  /**
+   * 別ポップオーバーへ切り替える前に現在のものを閉じる。
+   * 同種トグルなら閉じただけで false。不正入力で閉じられなかった場合も false。
+   */
+  async function beginPopoverOpen (next: PopoverType): Promise<boolean> {
+    const current = activePopover.value
+    if (current === next) {
+      await closePopover()
+      return false
+    }
+    if (current != null) {
+      await closePopover()
+      if (activePopover.value != null) return false
+    }
+    return true
   }
   function resetTransientMutationLocks () {
     listSaving.value = false
     pickerMutationPending.value = false
     dateSaving.value = false
     effortSaving.value = false
+    progressRateSaving.value = false
     descriptionSaving.value = false
   }
   function patchLocalTask (patch: Partial<TaskPopoverEditable>) {
@@ -483,10 +621,22 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       effort_hours: effortHours,
     })
   }
+  function previewProgressRateInWbs () {
+    if (activePopover.value !== 'progress-rate') return
+    const task = options.task.value
+    if (!task) return
+    const parsed = parseProgressRateDraft(progressRateDraft.value)
+    if (parsed === 'invalid') return
+    const progressRate = parsed === null ? null : normalizeProgressRate(parsed)
+    options.onUpdated({
+      ...task,
+      progress_rate: progressRate,
+    })
+  }
   async function applyPatchResponse (updated: TaskPatchResponse) {
     const task = options.task.value
     if (!task || updated.id !== task.id) return
-    const merged = patchToEditable(updated, task, options.workspaceLists.value)
+    const merged = patchToEditable(updated, task, options.workspaceLists.value, options.orgLabels.value)
     options.task.value = merged
     options.onUpdated(merged)
   }
@@ -532,38 +682,77 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     }
   }
   async function finalizeEffortPopover () {
-    if (activePopover.value !== 'effort') return
+    const closing = activePopover.value
+    if (closing !== 'effort') return
     const parsed = parseEffortDraft(effortDraft.value)
     if (parsed === 'invalid') {
       popoverError.value = '工数は0以上の数値で入力してください'
       return
     }
     popoverError.value = null
-    if (parsed !== null) {
-      const saved = await saveEffort()
-      if (!saved) {
-        return
-      }
-    }
-    dismissPopover()
-  }
-  async function clearEffort () {
-    if (activePopover.value !== 'effort' || effortSaving.value || isDisabled()) {
-      return
-    }
-    effortDraft.value = ''
-    const task = options.task.value
-    const currentValue = task
-      ? resolveStoredEffortValue(effortSource(task))
-      : null
-    if (currentValue === null) {
-      dismissPopover()
-      return
-    }
     const saved = await saveEffort()
     if (!saved) {
       return
     }
+    // 保存中に別ポップオーバーへ切り替わっていたら閉じない
+    if (activePopover.value !== closing) return
+    dismissPopover()
+  }
+  async function saveProgressRate () {
+    const task = options.task.value
+    const endpoint = taskEndpoint()
+    if (!task || !endpoint || progressRateSaving.value) return false
+    const parsed = parseProgressRateDraft(progressRateDraft.value)
+    if (parsed === 'invalid') {
+      popoverError.value = '進捗率は0〜100の整数で入力してください'
+      progressRateDraft.value = progressRateValueToDraft(progressRateSource(task))
+      return false
+    }
+    const progressRate = parsed === null ? null : normalizeProgressRate(parsed)
+    const currentValue = resolveStoredProgressRate(progressRateSource(task))
+    if (progressRate === currentValue) {
+      popoverError.value = null
+      return true
+    }
+    const previousRate = task.progress_rate ?? null
+    patchLocalTask({
+      progress_rate: progressRate,
+    })
+    progressRateSaving.value = true
+    popoverError.value = null
+    try {
+      const updated = await api<TaskPatchResponse>(endpoint, {
+        method: 'PATCH',
+        body: { progress_rate: progressRate },
+      })
+      await applyPatchResponse(updated)
+      progressRateDraft.value = progressRateValueToDraft(progressRateSource(options.task.value ?? task))
+      return true
+    } catch (e: unknown) {
+      patchLocalTask({
+        progress_rate: previousRate,
+      })
+      progressRateDraft.value = progressRateValueToDraft(progressRateSource(task))
+      popoverError.value = e instanceof Error ? e.message : '進捗率の更新に失敗しました'
+      return false
+    } finally {
+      progressRateSaving.value = false
+    }
+  }
+  async function finalizeProgressRatePopover () {
+    const closing = activePopover.value
+    if (closing !== 'progress-rate') return
+    const parsed = parseProgressRateDraft(progressRateDraft.value)
+    if (parsed === 'invalid') {
+      popoverError.value = '進捗率は0〜100の整数で入力してください'
+      return
+    }
+    popoverError.value = null
+    const saved = await saveProgressRate()
+    if (!saved) {
+      return
+    }
+    if (activePopover.value !== closing) return
     dismissPopover()
   }
   async function saveDescription () {
@@ -588,26 +777,15 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       descriptionSaving.value = false
     }
   }
-  async function closePopover () {
-    if (activePopover.value === 'effort') {
-      await finalizeEffortPopover()
-      return
-    }
-    if (activePopover.value === 'description') {
-      // 閲覧専用表示では保存しない（編集ボタン押下などと競合させない）
-      if (!options.readonlyDescription?.value) {
-        await saveDescription()
-      }
-      dismissPopover()
-      return
-    }
-    dismissPopover()
-  }
   useExclusivePopover(
     () => activePopover.value != null,
     () => { void closePopover() },
   )
   function shouldIgnorePopoverOutsideClose (target: Node): boolean {
+    // トリガー再クリック／別ポップオーバー切替は click 側で処理する（mouseup で先行クローズしない）
+    if (isPopoverTriggerTarget(target)) {
+      return true
+    }
     const el = target instanceof Element ? target : target.parentElement
     if (!el) {
       return false
@@ -621,14 +799,6 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (activePopover.value === 'description' && options.readonlyDescription?.value) {
       const notesCell = el.closest('.workspace-wbs__cell-btn--notes')
       return !!(notesCell && notesCell.getAttribute('aria-disabled') !== 'true')
-    }
-    if (el.closest('[data-workspace-view-switcher-root]')) {
-      return true
-    }
-    // WBSヘッダーの編集／キャンセル／完了などは外側クローズ対象外にする。
-    // mouseup で非同期 close が走ると click / pointerdown による編集モード遷移と競合しうるため。
-    if (el.closest('.subheader-actions, .document-header-action-btn, .page-header')) {
-      return true
     }
     // セル側のクリックで開閉が処理されるため外側クローズ対象外。
     // ただし操作無効なセル（空の説明など）は何も起きないので閉じる。
@@ -648,6 +818,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     if (!activePopover.value || event.button !== 0) return
     const target = event.target
     if (!(target instanceof Node)) return
+    if (isInsideFloatingPopover(target)) return
     if (resolvePopoverElement()?.contains(target)) return
     if (shouldIgnorePopoverOutsideClose(target)) return
     // 閲覧専用の説明は保存不要なので同期 dismiss で閉じる
@@ -704,57 +875,81 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   watch(effortDraft, () => {
     previewEffortInWbs()
   })
+  watch(progressRateDraft, () => {
+    previewProgressRateInWbs()
+  })
   function isDisabled (): boolean {
     return options.disabled?.value ?? false
   }
-  function openDatePicker (target: 'start' | 'due', event?: Event) {
-    const task = options.task.value
-    if (!task || isDisabled()) return
-    resetTransientMutationLocks()
-    const next: PopoverType = target === 'start' ? 'start-date' : 'due-date'
-    if (activePopover.value === next) {
-      void closePopover()
-      return
-    }
-    popoverAnchorEl.value = capturePopoverAnchor(event)
-    activePopover.value = next
-    popoverError.value = null
-    const existing = target === 'start' ? task.start_date : task.due_date
-    pendingDate.value = toDateInputValue(existing) || null
-    const base = pendingDate.value
-      ? new Date(`${pendingDate.value}T12:00:00`)
-      : new Date()
-    calendarCursor.value = new Date(base.getFullYear(), base.getMonth(), 1)
-    updatePopoverPosition()
+  function openDatePicker (event?: Event) {
+    void (async () => {
+      const task = options.task.value
+      if (!task || isDisabled()) return
+      // await 後は event.currentTarget が null になるため、先にアンカーを保持する
+      const anchor = capturePopoverAnchor(event)
+      if (!(await beginPopoverOpen('period'))) return
+      resetTransientMutationLocks()
+      popoverAnchorEl.value = anchor
+      activePopover.value = 'period'
+      popoverError.value = null
+      const startIso = toDateInputValue(task.start_date) || null
+      const dueIso = toDateInputValue(task.due_date) || null
+      pendingDate.value = startIso || dueIso
+      const baseIso = startIso || dueIso
+      const base = baseIso
+        ? new Date(`${baseIso}T12:00:00`)
+        : new Date()
+      calendarCursor.value = new Date(base.getFullYear(), base.getMonth(), 1)
+      updatePopoverPosition()
+    })()
   }
   function shiftCalendarMonth (delta: number) {
     const next = new Date(calendarCursor.value)
     next.setMonth(next.getMonth() + delta, 1)
     calendarCursor.value = next
+    popoverError.value = null
   }
   async function pickCalendarDay (iso: string) {
     const task = options.task.value
     const endpoint = taskEndpoint()
-    if (!task || !endpoint || !activePopover.value || dateSaving.value) return
-    const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
-    const current = field === 'start_date' ? task.start_date : task.due_date
-    pendingDate.value = iso
-    if (toDateInputValue(current) === iso) {
+    if (!task || !endpoint || activePopover.value !== 'period' || dateSaving.value) return
+    const nextRange = resolveTaskDateRangePick(iso, task.start_date, task.due_date)
+    if (!nextRange) {
+      popoverError.value = null
       return
     }
-    const previousDate = current ?? null
-    patchLocalTask({ [field]: iso })
+    await applyPeriodRange(nextRange)
+  }
+  async function pickCalendarRange (range: { start_date: string; due_date: string }) {
+    if (activePopover.value !== 'period' || dateSaving.value) return
+    await applyPeriodRange(range)
+  }
+  async function applyPeriodRange (nextRange: { start_date: string; due_date: string }) {
+    const task = options.task.value
+    const endpoint = taskEndpoint()
+    if (!task || !endpoint) return
+    const prevStart = task.start_date ?? null
+    const prevDue = task.due_date ?? null
+    if (
+      toDateInputValue(prevStart) === nextRange.start_date
+      && toDateInputValue(prevDue) === nextRange.due_date
+    ) {
+      popoverError.value = null
+      return
+    }
+    pendingDate.value = nextRange.start_date
+    patchLocalTask(nextRange)
     popoverError.value = null
     dateSaving.value = true
     try {
       const updated = await api<TaskPatchResponse>(endpoint, {
         method: 'PATCH',
-        body: { [field]: iso },
+        body: nextRange,
       })
       await applyPatchResponse(updated)
     } catch (e: unknown) {
-      patchLocalTask({ [field]: previousDate })
-      pendingDate.value = toDateInputValue(previousDate) || null
+      patchLocalTask({ start_date: prevStart, due_date: prevDue })
+      pendingDate.value = toDateInputValue(prevStart) || toDateInputValue(prevDue) || null
       popoverError.value = e instanceof Error ? e.message : '日付の更新に失敗しました'
     } finally {
       dateSaving.value = false
@@ -763,143 +958,232 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   async function clearCalendarDate () {
     const task = options.task.value
     const endpoint = taskEndpoint()
-    if (!task || !endpoint || !activePopover.value || dateSaving.value || isDisabled()) {
+    if (!task || !endpoint || activePopover.value !== 'period' || dateSaving.value || isDisabled()) {
       return
     }
-    if (activePopover.value !== 'start-date' && activePopover.value !== 'due-date') {
-      return
-    }
-    const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
-    const current = field === 'start_date' ? task.start_date : task.due_date
+    const prevStart = task.start_date ?? null
+    const prevDue = task.due_date ?? null
     pendingDate.value = null
-    if (!current) {
+    if (!prevStart && !prevDue) {
       return
     }
-    const previousDate = current ?? null
-    patchLocalTask({ [field]: null })
+    patchLocalTask({ start_date: null, due_date: null })
     popoverError.value = null
     dateSaving.value = true
     try {
       const updated = await api<TaskPatchResponse>(endpoint, {
         method: 'PATCH',
-        body: { [field]: null },
+        body: { start_date: null, due_date: null },
       })
       await applyPatchResponse(updated)
     } catch (e: unknown) {
-      patchLocalTask({ [field]: previousDate })
-      pendingDate.value = toDateInputValue(previousDate) || null
+      patchLocalTask({ start_date: prevStart, due_date: prevDue })
+      pendingDate.value = toDateInputValue(prevStart) || toDateInputValue(prevDue) || null
       popoverError.value = e instanceof Error ? e.message : '日付の更新に失敗しました'
     } finally {
       dateSaving.value = false
     }
   }
-  async function openEffortPicker (event?: Event) {
-    const task = options.task.value
-    if (!task || isDisabled()) return
-    if (activePopover.value === 'effort') {
-      void closePopover()
-      return
-    }
-    resetTransientMutationLocks()
-    const anchor = capturePopoverAnchor(event)
-    popoverAnchorEl.value = anchor
-    activePopover.value = 'effort'
+  async function clearEffort () {
+    if (isDisabled() || effortSaving.value) return
+    effortDraft.value = ''
     popoverError.value = null
-    effortDraft.value = effortValueToDraft(effortSource(task))
-    updatePopoverPosition()
-    nextTick(() => {
-      effortInputRef.value?.focus()
-      effortInputRef.value?.select()
-    })
+    const inputEl = resolveEffortInputEl()
+    if (inputEl) {
+      inputEl.value = ''
+    }
+    await saveEffort()
+  }
+  async function clearProgressRate () {
+    if (isDisabled() || progressRateSaving.value) return
+    progressRateDraft.value = ''
+    popoverError.value = null
+    const inputEl = resolveProgressRateInputEl()
+    if (inputEl) {
+      inputEl.value = ''
+    }
+    await saveProgressRate()
+  }
+  async function clearAssignees () {
+    const task = options.task.value
+    const endpoint = taskEndpoint()
+    if (!task || !endpoint || pickerMutationPending.value || isDisabled()) return
+    const previousAssignees = [...(task.assignees ?? [])]
+    if (!previousAssignees.length) return
+    pickerMutationPending.value = true
+    patchLocalTask({ assignees: [] })
+    popoverError.value = null
+    try {
+      const updated = await api<TaskPatchResponse>(endpoint, {
+        method: 'PATCH',
+        body: { assignee_ids: [] },
+      })
+      await applyPatchResponse(updated)
+    } catch (e: unknown) {
+      patchLocalTask({ assignees: previousAssignees })
+      popoverError.value = e instanceof Error ? e.message : '担当者の更新に失敗しました'
+    } finally {
+      pickerMutationPending.value = false
+    }
+  }
+  async function clearLabels () {
+    const task = options.task.value
+    const endpoint = taskEndpoint()
+    if (!task || !endpoint || pickerMutationPending.value || isDisabled()) return
+    const previousLabels = [...(task.labels ?? [])]
+    if (!previousLabels.length) return
+    pickerMutationPending.value = true
+    patchLocalTask({ labels: [] })
+    popoverError.value = null
+    try {
+      const updated = await api<TaskPatchResponse>(endpoint, {
+        method: 'PATCH',
+        body: { label_ids: [] },
+      })
+      await applyPatchResponse(updated)
+    } catch (e: unknown) {
+      patchLocalTask({ labels: previousLabels })
+      popoverError.value = e instanceof Error ? e.message : 'ラベルの更新に失敗しました'
+    } finally {
+      pickerMutationPending.value = false
+    }
+  }
+  async function clearDescription () {
+    if (options.readonlyDescription?.value || isDisabled() || descriptionSaving.value) return
+    descriptionDraft.value = ''
+    previewDescriptionInWbs()
+    await saveDescription()
+  }
+  function openEffortPicker (event?: Event) {
+    void (async () => {
+      const task = options.task.value
+      if (!task || isDisabled()) return
+      const anchor = capturePopoverAnchor(event)
+      if (!(await beginPopoverOpen('effort'))) return
+      resetTransientMutationLocks()
+      popoverAnchorEl.value = anchor
+      activePopover.value = 'effort'
+      popoverError.value = null
+      effortDraft.value = effortValueToDraft(effortSource(task))
+      updatePopoverPosition()
+      schedulePopoverInputFocus(() => resolveEffortInputEl(), { select: 'all' })
+    })()
   }
   function updateEffortDraft (raw: string | number) {
     const sanitized = sanitizeEffortDraftInput(String(raw ?? ''))
     effortDraft.value = sanitized
-    const inputEl = effortInputRef.value
+    const inputEl = resolveEffortInputEl()
+    if (inputEl && inputEl.value !== sanitized) {
+      inputEl.value = sanitized
+    }
+  }
+  function openProgressRatePicker (event?: Event) {
+    void (async () => {
+      const task = options.task.value
+      if (!task || isDisabled()) return
+      const anchor = capturePopoverAnchor(event)
+      if (!(await beginPopoverOpen('progress-rate'))) return
+      resetTransientMutationLocks()
+      popoverAnchorEl.value = anchor
+      activePopover.value = 'progress-rate'
+      popoverError.value = null
+      progressRateDraft.value = progressRateValueToDraft(progressRateSource(task))
+      updatePopoverPosition()
+      schedulePopoverInputFocus(() => resolveProgressRateInputEl(), { select: 'all' })
+    })()
+  }
+  function updateProgressRateDraft (raw: string | number) {
+    const sanitized = sanitizeProgressRateDraftInput(String(raw ?? ''))
+    progressRateDraft.value = sanitized
+    const inputEl = resolveProgressRateInputEl()
     if (inputEl && inputEl.value !== sanitized) {
       inputEl.value = sanitized
     }
   }
   function openMemberPicker (event?: Event) {
-    const task = options.task.value
-    if (!task || isDisabled()) return
-    if (activePopover.value === 'members') {
-      void closePopover()
-      return
-    }
-    resetTransientMutationLocks()
-    selectedMember.value = null
-    popoverAnchorEl.value = capturePopoverAnchor(event)
-    activePopover.value = 'members'
-    popoverError.value = null
-    updatePopoverPosition()
+    void (async () => {
+      const task = options.task.value
+      if (!task || isDisabled()) return
+      const anchor = capturePopoverAnchor(event)
+      if (!(await beginPopoverOpen('members'))) return
+      resetTransientMutationLocks()
+      selectedMember.value = null
+      popoverAnchorEl.value = anchor
+      activePopover.value = 'members'
+      popoverError.value = null
+      updatePopoverPosition()
+    })()
   }
   function openMemberDetail (member: TaskFormMember, event: Event) {
-    const task = options.task.value
-    if (!task || isDisabled()) return
-    if (activePopover.value === 'member-detail' && selectedMember.value?.id === member.id) {
-      void closePopover()
-      return
-    }
-    resetTransientMutationLocks()
-    selectedMember.value = member
-    popoverAnchorEl.value = event.currentTarget as HTMLElement
-    activePopover.value = 'member-detail'
-    popoverError.value = null
-    updatePopoverPosition()
+    void (async () => {
+      const task = options.task.value
+      if (!task || isDisabled()) return
+      // await 後は event.currentTarget が null になるため、先にアンカーを保持する
+      const anchor = event.currentTarget instanceof HTMLElement
+        ? event.currentTarget
+        : capturePopoverAnchor(event)
+      if (!anchor) return
+      if (activePopover.value === 'member-detail' && selectedMember.value?.id === member.id) {
+        await closePopover()
+        return
+      }
+      if (activePopover.value != null && activePopover.value !== 'member-detail') {
+        await closePopover()
+        if (activePopover.value != null) return
+      }
+      resetTransientMutationLocks()
+      selectedMember.value = member
+      popoverAnchorEl.value = anchor
+      activePopover.value = 'member-detail'
+      popoverError.value = null
+      updatePopoverPosition()
+    })()
   }
   function openLabelPicker (event?: Event) {
-    const task = options.task.value
-    if (!task || isDisabled()) return
-    if (activePopover.value === 'labels') {
-      void closePopover()
-      return
-    }
-    resetTransientMutationLocks()
-    labelSearchQuery.value = ''
-    popoverAnchorEl.value = capturePopoverAnchor(event)
-    activePopover.value = 'labels'
-    popoverError.value = null
-    updatePopoverPosition()
+    void (async () => {
+      const task = options.task.value
+      if (!task || isDisabled()) return
+      // await 後は event.currentTarget が null になるため、先にアンカーを保持する
+      const anchor = capturePopoverAnchor(event)
+      if (!(await beginPopoverOpen('labels'))) return
+      resetTransientMutationLocks()
+      labelSearchQuery.value = ''
+      popoverAnchorEl.value = anchor
+      activePopover.value = 'labels'
+      popoverError.value = null
+      updatePopoverPosition()
+    })()
   }
   function openDescriptionPicker (event?: Event) {
-    const task = options.task.value
-    if (!task || isDisabled()) return
-    if (activePopover.value === 'description') {
-      if (options.readonlyDescription?.value) {
-        dismissPopover()
-      } else {
-        void closePopover()
-      }
-      return
-    }
-    resetTransientMutationLocks()
-    descriptionDraft.value = task.description ?? ''
-    popoverAnchorEl.value = capturePopoverAnchor(event)
-    activePopover.value = 'description'
-    popoverError.value = null
-    updatePopoverPosition()
-    if (options.readonlyDescription?.value) return
-    nextTick(() => {
-      const el = descriptionInputRef.value
-      if (!el) return
-      el.focus()
-      const len = el.value.length
-      el.setSelectionRange(len, len)
-    })
+    void (async () => {
+      const task = options.task.value
+      if (!task || isDisabled()) return
+      // await 後は event.currentTarget が null になるため、先にアンカーを保持する
+      const anchor = capturePopoverAnchor(event)
+      if (!(await beginPopoverOpen('description'))) return
+      resetTransientMutationLocks()
+      descriptionDraft.value = task.description ?? ''
+      popoverAnchorEl.value = anchor
+      activePopover.value = 'description'
+      popoverError.value = null
+      updatePopoverPosition()
+      if (options.readonlyDescription?.value) return
+      schedulePopoverInputFocus(() => resolveDescriptionInputEl(), { select: 'end' })
+    })()
   }
   function openListPicker (event?: Event) {
-    const task = options.task.value
-    if (!task || isDisabled()) return
-    if (activePopover.value === 'list') {
-      void closePopover()
-      return
-    }
-    resetTransientMutationLocks()
-    popoverAnchorEl.value = capturePopoverAnchor(event)
-    activePopover.value = 'list'
-    popoverError.value = null
-    updatePopoverPosition()
+    void (async () => {
+      const task = options.task.value
+      if (!task || isDisabled()) return
+      // await 後は event.currentTarget が null になるため、先にアンカーを保持する
+      const anchor = capturePopoverAnchor(event)
+      if (!(await beginPopoverOpen('list'))) return
+      resetTransientMutationLocks()
+      popoverAnchorEl.value = anchor
+      activePopover.value = 'list'
+      popoverError.value = null
+      updatePopoverPosition()
+    })()
   }
   async function selectList (listId: number) {
     const task = options.task.value
@@ -990,9 +1274,12 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
       ? currentIds.filter(id => id !== label.id)
       : [...currentIds, label.id]
     patchLocalTask({
-      labels: isSelected
-        ? previousLabels.filter(item => item.id !== label.id)
-        : [...previousLabels, label],
+      labels: sortLabelsByCatalogOrder(
+        isSelected
+          ? previousLabels.filter(item => item.id !== label.id)
+          : [...previousLabels, label],
+        options.orgLabels.value,
+      ),
     })
     popoverError.value = null
     try {
@@ -1010,6 +1297,7 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
   }
   return {
     EFFORT_UNIT_LABEL,
+    PROGRESS_RATE_UNIT_LABEL,
     activePopover,
     selectedMember,
     popoverError,
@@ -1018,6 +1306,8 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     labelSearchQuery,
     effortDraft,
     effortInputRef,
+    progressRateDraft,
+    progressRateInputRef,
     descriptionInputRef,
     descriptionDraft,
     descriptionSaving,
@@ -1025,8 +1315,14 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     filteredOrgLabels,
     filteredLabelCategories,
     activeCalendarDate,
+    periodRangeStartIso,
+    periodRangeEndIso,
     canClearCalendarDate,
     canClearEffort,
+    canClearProgressRate,
+    canClearAssignees,
+    canClearLabels,
+    canClearDescription,
     calendarMonthLabel,
     calendarCells,
     labelBarTextColor,
@@ -1034,16 +1330,26 @@ export function useTaskPopoverEditor (options: UseTaskPopoverEditorOptions) {
     pendingDate,
     dateSaving,
     effortSaving,
+    progressRateSaving,
     openDatePicker,
     shiftCalendarMonth,
     pickCalendarDay,
+    pickCalendarRange,
     clearCalendarDate,
+    clearEffort,
+    clearProgressRate,
+    clearAssignees,
+    clearLabels,
+    clearDescription,
     openEffortPicker,
     updateEffortDraft,
     finalizeEffortPopover,
-    clearEffort,
+    openProgressRatePicker,
+    updateProgressRateDraft,
+    finalizeProgressRatePopover,
     closePopover,
     dismissPopover,
+    notifyPopoverAfterLeave,
     openMemberPicker,
     openMemberDetail,
     openLabelPicker,

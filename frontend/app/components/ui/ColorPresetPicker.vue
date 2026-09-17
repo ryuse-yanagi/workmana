@@ -3,7 +3,7 @@
     <span class="color-preset-picker__label">カラー</span>
     <div
       class="color-preset-picker__list"
-      :style="{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }"
+      :style="{ gridTemplateColumns: `repeat(${gridColumns}, 100px)` }"
     >
       <button
         v-for="colorItem in colorPresets"

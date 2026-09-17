@@ -1,101 +1,126 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="open"
-      class="gantt-color-popover-layer"
-    >
+    <Transition name="popover-fade" @after-leave="onAfterLeave">
       <div
-        class="gantt-color-popover-backdrop"
-        aria-hidden="true"
-        @pointerdown="onBackdropPointerDown"
-      />
-      <PopoverShell
-        ref="shellRef"
-        title="バーの色"
-        shell-class="popover popover--gantt-color"
-        :style="positionStyle"
-        :close-disabled="saving"
-        @close="emit('close')"
+        v-if="open"
+        class="gantt-color-popover-layer"
       >
-        <ColorPresetPicker
-          :model-value="modelValue"
-          :disabled="saving"
-          @update:model-value="emit('select', $event)"
-        />
-      </PopoverShell>
-    </div>
+        <PopoverShell
+          ref="shellRef"
+          title="バーの色"
+          shell-class="popover popover--gantt-color"
+          :style="positionStyle"
+          :close-disabled="saving"
+          :show-clear="canClear"
+          @close="emit('close')"
+          @clear="emit('clear')"
+        >
+          <ColorPresetPicker
+            :model-value="modelValue"
+            :disabled="saving"
+            @update:model-value="emit('select', $event)"
+          />
+        </PopoverShell>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 <script setup lang="ts">
 import ColorPresetPicker from '../ui/ColorPresetPicker.vue'
 import PopoverShell from '../ui/PopoverShell.vue'
 import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
-const props = defineProps<{
+import {
+  POPOVER_PANEL_BASE_WIDTH,
+  POPOVER_VIEWPORT_INSET,
+  clampPopoverBox,
+  popoverMaxHeightStyle,
+  popoverPositionVisibilityStyle,
+  popoverScrollbarLayoutStyle,
+  popoverStablePanelWidthStyle,
+  resolveAnchoredPopoverLayoutWidth,
+  resolvePopoverScrollbarGutter,
+  schedulePopoverOpenLayout,
+} from '../../utils/popoverScrollbar'
+const props = withDefaults(defineProps<{
   open: boolean
   modelValue: string
   anchor: { top: number; left: number; right?: number } | null
   saving?: boolean
-}>()
+  canClear?: boolean
+}>(), {
+  saving: false,
+  canClear: false,
+})
 const emit = defineEmits<{
   close: []
+  clear: []
   select: [string]
+  'after-leave': []
 }>()
 useExclusivePopover(
   () => props.open,
   () => emit('close'),
 )
 const shellRef = ref<InstanceType<typeof PopoverShell> | null>(null)
+const layoutSettled = ref(false)
+const layout = ref<{
+  top: number
+  left: number
+  maxHeight: number
+  scrollbarGutter: number
+  panelWidth: number
+} | null>(null)
+
 const positionStyle = computed(() => {
-  if (!props.anchor) {
-    return {
-      visibility: 'hidden',
-    } as Record<string, string>
+  if (!layout.value) {
+    return popoverPositionVisibilityStyle(false)
   }
-  const pad = 12
-  const topPad = 200
-  const gap = 6
-  const baseWidth = 240
-  const anchorRight = props.anchor.right ?? props.anchor.left
-  const anchorLeft = props.anchor.left
-  let left = anchorRight + gap
-  let top = Math.max(topPad, Math.round(props.anchor.top))
-  if (import.meta.client) {
-    top = Math.max(topPad, Math.min(top, window.innerHeight - pad - 40))
-  }
-  const maxHeight = import.meta.client
-    ? Math.max(120, Math.floor(window.innerHeight - top - pad))
-    : 280
-  const shell = shellRef.value?.rootRef ?? null
-  const extra = shell && import.meta.client
-    ? resolvePopoverScrollbarGutter(shell, maxHeight)
-    : 0
-  const width = baseWidth + popoverWidthExtraForGutter(extra)
-  if (import.meta.client) {
-    if (left + width > window.innerWidth - pad) {
-      left = anchorLeft - gap - width
-    }
-    left = Math.max(pad, Math.min(left, window.innerWidth - width - pad))
-  }
+  const { top, left, maxHeight, scrollbarGutter, panelWidth } = layout.value
   return {
     position: 'fixed',
     top: `${top}px`,
     left: `${Math.round(left)}px`,
-    width: `${width}px`,
     zIndex: '1',
-    visibility: 'visible',
-    ...popoverMaxHeightStyle(maxHeight, extra),
-    ...popoverScrollbarGutterStyle(extra),
+    ...popoverPositionVisibilityStyle(layoutSettled.value),
+    ...popoverStablePanelWidthStyle(panelWidth),
+    ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
+    ...popoverScrollbarLayoutStyle(scrollbarGutter, true),
   }
 })
-function onBackdropPointerDown (event: PointerEvent) {
-  if (props.saving || event.button !== 0) {
+
+function positionPopover () {
+  if (!props.anchor || !import.meta.client) {
+    layout.value = null
     return
   }
-  event.preventDefault()
-  event.stopPropagation()
-  emit('close')
+  const pad = POPOVER_VIEWPORT_INSET
+  const gap = 6
+  const anchorRight = props.anchor.right ?? props.anchor.left
+  const anchorLeft = props.anchor.left
+  let left = anchorRight + gap
+  let top = Math.max(pad, Math.round(props.anchor.top))
+  top = Math.max(pad, Math.min(top, window.innerHeight - pad - 40))
+  const maxHeight = Math.max(120, Math.floor(window.innerHeight - top - pad))
+  const shell = shellRef.value?.rootRef ?? null
+  const baseWidth = POPOVER_PANEL_BASE_WIDTH.ganttColor
+  const extra = shell
+    ? resolvePopoverScrollbarGutter(shell, maxHeight, baseWidth)
+    : 0
+  const panelWidth = resolveAnchoredPopoverLayoutWidth(baseWidth, extra)
+  if (left + panelWidth > window.innerWidth - pad) {
+    left = anchorLeft - gap - panelWidth
+  }
+  const panelHeight = shell?.getBoundingClientRect().height || Math.min(maxHeight, 280)
+  const clamped = clampPopoverBox(top, left, panelWidth, panelHeight, pad)
+  layout.value = {
+    top: clamped.top,
+    left: clamped.left,
+    maxHeight,
+    scrollbarGutter: extra,
+    panelWidth,
+  }
 }
+
 function handleEscape (event: KeyboardEvent) {
   if (!props.open || props.saving || event.key !== 'Escape') {
     return
@@ -110,12 +135,33 @@ function bindOutsideListeners () {
 function unbindOutsideListeners () {
   document.removeEventListener('keydown', handleEscape, true)
 }
+function onAfterLeave () {
+  layoutSettled.value = false
+  layout.value = null
+  emit('after-leave')
+}
 watch(() => props.open, (open) => {
   if (open) {
+    layoutSettled.value = false
+    layout.value = null
     bindOutsideListeners()
+    nextTick(() => {
+      schedulePopoverOpenLayout(
+        () => positionPopover(),
+        () => {
+          layoutSettled.value = true
+        },
+      )
+    })
     return
   }
   unbindOutsideListeners()
+})
+watch(() => props.anchor, () => {
+  if (!props.open || !layoutSettled.value) {
+    return
+  }
+  positionPopover()
 })
 onBeforeUnmount(() => {
   unbindOutsideListeners()

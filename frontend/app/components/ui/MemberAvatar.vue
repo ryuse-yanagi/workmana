@@ -16,6 +16,7 @@
       :src="avatarSrc"
       alt=""
       class="member-avatar__image"
+      draggable="false"
       @error="onAvatarError"
     />
     <span v-else class="member-avatar__initial">{{ initial }}</span>

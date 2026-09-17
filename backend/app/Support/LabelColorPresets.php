@@ -8,10 +8,21 @@ class LabelColorPresets
 
     public const DEFAULT_INDEX = 5;
 
-    /** @var list<string> マイグレーション用: color_index 導入前のプリセット HEX */
+    /**
+     * @return list<string>
+     */
+    public static function legacyHex(): array
+    {
+        /** @var list<string> $hex */
+        $hex = SharedJson::load('color-presets.json')['legacyPresets'];
+
+        return $hex;
+    }
+
+    /** @deprecated Use legacyHex() — migration-era HEX list lives in shared/color-presets.json */
     public const LEGACY_HEX = [
         '#baf3db',
-        '#fef3b0',
+        '#fff4cc',
         '#fce4a6',
         '#ffd5d2',
         '#eed7fc',
@@ -51,12 +62,27 @@ class LabelColorPresets
     {
         $normalized = strtolower(trim($hex));
 
-        foreach (self::LEGACY_HEX as $index => $legacy) {
+        foreach (self::legacyHex() as $index => $legacy) {
             if (strtolower($legacy) === $normalized) {
                 return $index;
             }
         }
 
         return self::DEFAULT_INDEX;
+    }
+
+    public static function assertMatchesSharedJson(): void
+    {
+        $json = SharedJson::load('color-presets.json');
+        $presets = $json['presets'] ?? null;
+        if (! is_array($presets) || count($presets) !== self::COUNT) {
+            throw new \RuntimeException('LabelColorPresets::COUNT does not match shared/color-presets.json presets length');
+        }
+        if ((int) ($json['defaultPresetIndex'] ?? -1) !== self::DEFAULT_INDEX) {
+            throw new \RuntimeException('LabelColorPresets::DEFAULT_INDEX does not match shared/color-presets.json');
+        }
+        if (self::legacyHex() !== self::LEGACY_HEX) {
+            throw new \RuntimeException('LabelColorPresets::LEGACY_HEX does not match shared/color-presets.json legacyPresets');
+        }
     }
 }

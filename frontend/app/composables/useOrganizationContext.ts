@@ -44,15 +44,31 @@ export function useOrganizationContext () {
    * 所属状況に応じた遷移先。
    * 0件 → 組織作成、1件以上 → 解決した組織トップ（サーバー側で last_organization_id 更新）。
    */
-  async function resolvePostLoginPath (user?: AuthUser | null): Promise<string> {
-    if (user && (!user.organizations || user.organizations.length === 0)) {
+    async function resolvePostLoginPath (user?: AuthUser | null): Promise<string> {
+    const sessionOrgs = user?.organizations ?? []
+    if (sessionOrgs.length === 0) {
       return '/organizations/new'
     }
-    const organization = await fetchCurrentOrganization()
-    if (!organization) {
-      return '/organizations/new'
+
+    const lastId = user?.last_organization_id ?? null
+    const preferred = lastId != null
+      ? sessionOrgs.find(org => org.id === lastId)
+      : null
+    const slug = (preferred ?? sessionOrgs[0])?.slug?.trim()
+    if (slug) {
+      return orgTopPath(slug)
     }
-    return orgTopPath(organization.slug)
+
+    try {
+      const organization = await fetchCurrentOrganization()
+      if (organization?.slug) {
+        return orgTopPath(organization.slug)
+      }
+    } catch {
+      // フォールバック: セッション先頭の組織へ
+    }
+
+    return orgTopPath(sessionOrgs[0].slug)
   }
 
   return {

@@ -1,0 +1,83 @@
+@use "sass:string";
+@use "tokens" as *;
+
+/** 選択行。保存中の disabled でも cursor を pointer のままにする */
+@mixin picker-checkbox-row {
+  cursor: pointer;
+
+  &:disabled {
+    cursor: pointer;
+  }
+}
+
+/** 複数選択の見た目チェック（未選択時も薄い ✓。子に ✓ テキストを置く） */
+@mixin picker-selection-check($size: 14px, $border-width: 1.5px) {
+  box-sizing: border-box;
+  width: $size;
+  height: $size;
+  border: $border-width solid $border-checkbox;
+  border-radius: 3px;
+  color: $text-disabled;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: $popover-font-weight;
+  line-height: 1;
+  background: $white;
+}
+
+@mixin picker-selection-check-checked {
+  background: $main;
+  border-color: $main;
+  color: $white;
+}
+
+/** 単数選択。見た目はブラウザ標準の radio のまま */
+@mixin picker-native-radio($size: 14px) {
+  width: $size;
+  height: $size;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/** data-URI の ✓ 用 */
+@function picker-check-mark-svg($stroke) {
+  @return url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='#{$stroke}' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+}
+
+/** ネイティブ checkbox（未選択=薄灰の ✓ / 選択=白の ✓） */
+@mixin picker-native-checkbox($size: 14px) {
+  box-sizing: border-box;
+  width: $size;
+  height: $size;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1.5px solid $border-checkbox;
+  border-radius: 3px;
+  background-color: $white;
+  background-image: picker-check-mark-svg('%23' + string.slice(#{$text-disabled}, 2));
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 12px 12px;
+  cursor: pointer;
+
+  &:checked {
+    border-color: $main;
+    background-color: $main;
+    background-image: picker-check-mark-svg('%23fff');
+  }
+}
+
+@mixin member-picker-row-hover {
+  &:hover:not(:disabled):not(.member-picker-row--readonly) {
+    background: $bg-gray;
+    opacity: 0.8;
+  }
+}

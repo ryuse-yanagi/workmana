@@ -1,0 +1,55 @@
+@use "tokens" as *;
+
+@mixin page-header-title {
+  margin: 0;
+  font-size: $page-header-title-font-size;
+  font-weight: $page-header-title-font-weight;
+  color: $text;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+
+/**
+ * 資料一覧 / スペース一覧向け。
+ * 左端パディング分を幅に含めてタイトルを視覚中央に置く。
+ */
+@mixin page-header-list-title {
+  @include page-header-title;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  align-self: stretch;
+  width: calc(#{$page-header-list-title-width} + #{$page-header-inline-padding});
+  margin-left: -#{$page-header-inline-padding};
+  padding: 0 $page-header-inline-padding;
+  letter-spacing: 0.05em;
+}
+
+@mixin page-header-list-title-icon {
+  flex-shrink: 0;
+  display: block;
+}
+
+/** 画面別ヘッダー本体（高さ 48px 固定） */
+@mixin page-header-shell {
+  box-sizing: border-box;
+  height: var(--tm-page-header-height, 48px);
+  min-height: var(--tm-page-header-height, 48px);
+  display: flex;
+  align-items: center;
+  padding: 0 $page-header-inline-padding;
+  background: $white;
+  box-shadow: 0 2px 4px ink-a(0.1);
+}
+
+/** 縦区切り線。$bg に背景へ合わせた線色を渡す */
+@mixin header-vertical-divider($bg) {
+  flex-shrink: 0;
+  display: block;
+  box-sizing: border-box;
+  width: 1px;
+  height: 32px;
+  background: $bg;
+}

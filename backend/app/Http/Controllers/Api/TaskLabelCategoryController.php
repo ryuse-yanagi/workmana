@@ -9,7 +9,6 @@ use App\Support\FieldLengthLimits;
 use App\Support\SortOrderReorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class TaskLabelCategoryController extends ApiController
 {
@@ -36,12 +35,7 @@ class TaskLabelCategoryController extends ApiController
     {
         $this->assertOrganizationAdmin($request);
         $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:'.FieldLengthLimits::LABEL_CATEGORY_NAME,
-                Rule::unique('task_label_categories', 'name')->where(fn ($q) => $q->where('organization_id', $organization->id)),
-            ],
+            'name' => ['required', 'string', 'max:'.FieldLengthLimits::LABEL_CATEGORY_NAME],
         ]);
 
         $name = trim($validated['name']);
@@ -69,14 +63,7 @@ class TaskLabelCategoryController extends ApiController
         $this->ensureCategoryBelongsToOrganization($category, $organization);
 
         $validated = $request->validate([
-            'name' => [
-                'sometimes',
-                'string',
-                'max:'.FieldLengthLimits::LABEL_CATEGORY_NAME,
-                Rule::unique('task_label_categories', 'name')
-                    ->where(fn ($q) => $q->where('organization_id', $organization->id))
-                    ->ignore($category->id),
-            ],
+            'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::LABEL_CATEGORY_NAME],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
         ]);
 

@@ -1,28 +1,119 @@
 /**
- * 画面別ヘッダーの絞り込みドロップダウン（スペース一覧 / 資料一覧 / ボード共通）
+ * 画面別ヘッダーの絞り込みドロップダウン（スペース一覧 / ボード共通）
  */
 .board-filter-dropdown {
-  @include mixin.popover-scroller;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   background: mixin.$white;
   border: 1px solid mixin.$gray;
   border-radius: mixin.$popover-border-radius;
-  box-shadow: 0 10px 30px mixin.ink-a(0.12);
-  padding: mixin.$popover-padding 0;
-  @include mixin.popover-scroller-overlay-pad(0px);
+  box-shadow: mixin.$popover-box-shadow;
+  padding: mixin.$popover-padding;
+  @include mixin.popover-scroll-host;
+}
+.board-filter-header {
+  --board-filter-header-control-size: #{mixin.$popover-title-row-height};
+  @include mixin.popover-header-bar;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.board-filter-title {
+  @include mixin.popover-title-text;
+  grid-column: 2;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--board-filter-header-control-size);
+  line-height: mixin.$popover-title-line-height;
+}
+.board-filter-clear {
+  grid-column: 1;
+  justify-self: start;
+  @include mixin.popover-header-clear-button;
+}
+.board-filter-clear:disabled {
+  color: mixin.$text-muted;
+  opacity: 0.45;
+  cursor: default;
+}
+.board-filter-close {
+  grid-column: 3;
+  justify-self: end;
+  @include mixin.popover-close-button;
+  width: var(--board-filter-header-control-size);
+}
+.board-filter-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  @include mixin.popover-scroller;
+  padding: 0;
 }
 .board-filter-section + .board-filter-section {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid mixin.$border;
 }
+.board-filter-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 4px 0 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+
+  &:hover .board-filter-section-title,
+  &:hover .board-filter-section-chevron {
+    color: mixin.$text;
+  }
+}
 .board-filter-section-title {
   margin: 0;
-  padding: 4px mixin.$popover-padding 6px;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
   font-size: mixin.$popover-title-font-size;
   font-weight: mixin.$popover-font-weight;
   color: mixin.$text-muted;
   letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+.board-filter-section-chevron {
+  flex-shrink: 0;
+  color: mixin.$text-muted;
+  transition: transform 0.15s ease;
+
+  &--collapsed {
+    transform: rotate(-90deg);
+  }
+}
+.board-filter-section-body {
+  min-width: 0;
+}
+.board-filter-search {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 6px 0 8px;
+  @include mixin.popover-search-input-field;
+}
+.board-filter-search:focus {
+  @include mixin.input-focus-neutral;
+}
+.board-filter-empty {
+  @include mixin.popover-empty-options-message;
+  flex: 0 0 auto;
+  min-height: 3.5em;
+  padding: 12px 6px;
 }
 .board-filter-options {
   margin: 0;
@@ -36,42 +127,20 @@
   display: flex;
   align-items: center;
   gap: 7.7px;
-  margin: 0 mixin.$popover-padding;
+  margin: 0;
   padding: 6px 6px;
   border-radius: 8px;
   font-size: mixin.$popover-list-font-size;
+  font-weight: 400;
   color: mixin.$text;
   cursor: pointer;
 }
 .board-filter-option input[type='checkbox'] {
-  box-sizing: border-box;
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  padding: 0;
-  flex-shrink: 0;
-  appearance: none;
-  -webkit-appearance: none;
-  border: 1.5px solid mixin.$border-checkbox;
-  border-radius: 3px;
-  background: mixin.$white;
-  cursor: pointer;
-
-  &:checked {
-    border-color: mixin.$main;
-    background-color: mixin.$main;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: 12px 12px;
-  }
+  @include mixin.picker-native-checkbox(14px);
 }
 .board-filter-option .board-filter-option-avatar {
   width: 24px;
   height: 24px;
-}
-.board-filter-option .board-filter-option-avatar .member-avatar__initial {
-  font-size: 10px;
 }
 .board-filter-label-group {
   margin-top: 8px;
@@ -87,10 +156,10 @@
 }
 .board-filter-category-title {
   margin: 0;
-  padding: 4px mixin.$popover-padding 6px;
-  font-size: mixin.$popover-list-font-size;
+  padding: 4px 0 6px;
+  font-size: 12px;
   font-weight: mixin.$popover-font-weight;
-  color: mixin.$text;
+  color: mixin.$text-gray;
 }
 .board-filter-label-bar {
   flex: 1;
@@ -103,6 +172,6 @@
   border-radius: 6px;
   padding: 0 10px;
   font-size: mixin.$popover-list-font-size;
-  font-weight: mixin.$popover-font-weight;
+  font-weight: 500;
   line-height: 1;
 }

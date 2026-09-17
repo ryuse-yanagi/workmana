@@ -7,15 +7,29 @@ use App\Models\Workspace;
 
 class DefaultBoardLists
 {
-    /** @var list<array{name: string, color_index: int}> */
-    public const DEFAULT_ITEMS = [
-        ['name' => '未着手', 'color_index' => 0],
-        ['name' => '進行中', 'color_index' => 1],
-        ['name' => '完了', 'color_index' => 3],
-    ];
+    /**
+     * @return list<array{name: string, color_index: int}>
+     */
+    public static function defaultItems(): array
+    {
+        /** @var list<array{name: string, color_index: int}> $items */
+        $items = SharedJson::load('default-named-color-items.json')['boardLists'];
 
-    /** @var list<string> */
-    public const DEFAULT_NAMES = ['未着手', '進行中', '完了'];
+        return $items;
+    }
+
+    public static function maxItems(): int
+    {
+        return (int) SharedJson::load('default-named-color-items.json')['maxItems'];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function defaultNames(): array
+    {
+        return DefaultNamedColorItems::names(self::defaultItems());
+    }
 
     /**
      * @return list<array{name: string, color_index: int}>
@@ -41,7 +55,7 @@ class DefaultBoardLists
      */
     public static function normalizeItems(?array $raw): array
     {
-        return DefaultNamedColorItems::normalize($raw, self::DEFAULT_ITEMS);
+        return DefaultNamedColorItems::normalize($raw, self::defaultItems());
     }
 
     /**

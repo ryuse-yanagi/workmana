@@ -5,6 +5,9 @@ import { ensureXsrfToken, readXsrfToken } from '../utils/csrf'
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
+/** 開発時に Laravel が固まっても無限スピナーにしない */
+const API_TIMEOUT_MS = 15_000
+
 function isRecord (value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -56,7 +59,16 @@ type ApiRequestOptions = Record<string, unknown> & {
 
 export function useApi () {
   const config = useRuntimeConfig()
-  const apiBase = String(config.public.apiBaseUrl || '/api').replace(/\/$/, '')
+  const publicBase = String(config.public.apiBaseUrl || '/api').replace(/\/$/, '')
+  const internalBase = String(
+    (config as { apiInternalBase?: string }).apiInternalBase
+    || process.env.NUXT_DEV_API_PROXY_TARGET
+    || 'http://127.0.0.1:8000',
+  ).replace(/\/$/, '')
+  // SSR の相対 `/api` は Nitro 内で止まり Vite プロキシを通らないため、Laravel へ直接向ける
+  const apiBase = import.meta.server && publicBase.startsWith('/')
+    ? `${internalBase}${publicBase}`
+    : publicBase
   function getSocketId (): string {
     if (!import.meta.client) {
       return ''
@@ -92,6 +104,8 @@ export function useApi () {
         headers,
         // 認証は HttpOnly のセッション Cookie で行うため、必ず Cookie を送る
         credentials: 'include',
+        // Laravel 単一スレッドが固まっても遷移画面で無限待ちしない
+        timeout: typeof opts.timeout === 'number' ? opts.timeout : API_TIMEOUT_MS,
       })
       if (typeof Blob !== 'undefined' && result instanceof Blob) {
         return result

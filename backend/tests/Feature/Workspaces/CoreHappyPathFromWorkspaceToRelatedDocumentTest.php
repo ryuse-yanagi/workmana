@@ -31,6 +31,8 @@ class CoreHappyPathFromWorkspaceToRelatedDocumentTest extends TestCase
         $this->assertNotEmpty($lists);
         $listId = (int) $lists[0]['id'];
 
+        $this->syncWorkspaceAssigneesViaApi($admin, 'acme', $workspaceId, [$member->id]);
+
         $taskId = (int) $this->actingAsApiUser($admin)
             ->postJson("/api/orgs/acme/workspaces/{$workspaceId}/tasks", [
                 'title' => 'Ship feature',
@@ -46,15 +48,8 @@ class CoreHappyPathFromWorkspaceToRelatedDocumentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('assignees.0.id', $member->id);
 
-        $this->actingAsApiUser($member)
-            ->postJson("/api/orgs/acme/workspaces/{$workspaceId}/tasks/{$taskId}/comments", [
-                'body' => 'Looking good @[user:'.$admin->id.']',
-            ])
-            ->assertCreated()
-            ->assertJsonPath('body', 'Looking good @[user:'.$admin->id.']');
-
         $documentId = (int) $this->actingAsApiUser($admin)
-            ->postJson('/api/orgs/acme/documents', [
+            ->postJson("/api/orgs/acme/workspaces/{$workspaceId}/documents", [
                 'name' => 'Spec',
                 'description' => 'Related notes',
             ])
@@ -62,23 +57,9 @@ class CoreHappyPathFromWorkspaceToRelatedDocumentTest extends TestCase
             ->json('id');
 
         $this->actingAsApiUser($admin)
-            ->putJson("/api/orgs/acme/workspaces/{$workspaceId}/related-documents", [
-                'document_ids' => [$documentId],
-            ])
-            ->assertOk()
-            ->assertJsonPath('data.0.id', $documentId);
-
-        $this->actingAsApiUser($admin)
-            ->putJson("/api/orgs/acme/documents/{$documentId}/related-workspaces", [
-                'workspace_ids' => [$workspaceId],
-            ])
-            ->assertOk()
-            ->assertJsonPath('data.0.id', $workspaceId);
-
-        $this->actingAsApiUser($admin)
             ->getJson("/api/orgs/acme/workspaces/{$workspaceId}")
             ->assertOk()
-            ->assertJsonPath('related_documents.0.id', $documentId);
+            ->assertJsonPath('documents.0.id', $documentId);
 
         $this->actingAsApiUser($admin)
             ->postJson("/api/orgs/acme/workspaces/{$workspaceId}/tasks/{$taskId}/archive")

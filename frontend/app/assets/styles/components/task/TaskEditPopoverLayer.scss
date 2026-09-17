@@ -16,7 +16,7 @@
   @include mixin.popover-panel-width(259px);
   background: mixin.$white;
   border-radius: mixin.$popover-border-radius;
-  box-shadow: 0 10px 32px mixin.ink-a(0.2);
+  box-shadow: mixin.$popover-box-shadow;
   border: 1px solid mixin.$gray;
   padding: mixin.$popover-padding;
   display: flex;
@@ -30,14 +30,14 @@
   gap: 7px;
 }
 .popover--members {
-  @include mixin.popover-panel-width(273px);
+  @include mixin.popover-panel-width(#{mixin.$popover-members-panel-width});
   min-height: 0;
   overflow: hidden;
   padding: 0;
   gap: 0;
 }
 .popover--labels {
-  @include mixin.popover-panel-width(252px);
+  @include mixin.popover-panel-width(#{mixin.$popover-labels-panel-width});
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -52,8 +52,8 @@
   box-sizing: border-box;
   /* 実幅は positionPopover が 600px（viewport 制約あり）で inline style 指定する */
   @include mixin.popover-panel-width(600px);
-  min-width: min(calc(600px + var(#{mixin.$popover-scrollbar-gutter-var}, 0px)), calc(100vw - 21px));
-  max-width: min(calc(600px + var(#{mixin.$popover-scrollbar-gutter-var}, 0px)), calc(100vw - 21px));
+  min-width: min(calc(600px + var(#{mixin.$popover-scrollbar-gutter-var}, 0px)), calc(100vw - #{mixin.$popover-viewport-inset * 2}));
+  max-width: min(calc(600px + var(#{mixin.$popover-scrollbar-gutter-var}, 0px)), calc(100vw - #{mixin.$popover-viewport-inset * 2}));
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -71,35 +71,6 @@
 .popover--description .popover-shell__header {
   flex-shrink: 0;
 }
-.popover--description .description-mode-tabs {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.popover--description .description-mode-tab {
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: mixin.$text-muted;
-  font-size: 11.76px;
-  font-weight: mixin.$popover-font-weight;
-  font-family: inherit;
-  line-height: 1.2;
-  cursor: pointer;
-}
-.popover--description .description-mode-tab--active {
-  color: mixin.$main;
-}
-.popover--description .description-mode-tab:disabled {
-  opacity: 0.55;
-  cursor: pointer;
-}
-.popover--description .description-mode-tab:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-  border-radius: 2px;
-}
 .popover--description .description-body {
   flex: 1 1 0;
   min-height: 0;
@@ -113,9 +84,13 @@
   box-sizing: border-box;
   width: calc(100% - #{mixin.$popover-padding * 2});
   min-width: 0;
-  min-height: 112px;
+  /* flex 内で内容高より縮め、はみ出しをスクロール可能にする */
+  min-height: 0;
   height: auto;
   resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .popover--description .err {
   flex-shrink: 0;
@@ -124,51 +99,23 @@
 .popover--description .description-view {
   flex: 0 1 auto;
   box-sizing: border-box;
-  width: 100%;
-  min-height: 0;
+  width: calc(100% - #{mixin.$popover-padding * 2});
+  min-width: 0;
+  min-height: 112px;
   max-height: none;
   height: auto;
-  padding: mixin.$popover-padding;
+  margin: mixin.$popover-padding;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  padding: 7.7px 10.5px;
+  @include mixin.popover-input-background;
 }
 .popover--description .description-preview {
   @include mixin.markdown-preview-content;
 }
-.popover--description .description-preview--edit {
-  flex: 1 1 0;
-  box-sizing: border-box;
-  margin: mixin.$popover-padding;
-  width: calc(100% - #{mixin.$popover-padding * 2});
-  min-height: 112px;
-  max-height: none;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 7.7px 10.5px;
-  background: mixin.$white;
-}
-.popover--description .description-view-text {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.8;
-  color: mixin.$text-heading;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
 .popover--description .description-view-empty {
   margin: 0;
   white-space: nowrap;
-}
-.popover--description .description-view-empty--edit {
-  flex: 1 1 auto;
-  margin: mixin.$popover-padding;
-  box-sizing: border-box;
-  min-height: 112px;
-  border: 1px dashed mixin.$border;
-  border-radius: 8px;
-  padding: 7.7px 10.5px;
-  white-space: normal;
-  color: mixin.$text-placeholder;
-  background: mixin.$list-column-bg;
 }
 .popover-scroll {
   flex: 1 1 auto;
@@ -179,7 +126,7 @@
 .popover-header--labels {
   position: relative;
   justify-content: center;
-  padding: mixin.$popover-padding 28px mixin.$popover-padding;
+  padding: mixin.$popover-padding;
   border-bottom: 1px solid mixin.$border;
 }
 :deep(.popover-shell__title) {
@@ -194,20 +141,15 @@
 .label-search-input {
   display: block;
   width: calc(100% - #{mixin.$popover-padding * 2});
-  margin: mixin.$popover-padding mixin.$popover-padding 6.3px;
-  box-sizing: border-box;
-  border: 1px solid mixin.$border;
-  border-radius: 6px;
-  padding: 6.3px 7.7px;
-  font-size: 12.32px;
-  color: mixin.$text-on-surface;
+  margin: mixin.$popover-padding;
   flex-shrink: 0;
+  @include mixin.popover-search-input-field;
 }
 .label-search-input:focus {
-  @include mixin.input-focus-ring;
+  @include mixin.input-focus-neutral;
 }
 .label-section-heading {
-  margin: 2.1px mixin.$popover-padding 4.9px;
+  margin: 0 mixin.$popover-padding mixin.$popover-padding;
   font-size: mixin.$popover-list-font-size;
   font-weight: mixin.$popover-font-weight;
   color: mixin.$text-subtle;
@@ -260,15 +202,15 @@
   padding: 5.32px 7.7px;
   font-size: mixin.$popover-list-font-size;
   font-weight: mixin.$popover-font-weight;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   display: flex;
   align-items: center;
 }
 .label-picker-bar:not(.member-picker-bar) {
-  flex: 0 0 200px;
-  width: 200px;
-  height: 38px;
-  min-height: 38px;
+  flex: 0 0 mixin.$popover-label-bar-width;
+  width: mixin.$popover-label-bar-width;
+  height: mixin.$popover-label-bar-height;
+  min-height: mixin.$popover-label-bar-height;
 }
 .member-picker-bar {
   background: mixin.$list-column-bg;
@@ -279,7 +221,7 @@
 }
 .popover--member-detail {
   padding: 0;
-  @include mixin.popover-panel-width(238px, calc(100% - 21px));
+  @include mixin.popover-panel-width(238px, calc(100% - #{mixin.$popover-viewport-inset * 2}));
   overflow: hidden;
   gap: 0;
 }
@@ -290,7 +232,7 @@
 .member-detail-header {
   position: relative;
   background: mixin.$main;
-  padding: 14px mixin.$popover-padding 16.8px;
+  padding: mixin.$popover-padding;
   color: mixin.$white;
 }
 .member-detail-close {
@@ -325,16 +267,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: mixin.$bg-gray;
+  background: mixin.$gray;
   color: mixin.$text;
-  font-size: 14px;
+  font-size: calc(38.5px * 0.5);
   font-weight: mixin.$popover-font-weight;
 }
 .member-detail-name {
   margin: 0;
   font-size: 14px;
   font-weight: mixin.$popover-font-weight;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
 }
 .member-detail-email {
   margin: 2.8px 0 0;
@@ -377,22 +319,22 @@
 .effort-input-row {
   display: flex;
   align-items: stretch;
-  gap: 6.3px;
+  gap: 8px;
 }
 .popover--effort .effort-input {
   flex: 1 1 auto;
   min-width: 0;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
-  border-radius: 8px;
+  border-radius: mixin.$input-border-radius;
   padding: 6.3px 8.4px;
   font-size: 13.16px;
   color: mixin.$text;
-  background: mixin.$white;
+  @include mixin.popover-input-background;
   @include mixin.hide-number-spin-buttons;
 }
 .popover--effort .effort-input:focus {
-  @include mixin.input-focus-ring;
+  @include mixin.input-focus-neutral;
 }
 .popover--effort .effort-unit-label {
   flex: 0 0 auto;
@@ -422,7 +364,6 @@
   cursor: pointer;
 }
 .popover-field-clear-btn:disabled {
-  opacity: 0.45;
   cursor: default;
 }
 .popover--date .calendar {
@@ -507,7 +448,7 @@
   cursor: pointer;
 }
 .calendar-day--outside {
-  color: mixin.$text-placeholder;
+  color: mixin.$text-gray;
   background: transparent;
 }
 .calendar-day--today {
@@ -521,7 +462,7 @@
 .empty-text {
   margin: 0;
   font-size: 11.76px;
-  color: mixin.$text-placeholder;
+  color: mixin.$text-gray;
 }
 .err {
   margin: 0;
@@ -530,7 +471,7 @@
   font-size: mixin.$modal-field-font-size;
 }
 .popover--list {
-  @include mixin.popover-panel-width(273px);
+  @include mixin.popover-panel-width(#{mixin.$popover-list-panel-width});
   min-height: 0;
   overflow: hidden;
   padding: 0;
@@ -586,7 +527,7 @@
 .list-picker-label {
   flex: 1;
   min-width: 0;
-  font-size: 12.32px;
+  font-size: mixin.$popover-list-font-size;
   font-weight: mixin.$popover-font-weight;
   line-height: 1.35;
   color: mixin.$text;
@@ -597,6 +538,5 @@
   margin: mixin.$popover-padding;
 }
 button:disabled:not(.label-picker-row):not(.member-picker-row):not(.list-picker-row) {
-  opacity: 0.55;
   cursor: pointer;
 }

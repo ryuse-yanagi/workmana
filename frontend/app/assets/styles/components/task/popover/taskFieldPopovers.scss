@@ -1,0 +1,697 @@
+/* Shared styles for task field popovers (date / effort / labels / list / member-detail / description / option). */
+
+.popover {
+  position: fixed;
+  margin: 0;
+  pointer-events: auto;
+  z-index: 10;
+  @include mixin.popover-panel-width(259px);
+  background: mixin.$white;
+  border-radius: mixin.$popover-border-radius;
+  box-shadow: mixin.$popover-box-shadow;
+  border: 1px solid mixin.$gray;
+  padding: mixin.$popover-padding;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.popover--date {
+  @include mixin.popover-panel-width(275px);
+  padding: mixin.$popover-padding;
+  @include mixin.popover-scroller-self(#{mixin.$popover-padding});
+  gap: 0;
+}
+
+.popover--effort,
+.popover--progress-rate {
+  @include mixin.popover-panel-width(252px);
+  padding: mixin.$popover-padding;
+  gap: 0;
+}
+
+.popover--members,
+.popover--labels {
+  @include mixin.popover-panel-width(#{mixin.$popover-labels-panel-width});
+  min-height: 0;
+  overflow: hidden;
+  padding: mixin.$popover-padding;
+  gap: 0;
+}
+
+.popover--status-category {
+  @include mixin.popover-panel-width(#{mixin.$popover-status-category-panel-width});
+  min-height: 0;
+  overflow: hidden;
+  padding: mixin.$popover-padding;
+  gap: 0;
+}
+
+.popover--members {
+  @include mixin.popover-panel-width(#{mixin.$popover-members-panel-width});
+}
+
+.popover--list {
+  @include mixin.popover-panel-width(#{mixin.$popover-list-panel-width});
+  min-height: 0;
+  overflow: hidden;
+  padding: mixin.$popover-padding;
+  gap: 0;
+}
+
+.popover--member-detail {
+  padding: mixin.$popover-padding;
+  @include mixin.popover-panel-width(238px, calc(100% - #{mixin.$popover-viewport-inset * 2}));
+  overflow: hidden;
+  gap: 0;
+}
+
+/* Viewing mode: no remove footer — fill the leftover white padding with the header blue. */
+.popover--member-detail-no-remove {
+  background: mixin.$main;
+  border-color: mixin.$main;
+}
+
+.popover--member-detail-no-remove .member-detail-header {
+  margin-bottom: calc(-1 * #{mixin.$popover-padding});
+}
+
+.popover--description {
+  box-sizing: border-box;
+  @include mixin.popover-panel-width(600px);
+  min-width: min(calc(600px + var(#{mixin.$popover-scrollbar-gutter-var}, 0px)), calc(100vw - #{mixin.$popover-viewport-inset * 2}));
+  max-width: min(calc(600px + var(#{mixin.$popover-scrollbar-gutter-var}, 0px)), calc(100vw - #{mixin.$popover-viewport-inset * 2}));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: mixin.$popover-padding;
+  gap: 0;
+}
+
+.popover--description.popover-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+.popover--description-edit {
+  height: 100%;
+}
+
+:deep(.popover-shell__header) {
+  flex-shrink: 0;
+}
+
+:deep(.popover-shell__title) {
+  @include mixin.popover-title-text;
+}
+
+:deep(.popover-header--labels) {
+  justify-content: center;
+}
+
+.popover-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  @include mixin.popover-scroller;
+}
+
+.label-search-input {
+  display: block;
+  width: 100%;
+  margin: 0 0 mixin.$popover-padding;
+  flex-shrink: 0;
+  @include mixin.popover-search-input-field;
+  /** バー列に文字が被らないよう退ける（宿主 padding 8px は維持） */
+  @include mixin.popover-outside-scroller-end-inset(8px);
+}
+
+.label-search-input:focus {
+  @include mixin.input-focus-neutral;
+}
+
+.label-section-heading {
+  margin: 0 0 mixin.$popover-padding;
+  font-size: mixin.$popover-section-heading-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-subtle;
+  flex-shrink: 0;
+}
+
+.label-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 mixin.$popover-padding;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.label-picker-row {
+  @include mixin.picker-checkbox-row;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  text-align: left;
+  font-weight: mixin.$popover-font-weight;
+}
+
+.label-picker-checkbox {
+  @include mixin.picker-selection-check(14px, 1px);
+}
+
+.label-picker-checkbox--checked {
+  @include mixin.picker-selection-check-checked;
+}
+
+.label-picker-radio {
+  @include mixin.picker-native-radio(14px);
+}
+
+.label-picker-bar {
+  flex: 1;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 28px;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: 500;
+  line-height: mixin.$text-line-height-safe;
+  display: flex;
+  align-items: center;
+}
+
+.label-picker-bar:not(.member-picker-bar) {
+  /* 固定幅だと gutter 端数やバー幅差が「右パディング増」に見える。担当者と同様に行内を埋める */
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: mixin.$popover-label-bar-height;
+  min-height: mixin.$popover-label-bar-height;
+  display: block;
+  line-height: calc(#{mixin.$popover-label-bar-height} - 10px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label-picker-bar--pill {
+  border-radius: 4px;
+  text-align: center;
+}
+
+.label-picker-empty {
+  @include mixin.popover-empty-options-message;
+}
+
+.effort-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.popover--effort .effort-input,
+.popover--progress-rate .effort-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  padding: 6px 8px;
+  font-size: 14px;
+  color: mixin.$text;
+  @include mixin.popover-input-background;
+  @include mixin.hide-number-spin-buttons;
+}
+
+.popover--effort .effort-input::placeholder,
+.popover--progress-rate .effort-input::placeholder {
+  font-size: 14px;
+}
+
+.popover--effort .effort-input:focus,
+.popover--progress-rate .effort-input:focus {
+  @include mixin.input-focus-neutral;
+}
+
+.popover--effort .effort-unit-label,
+.popover--progress-rate .effort-unit-label {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
+  white-space: nowrap;
+}
+
+.calendar {
+  border: 1px solid mixin.$gray;
+  border-radius: 10px;
+  padding: 12px;
+  background: mixin.$list-column-bg;
+}
+
+.popover--date .calendar {
+  padding: 8px;
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.popover--date .calendar-nav {
+  margin-bottom: 6px;
+}
+
+.calendar-nav-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid mixin.$border;
+  border-radius: 6px;
+  background: mixin.$white;
+  color: mixin.$text-strong;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.popover--date .calendar-nav-btn {
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+}
+
+.calendar-month-label {
+  font-size: 14px;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text;
+}
+
+.popover--date .calendar-month-label {
+  font-size: 14px;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 3px;
+}
+
+.popover--date .calendar-weekdays {
+  grid-template-columns: repeat(7, 34px);
+  margin-bottom: 2px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.popover--date .calendar-grid {
+  grid-template-columns: repeat(7, 34px);
+  gap: 1px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: mixin.$white;
+  color: mixin.$text;
+  font-size: 13px;
+  font-weight: mixin.$popover-font-weight;
+  cursor: pointer;
+}
+
+.popover--date .calendar-day {
+  aspect-ratio: unset;
+  width: 34px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.calendar-day--outside {
+  color: mixin.$text-gray;
+  background: transparent;
+}
+
+.calendar-day--today {
+  border-color: mixin.$main;
+}
+
+.calendar-day--selected {
+  background: mixin.$main;
+  color: mixin.$white;
+  border-color: mixin.$main;
+}
+
+.calendar-day--in-range {
+  background: color-mix(in srgb, mixin.$main 18%, mixin.$white);
+  border-color: transparent;
+  color: mixin.$text;
+}
+
+.calendar-day--in-range.calendar-day--outside {
+  color: mixin.$text-gray;
+}
+
+.calendar-day--range-start {
+  border-radius: 6px 0 0 6px;
+}
+
+.calendar-day--range-end {
+  border-radius: 0 6px 6px 0;
+}
+
+.calendar-day--endpoint {
+  cursor: grab;
+}
+
+.calendar--dragging {
+  user-select: none;
+  touch-action: none;
+}
+
+.calendar--dragging .calendar-day {
+  cursor: grabbing;
+}
+
+.calendar-day--disabled,
+.calendar-day--disabled.calendar-day--outside,
+.calendar-day--disabled.calendar-day--today {
+  color: mixin.$text-gray;
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.4;
+  cursor: default;
+}
+
+.calendar-day--disabled.calendar-day--selected {
+  background: mixin.$main;
+  color: mixin.$white;
+  border-color: mixin.$main;
+  opacity: 0.45;
+}
+
+.member-detail-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.member-detail-header {
+  position: relative;
+  background: mixin.$main;
+  margin: calc(-1 * #{mixin.$popover-padding}) calc(-1 * #{mixin.$popover-padding}) 0;
+  padding: mixin.$popover-padding;
+  color: mixin.$white;
+}
+
+.member-detail-close {
+  position: absolute;
+  top: mixin.$popover-padding;
+  right: mixin.$popover-padding;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: mixin.white-a(0.92);
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.member-detail-profile {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-right: 18px;
+}
+
+.member-detail-avatar,
+.member-detail-initial {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  border: 2px solid mixin.white-a(0.35);
+  object-fit: cover;
+}
+
+.member-detail-initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: mixin.$gray;
+  color: mixin.$text;
+  font-size: calc(40px * 0.5);
+  font-weight: mixin.$popover-font-weight;
+}
+
+.member-detail-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: mixin.$popover-font-weight;
+  line-height: mixin.$text-line-height-safe;
+}
+
+.member-detail-email {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: mixin.white-a(0.88);
+  line-height: 1.3;
+  word-break: break-all;
+}
+
+.member-detail-body {
+  background: mixin.$white;
+}
+
+.member-detail-remove {
+  width: 100%;
+  border: none;
+  background: mixin.$white;
+  padding: 6px 8px;
+  margin-top: 12px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-strong;
+  cursor: pointer;
+}
+
+.member-detail-error {
+  margin: 0;
+  padding: mixin.$popover-padding;
+}
+
+.popover--description .description-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.popover--description .description-input {
+  @include mixin.description-textarea;
+  flex: 1 1 0;
+  margin: 0 0 mixin.$popover-padding;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.popover--description .err {
+  flex-shrink: 0;
+  margin: 0 0 mixin.$popover-padding;
+}
+
+.popover--description .description-view {
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 112px;
+  max-height: none;
+  height: auto;
+  margin: 0 0 mixin.$popover-padding;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  padding: 8px 12px;
+  @include mixin.popover-input-background;
+}
+
+.popover--description .description-preview {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  line-height: 1.8;
+  color: mixin.$text;
+}
+
+.popover--description .description-view-empty {
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  min-height: 0;
+  display: block;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 400;
+  color: mixin.$text-gray;
+}
+
+.list-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 mixin.$popover-padding;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.list-picker-row {
+  @include mixin.picker-checkbox-row;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  text-align: left;
+  font-weight: mixin.$popover-font-weight;
+}
+
+.list-picker-row--selected {
+  background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
+}
+
+.list-picker-radio {
+  @include mixin.picker-native-radio(14px);
+}
+
+.list-picker-label {
+  flex: 1;
+  min-width: 0;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  line-height: 1.35;
+  color: mixin.$text;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.list-picker-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  border: none;
+  border-radius: 4px;
+  padding: 0 10px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: 700;
+  line-height: mixin.$text-line-height-safe;
+  text-align: left;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+.list-picker-bar__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-picker-bar__check {
+  flex-shrink: 0;
+}
+
+.list-picker-bar:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.list-picker-bar:disabled {
+  cursor: default;
+}
+
+.list-picker-empty {
+  @include mixin.popover-empty-options-message;
+}
+
+.label-picker-bar--pill {
+  box-sizing: border-box;
+  border: none;
+  white-space: nowrap;
+}
+
+.empty-text {
+  margin: 0;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
+}
+
+.err {
+  margin: 0;
+  color: mixin.$danger;
+  font-weight: mixin.$popover-font-weight;
+  font-size: mixin.$modal-field-font-size;
+}
+
+.popover--members .empty-text,
+.popover--members .err,
+.popover--labels .empty-text,
+.popover--labels .err {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+button:disabled:not(.label-picker-row):not(.member-picker-row):not(.list-picker-row):not(.list-picker-bar) {
+  cursor: pointer;
+}

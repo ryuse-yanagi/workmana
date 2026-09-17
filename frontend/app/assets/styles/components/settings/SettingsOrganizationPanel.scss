@@ -1,42 +1,102 @@
 @use '~/assets/styles/components/settings/shared';
 
-.org-icon-note,
-.org-icon-readonly {
-  margin: 0 0 14px;
+.org-readonly {
+  margin: 0 0 20px;
   color: mixin.$text-muted;
-  font-size: 12.6px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.org-icon-row {
+.org-profile {
   display: flex;
-  gap: 14px;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
 }
 
-.org-icon-image,
-.org-icon-placeholder {
-  width: 84px;
-  height: 84px;
+.org-profile__icon-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 44px;
+}
+
+.org-profile__icon,
+.org-profile__placeholder {
+  width: 120px;
+  height: 120px;
   border-radius: 9999px;
-  border: 1px solid mixin.$border;
   flex-shrink: 0;
 }
 
-.org-icon-image {
+.org-profile__icon {
   object-fit: cover;
   background: mixin.$white;
+  border: 1px solid mixin.$border;
 }
 
-.org-icon-placeholder {
+.org-profile__placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: mixin.$text-muted;
-  background: mixin.$list-column-bg;
-  font-size: 11.2px;
+  border: none;
+  background: mixin.$gray;
+  container-type: size;
 }
 
-.org-icon-actions {
-  flex: 1;
+.org-profile__initial {
+  @include mixin.avatar-initial-text(700);
+}
+
+.org-fields {
+  margin: 0;
+  padding: 0 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.org-field {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 120px;
+  align-items: center;
+}
+
+.org-field__label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: mixin.$text-emphasis;
+  line-height: 1.35;
+}
+
+.org-field__value {
+  margin: 0;
   min-width: 0;
+}
+
+.org-field__box {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid mixin.$border;
+  border-radius: 4px;
+  background: mixin.$bg-gray;
+  color: mixin.$text;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 720px) {
+  .org-field {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    align-items: stretch;
+  }
 }

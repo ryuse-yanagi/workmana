@@ -1,7 +1,7 @@
 .workspace-assignee-select {
   display: inline-flex;
 }
-.workspace-assignee-select__btn {
+.workspace-assignee-select__btn:not(.workspace-assignee-select__btn--readonly) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -34,4 +34,41 @@
 .workspace-assignee-select__btn:disabled {
   opacity: 0.55;
   cursor: pointer;
+}
+.workspace-assignee-select--readonly {
+  width: 100%;
+  justify-content: center;
+}
+.workspace-assignee-select__btn--readonly {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: mixin.$text;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: normal;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.workspace-assignee-select__chevron {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid currentColor;
+  flex-shrink: 0;
+}
+.workspace-assignee-select__chevron--open {
+  border-top: none;
+  border-bottom: 8px solid currentColor;
 }

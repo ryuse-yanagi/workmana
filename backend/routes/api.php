@@ -1,10 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\InviteAcceptController;
 use App\Http\Controllers\Api\MeController;
-use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrganizationInviteController;
 use App\Http\Controllers\Api\WorkspaceController;
@@ -17,7 +15,6 @@ use App\Http\Controllers\Api\DocumentLabelController;
 use App\Http\Controllers\Api\DocumentLabelCategoryController;
 use App\Http\Controllers\Api\SharedDocumentController;
 use App\Http\Controllers\Api\TaskController;
-use App\Http\Controllers\Api\TaskAttachmentController;
 use App\Http\Controllers\Api\TaskCommentController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,17 +23,11 @@ use Illuminate\Support\Facades\Route;
 | API Routes（プレフィックス: /api）
 |--------------------------------------------------------------------------
 |
-| 認証まわり・ヘルスチェック・招待の確認・受諾だけは未ログインでも叩ける。
+| 認証まわりと招待の確認・受諾だけは未ログインでも叩ける。
 | それ以外は cognito ミドルウェア（セッション Cookie）必須。
 | 組織配下（/orgs/{organization}/...）はさらに org.member で所属チェックする。
 |
 */
-
-// =============================================================================
-// ヘルスチェック（認証不要・外部依存なし）
-// =============================================================================
-// ALB ターゲットグループのヘルスチェック用。アプリが応答できることだけを返す。
-Route::get('/health', [HealthController::class, 'index']);
 
 // =============================================================================
 // 認証関連（Cognito Hosted UI + セッション Cookie）
@@ -49,17 +40,14 @@ Route::prefix('auth')->group(function () {
     Route::get('/login', [AuthController::class, 'login']);           // Cognito Hosted UI へリダイレクト開始
     Route::get('/callback', [AuthController::class, 'callback']);     // Cognito からの認可コード受け取り・セッション確立
     Route::post('/logout', [AuthController::class, 'logout']);        // セッション破棄 + Hosted UI ログアウト URL 返却
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:invites'); // 組織未所属のアカウント作成
 });
 
 // =============================================================================
 // 招待関連（認証不要）
 // =============================================================================
 // メール等で受け取ったトークンで、招待内容の確認と受諾を行う。
-Route::middleware(['throttle:invites'])->group(function () {
-    Route::get('/invites/{token}', [InviteAcceptController::class, 'show']);
-    Route::post('/invites/{token}/accept', [InviteAcceptController::class, 'accept']);
-});
+Route::get('/invites/{token}', [InviteAcceptController::class, 'show']);
+Route::post('/invites/{token}/accept', [InviteAcceptController::class, 'accept']);
 
 // =============================================================================
 // 認証必須 API（cognito ミドルウェア）
@@ -75,10 +63,6 @@ Route::middleware(['cognito'])->group(function () {
     Route::delete('/me/avatar', [MeController::class, 'deleteAvatar']);
     Route::get('/me/current-organization', [MeController::class, 'currentOrganization']);
     Route::put('/me/current-organization', [MeController::class, 'switchOrganization']);
-
-    Route::get('/notifications', [NotificationController::class, 'index']);
-    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
-    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
 
     // -------------------------------------------------------------------------
     // 組織の作成（組織スラッグ不要）
@@ -96,15 +80,10 @@ Route::middleware(['cognito'])->group(function () {
         // 組織メンバー・招待・設定
         // =====================================================================
         Route::get('/members', [OrganizationController::class, 'members']);
-        Route::patch('/members/{member}', [OrganizationController::class, 'updateMember']);
-        Route::delete('/members/{member}', [OrganizationController::class, 'removeMember']);
         Route::get('/invites', [OrganizationInviteController::class, 'index']);
         Route::post('/invites', [OrganizationInviteController::class, 'store']);
-        Route::delete('/invites/{invite}', [OrganizationInviteController::class, 'destroy']);
         Route::get('/settings', [OrganizationController::class, 'settings']);
         Route::patch('/settings', [OrganizationController::class, 'updateSettings']);
-        Route::post('/icon', [OrganizationController::class, 'uploadIcon']);
-        Route::delete('/icon', [OrganizationController::class, 'deleteIcon']);
 
         // =====================================================================
         // ラベル関連
@@ -207,7 +186,6 @@ Route::middleware(['cognito'])->group(function () {
         Route::get('/workspaces/{workspace}/tasks/parents', [TaskController::class, 'parentTasksIndex']);
         Route::get('/workspaces/{workspace}/tasks/archived', [TaskController::class, 'archivedIndex']);
         Route::get('/workspaces/{workspace}/tasks/comments', [TaskCommentController::class, 'workspaceIndex']);
-        Route::get('/workspaces/{workspace}/tasks/attachments', [TaskAttachmentController::class, 'workspaceIndex']);
 
         /**
          * WBSの一覧取得・並び替え
@@ -232,11 +210,6 @@ Route::middleware(['cognito'])->group(function () {
         Route::post('/workspaces/{workspace}/tasks/{task}/comments', [TaskCommentController::class, 'store']);
         Route::patch('/workspaces/{workspace}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'update']);
         Route::delete('/workspaces/{workspace}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy']);
-
-        Route::get('/workspaces/{workspace}/tasks/{task}/attachments', [TaskAttachmentController::class, 'index']);
-        Route::post('/workspaces/{workspace}/tasks/{task}/attachments', [TaskAttachmentController::class, 'store']);
-        Route::get('/workspaces/{workspace}/tasks/{task}/attachments/{attachment}/download', [TaskAttachmentController::class, 'download']);
-        Route::delete('/workspaces/{workspace}/tasks/{task}/attachments/{attachment}', [TaskAttachmentController::class, 'destroy']);
 
         /**
          * コメントに対するリアクションの追加・解除

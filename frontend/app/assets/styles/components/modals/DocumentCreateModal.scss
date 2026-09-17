@@ -1,49 +1,51 @@
+@include mixin.modal-fade-transition;
 
 .modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: mixin.ink-a(0.45);
-  display: flex;
-  justify-content: center;
-  padding: 100px 14px;
+  @include mixin.modal-overlay-shell;
+  @include mixin.modal-overlay-top-aligned;
   z-index: var(--tm-z-modal);
-  overflow-y: auto;
 }
 .modal-overlay--popover-open {
   overflow: hidden;
 }
 .modal-card {
   position: relative;
-  width: min(560px, 100%);
-  max-height: calc(100dvh - 200px);
-  margin: auto;
+  @include mixin.modal-card-width(560px);
+  margin: 0 auto;
   flex-shrink: 0;
   border-radius: 12px;
-  overflow: visible;
   background: mixin.$white;
   box-shadow: 0 16px 40px mixin.ink-a(0.18);
+  @include mixin.modal-card-container;
+  @include mixin.modal-card-fixed-max-height;
 }
 .modal-header {
   @include mixin.modal-header-bar;
   border-radius: 12px 12px 0 0;
+  box-sizing: border-box;
+  width: calc(100% + var(#{mixin.$popover-scrollbar-gutter-var}, 0px));
+  max-width: none;
+  margin-inline-end: calc(-1 * var(#{mixin.$popover-scrollbar-gutter-var}, 0px));
 }
 .icon-close {
   @include mixin.modal-close-hit-area;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   color: mixin.$white;
-  font-size: 19.6px;
   line-height: 1;
   cursor: pointer;
 }
 .modal-body {
   position: relative;
-  padding: 16.8px 18.9px 0;
+  padding: 16px 16px 0;
   display: flex;
   flex-direction: column;
   gap: 15.4px;
-  overflow: visible;
   border-radius: 0 0 12px 12px;
+  @include mixin.modal-body-scroll-region;
 }
 .document-form-section {
   overflow: visible;
@@ -57,7 +59,7 @@
   border-radius: 999px;
   border: 1px solid transparent;
   padding: 7px 15.4px;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
   font-size: 16px;
 }
@@ -77,6 +79,5 @@
   font-size: mixin.$modal-field-font-size;
 }
 button:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }

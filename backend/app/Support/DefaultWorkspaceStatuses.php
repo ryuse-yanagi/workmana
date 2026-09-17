@@ -7,16 +7,24 @@ use App\Models\Workspace;
 
 class DefaultWorkspaceStatuses
 {
-    /** @var list<array{name: string, color_index: int}> */
-    public const DEFAULT_ITEMS = [
-        ['name' => '準備中', 'color_index' => 1],
-        ['name' => '稼働中', 'color_index' => 0],
-        ['name' => '保留', 'color_index' => 3],
-        ['name' => '完了', 'color_index' => 5],
-    ];
+    /**
+     * @return list<array{name: string, color_index: int}>
+     */
+    public static function defaultItems(): array
+    {
+        /** @var list<array{name: string, color_index: int}> $items */
+        $items = SharedJson::load('default-named-color-items.json')['workspaceStatuses'];
 
-    /** @var list<string> */
-    public const DEFAULT_NAMES = ['準備中', '稼働中', '保留', '完了'];
+        return $items;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function defaultNames(): array
+    {
+        return DefaultNamedColorItems::names(self::defaultItems());
+    }
 
     /**
      * @return list<array{name: string, color_index: int}>
@@ -42,7 +50,7 @@ class DefaultWorkspaceStatuses
      */
     public static function normalizeItems(?array $raw): array
     {
-        return DefaultNamedColorItems::normalize($raw, self::DEFAULT_ITEMS);
+        return DefaultNamedColorItems::normalize($raw, self::defaultItems(), FieldLengthLimits::WORKSPACE_STATUS_NAME);
     }
 
     /**
@@ -100,5 +108,25 @@ class DefaultWorkspaceStatuses
         }
 
         return $trimmed;
+    }
+
+    /**
+     * 組織のステータス設定変更に合わせ、スペースへ保存済みの status 文字列を更新する。
+     * リネームは書き換え、削除された名前のみ null にする。
+     *
+     * @param  list<array{name: string, color_index: int}>  $oldItems
+     * @param  list<array{name: string, color_index: int}>  $newItems
+     */
+    public static function syncWorkspaceStatusNames(
+        Organization $organization,
+        array $oldItems,
+        array $newItems,
+    ): void {
+        $diff = DefaultNamedColorItems::diffNameChanges($oldItems, $newItems);
+        DefaultNamedColorItems::syncStoredNames(
+            Workspace::withTrashed()->where('organization_id', $organization->id),
+            'status',
+            $diff,
+        );
     }
 }

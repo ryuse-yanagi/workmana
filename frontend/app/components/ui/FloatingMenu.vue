@@ -1,51 +1,56 @@
 <template>
   <Teleport to="body">
-    <ul
-      v-if="open"
-      class="floating-menu"
-      :class="[
-        `floating-menu--${density}`,
-        { 'floating-menu--flush': flush },
-        rootClass,
-      ]"
-      role="menu"
-      data-floating-menu
-      :style="style"
-      @pointerdown.stop
-      @click.stop
-    >
-      <slot>
-        <li
-          v-for="item in items"
-          :key="item.key"
-          role="none"
-        >
-          <button
-            type="button"
-            class="floating-menu__item"
-            :class="{ 'floating-menu__item--danger': item.danger }"
-            role="menuitem"
-            :disabled="disabled || item.disabled"
-            @click="onItemClick(item)"
+    <Transition name="popover-fade" @after-leave="emit('after-leave')">
+      <ul
+        v-if="open"
+        :key="instanceKey"
+        ref="rootRef"
+        class="floating-menu"
+        :class="[
+          `floating-menu--${density}`,
+          { 'floating-menu--flush': flush },
+          rootClass,
+        ]"
+        role="menu"
+        data-floating-menu
+        :style="style"
+        @pointerdown.stop
+        @click.stop
+      >
+        <slot>
+          <li
+            v-for="item in items"
+            :key="item.key"
+            role="none"
           >
-            <component
-              :is="item.icon"
-              v-if="item.icon"
-              class="floating-menu__icon"
-              :size="iconSize"
-              :stroke-width="2.25"
-              aria-hidden="true"
-            />
-            {{ item.label }}
-          </button>
-        </li>
-      </slot>
-    </ul>
+            <button
+              type="button"
+              class="floating-menu__item"
+              :class="{ 'floating-menu__item--danger': item.danger }"
+              role="menuitem"
+              :disabled="disabled || item.disabled"
+              @click="onItemClick(item)"
+            >
+              <component
+                :is="item.icon"
+                v-if="item.icon"
+                class="floating-menu__icon"
+                :size="iconSize"
+                :stroke-width="2.25"
+                aria-hidden="true"
+              />
+              {{ item.label }}
+            </button>
+          </li>
+        </slot>
+      </ul>
+    </Transition>
   </Teleport>
 </template>
 <script setup lang="ts">
 import type { Component, CSSProperties } from 'vue'
 import { useExclusivePopover } from '../../composables/useExclusivePopover'
+import { clampPopoverBox } from '../../utils/popoverScrollbar'
 
 export type FloatingMenuItem = {
   key: string
@@ -57,6 +62,8 @@ export type FloatingMenuItem = {
 
 const props = withDefaults(defineProps<{
   open: boolean
+  /** 同一メニューを別対象へ切り替えるときにフェードさせるキー */
+  instanceKey?: string | number
   items?: FloatingMenuItem[]
   style?: CSSProperties | Record<string, string>
   disabled?: boolean
@@ -66,6 +73,7 @@ const props = withDefaults(defineProps<{
   rootClass?: string | Record<string, boolean> | Array<string | Record<string, boolean>>
   iconSize?: number
 }>(), {
+  instanceKey: 'menu',
   items: () => [],
   disabled: false,
   density: 'comfortable',
@@ -76,11 +84,42 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   select: [item: FloatingMenuItem]
   close: []
+  'after-leave': []
 }>()
+
+const rootRef = ref<HTMLElement | null>(null)
 
 useExclusivePopover(
   () => props.open,
   () => emit('close'),
+)
+
+function clampToViewport () {
+  const el = rootRef.value
+  if (!el || !import.meta.client) {
+    return
+  }
+  const rect = el.getBoundingClientRect()
+  const { top, left } = clampPopoverBox(rect.top, rect.left, rect.width, rect.height)
+  if (Math.abs(top - rect.top) > 0.5) {
+    el.style.top = `${Math.round(top)}px`
+  }
+  if (Math.abs(left - rect.left) > 0.5) {
+    el.style.left = `${Math.round(left)}px`
+  }
+}
+
+watch(
+  () => [props.open, props.instanceKey, props.style] as const,
+  async ([open]) => {
+    if (!open) {
+      return
+    }
+    await nextTick()
+    requestAnimationFrame(() => {
+      clampToViewport()
+    })
+  },
 )
 
 function onItemClick (item: FloatingMenuItem) {

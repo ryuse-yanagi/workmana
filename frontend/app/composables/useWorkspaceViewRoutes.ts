@@ -40,6 +40,13 @@ export function workspaceViewFromRouteName (routeName: string | symbol | null | 
   }
   return 'board'
 }
+export function workspaceDocumentPath (
+  orgSlug: string,
+  workspaceId: string | number,
+  documentId: string | number,
+): string {
+  return `/org/${orgSlug}/workspaces/${workspaceId}/documents/${documentId}`
+}
 export function useWorkspaceViewRoutes (
   orgSlug: MaybeRefOrGetter<string>,
   workspaceId: MaybeRefOrGetter<string>,
@@ -49,7 +56,7 @@ export function useWorkspaceViewRoutes (
   const id = computed(() => toValue(workspaceId))
   const basePath = computed(() => `/org/${slug.value}/workspaces/${id.value}`)
   const views = computed((): WorkspaceViewOption[] => [
-    { key: 'board', label: 'ボード', to: basePath.value },
+    { key: 'board', label: 'Board', to: basePath.value },
     { key: 'wbs', label: 'WBS', to: `${basePath.value}?view=wbs` },
   ])
   const activeView = computed((): WorkspaceRouteViewKey => workspaceViewFromRoute(route))

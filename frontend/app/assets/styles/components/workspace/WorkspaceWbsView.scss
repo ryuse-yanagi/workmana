@@ -5,15 +5,31 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  background: mixin.$white;
+  background: mixin.$surface-canvas;
+  @include mixin.scroll-preserve-parent(end);
+}
+/** 閲覧時は hover で opacity を変えない（全ボタン共通スタイルの上書き） */
+.workspace-wbs-board:not(:has(.workspace-wbs--edit)) {
+  button:hover:not(:disabled):not(.action-btn) {
+    opacity: 1;
+  }
 }
 .workspace-wbs-board__viewport {
   flex: 1;
   min-height: 0;
   min-width: 0;
-  width: 100%;
+  /* 縦バーは右レーンへ。横バーは下端。内容の min-width:100% は cqw 基準で安定 */
+  width: calc(100% + #{mixin.$scrollbar-lane});
+  margin-inline-end: calc(-1 * #{mixin.$scrollbar-lane});
   overflow: auto;
-  background: mixin.$white;
+  padding: 0;
+  background: mixin.$surface-canvas;
+  @include mixin.thin-scrollbar;
+  /** 画像・リンクのネイティブ DnD が横ドラッグスクロールを奪わないようにする */
+  img,
+  a {
+    -webkit-user-drag: none;
+  }
 }
 .workspace-wbs-board__viewport--dragging {
   cursor: default;
@@ -24,22 +40,35 @@
   overscroll-behavior: none;
   touch-action: none;
 }
+/**
+ * 横スクロール時も右余白が消えないよう、padding は overflow 容器ではなく
+ * スクロール内容側に置く（overflow + padding-right の欠落対策）。
+ */
+.workspace-wbs-board__content {
+  display: block;
+  width: max-content;
+  min-width: 100cqw;
+  box-sizing: border-box;
+  /** 基本右余白 + 月日数差の補正（枠外で幅を一定化） */
+  padding: 12px calc(36px + var(--gantt-month-end-pad, 0px)) 16px 16px;
+}
 .workspace-wbs-board__frame {
   display: block;
   width: fit-content;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  overflow: visible;
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  background: mixin.$white;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px mixin.ink-a(0.04),
+    0 4px 12px mixin.ink-a(0.06);
 }
-/** 親なしタスクは空白の親行スペーサ直下に続ける（カード分割しない） */
 .workspace-wbs-board__frame--stacked {
-  margin-top: 0;
+  margin-top: 12px;
 }
 .workspace-wbs-wrap {
   position: relative;
   width: fit-content;
-  border-right: 1px solid mixin.$border;
 }
 .workspace-wbs-wrap--dragging {
   cursor: default;
@@ -63,37 +92,60 @@
   pointer-events: none;
   z-index: 3;
 }
-.workspace-wbs-board__state,
-.workspace-wbs-board__error {
+.workspace-wbs-board__state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 0;
-  padding: 14px 3.5px;
+  padding: 14px 16px;
   font-size: 14px;
+  color: mixin.$text-muted;
 }
 .workspace-wbs-board__error {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 14px;
   color: mixin.$danger;
   font-weight: 600;
 }
 .workspace-wbs {
-  --wbs-row-height: 36px;
-  --wbs-parent-row-height: 56px;
-  --wbs-header-controls-height: 36px;
-  --wbs-header-days-height: 36px;
-  --wbs-header-height: 52px;
+  --wbs-row-height: 40px;
+  --wbs-parent-row-height: 44px;
+  --wbs-header-controls-height: 40px;
+  --wbs-header-days-height: 54px;
+  /** ガント表示有無に関わらず項目名ヘッダー高さを固定（年月40 + 日付54） */
+  --wbs-header-height: 94px;
   --wbs-chip-height: 24px;
   --wbs-label-chip-width: 32px;
-  --wbs-leading-control-width: 18.9px;
+  --wbs-leading-control-width: 20px;
+  /** 折り畳み／グリップとタスク名の間 */
+  --wbs-title-after-leading-gap: 6px;
   /** 親タイトル開始位置からの追加インデント */
-  --wbs-child-nest-indent: 28px;
+  --wbs-child-nest-indent: 24px;
+  /** WBS 番号列の幅 */
+  --wbs-code-col-width: 52px;
+  /** 列区切り線の左側余白（WorkspaceWbsView.vue の WBS_COL_DIVIDER_INSET と一致） */
+  --wbs-col-divider-inset: 12px;
   --wbs-width: auto;
-  --gantt-day-col-width: 34px;
+  --gantt-day-col-width: 40px;
+  /**
+   * 面の役割分担（キャンバス灰 / ヘッダー白 / 親 aqua / 子白）
+   * すべて近いグレーにすると階層が潰れるため、親だけブランド寄りの薄い青にする。
+   */
+  --wbs-header-bg: #{mixin.$white};
+  --wbs-gantt-header-bg: #{mixin.$white};
+  --wbs-parent-row-bg: #{mixin.$main-aqua-surface};
+  --wbs-parent-code-bg: #{color-mix(in srgb, mixin.$main-aqua-surface 82%, mixin.$main)};
+  --wbs-child-row-bg: #{mixin.$white};
   width: var(--wbs-width);
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 14px;
+  font-size: 13px;
   background: mixin.$white;
 }
-.workspace-wbs--gantt {
-  --wbs-header-height: calc(var(--wbs-header-controls-height) + var(--wbs-header-days-height));
+.workspace-wbs__code-col {
+  width: var(--wbs-code-col-width);
 }
 .workspace-wbs__day-col {
   width: var(--gantt-day-col-width);
@@ -104,20 +156,32 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-sizing: content-box;
+  box-sizing: border-box;
   width: var(--wbs-leading-control-width);
   height: auto;
   margin: 0;
-  padding: 0 8px;
+  padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: 4px;
   background: transparent;
-  color: mixin.$text-sub;
-  cursor: pointer;
+  color: mixin.$grip;
+  cursor: grab;
   touch-action: none;
 }
+.workspace-wbs__drag-handle:focus,
+.workspace-wbs__drag-handle:focus-visible {
+  @include mixin.input-focus-neutral;
+}
 .workspace-wbs__drag-handle:active {
-  cursor: default;
+  cursor: grabbing;
+}
+/** 親なしタスク — 閲覧時もグリップと同幅を確保してタイトル位置を揃える */
+.workspace-wbs__leading-spacer {
+  flex-shrink: 0;
+  align-self: stretch;
+  display: block;
+  box-sizing: border-box;
+  width: var(--wbs-leading-control-width);
 }
 .workspace-wbs-wrap--resizing .workspace-wbs__resize-handle {
   cursor: default;
@@ -126,12 +190,13 @@
   position: sticky;
   z-index: 2;
   min-width: 0;
-  background: mixin.$surface-canvas;
-  border-bottom: 1px solid mixin.$border;
+  background: var(--wbs-header-bg);
+  border-bottom: 2px solid mixin.$border;
   text-align: left;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: mixin.$text-sub;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
   isolation: isolate;
@@ -140,43 +205,85 @@
   top: 0;
   height: var(--wbs-header-height);
   min-height: var(--wbs-header-height);
-  padding: 0 9.1px;
+  /** 区切り線は列右端。12px 余白は次列の左側へ */
+  padding: 0 0 0 calc(10px + var(--wbs-col-divider-inset));
   vertical-align: middle;
+  /** 項目名ヘッダーはドラッグスクロール優先（th の user-select:text を上書き） */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
 }
-.workspace-wbs__header-cell:first-child {
-  padding-left: 42px;
+.workspace-wbs__header-cell--code {
+  width: var(--wbs-code-col-width);
+  min-width: var(--wbs-code-col-width);
+  max-width: var(--wbs-code-col-width);
+  padding: 0 4px;
+  text-align: center;
+  border-right: 1px solid mixin.$border;
+}
+.workspace-wbs thead th.workspace-wbs__header-cell--code {
+  text-align: center;
+}
+.workspace-wbs thead th.workspace-wbs__header-cell--code .workspace-wbs__header-label {
+  text-align: center;
+  padding-right: 0;
+}
+.workspace-wbs__header-cell:not(.workspace-wbs__header-cell--edge):not(.workspace-wbs__header-cell--code)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 1px;
+  height: 20px;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, mixin.$border 70%, mixin.$text-sub);
+  pointer-events: none;
+}
+.workspace-wbs__header-cell--first {
+  padding-left: 22px;
 }
 .workspace-wbs__header-cell--edge {
-  box-shadow: 2px 0 0 mixin.ink-a(0.12);
+  box-shadow: 3px 0 0 mixin.ink-a(0.1);
 }
 .workspace-wbs__header-label {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-right: 4.9px;
+  user-select: none;
+  -webkit-user-select: none;
+  /** テキストと区切り線のあいだを 10px 空ける */
+  padding-right: 10px;
 }
-.workspace-wbs__gantt-controls-header {
+.workspace-wbs thead th.workspace-wbs__gantt-controls-header {
   top: 0;
   z-index: 2;
   height: var(--wbs-header-controls-height);
   max-height: var(--wbs-header-controls-height);
-  padding: 0 8px;
+  padding: 0 10px;
   vertical-align: middle;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid color-mix(in srgb, mixin.$border 80%, mixin.$white);
+  box-shadow: inset 1px 0 0 color-mix(in srgb, mixin.$border 72%, mixin.$white);
+  background: var(--wbs-gantt-header-bg);
+  user-select: none;
+  -webkit-user-select: none;
 }
 .workspace-wbs__gantt-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   min-width: 0;
   width: 100%;
   height: 100%;
+  /** 日数差で中央位置がずれないよう、ナビ開始位置を固定 */
+  padding-left: 500px;
+  box-sizing: border-box;
 }
 .workspace-wbs__month-nav {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 6px;
   flex-shrink: 0;
 }
 .workspace-wbs__month-btn {
@@ -185,77 +292,144 @@
   justify-content: center;
   box-sizing: border-box;
   margin: 0;
-  border: 1px solid mixin.$border;
-  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, mixin.$border 82%, mixin.$text-sub);
+  border-radius: 7px;
   background: mixin.$white;
-  color: mixin.$text;
+  color: mixin.$text-strong;
   cursor: pointer;
   font: inherit;
   flex-shrink: 0;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+.workspace-wbs__month-btn:focus,
+.workspace-wbs__month-btn:focus-visible {
+  @include mixin.input-focus-neutral;
+}
+.workspace-wbs__month-btn:hover:not(:disabled) {
+  background: mixin.$main-aqua-surface-light;
+  border-color: color-mix(in srgb, mixin.$main 28%, mixin.$border);
+  color: mixin.$text;
+}
+.workspace-wbs__month-btn:active:not(:disabled) {
+  background: mixin.$main-aqua-surface;
 }
 .workspace-wbs__month-btn--today {
-  height: 26px;
-  padding: 0 10px;
-  font-size: 13px;
+  margin-left: auto;
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0.01em;
+  color: mixin.$main;
+  border-color: color-mix(in srgb, mixin.$main 34%, mixin.$border);
+  background: color-mix(in srgb, mixin.$main 6%, mixin.$white);
+}
+.workspace-wbs__month-btn--today:hover:not(:disabled) {
+  background: color-mix(in srgb, mixin.$main 12%, mixin.$white);
+  border-color: color-mix(in srgb, mixin.$main 48%, mixin.$border);
+  color: mixin.$main;
 }
 .workspace-wbs__month-btn--nav {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  font-size: 16px;
-  line-height: 1;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: mixin.$text-sub;
+  box-shadow: none;
+}
+.workspace-wbs__month-btn--nav:hover:not(:disabled) {
+  background: mixin.$surface-muted;
+  border-color: transparent;
+  color: mixin.$text;
+}
+.workspace-wbs__month-btn--nav:active:not(:disabled) {
+  background: color-mix(in srgb, mixin.$surface-muted 70%, mixin.$text-sub);
 }
 .workspace-wbs__month-btn:disabled {
-  opacity: 0.45;
   cursor: default;
+  opacity: 0.4;
+  box-shadow: none;
 }
 .workspace-wbs__month-label {
-  margin-left: auto;
-  padding-left: 8px;
+  min-width: 7.5em;
+  padding: 0 4px;
+  text-align: center;
   font-size: 14px;
   font-weight: 700;
   color: mixin.$text;
+  letter-spacing: 0.02em;
   line-height: 1.2;
   white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+  font-variant-numeric: tabular-nums;
 }
-.workspace-wbs__day-header {
+.workspace-wbs thead th.workspace-wbs__day-header {
   top: var(--wbs-header-controls-height);
   z-index: 1;
   width: var(--gantt-day-col-width);
   min-width: var(--gantt-day-col-width);
   max-width: var(--gantt-day-col-width);
   height: var(--wbs-header-days-height);
-  padding: 2px 0 4px;
   text-align: center;
   vertical-align: middle;
-  line-height: 1.05;
-  box-shadow: inset 1px 0 0 mixin.$border;
+  line-height: 1;
+  box-shadow: inset 1px 0 0 color-mix(in srgb, mixin.$border 72%, mixin.$white);
   font-weight: 600;
   color: mixin.$text-sub;
+  background: var(--wbs-gantt-header-bg);
+  user-select: none;
+  -webkit-user-select: none;
 }
-.workspace-wbs__day-header--weekend {
-  background: color-mix(in srgb, mixin.$surface-canvas 88%, mixin.$border);
+.workspace-wbs thead th.workspace-wbs__day-header--weekend {
+  background: color-mix(in srgb, mixin.$main-aqua-surface 70%, mixin.$white);
 }
-.workspace-wbs__day-header--today {
+.workspace-wbs thead th.workspace-wbs__day-header--sat {
+  color: mixin.$main;
+}
+.workspace-wbs thead th.workspace-wbs__day-header--sun {
+  color: mixin.$danger;
+}
+.workspace-wbs thead th.workspace-wbs__day-header--today {
   box-shadow:
-    inset 1px 0 0 mixin.$border,
-    inset 0 -2px 0 mixin.$main;
+    inset 1px 0 0 color-mix(in srgb, mixin.$border 72%, mixin.$white),
+    inset 0 -3px 0 mixin.$main;
+  color: mixin.$text;
+}
+.workspace-wbs thead th.workspace-wbs__day-header--today.workspace-wbs__day-header--sun {
+  color: mixin.$text;
+  box-shadow:
+    inset 1px 0 0 color-mix(in srgb, mixin.$border 72%, mixin.$white),
+    inset 0 -3px 0 mixin.$danger;
+}
+.workspace-wbs thead th.workspace-wbs__day-header--today.workspace-wbs__day-header--sat {
   color: mixin.$text;
 }
 .workspace-wbs__day-date {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
-  line-height: 1.05;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: inherit;
+}
+.workspace-wbs thead th.workspace-wbs__day-header:not(.workspace-wbs__day-header--sat):not(.workspace-wbs__day-header--sun) .workspace-wbs__day-date,
+.workspace-wbs thead th.workspace-wbs__day-header--today .workspace-wbs__day-date {
+  color: mixin.$text;
 }
 .workspace-wbs__day-weekday {
   display: block;
-  margin-top: 0.28px;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.05;
-  opacity: 0.85;
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  opacity: 0.88;
 }
 .workspace-wbs__resize-guide {
   position: absolute;
@@ -286,25 +460,134 @@
   max-height: var(--wbs-row-height);
   min-width: 0;
   padding: 0;
-  border-bottom: 1px solid mixin.$border;
+  border-bottom: 1px solid color-mix(in srgb, mixin.$border 85%, mixin.$white);
   vertical-align: middle;
   color: mixin.$text;
-  line-height: 1.2;
+  line-height: 1.25;
   overflow: hidden;
+}
+.workspace-wbs__code-cell {
+  width: var(--wbs-code-col-width);
+  min-width: var(--wbs-code-col-width);
+  max-width: var(--wbs-code-col-width);
+  padding: 0 4px !important;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 1px solid color-mix(in srgb, mixin.$border 90%, mixin.$white);
+  background: var(--wbs-child-row-bg);
+}
+.workspace-wbs__code {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: mixin.$text-muted;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 .workspace-wbs__desc-cell {
   background: mixin.$white;
+  box-sizing: border-box;
+  /** テキスト位置: 基本 10px + 区切り線左の 12px */
+  --wbs-cell-content-inset-left: calc(10px + var(--wbs-col-divider-inset));
+  --wbs-cell-border-inset-left: 0px;
+  --wbs-cell-content-inset-right: 0px;
+  --wbs-cell-border-inset-right: 0px;
 }
-.workspace-wbs__task-row--parent .workspace-wbs__desc-cell,
-.workspace-wbs__task-row--spacer .workspace-wbs__desc-cell {
-  background: mixin.$white;
+.workspace-wbs__desc-cell--first {
+  --wbs-cell-content-inset-left: 8px;
+}
+/** 列間 12px は区切り線の左側。テキストはヘッダーと同じ inset（padding） */
+.workspace-wbs__desc-cell:not(.workspace-wbs__code-cell) > * {
+  box-sizing: border-box;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: var(--wbs-cell-content-inset-left);
+  padding-right: var(--wbs-cell-content-inset-right);
+}
+/**
+ * 編集モード — 操作要素を border 枠いっぱいに広げ、枠内どこでも開く。
+ * テキスト位置は --wbs-frame-pad-* でヘッダー inset に合わせる。
+ */
+.workspace-wbs--edit .workspace-wbs__desc-cell:not(.workspace-wbs__code-cell):has(
+  :is(.workspace-wbs__cell-btn:not(.workspace-wbs__cell-btn--readonly), .workspace-wbs__title-cell--editable, .workspace-wbs__members-cell--edit)
+) {
+  position: relative;
+  overflow: visible;
+
+  > :is(
+    .workspace-wbs__cell-btn:not(.workspace-wbs__cell-btn--readonly),
+    .workspace-wbs__title-cell--editable,
+    .workspace-wbs__members-cell--edit
+  ) {
+    --wbs-frame-pad-left: calc(var(--wbs-cell-content-inset-left) - var(--wbs-cell-border-inset-left));
+    --wbs-frame-pad-right: calc(var(--wbs-cell-content-inset-right) - var(--wbs-cell-border-inset-right));
+    position: relative;
+    z-index: 1;
+    width: calc(100% - var(--wbs-cell-border-inset-left) - var(--wbs-cell-border-inset-right));
+    margin-left: var(--wbs-cell-border-inset-left);
+    margin-right: var(--wbs-cell-border-inset-right);
+    padding-left: var(--wbs-frame-pad-left);
+    padding-right: var(--wbs-frame-pad-right);
+  }
+
+  /**
+   * 子: タイトルは閲覧と同じ（leading + nest）。
+   * グリップは親と同じ列に絶対配置し、タイトルを押し出さない。
+   */
+  > .workspace-wbs__title-cell--editable.workspace-wbs__title-cell--child {
+    padding-left: calc(
+      var(--wbs-frame-pad-left)
+      + var(--wbs-leading-control-width)
+      + var(--wbs-child-nest-indent)
+    );
+  }
+}
+.workspace-wbs--edit .workspace-wbs__task-row td.workspace-wbs__desc-cell:not(.workspace-wbs__code-cell) {
+  overflow: visible;
+}
+@mixin wbs-edit-cell-highlight-ring($color) {
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: var(--wbs-cell-border-inset-right);
+    bottom: 0;
+    left: var(--wbs-cell-border-inset-left);
+    box-sizing: border-box;
+    border: 1.4px solid $color;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 2;
+  }
+}
+.workspace-wbs__task-row--parent .workspace-wbs__desc-cell:not(.workspace-wbs__code-cell) {
+  background: var(--wbs-parent-row-bg);
+}
+.workspace-wbs__task-row--parent .workspace-wbs__code-cell {
+  background: var(--wbs-parent-code-bg);
+}
+.workspace-wbs__task-row--parent .workspace-wbs__code {
+  color: mixin.$text;
+  font-weight: 700;
+}
+.workspace-wbs__task-row--child .workspace-wbs__desc-cell:not(.workspace-wbs__code-cell),
+.workspace-wbs__task-row--child .workspace-wbs__code-cell {
+  background: var(--wbs-child-row-bg);
 }
 .workspace-wbs__day-cell {
+  --gantt-bar-inset: 6px;
+  --gantt-bar-radius: 6px;
   width: var(--gantt-day-col-width);
   min-width: var(--gantt-day-col-width);
   max-width: var(--gantt-day-col-width);
   padding: 0;
-  background: mixin.$white;
+  background: var(--wbs-child-row-bg);
   position: relative;
   touch-action: none;
   user-select: none;
@@ -312,17 +595,48 @@
 .workspace-wbs__task-row td.workspace-wbs__day-cell {
   border-left: none;
   overflow: visible;
-  box-shadow: inset 1px 0 0 mixin.$border;
+  box-shadow: inset 1px 0 0 color-mix(in srgb, mixin.$border 90%, mixin.$white);
+}
+.workspace-wbs__task-row--parent td.workspace-wbs__day-cell {
+  background: var(--wbs-parent-row-bg);
+}
+.workspace-wbs__task-row--child td.workspace-wbs__day-cell {
+  background: var(--wbs-child-row-bg);
+}
+.workspace-wbs__day-cell--today {
+  box-shadow:
+    inset 1px 0 0 color-mix(in srgb, mixin.$border 90%, mixin.$white),
+    inset 0 0 0 1px color-mix(in srgb, mixin.$main 12%, transparent);
 }
 .workspace-wbs__day-cell--interactive {
   cursor: cell;
 }
 .workspace-wbs__day-cell--interactive.workspace-wbs__day-cell--filled {
   cursor: grab;
+}
+/** 連結セルでピル型のガントバーを描画（枠から inset だけ内側。端だけ角丸） */
+.workspace-wbs__task-row td.workspace-wbs__day-cell--filled::before {
+  content: '';
+  position: absolute;
+  top: var(--gantt-bar-inset);
+  right: 0;
+  bottom: var(--gantt-bar-inset);
+  left: 0;
+  background: var(--gantt-bar-color, #{mixin.$main});
+  border-radius: 0;
+  pointer-events: none;
+  z-index: 1;
   transition: opacity 180ms ease;
 }
-.workspace-wbs__task-row td.workspace-wbs__day-cell--selected.workspace-wbs__day-cell--filled {
-  opacity: 0.8;
+.workspace-wbs__task-row td.workspace-wbs__day-cell--filled.workspace-wbs__day-cell--bar-start::before {
+  left: var(--gantt-bar-inset);
+  border-top-left-radius: var(--gantt-bar-radius);
+  border-bottom-left-radius: var(--gantt-bar-radius);
+}
+.workspace-wbs__task-row td.workspace-wbs__day-cell--filled.workspace-wbs__day-cell--bar-end::before {
+  right: var(--gantt-bar-inset);
+  border-top-right-radius: var(--gantt-bar-radius);
+  border-bottom-right-radius: var(--gantt-bar-radius);
 }
 .workspace-wbs__task-row td.workspace-wbs__day-cell--create-preview {
   z-index: 2;
@@ -330,30 +644,36 @@
 .workspace-wbs__task-row td.workspace-wbs__day-cell--create-preview::after {
   content: '';
   position: absolute;
-  top: -1px;
+  top: calc(var(--gantt-bar-inset) - 1px);
   right: 0;
-  bottom: -1px;
+  bottom: calc(var(--gantt-bar-inset) - 1px);
   left: 0;
   box-sizing: border-box;
   border-top: 1px solid var(--gantt-selection-color, #{mixin.$main});
   border-bottom: 1px solid var(--gantt-selection-color, #{mixin.$main});
+  border-radius: 0;
   pointer-events: none;
   z-index: 3;
 }
 .workspace-wbs__task-row td.workspace-wbs__day-cell--create-preview.workspace-wbs__day-cell--create-preview-start::after {
+  left: var(--gantt-bar-inset);
   border-left: 1px solid var(--gantt-selection-color, #{mixin.$main});
+  border-top-left-radius: var(--gantt-bar-radius);
+  border-bottom-left-radius: var(--gantt-bar-radius);
 }
 .workspace-wbs__task-row td.workspace-wbs__day-cell--create-preview.workspace-wbs__day-cell--create-preview-end::after {
-  right: -1px;
+  right: var(--gantt-bar-inset);
   border-right: 1px solid var(--gantt-selection-color, #{mixin.$main});
+  border-top-right-radius: var(--gantt-bar-radius);
+  border-bottom-right-radius: var(--gantt-bar-radius);
 }
 .workspace-wbs__day-cell--dragging {
   cursor: grabbing;
 }
 .workspace-wbs__gantt-edge {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: var(--gantt-bar-inset);
+  bottom: var(--gantt-bar-inset);
   width: 8px;
   margin: 0;
   padding: 0;
@@ -363,31 +683,43 @@
   z-index: 2;
 }
 .workspace-wbs__gantt-edge--start {
-  left: 0;
+  left: var(--gantt-bar-inset);
 }
 .workspace-wbs__gantt-edge--end {
-  right: 0;
+  right: var(--gantt-bar-inset);
 }
+.workspace-wbs__gantt-edge:focus,
 .workspace-wbs__gantt-edge:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: -2px;
+  @include mixin.input-focus-neutral;
 }
 .workspace-wbs--edit .workspace-wbs__task-row td:has(.workspace-wbs__cell-btn:not(.workspace-wbs__cell-btn--readonly)),
 .workspace-wbs--edit .workspace-wbs__task-row td:has(.workspace-wbs__title-cell--editable) {
   cursor: pointer;
+}
+/** 編集モード — ヘッダー区切り線と同じ左右 inset で hover / 選択 border を描画 */
+.workspace-wbs--edit .workspace-wbs__desc-cell:not(.workspace-wbs__code-cell):has(
+  :is(.workspace-wbs__cell-btn:not(.workspace-wbs__cell-btn--readonly), .workspace-wbs__title-cell--editable, .workspace-wbs__members-cell--edit)
+):hover:not(:has(+ .workspace-wbs__desc-cell:not(.workspace-wbs__code-cell):hover)):not(:has(.workspace-wbs__cell-btn--popover-open)):not(:has(.workspace-wbs__avatar-btn--active)):not(:has(.workspace-wbs__members-cell--popover-open)) {
+  @include wbs-edit-cell-highlight-ring(mixin.$main-aqua);
+}
+.workspace-wbs--edit .workspace-wbs__desc-cell:has(.workspace-wbs__cell-btn--popover-open),
+.workspace-wbs--edit .workspace-wbs__desc-cell:has(.workspace-wbs__avatar-btn--active),
+.workspace-wbs--edit .workspace-wbs__desc-cell:has(.workspace-wbs__members-cell--popover-open) {
+  @include wbs-edit-cell-highlight-ring(mixin.$main);
 }
 .workspace-wbs__task-row td > .workspace-wbs__placeholder {
   display: flex;
   align-items: center;
   box-sizing: border-box;
   min-height: var(--wbs-row-height);
-  padding: 0 9.1px;
+  padding: 0;
 }
-.workspace-wbs__task-row--parent td,
-.workspace-wbs__task-row--spacer td {
+.workspace-wbs__task-row--parent td {
   height: var(--wbs-parent-row-height);
   max-height: var(--wbs-parent-row-height);
-  background: mixin.$white;
+}
+.workspace-wbs__task-row--parent {
+  box-shadow: inset 3px 0 0 mixin.$main;
 }
 .workspace-wbs__task-row--parent td > .workspace-wbs__placeholder {
   min-height: var(--wbs-parent-row-height);
@@ -395,15 +727,8 @@
 .workspace-wbs__task-row--parent .workspace-wbs__cell-btn {
   min-height: var(--wbs-parent-row-height);
 }
-.workspace-wbs__task-row--spacer {
-  pointer-events: none;
-}
-.workspace-wbs__task-row--spacer td {
-  border-bottom: 1px solid mixin.$border;
-}
 .workspace-wbs__task-title {
-  font-weight: 700;
-  padding-left: 16px !important;
+  font-weight: 600;
 }
 .workspace-wbs__title-cell {
   display: flex;
@@ -413,30 +738,74 @@
   min-width: 0;
   width: 100%;
   height: var(--wbs-row-height);
-  padding-right: 9.1px;
+  padding-right: 0;
 }
 .workspace-wbs__title-cell--editable {
   cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.12s ease;
 }
-.workspace-wbs__title-cell--editable:hover {
-  background: mixin.$main-aqua-surface-light;
-}
+.workspace-wbs__title-cell--editable:focus,
 .workspace-wbs__title-cell--editable:focus-visible {
-  @include mixin.input-focus-ring;
-  border-radius: 4px;
+  @include mixin.input-focus-neutral;
+  border-radius: 6px;
 }
 .workspace-wbs__task-row--parent .workspace-wbs__title-cell {
   height: var(--wbs-parent-row-height);
 }
 .workspace-wbs__title-cell--child {
-  /* トグル幅ぶん揃えたうえで、さらにネストインデント */
-  padding-left: calc(var(--wbs-leading-control-width) + var(--wbs-child-nest-indent));
+  position: relative;
 }
-.workspace-wbs--edit .workspace-wbs__title-cell--child {
-  /* 編集時はドラッグハンドルがあるので、ネスト分だけ足す */
-  padding-left: var(--wbs-child-nest-indent);
+.workspace-wbs__desc-cell:not(.workspace-wbs__code-cell) > .workspace-wbs__title-cell--child {
+  padding-left: calc(
+    var(--wbs-cell-content-inset-left)
+    + var(--wbs-leading-control-width)
+    + var(--wbs-child-nest-indent)
+  );
+}
+.workspace-wbs__title-cell--child > .workspace-wbs__drag-handle {
+  position: absolute;
+  left: var(--wbs-frame-pad-left, var(--wbs-cell-content-inset-left));
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+.workspace-wbs__title-cell--child::before {
+  content: '';
+  position: absolute;
+  left: calc(
+    var(--wbs-cell-content-inset-left)
+    + var(--wbs-leading-control-width)
+    + 10px
+  );
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, mixin.$border 75%, mixin.$text-muted);
+  pointer-events: none;
+}
+.workspace-wbs__title-cell--child::after {
+  content: '';
+  position: absolute;
+  left: calc(
+    var(--wbs-cell-content-inset-left)
+    + var(--wbs-leading-control-width)
+    + 10px
+  );
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  background: color-mix(in srgb, mixin.$border 75%, mixin.$text-muted);
+  pointer-events: none;
+}
+.workspace-wbs__task-row--last-child .workspace-wbs__title-cell--child::before {
+  bottom: 50%;
+}
+/** 編集時はグリップが階層を示すのでツリー線は出さない */
+.workspace-wbs--edit .workspace-wbs__title-cell--child::before,
+.workspace-wbs--edit .workspace-wbs__title-cell--child::after {
+  display: none;
+}
+.workspace-wbs__task-row--parent .workspace-wbs__task-title {
+  font-weight: 700;
 }
 .workspace-wbs__task-row--child .workspace-wbs__task-title {
   font-weight: 500;
@@ -449,40 +818,63 @@
   align-self: stretch;
   box-sizing: border-box;
   min-height: 100%;
+  margin-left: var(--wbs-title-after-leading-gap);
+}
+.workspace-wbs__task-menu {
+  flex-shrink: 0;
+  align-self: center;
+  display: inline-flex;
+  margin-left: 4px;
+}
+.workspace-wbs__task-menu .subheader-menu-btn {
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  :deep(svg) {
+    width: 20px;
+    height: 20px;
+  }
+}
+.workspace-wbs__task-menu .subheader-menu-btn:hover,
+.workspace-wbs__task-menu .subheader-menu-btn:focus,
+.workspace-wbs__task-menu .subheader-menu-btn:focus-visible {
+  background: transparent;
+  @include mixin.input-focus-neutral;
 }
 .workspace-wbs__title-text,
 .workspace-wbs__title-input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  padding: 0 4.9px;
+  /** padding 8×2 + border 1×2 + line-height 16 */
+  height: 34px;
+  min-height: 34px;
+  margin: auto 0;
+  padding: 8px;
+  border: 1px solid transparent;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: inherit;
   font-family: inherit;
-  line-height: 1;
+  line-height: 16px;
   color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
 }
 .workspace-wbs__title-text {
-  display: flex;
-  align-items: center;
-  align-self: stretch;
-  min-height: 100%;
+  display: block;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  border: 1px solid transparent;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+  pointer-events: none;
+  cursor: inherit;
 }
 .workspace-wbs__title-input {
-  height: 24px;
-  min-height: 24px;
-  margin: auto 0;
-  border: 1px solid mixin.$border;
   background: mixin.$white;
-  line-height: calc(24px - 2px);
-}
-.workspace-wbs__title-input:focus {
-  @include mixin.input-focus-ring;
 }
 .workspace-wbs__toggle {
   flex-shrink: 0;
@@ -490,14 +882,24 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: var(--wbs-leading-control-width);
   height: auto;
+  margin: 0;
   padding: 0;
   border: none;
-  border-radius: 0;
+  border-radius: 4px;
   background: transparent;
   color: mixin.$text-sub;
   cursor: pointer;
+}
+.workspace-wbs__toggle:focus,
+.workspace-wbs__toggle:focus-visible {
+  @include mixin.input-focus-neutral;
+}
+.workspace-wbs__toggle:hover {
+  background: color-mix(in srgb, mixin.$main 8%, transparent);
+  color: mixin.$main;
 }
 .workspace-wbs__ellipsis {
   display: block;
@@ -514,7 +916,7 @@
   min-width: 0;
   min-height: var(--wbs-row-height);
   margin: 0;
-  padding: 0 12.6px;
+  padding: 0;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -523,21 +925,13 @@
   font: inherit;
   cursor: pointer;
   overflow: hidden;
-  transition: background-color 0.12s ease;
-}
-.workspace-wbs__cell-btn:not(.workspace-wbs__cell-btn--readonly):not(.workspace-wbs__cell-btn--popover-open):not(:has(.workspace-wbs__label-add-chip--active)):hover {
-  background: mixin.$main-aqua-surface-light;
-}
-.workspace-wbs__cell-btn--popover-open {
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 1.4px mixin.$main;
-  background: mixin.$white;
 }
 .workspace-wbs__cell-btn--readonly {
   cursor: default;
 }
+.workspace-wbs__cell-btn:focus,
 .workspace-wbs__cell-btn:focus-visible {
-  @include mixin.input-focus-ring;
+  @include mixin.input-focus-neutral;
 }
 .workspace-wbs__cell-btn--text {
   height: 100%;
@@ -546,19 +940,32 @@
 .workspace-wbs__task-row--parent .workspace-wbs__cell-btn--text {
   min-height: var(--wbs-parent-row-height);
 }
-.workspace-wbs__cell-btn--text > span:not(.workspace-wbs__placeholder) {
+.workspace-wbs__cell-btn--text > span:not(.workspace-wbs__placeholder):not(.workspace-wbs__notes-chevron):not(.workspace-wbs__notes) {
   display: block;
-  font-weight: 600;
+  font-weight: 500;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.workspace-wbs__task-row--parent .workspace-wbs__cell-btn--text > span:not(.workspace-wbs__placeholder):not(.workspace-wbs__notes-chevron):not(.workspace-wbs__notes) {
+  font-weight: 600;
+}
 .workspace-wbs__cell-btn--notes {
   max-width: 100%;
+}
+.workspace-wbs__cell-btn--notes:not(.workspace-wbs__cell-btn--notes-has-content) {
   align-items: stretch;
 }
-.workspace-wbs__cell-btn--text > span.workspace-wbs__notes {
+.workspace-wbs__desc-cell > .workspace-wbs__cell-btn--notes {
+  height: var(--wbs-row-height);
+  min-height: var(--wbs-row-height);
+}
+.workspace-wbs__task-row--parent .workspace-wbs__desc-cell > .workspace-wbs__cell-btn--notes {
+  height: var(--wbs-parent-row-height);
+  min-height: var(--wbs-parent-row-height);
+}
+.workspace-wbs__cell-btn--notes:not(.workspace-wbs__cell-btn--notes-has-content) > .workspace-wbs__notes {
   display: flex;
   align-items: center;
   align-self: stretch;
@@ -569,38 +976,61 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.2;
+  line-height: 1.25;
+}
+.workspace-wbs__cell-btn--notes-has-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--wbs-row-height);
+  min-height: var(--wbs-row-height);
+  cursor: pointer;
+}
+/** desc-cell > * の padding-right(0) より強くし、三角形と本文の重なりを防ぐ */
+.workspace-wbs__desc-cell:not(.workspace-wbs__code-cell) > .workspace-wbs__cell-btn--notes-has-content {
+  padding-right: 28px;
+}
+.workspace-wbs__task-row--parent .workspace-wbs__cell-btn--notes-has-content {
+  height: var(--wbs-parent-row-height);
+  min-height: var(--wbs-parent-row-height);
+}
+.workspace-wbs__cell-btn--notes-has-content > .workspace-wbs__notes {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.25;
+  font-weight: 500;
+}
+.workspace-wbs__task-row--parent .workspace-wbs__cell-btn--notes-has-content > .workspace-wbs__notes {
+  font-weight: 600;
 }
 .workspace-wbs__cell-btn--text .workspace-wbs__labels {
   flex: 1;
   min-width: 0;
 }
 .workspace-wbs__placeholder {
-  color: mixin.$text-sub;
+  color: mixin.$text-muted;
   font-weight: 500;
 }
 .workspace-wbs__members-cell {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 2.8px;
+  gap: 3px;
   box-sizing: border-box;
   min-width: 0;
   width: 100%;
   min-height: var(--wbs-row-height);
   height: 100%;
   overflow: hidden;
-  padding: 0 12.6px 0 14.6px;
+  padding: 0;
 }
 .workspace-wbs__members-cell--edit {
   cursor: pointer;
-  transition: background-color 0.12s ease;
-}
-.workspace-wbs__members-cell--edit:not(:has(.workspace-wbs__avatar-btn--active)):hover {
-  background: mixin.$main-aqua-surface-light;
-}
-.workspace-wbs__members-cell--edit:has(.workspace-wbs__avatar-btn--active) {
-  background: mixin.$white;
 }
 .workspace-wbs__task-row--parent .workspace-wbs__members-cell {
   min-height: var(--wbs-parent-row-height);
@@ -620,31 +1050,12 @@
   cursor: pointer;
   overflow: hidden;
 }
+.workspace-wbs__avatar-btn:focus,
 .workspace-wbs__avatar-btn:focus-visible {
-  @include mixin.input-focus-ring;
+  @include mixin.input-focus-neutral;
 }
 .workspace-wbs__avatar-btn--active {
   box-shadow: 0 0 0 1.4px mixin.$main;
-}
-.workspace-wbs__avatar-btn--add {
-  border: 1.5px solid transparent;
-  background: mixin.$white;
-  box-shadow: inset 0 0 0 1px mixin.$border;
-  overflow: visible;
-}
-.workspace-wbs__avatar-btn--add.workspace-wbs__avatar-btn--active {
-  box-shadow:
-    inset 0 0 0 1px mixin.$border,
-    0 0 0 1.4px mixin.$main;
-}
-.workspace-wbs__avatar-btn-plus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 1;
-  color: mixin.$text-muted;
 }
 .workspace-wbs__avatar-pill {
   display: inline-flex;
@@ -656,9 +1067,6 @@
   height: 100%;
   border: 1.5px solid mixin.$white;
 }
-.workspace-wbs__avatar-pill :deep(.member-avatar__initial) {
-  font-size: 10px;
-}
 .workspace-wbs__labels-wrap {
   display: flex;
   align-items: center;
@@ -666,7 +1074,7 @@
   width: 100%;
   min-width: 0;
   min-height: var(--wbs-row-height);
-  padding: 0 12.6px;
+  padding: 0;
   overflow: hidden;
 }
 .workspace-wbs__task-row--parent .workspace-wbs__labels-wrap {
@@ -676,15 +1084,9 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 2.8px;
+  gap: 3px;
   min-width: 0;
   overflow: hidden;
-}
-.workspace-wbs__labels--readonly :deep(.label-strip) {
-  transition: opacity 0.12s ease;
-}
-.workspace-wbs__labels--readonly :deep(.label-strip:hover) {
-  opacity: 0.8;
 }
 .workspace-wbs__labels :deep(.label-strip--sm) {
   box-sizing: border-box;
@@ -696,8 +1098,8 @@
   max-width: none;
   flex-shrink: 0;
   justify-content: center;
-  padding: 0 5.6px;
-  font-size: 14px;
+  padding: 0 6px;
+  font-size: 13px;
   line-height: 1;
   overflow: visible;
 }
@@ -706,66 +1108,23 @@
   overflow: visible;
   text-overflow: clip;
 }
-.workspace-wbs__label-add-chip {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: var(--wbs-chip-height);
-  width: var(--wbs-label-chip-width);
-  min-width: var(--wbs-label-chip-width);
-  margin: 1.4px;
-  padding: 0;
-  border-radius: 4px;
-  border: 1.5px solid transparent;
-  background: mixin.$white;
-  color: mixin.$text-muted;
-  box-shadow: inset 0 0 0 1px mixin.$border;
-  overflow: visible;
-  flex-shrink: 0;
-}
-.workspace-wbs__label-add-chip--active {
-  box-shadow:
-    inset 0 0 0 1px mixin.$border,
-    0 0 0 1.4px mixin.$main;
-}
-.workspace-wbs__label-add-plus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 1;
-  transform: translateY(-0.08em);
-}
 .workspace-wbs__notes {
   color: mixin.$text-sub;
 }
-.workspace-wbs__task-row--skeleton {
-  pointer-events: none;
+.workspace-wbs__notes-chevron {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid currentColor;
+  flex-shrink: 0;
+  color: mixin.$text;
+  transform: translateY(-50%);
 }
-.workspace-wbs__task-row--skeleton .workspace-wbs__desc-cell {
-  vertical-align: middle;
-}
-.workspace-wbs__skeleton-bar {
-  display: block;
-  box-sizing: border-box;
-  height: 12px;
-  margin: 0 12.6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, mixin.$border 80%, mixin.$white);
-}
-.workspace-wbs__skeleton-bar--title {
-  width: 42%;
-  margin-left: 16px;
-}
-.workspace-wbs__skeleton-bar--child {
-  margin-left: calc(16px + var(--wbs-leading-control-width) + var(--wbs-child-nest-indent));
-  width: 36%;
-}
-.workspace-wbs__skeleton-bar--short {
-  width: 48%;
-}
-.workspace-wbs__task-row--parent .workspace-wbs__skeleton-bar--title {
-  width: 28%;
+.workspace-wbs__notes-chevron--open {
+  border-top: none;
+  border-bottom: 8px solid currentColor;
 }

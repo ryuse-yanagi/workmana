@@ -39,14 +39,18 @@ export default defineNuxtPlugin(() => {
       return
     }
     const target = event.target
-    const isWbsBodyDragScroll = target instanceof Element
-      && Boolean(resolveDragScrollContainer(target)?.container.closest('.workspace-wbs-board__viewport'))
-      && Boolean(target.closest('.workspace-wbs tbody'))
-    if (!isWbsBodyDragScroll && isInsideSelectableText(target)) {
+    if (!(target instanceof Element)) {
       return
     }
-    const resolved = resolveDragScrollContainer(event.target as Element)
+    const resolved = resolveDragScrollContainer(target)
     if (!resolved) {
+      return
+    }
+    // WBS viewport（項目名ヘッダー・本文）は th/td の user-select:text でもドラッグ可
+    const isWbsViewportDragScroll = resolved.container.classList.contains(
+      'workspace-wbs-board__viewport',
+    )
+    if (!isWbsViewportDragScroll && isInsideSelectableText(target)) {
       return
     }
     const { container, axes } = resolved
@@ -102,6 +106,16 @@ export default defineNuxtPlugin(() => {
     }
     clearDragScroll(event.pointerId)
   }
+  /**
+   * ドラッグスクロール中に画像・選択テキストのネイティブ HTML5 DnD が始まると
+   * 禁止カーソルになり pointermove が止まってスクロールできなくなる。
+   */
+  const onDragStart = (event: DragEvent) => {
+    if (!dragScroll) {
+      return
+    }
+    event.preventDefault()
+  }
   const onClick = (event: MouseEvent) => {
     if (!suppressNextClick) {
       return
@@ -118,6 +132,7 @@ export default defineNuxtPlugin(() => {
   document.addEventListener('pointermove', onPointerMove, { capture: true, passive: false })
   document.addEventListener('pointerup', onPointerEnd, { capture: true })
   document.addEventListener('pointercancel', onPointerEnd, { capture: true })
+  document.addEventListener('dragstart', onDragStart, { capture: true })
   document.addEventListener('click', onClick, { capture: true })
   window.addEventListener('blur', () => clearDragScroll())
 })

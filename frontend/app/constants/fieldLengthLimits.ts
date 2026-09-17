@@ -1,19 +1,28 @@
-export const USER_NAME_MAX_LENGTH = 20
-export const EMAIL_MAX_LENGTH = 255
-export const PASSWORD_MAX_LENGTH = 255
-export const ORGANIZATION_NAME_MAX_LENGTH = 255
-export const ORGANIZATION_SLUG_MAX_LENGTH = 100
-export const TASK_TITLE_MAX_LENGTH = 100
-export const LABEL_NAME_MAX_LENGTH = 30
-export const LABEL_CATEGORY_NAME_MAX_LENGTH = 40
-export const LIST_NAME_MAX_LENGTH = 40
-export const WORKSPACE_NAME_MAX_LENGTH = 30
-export const DOCUMENT_NAME_MAX_LENGTH = 30
-export const DOCUMENT_BODY_MAX_LENGTH = 50000
-export const CHECKLIST_TITLE_MAX_LENGTH = 30
-export const CHECKLIST_ITEM_TEXT_MAX_LENGTH = 2000
-export const COMMENT_BODY_MAX_LENGTH = 100
+/**
+ * フィールド文字数上限。正本は shared/field-length-limits.json。
+ */
+import limits from '#shared/field-length-limits.json'
+
+export const USER_NAME_MAX_LENGTH = limits.USER_NAME
+export const EMAIL_MAX_LENGTH = limits.EMAIL
+export const PASSWORD_MAX_LENGTH = limits.PASSWORD
+export const ORGANIZATION_NAME_MAX_LENGTH = limits.ORGANIZATION_NAME
+export const ORGANIZATION_SLUG_MAX_LENGTH = limits.ORGANIZATION_SLUG
+export const TASK_TITLE_MAX_LENGTH = limits.TASK_TITLE
+export const LABEL_NAME_MAX_LENGTH = limits.LABEL_NAME
+export const LABEL_CATEGORY_NAME_MAX_LENGTH = limits.LABEL_CATEGORY_NAME
+export const LIST_NAME_MAX_LENGTH = limits.LIST_NAME
+export const WORKSPACE_NAME_MAX_LENGTH = limits.WORKSPACE_NAME
+export const DOCUMENT_NAME_MAX_LENGTH = limits.DOCUMENT_NAME
+export const DOCUMENT_BODY_MAX_LENGTH = limits.DOCUMENT_BODY
+export const CHECKLIST_TITLE_MAX_LENGTH = limits.CHECKLIST_TITLE
+export const WORKSPACE_STATUS_NAME_MAX_LENGTH = limits.WORKSPACE_STATUS_NAME
+export const DOCUMENT_CATEGORY_NAME_MAX_LENGTH = limits.DOCUMENT_CATEGORY_NAME
+export const CHECKLIST_ITEM_TEXT_MAX_LENGTH = limits.CHECKLIST_ITEM_TEXT
 /** タスク・スペース・資料の説明で共通 */
-export const TASK_DESCRIPTION_MAX_LENGTH = 5000
-/** 組織設定の既定リスト／ステータス／カテゴリ名 */
-export const DEFAULT_NAMED_ITEM_NAME_MAX_LENGTH = 255
+export const TASK_DESCRIPTION_MAX_LENGTH = limits.TASK_DESCRIPTION
+export const REQUIRED_TEXT_MIN_LENGTH = limits.REQUIRED_TEXT_MIN
+export const PASSWORD_MIN_LENGTH = limits.PASSWORD_MIN
+export const COMMENT_BODY_MAX_LENGTH = limits.COMMENT_BODY
+export const DEFAULT_NAMED_ITEM_NAME_MAX_LENGTH = limits.DEFAULT_NAMED_ITEM_NAME
+export const MEMBER_GROUP_NAME_MAX_LENGTH = limits.MEMBER_GROUP_NAME

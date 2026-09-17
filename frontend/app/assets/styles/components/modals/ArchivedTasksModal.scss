@@ -48,7 +48,7 @@
   border: none;
   padding: 0;
   background: transparent;
-  color: mixin.$text-subtle;
+  color: mixin.$text-muted;
   font-size: 10.92px;
   font-weight: 600;
   line-height: 1;
@@ -62,7 +62,7 @@
   }
 }
 .archived-tasks-modal__action-sep {
-  color: mixin.$text-placeholder;
+  color: mixin.$text-muted;
   font-size: 10.08px;
   line-height: 1;
   user-select: none;

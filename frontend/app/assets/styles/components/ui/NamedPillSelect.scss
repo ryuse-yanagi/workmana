@@ -1,0 +1,181 @@
+.named-pill-select {
+  display: inline-flex;
+  max-width: 100%;
+}
+.named-pill-select__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  line-height: 1;
+}
+.named-pill-select__trigger:disabled {
+  cursor: pointer;
+}
+.named-pill-select__trigger:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.named-pill-select__empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 96px;
+  height: 30px;
+  min-width: 96px;
+  max-width: 96px;
+  border: none;
+  border-radius: 6px;
+  background: mixin.$bg-muted;
+  color: mixin.$text-muted;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+}
+.named-pill-select--readonly {
+  .named-pill-select__display {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    pointer-events: none;
+  }
+}
+.named-pill-select__trigger :deep(.label-strip),
+.named-pill-select--readonly .named-pill-select__display :deep(.label-strip) {
+  box-sizing: border-box;
+  width: 96px;
+  height: 30px;
+  min-width: 96px;
+  max-width: 96px;
+  min-height: 30px;
+  max-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: none;
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: mixin.$text-line-height-safe;
+}
+.named-pill-select__dropdown {
+  position: fixed;
+  z-index: var(--tm-z-floating);
+  box-sizing: border-box;
+  @include mixin.popover-panel-width(#{mixin.$popover-status-category-panel-width});
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$popover-border-radius;
+  background: mixin.$white;
+  box-shadow: mixin.$popover-box-shadow;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: mixin.$popover-padding;
+  @include mixin.popover-scroll-host;
+}
+.named-pill-select__header {
+  --board-filter-header-control-size: #{mixin.$popover-title-row-height};
+  @include mixin.popover-header-bar;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.named-pill-select__title {
+  @include mixin.popover-title-text;
+  grid-column: 2;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  height: var(--board-filter-header-control-size);
+  line-height: mixin.$popover-title-line-height;
+  min-height: mixin.$popover-title-row-height;
+}
+.named-pill-select__close {
+  grid-column: 3;
+  justify-self: end;
+  @include mixin.popover-close-button;
+  width: var(--board-filter-header-control-size);
+  height: var(--board-filter-header-control-size);
+}
+.named-pill-select__close:disabled {
+  cursor: pointer;
+}
+.named-pill-select__search {
+  display: block;
+  width: 100%;
+  margin: 0 0 mixin.$popover-padding;
+  @include mixin.popover-search-input-field;
+  /** バー列に文字が被らないよう退ける（宿主 padding 8px は維持） */
+  @include mixin.popover-outside-scroller-end-inset(8px);
+}
+.named-pill-select__search:focus {
+  @include mixin.input-focus-neutral;
+}
+.named-pill-select__section-heading {
+  margin: 0 0 mixin.$popover-padding;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
+}
+.named-pill-select__list {
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  @include mixin.popover-scroller;
+}
+.named-pill-select__picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 mixin.$popover-padding;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.named-pill-select__row {
+  @include mixin.picker-checkbox-row;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 2px 0;
+  text-align: left;
+}
+.named-pill-select__checkbox {
+  @include mixin.picker-native-radio(14px);
+}
+.named-pill-select__pill {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  height: mixin.$popover-label-bar-height;
+  min-height: mixin.$popover-label-bar-height;
+  border-radius: 4px;
+  border: none;
+  padding: 5px 8px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  line-height: 1.25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+}
+.named-pill-select__empty-text {
+  @include mixin.popover-empty-options-message;
+}

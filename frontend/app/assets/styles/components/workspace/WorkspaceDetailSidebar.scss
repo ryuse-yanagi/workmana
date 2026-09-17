@@ -1,35 +1,76 @@
 
+$workspace-sidebar-width: 400px;
+$workspace-sidebar-pad-inline: 20px;
+
 .workspace-sidebar {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: 400px;
-  flex-shrink: 0;
+  width: $workspace-sidebar-width;
+  flex: 1 1 auto;
+  flex-shrink: 1;
+  min-height: 0;
   box-sizing: border-box;
-  padding: 20px;
+  padding: 0;
   background: mixin.$white;
-  box-shadow: 2px 0 10px mixin.ink-a(0.08);
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: mixin.$scrollbar-thumb transparent;
+  overflow: hidden;
+  @include mixin.scroll-preserve-parent;
 }
-.workspace-sidebar::-webkit-scrollbar {
-  width: 3px;
+.workspace-sidebar__scroller {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  @include mixin.scroll-preserve-scroller(start);
 }
-.workspace-sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.workspace-sidebar::-webkit-scrollbar-thumb {
-  background: mixin.ink-a(0.08);
-  border-radius: 999px;
+.workspace-sidebar__body {
+  @include mixin.scroll-preserve-body(
+    calc(100cqw - #{mixin.$scrollbar-lane}),
+    start
+  );
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 左レーン＋残りパディングで、見た目の左余白は従来どおり 20px */
+  padding-top: 20px;
+  padding-right: $workspace-sidebar-pad-inline;
+  padding-bottom: 40px;
+  padding-left: calc(#{$workspace-sidebar-pad-inline} - #{mixin.$scrollbar-lane});
+  min-height: 100%;
 }
 .workspace-sidebar__status {
   align-self: flex-start;
   max-width: 100%;
   min-width: 0;
+}
+.workspace-sidebar__status :deep(.workspace-status-select--readonly .workspace-status-select__display .label-strip),
+.workspace-sidebar__status :deep(.workspace-status-select__trigger .label-strip) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 96px;
+  max-width: 100%;
+  height: auto;
+  min-height: 30px;
+  max-height: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+.workspace-sidebar__status :deep(.workspace-status-select--readonly .workspace-status-select__display .label-strip__text),
+.workspace-sidebar__status :deep(.workspace-status-select__trigger .label-strip__text) {
+  width: auto;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  text-align: center;
 }
 .workspace-sidebar__title-field {
   position: relative;
@@ -48,7 +89,7 @@
   color: mixin.$text;
   padding: 8px 12px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: mixin.$input-border-radius;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -80,9 +121,12 @@
   overflow: hidden;
   white-space: pre-wrap;
 }
-.workspace-sidebar__title-input:focus {
+/* サイドバーの overflow で外側 shadow が切れるため、inset でタスク名と同じ 2px 相当にする */
+.workspace-sidebar textarea.workspace-sidebar__title-input:focus,
+.workspace-sidebar textarea.workspace-sidebar__title-input:focus-visible {
   outline: none;
   border-color: mixin.$main;
+  box-shadow: inset 0 0 0 1px mixin.$main;
 }
 .workspace-sidebar__title-field--editing {
   cursor: auto;
@@ -93,6 +137,7 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  flex-shrink: 0;
 }
 .workspace-sidebar__labels {
   display: flex;
@@ -108,19 +153,27 @@
   justify-content: center;
   width: auto;
   max-width: 100%;
-  height: 28px;
   min-height: 28px;
-  padding: 0 10px;
+  height: auto;
+  padding: 4px 10px;
   border-radius: 6px;
   font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .workspace-sidebar__labels :deep(.label-strip__text) {
   width: auto;
   overflow: visible;
   text-overflow: unset;
   white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .workspace-sidebar__assignees {
   display: flex;
@@ -129,6 +182,16 @@
   gap: 6px;
   min-width: 0;
 }
+.workspace-sidebar__assignee-avatar {
+  cursor: pointer;
+}
+.workspace-sidebar__assignee-avatar:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.workspace-sidebar__assignee-avatar--active {
+  box-shadow: 0 0 0 2px mixin.$main;
+}
 .workspace-sidebar__add-btn {
   width: 28px;
   height: 28px;
@@ -136,7 +199,7 @@
   border: none;
   border-radius: 6px;
   padding: 0;
-  background: mixin.$text-placeholder;
+  background: mixin.$text-gray;
   color: mixin.$white;
   cursor: pointer;
   display: inline-flex;
@@ -146,9 +209,12 @@
 }
 .workspace-sidebar__assignees .workspace-sidebar__add-btn {
   border-radius: 999px;
+
+  &:focus-visible {
+    @include mixin.input-focus-neutral;
+  }
 }
 .workspace-sidebar__add-btn:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }
 .workspace-sidebar__add-btn:focus-visible {
@@ -173,9 +239,9 @@
   width: 100%;
   box-sizing: border-box;
   padding: 8px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: mixin.$surface-canvas;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  background: mixin.$bg-gray;
   font-size: 16px;
   font-family: inherit;
   font-weight: 400;
@@ -197,7 +263,7 @@
   pointer-events: none;
 }
 .workspace-sidebar__description--placeholder {
-  color: mixin.$text-placeholder;
+  color: mixin.$text-gray;
 }
 .workspace-sidebar__description-field--editing .workspace-sidebar__description {
   pointer-events: none;
@@ -212,14 +278,14 @@
   resize: none;
   overflow: hidden;
   text-decoration: none;
-  border: 1px solid transparent;
+  border: 1px solid mixin.$border;
   box-shadow: none;
   outline: none;
 }
 .workspace-sidebar textarea.workspace-sidebar__description-input:focus,
 .workspace-sidebar textarea.workspace-sidebar__description-input:focus-visible {
   outline: none;
-  border: 1px solid mixin.$main;
+  border: 1px solid mixin.$border;
   box-shadow: none;
 }
 .workspace-sidebar__description-field--editing {
@@ -232,108 +298,249 @@
   line-height: 1.4;
   color: mixin.$danger;
 }
+.workspace-sidebar__empty-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: mixin.$text-muted;
+}
 .workspace-sidebar__related-heading {
   margin: 0;
-  font-size: 13px;
+  font-size: mixin.$popover-section-heading-font-size;
   font-weight: 700;
   color: mixin.$text-muted;
   letter-spacing: 0.04em;
 }
-.workspace-sidebar__related-list {
+.workspace-sidebar__documents-section {
+  gap: 0;
+  flex-shrink: 0;
+}
+$workspace-document-card-min-height: 56px;
+$workspace-documents-list-gap: 12px;
+/* 4件分（56×4 + gap12×3）が border 込み 320px に収まるよう toolbar↔list の gap は 8 */
+$workspace-documents-panel-gap: 8px;
+.workspace-sidebar__documents-panel {
+  display: flex;
+  flex-direction: column;
+  gap: $workspace-documents-panel-gap;
+  box-sizing: border-box;
+  min-height: 320px;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid mixin.ink-a(0.06);
+  border-radius: 10px;
+  background: mixin.$bg-gray;
+}
+.workspace-sidebar__documents-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+  height: 30px;
+}
+.workspace-sidebar__documents-heading {
+  margin: 0;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: mixin.$text-muted;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.workspace-sidebar__documents-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: mixin.$main;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  :deep(svg) {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+}
+.workspace-sidebar__documents-add-btn:disabled {
+  cursor: pointer;
+}
+.workspace-sidebar__documents-add-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.workspace-sidebar__documents-list {
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: $workspace-documents-list-gap;
+  flex-shrink: 0;
 }
-.workspace-sidebar__related-item {
+.workspace-sidebar__documents-item {
+  min-width: 0;
+}
+.workspace-sidebar__document-card {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 10px;
   box-sizing: border-box;
   width: 100%;
-  height: 40px;
-  min-height: 40px;
-  max-height: 40px;
-  padding: 0 4px 0 0;
+  height: auto;
+  min-height: $workspace-document-card-min-height;
+  margin: 0;
+  padding: 10px 12px;
   border: 1px solid mixin.$border;
-  border-radius: 8px;
+  border-radius: 10px;
   background: mixin.$white;
-  min-width: 0;
-}
-.workspace-sidebar__related-link {
-  flex: 1;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  padding: 0 8px 0 12px;
-  text-decoration: none;
-}
-.workspace-sidebar__related-link-text {
-  min-width: 0;
+  box-shadow: 0 1px 0 mixin.ink-a(0.06);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: mixin.$text;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.2;
+  transition: border-color 0.15s ease;
 }
-.workspace-sidebar__related-link:hover {
-  opacity: 0.8;
+.workspace-sidebar__document-card:hover {
+  border-color: mixin.$main;
+  opacity: 1;
 }
-.workspace-sidebar__related-menu-btn {
-  position: relative;
-  z-index: 1;
+.workspace-sidebar__document-card:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.workspace-sidebar__document-card .card-menu-wrap {
+  position: absolute;
+  top: 3.5px;
+  right: 3.5px;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.workspace-sidebar__document-card:hover .card-menu-wrap,
+.workspace-sidebar__document-card .card-menu-wrap--open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.workspace-sidebar__document-card .card-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: mixin.$white;
+  color: mixin.$text-muted;
+  line-height: 0;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  :deep(svg) {
+    width: 20px;
+    height: 20px;
+  }
+}
+.workspace-sidebar__document-card .card-menu-trigger:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.workspace-sidebar__document-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   width: 32px;
   height: 32px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
+  border-radius: 8px;
+  background: mixin.$main-aqua-surface-light;
+  color: mixin.$main;
+}
+.workspace-sidebar__document-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.workspace-sidebar__document-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: mixin.$text-heading;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.workspace-sidebar__document-category {
+  display: flex;
+  align-self: flex-start;
+  max-width: 100%;
+  line-height: 0;
+}
+.workspace-sidebar__document-category :deep(.label-strip) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  min-width: 56px;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.workspace-sidebar__document-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: mixin.$text-muted;
-  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.35;
 }
-.workspace-sidebar__related-menu-btn:disabled {
-  opacity: 0.55;
-  cursor: pointer;
+.workspace-sidebar__documents-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  text-align: center;
 }
-.workspace-sidebar__related-menu-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 1px;
-}
-.workspace-sidebar__related-edit-btn {
+.workspace-sidebar__documents-empty-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: flex-start;
-  box-sizing: border-box;
-  margin: 0;
-  min-width: 96px;
+  width: 32px;
   height: 32px;
-  padding: 0 16px;
-  border: 1px solid mixin.$main;
-  border-radius: 999px;
-  background: mixin.$white;
-  color: mixin.$main;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  line-height: 1;
-  cursor: pointer;
+  background: transparent;
+  color: mixin.$text-gray;
 }
-.workspace-sidebar__related-edit-btn:disabled {
-  opacity: 0.55;
-  cursor: pointer;
-}
-.workspace-sidebar__related-edit-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
+.workspace-sidebar__documents-empty-text {
+  margin: 0;
+  color: mixin.$text-muted;
+  font-size: 13px;
+  line-height: 1.4;
 }

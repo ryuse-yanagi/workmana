@@ -4,24 +4,26 @@
     :title="title"
     :aria-label="title"
     :close-disabled="loading"
-    width="min(496px, 100%)"
+    width="min(480px, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
+    @ctrl-enter="submit"
   >
     <div class="named-item-delete-modal-body">
       <p class="named-item-delete-modal-message">
         この{{ itemKind }}を削除します。よろしいですか？
-        <template v-if="itemName"><br>【対象】 {{ itemName }}</template>
+        <template v-if="displayedItemName">
+          <span class="named-item-delete-modal-target">【対象】<br>{{ displayedItemName }}</span>
+        </template>
         <template v-if="extraMessage"><br>※{{ extraMessage }}</template>
       </p>
       <p v-if="submitError" class="err">{{ submitError }}</p>
-      <div class="actions">
-        <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">
-          キャンセル
-        </button>
-        <button type="button" class="danger-btn danger-btn--pill" :disabled="loading" @click="submit">
-          削除
-        </button>
-      </div>
+      <ModalFooterActions
+        confirm-text="削除"
+        confirm-variant="danger"
+        :disabled="loading"
+        @cancel="close"
+        @confirm="submit"
+      />
     </div>
   </BaseModal>
 </template>
@@ -47,11 +49,14 @@ const emit = defineEmits<{
   confirm: []
 }>()
 const submitError = ref<string | null>(null)
+/** 開いた時点の名称を保持し、削除中に親の itemName が消えてもモーダル高さが崩れないようにする */
+const displayedItemName = ref('')
 watch(
   () => props.modelValue,
   (open) => {
     if (open) {
       submitError.value = null
+      displayedItemName.value = (props.itemName ?? '').trim()
     }
   },
 )

@@ -15,11 +15,13 @@
           :disabled="clearDisabled"
           @click.stop="emit('clear')"
         >
-          <span
+          <input
+            type="radio"
             class="parent-task-picker-radio"
-            :class="{ 'parent-task-picker-radio--checked': selectedParentId === null }"
+            :checked="selectedParentId === null"
+            tabindex="-1"
             aria-hidden="true"
-          />
+          >
           <span class="parent-task-picker-label">未設定</span>
         </button>
       </li>
@@ -33,28 +35,20 @@
           :class="{ 'parent-task-picker-row--selected': selectedParentId === parent.id }"
           @click.stop="emit('select', parent.id)"
         >
-          <span
+          <input
+            type="radio"
             class="parent-task-picker-radio"
-            :class="{ 'parent-task-picker-radio--checked': selectedParentId === parent.id }"
+            :checked="selectedParentId === parent.id"
+            tabindex="-1"
             aria-hidden="true"
-          />
+          >
           <span class="parent-task-picker-label">{{ parent.title }}</span>
         </button>
       </li>
     </ul>
     <p v-if="!loading && !parents.length && !showUnsetOption" class="empty-text parent-task-empty">
-      親タスクがありません。
+      該当する親タスクがありません
     </p>
-    <div v-if="!showUnsetOption && !loading && parents.length" class="popover-field-actions">
-      <button
-        type="button"
-        class="popover-field-clear-btn"
-        :disabled="clearDisabled || selectedParentId === null"
-        @click.stop="emit('clear')"
-      >
-        解除
-      </button>
-    </div>
     <p v-if="error" class="err">{{ error }}</p>
   </div>
 </template>
@@ -63,14 +57,19 @@ export type ParentTaskPickerOption = {
   id: number
   title: string
 }
-defineProps<{
+withDefaults(defineProps<{
   loading?: boolean
   parents: ParentTaskPickerOption[]
   selectedParentId: number | null
   clearDisabled?: boolean
   showUnsetOption?: boolean
   error?: string | null
-}>()
+}>(), {
+  loading: false,
+  clearDisabled: false,
+  showUnsetOption: false,
+  error: null,
+})
 const emit = defineEmits<{
   select: [number]
   clear: []

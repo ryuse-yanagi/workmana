@@ -19,10 +19,10 @@
           <span class="auth-gate__spinner" aria-hidden="true" />
           <p>{{ busyLabel }}</p>
         </div>
-        <slot v-else />
+        <slot />
       </section>
 
-      <p v-if="$slots.footer && !busy" class="auth-gate__footer">
+      <p v-if="$slots.footer" class="auth-gate__footer">
         <slot name="footer" />
       </p>
     </div>

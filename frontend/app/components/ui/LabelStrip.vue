@@ -29,8 +29,8 @@ const props = withDefaults(defineProps<{
   textColor: null,
   displayMode: 'inline',
 })
-function labelBarTextColor (hex: string): string {
-  const normalized = hex.replace('#', '')
+function labelBarTextColor (hex: string | undefined): string {
+  const normalized = (hex || '').replace('#', '')
   // mixin.$text / $white
   if (normalized.length !== 6) {
     return '#000'
@@ -42,7 +42,7 @@ function labelBarTextColor (hex: string): string {
   return luminance > 0.62 ? '#000' : '#fff'
 }
 const stripStyle = computed(() => ({
-  backgroundColor: props.label.color,
+  backgroundColor: props.label.color || '#ccc',
   color: props.textColor ?? labelBarTextColor(props.label.color),
 }))
 </script>

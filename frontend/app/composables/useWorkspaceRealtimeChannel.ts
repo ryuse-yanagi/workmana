@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import { resolveLabelColors } from '../utils/colorPresetResolution'
+import { resolveAndSortLabels } from './useLabelCategories'
 import { resolveAvatarUrl } from '../utils/resolveAvatarUrl'
 import { sortMembersByDisplayName } from './useMemberDisplay'
 export type RealtimeBoardTask = {
@@ -14,6 +14,7 @@ export type RealtimeBoardTask = {
   due_date?: string | null
   gantt_bar_color?: string | null
   effort_hours?: number | string | null
+  progress_rate?: number | string | null
   labels?: Array<{ id: number; name: string; color_index?: number; color: string }>
   assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
 }
@@ -25,6 +26,10 @@ export type RealtimeArchivedTask = {
   start_date?: string | null
   due_date?: string | null
   effort_hours?: number | string | null
+  progress_rate?: number | string | null
+  is_parent_task?: boolean
+  parent_task_id?: number | null
+  parent_task_title?: string | null
   labels?: Array<{ id: number; name: string; color_index?: number; color: string }>
   assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
 }
@@ -32,6 +37,12 @@ export type RealtimeWbsReorderItem = {
   id: number
   sort_order: number
   parent_task_id: number | null
+}
+export type RealtimeWorkspaceMember = {
+  id: number
+  name: string | null
+  email: string | null
+  avatar_url: string | null
 }
 type EchoChannel = {
   listen: (event: string, cb: (payload: unknown) => void) => EchoChannel
@@ -44,6 +55,7 @@ type EchoClient = {
       connection: {
         state: string
         bind: (event: string, cb: () => void) => void
+        unbind: (event: string, cb?: () => void) => void
       }
     }
   }
@@ -65,6 +77,10 @@ export type ProjectRealtimeHandlers = {
   }) => void
   onListDeleted?: (listId: number) => void
   onListsReordered?: (payload: { list_ids: number[] }) => void
+  onWorkspaceMembersUpdated?: (payload: {
+    members: RealtimeWorkspaceMember[]
+    removed_member_ids: number[]
+  }) => void
 }
 export function useWorkspaceRealtimeChannel (
   workspaceId: Ref<string>,
@@ -74,6 +90,9 @@ export function useWorkspaceRealtimeChannel (
   const apiBase = String(config.public.apiBaseUrl || '/api')
   let channelName: string | null = null
   let subscribed = false
+  let subscribeGeneration = 0
+  let connectedHandler: (() => void) | null = null
+  let failedHandler: (() => void) | null = null
   function withResolvedAssigneeAvatars<T extends { assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }> }> (task: T): T {
     if (!task.assignees?.length) {
       return task
@@ -93,8 +112,14 @@ export function useWorkspaceRealtimeChannel (
     }
     return {
       ...withAvatars,
-      labels: resolveLabelColors(withAvatars.labels),
+      labels: resolveAndSortLabels(withAvatars.labels),
     }
+  }
+  function normalizeRealtimeMembers (members: RealtimeWorkspaceMember[]): RealtimeWorkspaceMember[] {
+    return sortMembersByDisplayName(members.map(member => ({
+      ...member,
+      avatar_url: resolveAvatarUrl(member.avatar_url, apiBase),
+    })))
   }
   function normalizeRealtimeArchivedTask (task: RealtimeArchivedTask): RealtimeArchivedTask {
     const withAvatars = withResolvedAssigneeAvatars(task)
@@ -103,7 +128,7 @@ export function useWorkspaceRealtimeChannel (
     }
     return {
       ...withAvatars,
-      labels: resolveLabelColors(withAvatars.labels),
+      labels: resolveAndSortLabels(withAvatars.labels),
     }
   }
   function bindListeners (channel: EchoChannel) {
@@ -207,6 +232,39 @@ export function useWorkspaceRealtimeChannel (
         }
       })
     }
+    if (handlers.onWorkspaceMembersUpdated) {
+      channel.listen('.WorkspaceMembersUpdated', (payload: unknown) => {
+        const data = payload as {
+          members?: RealtimeWorkspaceMember[]
+          removed_member_ids?: number[]
+        }
+        if (!Array.isArray(data?.members)) {
+          return
+        }
+        handlers.onWorkspaceMembersUpdated!({
+          members: normalizeRealtimeMembers(data.members),
+          removed_member_ids: Array.isArray(data.removed_member_ids)
+            ? data.removed_member_ids.filter((id): id is number => typeof id === 'number')
+            : [],
+        })
+      })
+    }
+  }
+  function clearConnectionHandlers (echo: EchoClient | null | undefined) {
+    const connection = echo?.connector?.pusher?.connection
+    if (!connection) {
+      connectedHandler = null
+      failedHandler = null
+      return
+    }
+    if (connectedHandler) {
+      connection.unbind('connected', connectedHandler)
+      connectedHandler = null
+    }
+    if (failedHandler) {
+      connection.unbind('failed', failedHandler)
+      failedHandler = null
+    }
   }
   function subscribe () {
     if (!import.meta.client) {
@@ -224,31 +282,49 @@ export function useWorkspaceRealtimeChannel (
       subscribed = false
     }
     channelName = nextChannel
+    const generation = ++subscribeGeneration
+    clearConnectionHandlers(echo)
     const attach = () => {
+      if (generation !== subscribeGeneration) {
+        return
+      }
       if (subscribed) {
         return
       }
+      // 再接続時に同じチャネルへ二重 listen しないよう一度 leave してから bind
+      echo.leave(nextChannel)
       subscribed = true
       bindListeners(echo.private(nextChannel))
+    }
+    const onFailed = () => {
+      if (generation !== subscribeGeneration) {
+        return
+      }
+      subscribed = false
+      echo.leave(nextChannel)
+      console.error('[realtime] WebSocket connection failed — is `php artisan reverb:start` running?')
     }
     const pusher = echo.connector?.pusher
     if (pusher?.connection.state === 'connected') {
       attach()
       return
     }
+    connectedHandler = attach
+    failedHandler = onFailed
     pusher?.connection.bind('connected', attach)
-    pusher?.connection.bind('failed', () => {
-      subscribed = false
-      console.error('[realtime] WebSocket connection failed — is `php artisan reverb:start` running?')
-    })
+    pusher?.connection.bind('failed', onFailed)
   }
   function unsubscribe () {
-    if (!import.meta.client || !channelName) {
+    if (!import.meta.client) {
       return
     }
+    subscribeGeneration += 1
     const nuxtApp = useNuxtApp()
     const echo = (nuxtApp as unknown as { $echo?: EchoClient | null }).$echo
-    echo?.leave(channelName)
+    clearConnectionHandlers(echo)
+    if (channelName) {
+      echo?.leave(channelName)
+    }
     channelName = null
     subscribed = false
   }

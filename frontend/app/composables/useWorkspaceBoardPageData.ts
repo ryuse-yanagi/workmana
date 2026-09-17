@@ -1,16 +1,17 @@
 import type { TaskDetail, TaskDetailMember } from '../components/modals/TaskDetailModal.vue'
 import type { TaskChecklist } from '../components/task/TaskDetailChecklistBlock.vue'
 import type { TaskAttachmentsByTaskId } from '../components/task/taskAttachmentTypes'
-import type { TaskCommentsByTaskId } from '../components/task/taskCommentTypes'
 import { useApi } from './useApi'
 import { useCurrentUser } from './useCurrentUser'
 import {
   flattenLabelCategories,
   normalizeLabelCategories,
+  resolveAndSortLabels,
   type LabelCategoryGroup,
 } from './useLabelCategories'
-import { resolveLabelColors, resolveListColors } from '../utils/colorPresetResolution'
+import { resolveListColors } from '../utils/colorPresetResolution'
 import { sortMembersByDisplayName } from './useMemberDisplay'
+import { getCachedWorkspaceAssignees } from './useOrgWorkspaceIndexPageData'
 export type WorkspaceBoardLabel = {
   id: number
   name: string
@@ -36,6 +37,7 @@ export type WorkspaceBoardTask = {
   due_date?: string | null
   gantt_bar_color?: string | null
   effort_hours?: number | string | null
+  progress_rate?: number | string | null
   labels?: WorkspaceBoardLabel[]
   assignees?: Array<{
     id: number
@@ -59,10 +61,12 @@ export type WorkspaceBoardPageSnapshot = {
   orgLabelCategories: WorkspaceBoardLabelCategory[]
   workspaceMembers: TaskDetailMember[]
   parentTasks: WorkspaceBoardParentTask[]
-  taskCommentsByTaskId: TaskCommentsByTaskId
   taskAttachmentsByTaskId: TaskAttachmentsByTaskId
 }
-export function boardTaskToTaskDetail (task: WorkspaceBoardTask): TaskDetail {
+export function boardTaskToTaskDetail (
+  task: WorkspaceBoardTask,
+  catalogLabels: Array<{ id: number }> = [],
+): TaskDetail {
   return {
     id: task.id,
     title: task.title,
@@ -72,8 +76,9 @@ export function boardTaskToTaskDetail (task: WorkspaceBoardTask): TaskDetail {
     start_date: task.start_date ?? null,
     due_date: task.due_date ?? null,
     effort_hours: task.effort_hours ?? null,
+    progress_rate: task.progress_rate ?? null,
     assignees: sortMembersByDisplayName((task.assignees ?? []) as TaskDetailMember[]),
-    labels: task.labels ? resolveLabelColors(task.labels) : [],
+    labels: resolveAndSortLabels(task.labels, catalogLabels),
     checklists: task.checklists ?? [],
     is_parent_task: task.is_parent_task,
     parent_task_id: task.parent_task_id ?? null,
@@ -115,33 +120,29 @@ export function useWorkspaceBoardPageData () {
         listsRes,
         tasksRes,
         labelCategoriesRes,
-        membersRes,
         parentTasksRes,
-        commentsRes,
         attachmentsRes,
       ] = await Promise.all([
         api<{ data: WorkspaceBoardListRow[] }>(`/orgs/${slug}/workspaces/${id}/lists`),
         api<{ data: WorkspaceBoardTask[] }>(`/orgs/${slug}/workspaces/${id}/tasks`),
         api<{ data: WorkspaceBoardLabelCategory[] }>(`/orgs/${slug}/task-label-categories`),
-        api<{ data: TaskDetailMember[] }>(`/orgs/${slug}/workspaces/${id}/members`),
         api<{ data: WorkspaceBoardParentTask[] }>(`/orgs/${slug}/workspaces/${id}/tasks/parents`),
-        api<{ data: TaskCommentsByTaskId }>(`/orgs/${slug}/workspaces/${id}/tasks/comments`),
         api<{ data: TaskAttachmentsByTaskId }>(`/orgs/${slug}/workspaces/${id}/tasks/attachments`),
         ensureCurrentUser(),
       ])
       const orgLabelCategories = normalizeLabelCategories(labelCategoriesRes.data ?? [])
+      const orgLabels = flattenLabelCategories(orgLabelCategories)
       const snapshot: WorkspaceBoardPageSnapshot = {
         lists: resolveListColors(listsRes.data ?? []),
         tasks: (tasksRes.data ?? []).map(task => ({
           ...task,
           assignees: sortMembersByDisplayName(task.assignees ?? []),
-          labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
+          labels: task.labels ? resolveAndSortLabels(task.labels, orgLabels) : task.labels,
         })),
-        orgLabels: flattenLabelCategories(orgLabelCategories),
+        orgLabels,
         orgLabelCategories,
-        workspaceMembers: sortMembersByDisplayName(membersRes.data ?? []),
+        workspaceMembers: getCachedWorkspaceAssignees(slug, id),
         parentTasks: parentTasksRes.data ?? [],
-        taskCommentsByTaskId: commentsRes.data ?? {},
         taskAttachmentsByTaskId: attachmentsRes.data ?? {},
       }
       cacheByKey.set(key, snapshot)
@@ -222,6 +223,7 @@ export function useWorkspaceBoardPageData () {
       due_date?: string | null
       gantt_bar_color?: string | null
       effort_hours?: number | string | null
+      progress_rate?: number | string | null
       labels?: WorkspaceBoardLabel[]
       assignees?: WorkspaceBoardTask['assignees']
       checklists?: TaskChecklist[]
@@ -250,8 +252,9 @@ export function useWorkspaceBoardPageData () {
         ...(patch.due_date !== undefined ? { due_date: patch.due_date } : {}),
         ...(patch.gantt_bar_color !== undefined ? { gantt_bar_color: patch.gantt_bar_color } : {}),
         ...(patch.effort_hours !== undefined ? { effort_hours: patch.effort_hours } : {}),
-        ...(patch.labels !== undefined ? { labels: resolveLabelColors(patch.labels) } : {}),
-        ...(patch.assignees !== undefined ? { assignees: patch.assignees } : {}),
+        ...(patch.progress_rate !== undefined ? { progress_rate: patch.progress_rate } : {}),
+        ...(patch.labels !== undefined ? { labels: resolveAndSortLabels(patch.labels, cached.orgLabels) } : {}),
+        ...(patch.assignees !== undefined ? { assignees: sortMembersByDisplayName(patch.assignees) } : {}),
         ...(patch.checklists !== undefined ? { checklists: patch.checklists } : {}),
       }
     })

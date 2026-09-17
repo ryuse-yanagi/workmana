@@ -49,14 +49,6 @@ class TaskLabelController extends ApiController
             return response()->json(['message' => 'Task label name cannot be empty.'], 422);
         }
 
-        $exists = TaskLabel::query()
-            ->where('category_id', $category->id)
-            ->where('name', $name)
-            ->exists();
-        if ($exists) {
-            return response()->json(['message' => 'A label with this name already exists in the category.'], 422);
-        }
-
         $colorIndex = (int) ($validated['color_index'] ?? LabelColorPresets::DEFAULT_INDEX);
         if (! LabelColorPresets::isValidIndex($colorIndex)) {
             return response()->json(['message' => 'Invalid label color index.'], 422);
@@ -96,14 +88,6 @@ class TaskLabelController extends ApiController
             $name = trim($validated['name']);
             if ($name === '') {
                 return response()->json(['message' => 'Task label name cannot be empty.'], 422);
-            }
-            $exists = TaskLabel::query()
-                ->where('category_id', $taskLabel->category_id)
-                ->where('name', $name)
-                ->where('id', '!=', $taskLabel->id)
-                ->exists();
-            if ($exists) {
-                return response()->json(['message' => 'A label with this name already exists in the category.'], 422);
             }
             $taskLabel->name = $name;
         }

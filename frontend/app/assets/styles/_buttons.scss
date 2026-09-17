@@ -1,19 +1,22 @@
 /**
- * disabled 時も禁止カーソルにしない。
- * （押下直後に loading で disabled になると、カーソル下で not-allowed に切り替わって見えるため）
+ * disabled 時も見た目（opacity / 色）を変えない。
+ * （押下直後に loading で disabled になっても、白く薄くならないようにする）
  */
 button:disabled,
 input[type='button']:disabled,
 input[type='submit']:disabled,
 input[type='reset']:disabled {
   cursor: pointer;
+  opacity: 1;
 }
 
 /**
  * 全ボタン共通: hover 時は色を変えず opacity のみ下げる。
- * （モーダルの開始日など .action-btn は従来どおり背景色変更のため除外）
+ * （モーダルの期間など .action-btn は従来どおり背景色変更のため除外）
+ * （タスクカード相当の資料カード / 添付ファイル行は border 変化のみとし opacity は変えない）
+ * （タスクカード等の ・・・ メニューは表示時の opacity を維持）
  */
-button:hover:not(:disabled):not(.action-btn),
+button:hover:not(:disabled):not(.action-btn):not(.workspace-sidebar__document-card):not(.document-sidebar__document-card):not(.attachments-item__main):not(.card-menu-trigger),
 input[type='button']:hover:not(:disabled),
 input[type='submit']:hover:not(:disabled),
 input[type='reset']:hover:not(:disabled) {
@@ -34,12 +37,8 @@ select:hover:not(:disabled),
 .dropdown-item:hover:not(:disabled) {
   opacity: 0.8;
 }
-
-/**
- * スペース作成・タスク追加・設定の追加ボタンなど、
- * アプリ共通のボタン内テキストを上下中央に揃える。
- */
 .primary-btn,
+.subheader-secondary-btn,
 .ghost-btn,
 .danger-btn,
 .settings-primary-btn,
@@ -57,23 +56,24 @@ select:hover:not(:disabled),
 }
 
 /**
- * モーダル内の「キャンセル + 実行系」2ボタンを統一。
+ * モーダル内の「キャンセル + 実行系」フッターボタン。
+ * 実装は ModalFooterActions コンポーネントに集約。
  * - 160px x 40px
- * - 中央寄せ
- * - キャンセル: 薄い灰色 / 濃い灰色
- * - 実行系（作成・更新・追加など）: main / white
- * - 削除系（削除・アーカイブなど）: danger / white
+ * - 中央寄せ / gap 16px
+ * - キャンセル: $gray / $text-sub
+ * - 実行系: $main / white
+ * - 削除系: $danger / white
  */
-.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions),
-.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) {
+.base-modal-card .modal-footer-actions,
+.modal-card .modal-footer-actions {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 16px;
 }
 
-.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > :is(.ghost-btn, .primary-btn, .danger-btn),
-.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > :is(.ghost-btn, .primary-btn, .danger-btn) {
+.base-modal-card .modal-footer-actions > .modal-footer-actions__btn,
+.modal-card .modal-footer-actions > .modal-footer-actions__btn {
   width: 160px;
   height: 40px;
   min-height: 40px;
@@ -83,30 +83,115 @@ select:hover:not(:disabled),
   font-weight: 700;
 }
 
-.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .ghost-btn,
-.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .ghost-btn {
-  background: mixin.$border;
+.base-modal-card .modal-footer-actions > .modal-footer-actions__btn--ghost,
+.modal-card .modal-footer-actions > .modal-footer-actions__btn--ghost {
+  background: mixin.$gray;
   color: mixin.$text-sub;
   border-color: transparent;
 }
 
-.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .primary-btn,
-.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .primary-btn {
+.base-modal-card .modal-footer-actions > .modal-footer-actions__btn--primary,
+.modal-card .modal-footer-actions > .modal-footer-actions__btn--primary {
   background: mixin.$main;
   color: mixin.$white;
   border-color: transparent;
 }
 
-.base-modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .danger-btn,
-.modal-card :is(.actions, .modal-footer, .confirm-modal-actions) > .danger-btn {
+.base-modal-card .modal-footer-actions > .modal-footer-actions__btn--danger,
+.modal-card .modal-footer-actions > .modal-footer-actions__btn--danger {
   background: mixin.$danger;
   color: mixin.$white;
   border-color: transparent;
 }
 
 /**
+ * 画面別ヘッダーのモード切替・補助操作ボタン（WBS / 資料の編集開始など）。
+ * primary-btn（モーダル起動・作成）とは形状・色で区別する。
+ */
+.subheader-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0;
+  height: 32px;
+  min-width: 96px;
+  padding: 0 12px;
+  border: 1px solid mixin.$border;
+  border-radius: 6px;
+  background: mixin.$bg-gray;
+  color: mixin.$text-sub;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  :deep(svg) {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+}
+.subheader-secondary-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.subheader-secondary-btn:disabled {
+  cursor: pointer;
+}
+/**
+ * ヘッダー「タスク追加」「編集」「保存」「キャンセル」—
+ * アイコン・文字のみ、背景・border なし。
+ */
+.subheader-secondary-btn--add,
+.subheader-secondary-btn--edit,
+.subheader-secondary-btn--save,
+.subheader-secondary-btn--cancel {
+  min-width: 0;
+  gap: 6px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 16px;
+}
+.subheader-secondary-btn--add,
+.subheader-secondary-btn--edit,
+.subheader-secondary-btn--save {
+  color: mixin.$main;
+  :deep(svg) {
+    width: 18px;
+    height: 18px;
+  }
+}
+.subheader-secondary-btn--cancel {
+  color: mixin.$text-gray;
+}
+.subheader-secondary-btn--add:focus-visible,
+.subheader-secondary-btn--edit:focus-visible,
+.subheader-secondary-btn--save:focus-visible,
+.subheader-secondary-btn--cancel:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.subheader-edit-with-divider {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+/** 共通ヘッダー歯車右の縦棒と同寸法（画面別ヘッダー向けの線色） */
+.subheader-actions__divider {
+  @include mixin.header-vertical-divider(mixin.ink-a(0.38));
+}
+
+/**
  * 画面別ヘッダーの「・・・」/ フィルターなど — アイコンのみの操作ボタン。
- * スペース一覧・資料一覧・ボード・資料詳細で共通。
+ * ヘッダー・一覧行・WBS・ボードリスト・サイドバーなどで共通。
  */
 .subheader-menu-btn {
   display: inline-flex;
@@ -119,7 +204,7 @@ select:hover:not(:disabled),
   padding: 0;
   border: none;
   border-radius: 6px;
-  background: mixin.$surface-hover;
+  background: mixin.$bg-gray;
   color: mixin.$text-muted;
   cursor: pointer;
   flex-shrink: 0;
@@ -130,8 +215,23 @@ select:hover:not(:disabled),
   outline-offset: 2px;
 }
 .subheader-menu-btn:disabled {
-  opacity: 0.55;
   cursor: pointer;
+}
+.subheader-menu-btn--filter-active {
+  position: relative;
+  color: mixin.$main;
+}
+.subheader-menu-btn--filter-active::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: mixin.$main;
+  box-shadow: 0 0 0 1.5px mixin.$bg-gray;
+  pointer-events: none;
 }
 
 .field-error {

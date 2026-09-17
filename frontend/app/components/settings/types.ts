@@ -1,12 +1,13 @@
 export type SettingsTabKey =
   | 'organization'
-  | 'members'
-  | 'workspace_labels'
-  | 'workspace_statuses'
   | 'default_board_lists'
+  | 'workspace_statuses'
+  | 'document_categories'
+  | 'labels'
+  | 'workspace_labels'
   | 'task_labels'
   | 'document_labels'
-  | 'document_categories'
+  | 'members'
 
 export type SettingsMenuItem = {
   key: SettingsTabKey
@@ -21,6 +22,7 @@ export type SettingsMenuSection = {
 export type SettingsLabelTabKey = 'workspace' | 'task' | 'document'
 
 export const SETTINGS_LABEL_TAB_BY_KEY: Partial<Record<SettingsTabKey, SettingsLabelTabKey>> = {
+  labels: 'workspace',
   workspace_labels: 'workspace',
   task_labels: 'task',
   document_labels: 'document',
@@ -62,25 +64,52 @@ export type SettingsPageSnapshot = {
   orgSettings: OrgSettingsResponse
   workspaceLabelCategories: SettingsLabelCategory[]
   taskLabelCategories: SettingsLabelCategory[]
-  documentLabelCategories: SettingsLabelCategory[]
+  documentLabelCategories?: SettingsLabelCategory[]
+  members?: SettingsOrgMember[]
+  memberCount?: number
+  pendingInvites?: SettingsPendingInvite[]
 }
 
-export const DEFAULT_BOARD_LIST_ITEMS: DefaultNamedColorItem[] = [
-  { name: '未着手', color_index: 0 },
-  { name: '進行中', color_index: 1 },
-  { name: '完了', color_index: 3 },
-]
+export type SettingsOrgMember = {
+  id: number
+  name: string
+  email: string
+  role?: string | null
+  avatar_url?: string | null
+}
 
-export const DEFAULT_WORKSPACE_STATUS_ITEMS: DefaultNamedColorItem[] = [
-  { name: '準備中', color_index: 1 },
-  { name: '稼働中', color_index: 0 },
-  { name: '保留', color_index: 3 },
-  { name: '完了', color_index: 5 },
-]
+export type SettingsPendingInvite = {
+  id: number
+  email: string
+  expires_at: string
+}
 
-export const DEFAULT_DOCUMENT_CATEGORY_ITEMS: DefaultNamedColorItem[] = [
-  { name: 'その他', color_index: 5 },
-]
+export type SettingsMemberGroup = {
+  id: number
+  name: string
+  color_index: number
+  sort_order?: number
+  members?: Array<{
+    id: number
+    name: string | null
+    email?: string | null
+    avatar_url?: string | null
+  }>
+}
+
+import defaultNamedColorItems from '#shared/default-named-color-items.json'
+
+/** 組織設定の既定配列の最大件数。正本は shared/default-named-color-items.json */
+export const DEFAULT_NAMED_COLOR_ITEMS_MAX = defaultNamedColorItems.maxItems
+
+export const DEFAULT_BOARD_LIST_ITEMS: DefaultNamedColorItem[] =
+  defaultNamedColorItems.boardLists.map(item => ({ ...item }))
+
+export const DEFAULT_WORKSPACE_STATUS_ITEMS: DefaultNamedColorItem[] =
+  defaultNamedColorItems.workspaceStatuses.map(item => ({ ...item }))
+
+export const DEFAULT_DOCUMENT_CATEGORY_ITEMS: DefaultNamedColorItem[] =
+  defaultNamedColorItems.documentCategories.map(item => ({ ...item }))
 
 function normalizeDefaultNamedColorItems (
   raw: Array<DefaultNamedColorItem | string> | null | undefined,

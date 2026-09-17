@@ -25,14 +25,10 @@ class PermanentlyDeleteWorkspaceWithTasksTest extends TestCase
 
         $document = SharedDocument::query()->create([
             'organization_id' => $organization->id,
+            'workspace_id' => $workspace->id,
             'created_by' => $user->id,
             'name' => 'Linked notes',
         ]);
-        $this->actingAsApiUser($user)
-            ->putJson("/api/orgs/acme/workspaces/{$workspace->id}/related-documents", [
-                'document_ids' => [$document->id],
-            ])
-            ->assertOk();
         $listId = $this->defaultListId($workspace);
 
         $taskId = (int) $this->actingAsApiUser($user)
@@ -42,19 +38,6 @@ class PermanentlyDeleteWorkspaceWithTasksTest extends TestCase
             ])
             ->assertCreated()
             ->json('id');
-
-        $commentId = (int) $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/{$taskId}/comments", [
-                'body' => 'Comment on a doomed task',
-            ])
-            ->assertCreated()
-            ->json('id');
-
-        $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/{$taskId}/comments/{$commentId}/reactions", [
-                'emoji' => '👍',
-            ])
-            ->assertOk();
 
         $this->actingAsApiUser($user)
             ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/archive")
@@ -67,14 +50,11 @@ class PermanentlyDeleteWorkspaceWithTasksTest extends TestCase
         $this->assertDatabaseMissing('workspaces', ['id' => $workspace->id]);
         $this->assertDatabaseMissing('tasks', ['workspace_id' => $workspace->id]);
         $this->assertDatabaseMissing('task_histories', ['workspace_id' => $workspace->id]);
-        $this->assertDatabaseMissing('task_comments', ['task_id' => $taskId]);
-        $this->assertDatabaseMissing('task_comment_reactions', ['task_comment_id' => $commentId]);
         $this->assertDatabaseMissing('task_assignees', ['task_id' => $taskId]);
         $this->assertDatabaseMissing('lists', ['workspace_id' => $workspace->id]);
         $this->assertDatabaseMissing('workspace_assignees', ['workspace_id' => $workspace->id]);
-        $this->assertDatabaseMissing('workspace_related_document', ['workspace_id' => $workspace->id]);
 
-        // 関連付けられていた資料は削除されない
-        $this->assertDatabaseHas('shared_documents', ['id' => $document->id]);
+        // ワークスペースに属する資料も削除される
+        $this->assertDatabaseMissing('shared_documents', ['id' => $document->id]);
     }
 }

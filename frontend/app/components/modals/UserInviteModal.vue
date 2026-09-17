@@ -5,11 +5,12 @@
     aria-label="ユーザー招待"
     :close-disabled="loading"
     focus-primary-input-on-open
-    width="min(512px, 100%)"
+    width="min(560px, 100%)"
     @update:model-value="emit('update:modelValue', $event)"
+    @ctrl-enter="submit"
   >
-    <form class="user-invite-modal-body" novalidate @submit.prevent="submit" @keydown="onFormKeydown">
-      <label class="field">
+    <form class="user-invite-modal-body" novalidate @submit.prevent>
+      <div class="field">
         <span>メールアドレス</span>
         <input
           v-model="email"
@@ -20,45 +21,51 @@
           placeholder="user@example.com"
           :disabled="loading"
           aria-required="true"
+          @keydown.enter.exact.prevent
         >
         <p v-if="emailError" class="field-error">{{ emailError }}</p>
-      </label>
+      </div>
       <fieldset class="roles" :disabled="loading">
         <legend class="roles-legend">ロール</legend>
-        <ul class="role-list" role="listbox" aria-label="ロール">
+        <ul
+          class="role-list"
+          role="radiogroup"
+          aria-label="ロール"
+        >
           <li
             v-for="option in roleOptions"
             :key="option.value"
-            role="option"
-            :aria-selected="role === option.value"
+            class="role-item"
           >
             <button
               type="button"
               class="role-option"
+              :class="{ 'role-option--checked': role === option.value }"
+              role="radio"
+              :aria-checked="role === option.value"
               :disabled="loading"
               @click="role = option.value"
             >
-              <span
-                class="role-checkbox"
-                :class="{ 'role-checkbox--checked': role === option.value }"
+              <input
+                type="radio"
+                class="role-radio"
+                name="invite-role"
+                :checked="role === option.value"
+                tabindex="-1"
                 aria-hidden="true"
               >
-                <span v-if="role === option.value">✓</span>
-              </span>
               <span class="role-label">{{ option.label }}</span>
             </button>
           </li>
         </ul>
       </fieldset>
       <p v-if="submitError" class="err">{{ submitError }}</p>
-      <div class="actions">
-        <button type="button" class="ghost-btn ghost-btn--pill" :disabled="loading" @click="close">
-          キャンセル
-        </button>
-        <button type="submit" class="primary-btn primary-btn--pill" :disabled="loading">
-          {{ loading ? '送信中…' : '送信' }}
-        </button>
-      </div>
+      <ModalFooterActions
+        confirm-text="送信"
+        :disabled="loading"
+        @cancel="close"
+        @confirm="submit"
+      />
     </form>
   </BaseModal>
 </template>
@@ -66,13 +73,12 @@
 import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import { EMAIL_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { emailFieldError } from '../../utils/formValidation'
-import { isCtrlEnterKeydown } from '../../utils/uiInteraction'
 import BaseModal from './BaseModal.vue'
 
 type InviteRole = 'admin' | 'member'
 
 const roleOptions: Array<{ value: InviteRole; label: string }> = [
-  { value: 'member', label: 'メンバー' },
+  { value: 'member', label: '一般ユーザー' },
   { value: 'admin', label: '管理者' },
 ]
 
@@ -128,12 +134,6 @@ function submit () {
   emailError.value = null
   submitError.value = null
   emit('submit', { email: email.value.trim(), role: role.value })
-}
-
-function onFormKeydown (event: KeyboardEvent) {
-  if (!isCtrlEnterKeydown(event)) return
-  event.preventDefault()
-  submit()
 }
 
 function setSubmitError (message: string) {

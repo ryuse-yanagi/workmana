@@ -40,12 +40,29 @@
               @dragleave.prevent="onAvatarDragLeave"
               @drop.prevent="onAvatarDrop"
             >
-              <CloudUpload
+              <svg
                 class="profile-avatar-dropzone__icon"
-                :size="28"
-                :stroke-width="1.75"
+                viewBox="0 0 24 24"
+                width="28"
+                height="28"
+                fill="none"
                 aria-hidden="true"
-              />
+              >
+                <path
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M7.5 18a4.5 4.5 0 0 1 .35-8.98A5.5 5.5 0 0 1 18.2 10.6 3.5 3.5 0 0 1 19.5 18H7.5z"
+                />
+                <path
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 15.25V9.75M12 9.75 9.75 12M12 9.75 14.25 12"
+                />
+              </svg>
               <span class="profile-avatar-dropzone__text">
                 <span class="profile-avatar-dropzone__title">画像を選択してアイコンを変更</span>
                 <span class="profile-avatar-dropzone__hint">またはドラッグ＆ドロップ</span>
@@ -114,7 +131,6 @@ import { dispatchUserProfileUpdated } from '../../composables/userProfileUpdated
 import { EMAIL_MAX_LENGTH, USER_NAME_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { emailFieldError, requiredTextFieldError } from '../../utils/formValidation'
 import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
-import { CloudUpload } from 'lucide-vue-next'
 import BaseModal from './BaseModal.vue'
 
 type MeResponse = {

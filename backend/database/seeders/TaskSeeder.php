@@ -49,11 +49,11 @@ class TaskSeeder extends Seeder
         User $reporter,
     ): void {
         $listsByName = $workspace->lists()
-            ->whereIn('name', DefaultBoardLists::DEFAULT_NAMES)
+            ->whereIn('name', DefaultBoardLists::defaultNames())
             ->get()
             ->keyBy('name');
 
-        foreach (DefaultBoardLists::DEFAULT_NAMES as $listName) {
+        foreach (DefaultBoardLists::defaultNames() as $listName) {
             if (! $listsByName->has($listName)) {
                 $this->command?->warn(
                     'Board list "'.$listName.'" not found in workspace "'.DummySeederData::WORKSPACE_NAME.'".'

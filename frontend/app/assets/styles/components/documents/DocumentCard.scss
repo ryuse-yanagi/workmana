@@ -1,0 +1,132 @@
+$document-card-min-height: 56px;
+
+.document-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  min-height: $document-card-min-height;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid mixin.$border;
+  border-radius: 10px;
+  background: mixin.$white;
+  box-shadow: 0 1px 0 mixin.ink-a(0.06);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.document-card:hover {
+  border-color: mixin.$main;
+  opacity: 1;
+}
+.document-card:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-card--skeleton {
+  pointer-events: none;
+  cursor: default;
+}
+.document-card--skeleton:hover {
+  border-color: mixin.$border;
+}
+.document-card :deep(.card-menu-wrap) {
+  position: absolute;
+  top: 3.5px;
+  right: 3.5px;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.document-card:hover :deep(.card-menu-wrap),
+.document-card :deep(.card-menu-wrap--open) {
+  opacity: 1;
+  pointer-events: auto;
+}
+.document-card :deep(.card-menu-trigger) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: mixin.$white;
+  color: mixin.$text-muted;
+  line-height: 0;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+.document-card :deep(.card-menu-trigger:focus-visible) {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: mixin.$bg-main-soft;
+  color: mixin.$main;
+}
+.document-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.document-card__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: mixin.$text-heading;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.document-card__category {
+  display: flex;
+  align-self: flex-start;
+  max-width: 100%;
+  line-height: 0;
+}
+.document-card__category :deep(.label-strip) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  min-width: 56px;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.document-card__desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: mixin.$text-muted;
+  font-size: 12px;
+  line-height: 1.35;
+}

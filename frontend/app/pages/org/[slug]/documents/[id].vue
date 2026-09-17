@@ -21,6 +21,7 @@
               <button
                 type="button"
                 class="document-header-action-btn document-header-action-btn--edit"
+                title="本文編集（E）"
                 @click="startBodyEdit"
               >
                 <Pencil :size="16" :stroke-width="2.25" aria-hidden="true" />
@@ -49,9 +50,20 @@
             </template>
             <button
               type="button"
+              class="document-header-action-btn document-header-action-btn--muted"
+              title="資料追加（D）"
+              :disabled="documentMetaPending"
+              @click="openDocumentCreateModal"
+            >
+              <NotebookPen :size="16" :stroke-width="2.25" aria-hidden="true" />
+              資料追加
+            </button>
+            <button
+              type="button"
               class="subheader-menu-btn"
               :aria-expanded="sidebarOpen"
               :aria-label="sidebarOpen ? 'サイドバーを閉じる' : 'サイドバーを開く'"
+              title="サイドバー（S）"
               @click="toggleSidebar"
             >
               <PanelRightClose
@@ -72,7 +84,8 @@
                 ref="documentMenuTriggerRef"
                 type="button"
                 class="subheader-menu-btn"
-                aria-label="資料のメニュー"
+                aria-label="その他"
+                title="その他（M）"
                 :aria-expanded="documentMenuOpen"
                 @click.stop="toggleDocumentMenu"
               >
@@ -377,8 +390,8 @@
       <DocumentCreateModal
         ref="documentFormModalRef"
         v-model="documentFormModalOpen"
-        mode="edit"
-        title="資料の編集"
+        :mode="documentFormMode"
+        :title="documentFormMode === 'edit' ? '資料の編集' : '資料の作成'"
         :initial-values="documentFormInitialValues"
         :org-slug="slug"
         :labels="orgDocumentLabels"
@@ -467,10 +480,11 @@ import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/F
 import DocumentCategorySelect from '../../../../components/documents/DocumentCategorySelect.vue'
 import DocumentLabelSelect from '../../../../components/documents/DocumentLabelSelect.vue'
 import { renderMarkdownToSafeHtml } from '../../../../utils/renderMarkdown'
-import { Pencil, Save, Ellipsis, EllipsisVertical, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
+import { Pencil, Save, Ellipsis, EllipsisVertical, NotebookPen, PanelRightClose, PanelRightOpen } from 'lucide-vue-next'
 import DocumentCreateModal from '../../../../components/modals/DocumentCreateModal.vue'
 import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
 import RelatedItemPickerModal from '../../../../components/modals/RelatedItemPickerModal.vue'
+import { getTopmostModalOverlay, isKeyboardShortcutBlockedTarget } from '../../../../utils/uiInteraction'
 import { useDropdownEscapeClose } from '../../../../composables/useDropdownEscapeClose'
 import { useUiSidebarPreference } from '../../../../composables/useUiSidebarPreference'
 import {
@@ -535,6 +549,7 @@ const documentMenuPosition = ref<{ top: number; left: number } | null>(null)
 const documentMenuTriggerRef = ref<HTMLButtonElement | null>(null)
 const shareUrlInputRef = ref<HTMLInputElement | null>(null)
 const documentFormModalOpen = ref(false)
+const documentFormMode = ref<'create' | 'edit'>('edit')
 const documentArchiveConfirmOpen = ref(false)
 const documentMetaPending = ref(false)
 const archivePending = ref(false)
@@ -1151,11 +1166,151 @@ function onDocumentHeaderMenuSelect (item: FloatingMenuItem) {
 }
 function openDocumentEditModal () {
   closeDocumentMenu()
+  documentFormMode.value = 'edit'
   documentFormModalOpen.value = true
+}
+function openDocumentCreateModal () {
+  closeDocumentMenu()
+  documentFormMode.value = 'create'
+  documentFormModalOpen.value = true
+}
+function dismissDocumentPopovers () {
+  closeDocumentMenu()
+  closeRelatedMenu()
+}
+function canUseDocumentKeyboardShortcut (options?: {
+  allowBodyEditing?: boolean
+}): boolean {
+  if (!pageReady.value || fatalLoadError.value || !currentDocument.value) {
+    return false
+  }
+  if (getTopmostModalOverlay()) {
+    return false
+  }
+  if (
+    documentFormModalOpen.value
+    || documentArchiveConfirmOpen.value
+    || relatedWorkspaceModalOpen.value
+    || relatedDocumentModalOpen.value
+    || documentMetaPending.value
+    || bodySaving.value
+    || (!options?.allowBodyEditing && bodyEditing.value)
+  ) {
+    return false
+  }
+  return true
+}
+function onDocumentPageKeydown (event: KeyboardEvent) {
+  const key = event.key
+  const isLetterShortcut = (
+    key === 'm' || key === 'M'
+    || key === 's' || key === 'S'
+    || key === 'e' || key === 'E'
+    || key === 'd' || key === 'D'
+  )
+  if (!isLetterShortcut) {
+    return
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
+    return
+  }
+  if (isKeyboardShortcutBlockedTarget(event.target)) {
+    return
+  }
+  if (key === 'm' || key === 'M') {
+    if (documentMenuOpen.value) {
+      event.preventDefault()
+      closeDocumentMenu()
+      return
+    }
+    if (!canUseDocumentKeyboardShortcut({ allowBodyEditing: true })) {
+      return
+    }
+    event.preventDefault()
+    closeRelatedMenu()
+    toggleDocumentMenu()
+    return
+  }
+  if (key === 's' || key === 'S') {
+    if (!pageReady.value || fatalLoadError.value || getTopmostModalOverlay()) {
+      return
+    }
+    event.preventDefault()
+    toggleSidebar()
+    return
+  }
+  if (key === 'e' || key === 'E') {
+    if (bodyEditing.value) {
+      return
+    }
+    if (!canUseDocumentKeyboardShortcut()) {
+      return
+    }
+    event.preventDefault()
+    dismissDocumentPopovers()
+    void startBodyEdit()
+    return
+  }
+  if (!canUseDocumentKeyboardShortcut({ allowBodyEditing: true })) {
+    return
+  }
+  event.preventDefault()
+  dismissDocumentPopovers()
+  openDocumentCreateModal()
+}
+let documentPageKeydownBound = false
+function bindDocumentPageKeydown () {
+  if (!import.meta.client || documentPageKeydownBound) {
+    return
+  }
+  document.addEventListener('keydown', onDocumentPageKeydown)
+  documentPageKeydownBound = true
+}
+function unbindDocumentPageKeydown () {
+  if (!import.meta.client || !documentPageKeydownBound) {
+    return
+  }
+  document.removeEventListener('keydown', onDocumentPageKeydown)
+  documentPageKeydownBound = false
 }
 function openDocumentArchiveConfirm () {
   closeDocumentMenu()
   documentArchiveConfirmOpen.value = true
+}
+async function createDocumentFromDetail (payload: {
+  name: string
+  description: string | null
+  category: string | null
+  label_ids: number[]
+}) {
+  if (documentMetaPending.value) {
+    return
+  }
+  documentMetaPending.value = true
+  fieldSaveError.value = null
+  try {
+    await withAppLoadingCursor(async () => {
+      const created = await api<OrgDocument>(`/orgs/${slug.value}/documents`, {
+        method: 'POST',
+        body: {
+          name: payload.name,
+          description: payload.description,
+          category: payload.category,
+          label_ids: payload.label_ids,
+        },
+      })
+      upsertDocumentCached(slug.value, created)
+      invalidateCached(slug.value)
+      documentFormModalOpen.value = false
+      await router.push(`/org/${slug.value}/documents/${created.id}`)
+    })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : '資料の作成に失敗しました'
+    fieldSaveError.value = message
+    documentFormModalRef.value?.setSubmitError(message)
+  } finally {
+    documentMetaPending.value = false
+  }
 }
 async function onDocumentFormSubmit (payload: {
   name: string
@@ -1163,6 +1318,10 @@ async function onDocumentFormSubmit (payload: {
   category: string | null
   label_ids: number[]
 }) {
+  if (documentFormMode.value === 'create') {
+    await createDocumentFromDetail(payload)
+    return
+  }
   const target = currentDocument.value
   if (!target || documentMetaPending.value) {
     return
@@ -1722,6 +1881,7 @@ onActivated(() => {
   }
   void ensureCategoriesLoaded()
   if (import.meta.client) {
+    bindDocumentPageKeydown()
     nextTick(() => {
       updateStickyOffsets()
     })
@@ -1737,6 +1897,7 @@ onDeactivated(() => {
   documentArchiveConfirmOpen.value = false
   relatedWorkspaceModalOpen.value = false
   relatedDocumentModalOpen.value = false
+  unbindDocumentPageKeydown()
 })
 onMounted(() => {
   if (!pageReady.value) {
@@ -1747,6 +1908,7 @@ onMounted(() => {
   if (!import.meta.client) {
     return
   }
+  bindDocumentPageKeydown()
   nextTick(() => {
     updateStickyOffsets()
     const globalHeader = document.querySelector('.global-header') as HTMLElement | null
@@ -1765,6 +1927,7 @@ onBeforeUnmount(() => {
   if (!import.meta.client) {
     return
   }
+  unbindDocumentPageKeydown()
   window.removeEventListener('resize', updateStickyOffsets)
   document.removeEventListener('click', onDocumentMenuGlobalClick)
   window.removeEventListener('resize', onDocumentMenuWindowResize)

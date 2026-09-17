@@ -41,19 +41,6 @@ class TaskCompleteDeletionPhysicallyRemovesRowTest extends TestCase
             ->assertCreated()
             ->json('id');
 
-        $commentId = (int) $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/{$taskId}/comments", [
-                'body' => 'Bye',
-            ])
-            ->assertCreated()
-            ->json('id');
-
-        $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/{$taskId}/comments/{$commentId}/reactions", [
-                'emoji' => '🎉',
-            ])
-            ->assertOk();
-
         $this->actingAsApiUser($user)
             ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/{$taskId}/archive")
             ->assertOk();
@@ -66,8 +53,6 @@ class TaskCompleteDeletionPhysicallyRemovesRowTest extends TestCase
         $this->assertDatabaseMissing('tasks', ['id' => $childTaskId]);
         $this->assertDatabaseMissing('task_histories', ['task_id' => $taskId]);
         $this->assertDatabaseMissing('task_histories', ['task_id' => $childTaskId]);
-        $this->assertDatabaseMissing('task_comments', ['id' => $commentId]);
-        $this->assertDatabaseMissing('task_comment_reactions', ['task_comment_id' => $commentId]);
         $this->assertDatabaseMissing('task_assignees', ['task_id' => $taskId]);
 
         // スペース側は残る

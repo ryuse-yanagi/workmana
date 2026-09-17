@@ -3,7 +3,7 @@ export type TaskCardScheduleFields = {
   due_date?: string | null
   effort_hours?: number | string | null
 }
-const EFFORT_UNIT_LABEL = '時間'
+const EFFORT_UNIT_LABEL = 'h'
 type DateParts = { year: number; month: number; day: number }
 function normalizeDateIso (value: string | null | undefined): string | null {
   if (!value) {
@@ -87,16 +87,34 @@ function formatEffortAmount (value: number): string {
 function resolveStoredEffortValue (task: TaskCardScheduleFields): number | null {
   return normalizeEffortHours(task.effort_hours)
 }
+export function formatTaskCardProgressRate (
+  task: { progress_rate?: number | string | null },
+): string | null {
+  const raw = task.progress_rate
+  if (raw === null || raw === undefined || raw === '') {
+    return null
+  }
+  const num = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(num) || num < 0) {
+    return null
+  }
+  const rounded = Math.round(num * 1000000) / 1000000
+  const amount = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2).replace(/\.?0+$/, '')
+  return `${amount}%`
+}
 export function formatTaskCardEffort (task: TaskCardScheduleFields): string | null {
   const value = resolveStoredEffortValue(task)
   if (value === null) {
     return null
   }
-  return `${formatEffortAmount(value)}${EFFORT_UNIT_LABEL}`
+  return `${formatEffortAmount(value)} ${EFFORT_UNIT_LABEL}`
 }
 export function hasTaskCardScheduleMeta (task: TaskCardScheduleFields): boolean {
   return !!formatTaskCardDateRange(task.start_date, task.due_date)
     || !!formatTaskCardEffort(task)
+    || !!formatTaskCardProgressRate(task)
 }
 export type TaskCardParentLookup = {
   id: number
@@ -111,11 +129,11 @@ export function resolveParentTaskTitle (
   task: TaskCardParentFields,
   tasks: TaskCardParentLookup[],
 ): string | null {
-  if (task.parent_task_title?.trim()) {
-    return task.parent_task_title.trim()
-  }
   if (task.parent_task_id == null) {
     return null
+  }
+  if (task.parent_task_title?.trim()) {
+    return task.parent_task_title.trim()
   }
   const parent = tasks.find((item) => item.id === task.parent_task_id)
   return parent?.title?.trim() || null

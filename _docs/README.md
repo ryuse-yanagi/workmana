@@ -1,6 +1,6 @@
 # Docs 構成
 
-docsディレクトリでは、業務管理アプリの設計・仕様書を管理しています。
+docsディレクトリでは、WorkMana の設計・仕様書を管理しています。
 
 ## api ディレクトリ
 
@@ -18,6 +18,9 @@ docsディレクトリでは、業務管理アプリの設計・仕様書を管�
 - 技術スタック
 - レイヤー構造（MVCなど）
 - [リアルタイム同期（Laravel Reverb / Redis / Laravel Echo）](./architecture/realtime-sync.md)
+- [フロントエンドのサーバー状態キャッシュ（TanStack Query）](./architecture/frontend-server-state.md)
+- [フロントエンドのオーバーレイ UI（Floating UI / focus-trap / VueUse）](./architecture/frontend-overlays.md)
+- [FE / BE 共有契約（色・文字数・Zod / FormRequest）](./architecture/shared-contracts.md)
 
 ## business-rules ディレクトリ
 
@@ -39,6 +42,7 @@ docsディレクトリでは、業務管理アプリの設計・仕様書を管�
 - Amazon SQS を選んだ理由
 - 設計のトレードオフ
 - [リアルタイム同期に Laravel Reverb / Redis / Laravel Echo を採用](./decisions/realtime-sync.md)
+- [フロント基盤ライブラリと FE/BE 共有契約](./decisions/frontend-foundations.md)
 
 ## deploy ディレクトリ
 
@@ -61,7 +65,6 @@ docsディレクトリでは、業務管理アプリの設計・仕様書を管�
 - [タスク](./features/tasks.md)
 - [WBS／ガント](./features/wbs.md)
 - [資料](./features/documents.md)
-- [タスクコメント](./features/task-comments.md)
 - [タスク添付](./features/task-attachments.md)
 - [タスク履歴](./features/task-history.md)
 - [アプリ内通知](./features/notification.md)

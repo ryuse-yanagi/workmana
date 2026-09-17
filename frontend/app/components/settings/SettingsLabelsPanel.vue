@@ -4,7 +4,7 @@
       <button
         type="button"
         class="settings-panel__action-btn"
-        @click="openCreateCategory"
+        @click="openAddCategory"
       >
         <Group :size="20" :stroke-width="2.1" aria-hidden="true" />
         カテゴリ追加
@@ -24,13 +24,6 @@
       label-kind="task"
       :can-manage="canManage"
     />
-    <SettingsLabelCategoryPanel
-      v-show="labelTab === 'document'"
-      ref="documentPanelRef"
-      :org-slug="orgSlug"
-      label-kind="document"
-      :can-manage="canManage"
-    />
   </SettingsPanel>
 </template>
 <script setup lang="ts">
@@ -43,17 +36,14 @@ const props = defineProps<{
   labelTab: SettingsLabelTabKey
   canManage: boolean
 }>()
-const workspacePanelRef = ref<{ openCreateCategory: () => void } | null>(null)
-const taskPanelRef = ref<{ openCreateCategory: () => void } | null>(null)
-const documentPanelRef = ref<{ openCreateCategory: () => void } | null>(null)
+const workspacePanelRef = ref<{ openAddCategory: () => void } | null>(null)
+const taskPanelRef = ref<{ openAddCategory: () => void } | null>(null)
 
-function openCreateCategory () {
+function openAddCategory () {
   const panel = props.labelTab === 'workspace'
     ? workspacePanelRef.value
-    : props.labelTab === 'task'
-      ? taskPanelRef.value
-      : documentPanelRef.value
-  panel?.openCreateCategory()
+    : taskPanelRef.value
+  panel?.openAddCategory()
 }
 </script>
 <style lang="scss" src="~/assets/styles/components/settings/SettingsLabelsPanel.global.scss"></style>

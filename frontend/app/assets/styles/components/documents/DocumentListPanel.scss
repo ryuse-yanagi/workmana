@@ -1,0 +1,78 @@
+$document-list-gap: 12px;
+/* 4件分（56×4 + gap12×3）が border 込み 320px に収まるよう toolbar↔list の gap は 8 */
+$document-panel-gap: 8px;
+
+.document-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  flex-shrink: 0;
+}
+.document-list-panel__panel {
+  display: flex;
+  flex-direction: column;
+  gap: $document-panel-gap;
+  box-sizing: border-box;
+  min-height: 320px;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid mixin.ink-a(0.06);
+  border-radius: 10px;
+  background: mixin.$bg-gray;
+}
+.document-list-panel__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+  height: 30px;
+}
+.document-list-panel__heading {
+  margin: 0;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: mixin.$text-muted;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.document-list-panel__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: $document-list-gap;
+  flex-shrink: 0;
+}
+.document-list-panel__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  text-align: center;
+}
+.document-list-panel__empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  color: mixin.$text-muted;
+}
+.document-list-panel__empty-text {
+  margin: 0;
+  color: mixin.$text-muted;
+  font-size: 13px;
+  line-height: 1.4;
+}

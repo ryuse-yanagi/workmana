@@ -1,0 +1,87 @@
+@use "~/assets/styles/mixin" as mixin;
+
+.board-filter-dropdown {
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  padding: 10px 0 12px;
+}
+.board-filter-section + .board-filter-section {
+  margin-top: 14px;
+}
+.board-filter-section-title {
+  margin: 0;
+  padding: 4px 14px 6px;
+  font-size: mixin.$popover-title-font-size;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+.board-filter-options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+.board-filter-section li {
+  border-bottom: 1px solid mixin.$border-light;
+}
+.board-filter-section > :last-child li:last-child {
+  border-bottom: none;
+}
+.board-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 7.7px;
+  margin: 0 8px;
+  padding: 6px 6px;
+  border-radius: 8px;
+  font-size: mixin.$popover-list-font-size;
+  color: #0f172a;
+  cursor: pointer;
+}
+.board-filter-option input[type='checkbox'] {
+  margin: 0;
+  flex-shrink: 0;
+}
+.board-filter-option :deep(.board-filter-option-avatar) {
+  width: 24px;
+  height: 24px;
+}
+.board-filter-option :deep(.board-filter-option-avatar .member-avatar__initial) {
+  font-size: 10px;
+}
+.board-filter-label-group {
+  margin-top: 8px;
+}
+.board-filter-label-group .board-filter-option {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  line-height: 1;
+  align-items: center;
+}
+.board-filter-category-title {
+  margin: 0;
+  padding: 4px 14px 6px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: 400;
+  color: #0f172a;
+}
+.board-filter-label-bar {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  min-height: 32px;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: 400;
+  line-height: 1;
+}

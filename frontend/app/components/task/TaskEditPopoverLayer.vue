@@ -1,328 +1,135 @@
 <template>
   <Teleport to="body">
-    <Transition name="popover-fade" @after-enter="updatePopoverPosition">
+    <Transition name="popover-fade" @after-enter="onPopoverAfterEnter" @after-leave="notifyPopoverAfterLeave">
       <div
         v-if="activePopover"
         :key="activePopover === 'member-detail' ? `member-detail-${selectedMember?.id}` : activePopover"
         class="popover-layer popover-layer--portal popover-layer--table"
       >
-        <PopoverShell
-          v-if="activePopover === 'start-date' || activePopover === 'due-date'"
+        <TaskDatePickerPopover
+          v-if="activePopover === 'period'"
           ref="popoverElRef"
-          shell-class="popover popover--date"
           :style="popoverStyle"
-          :title="activePopover === 'start-date' ? '開始日' : '終了日'"
-          :aria-label="activePopover === 'start-date' ? '開始日' : '終了日'"
-          :close-disabled="disabled"
+          title="期間"
+          :disabled="disabled"
+          :can-clear="canClearCalendarDate"
+          :error="popoverError"
+          :weekday-labels="weekdayLabels"
+          :calendar-month-label="calendarMonthLabel"
+          :calendar-cells="calendarCells"
+          :range-start-iso="periodRangeStartIso"
+          :range-end-iso="periodRangeEndIso"
           @close="closePopover"
-        >
-          <div class="calendar">
-            <div class="calendar-nav">
-              <button
-                type="button"
-                class="calendar-nav-btn"
-                :disabled="disabled"
-                aria-label="前の月"
-                @click="shiftCalendarMonth(-1)"
-              >‹</button>
-              <span class="calendar-month-label">{{ calendarMonthLabel }}</span>
-              <button
-                type="button"
-                class="calendar-nav-btn"
-                :disabled="disabled"
-                aria-label="次の月"
-                @click="shiftCalendarMonth(1)"
-              >›</button>
-            </div>
-            <div class="calendar-weekdays">
-              <span v-for="day in weekdayLabels" :key="day" class="calendar-weekday">{{ day }}</span>
-            </div>
-            <div class="calendar-grid">
-              <button
-                v-for="cell in calendarCells"
-                :key="cell.key"
-                type="button"
-                class="calendar-day"
-                :class="{
-                  'calendar-day--outside': !cell.inMonth,
-                  'calendar-day--selected': cell.iso === activeCalendarDate,
-                  'calendar-day--today': cell.isToday,
-                }"
-                @click.stop="pickCalendarDay(cell.iso)"
-              >
-                {{ cell.day }}
-              </button>
-            </div>
-          </div>
-          <div class="popover-field-actions">
-            <button
-              type="button"
-              class="popover-field-clear-btn"
-              :disabled="disabled || dateSaving || !canClearCalendarDate"
-              @click.stop="void clearCalendarDate()"
-            >
-              削除
-            </button>
-          </div>
-          <p v-if="popoverError" class="err">{{ popoverError }}</p>
-        </PopoverShell>
-        <PopoverShell
+          @shift-month="shiftCalendarMonth"
+          @pick="pickCalendarDay"
+          @pick-range="pickCalendarRange"
+          @clear="void clearCalendarDate()"
+        />
+        <TaskEffortPickerPopover
           v-else-if="activePopover === 'effort'"
           ref="popoverElRef"
-          shell-class="popover popover--effort"
           :style="popoverStyle"
-          title="工数"
-          aria-label="工数"
-          :close-disabled="disabled"
+          :disabled="disabled"
+          :can-clear="canClearEffort"
+          :error="popoverError"
+          :draft="String(effortDraft ?? '')"
+          :unit-label="EFFORT_UNIT_LABEL"
           @close="void finalizeEffortPopover()"
-        >
-          <div class="effort-input-row">
-            <input
-              ref="effortInputRef"
-              :value="effortDraft"
-              type="number"
-              min="0"
-              step="0.01"
-              class="effort-input"
-              placeholder="工数を入力..."
-              aria-label="工数"
-              :disabled="disabled"
-              @input="updateEffortDraft(($event.target as HTMLInputElement).value)"
-              @keydown.enter.prevent="void finalizeEffortPopover()"
-              @keydown.escape.prevent="void finalizeEffortPopover()"
-              @click.stop
-            />
-            <span class="effort-unit-label">{{ EFFORT_UNIT_LABEL }}</span>
-          </div>
-          <div class="popover-field-actions">
-            <button
-              type="button"
-              class="popover-field-clear-btn"
-              :disabled="disabled || effortSaving || !canClearEffort"
-              @click.stop="void clearEffort()"
-            >
-              削除
-            </button>
-          </div>
-          <p v-if="popoverError" class="err">{{ popoverError }}</p>
-        </PopoverShell>
-        <div
+          @update:draft="updateEffortDraft"
+          @finalize="void finalizeEffortPopover()"
+          @clear="void clearEffort()"
+        />
+        <TaskProgressRatePickerPopover
+          v-else-if="activePopover === 'progress-rate'"
+          ref="popoverElRef"
+          :style="popoverStyle"
+          :disabled="disabled"
+          :can-clear="canClearProgressRate"
+          :error="popoverError"
+          :draft="String(progressRateDraft ?? '')"
+          :unit-label="PROGRESS_RATE_UNIT_LABEL"
+          @close="void finalizeProgressRatePopover()"
+          @update:draft="updateProgressRateDraft"
+          @finalize="void finalizeProgressRatePopover()"
+          @clear="void clearProgressRate()"
+        />
+        <TaskMemberDetailPopover
           v-else-if="activePopover === 'member-detail' && selectedMember"
           ref="popoverElRef"
-          class="popover popover--member-detail"
           :style="popoverStyle"
-          role="dialog"
-          :aria-label="`${memberDisplayName(selectedMember)}の詳細`"
-          @click.stop
-        >
-          <div class="member-detail-card">
-            <header class="member-detail-header">
-              <button
-                type="button"
-                class="member-detail-close"
-                :disabled="disabled"
-                aria-label="閉じる"
-                @click="closePopover"
-              >✕</button>
-              <div class="member-detail-profile">
-                <img
-                  v-if="selectedMember && memberAvatarSrc(selectedMember)"
-                  :src="memberAvatarSrc(selectedMember)!"
-                  alt=""
-                  class="member-detail-avatar"
-                />
-                <span v-else class="member-detail-initial">{{ memberInitial(selectedMember) }}</span>
-                <div class="member-detail-text">
-                  <p class="member-detail-name">{{ memberDisplayName(selectedMember) }}</p>
-                  <p class="member-detail-email">{{ memberEmailLine(selectedMember) }}</p>
-                </div>
-              </div>
-            </header>
-            <div
-              v-if="allowMemberRemove"
-              class="member-detail-body"
-            >
-              <button
-                type="button"
-                class="member-detail-remove"
-                :disabled="disabled"
-                @click.stop="removeMember(selectedMember)"
-              >
-                タスクから削除
-              </button>
-            </div>
-          </div>
-          <p v-if="popoverError" class="err member-detail-error">{{ popoverError }}</p>
-        </div>
+          :disabled="disabled"
+          :error="popoverError"
+          :display-name="memberDisplayName(selectedMember)"
+          :email-line="memberEmailLine(selectedMember)"
+          :initial="memberInitial(selectedMember)"
+          :avatar-src="memberAvatarSrc(selectedMember)"
+          :show-remove="allowMemberRemove"
+          @close="closePopover"
+          @remove="removeMember(selectedMember)"
+        />
         <WorkspaceMemberPickerPopover
           v-else-if="activePopover === 'members'"
           ref="popoverElRef"
           :style="popoverStyle"
+          title="担当者"
+          assigned-section-heading="担当者"
+          unassigned-section-heading="メンバー"
           v-model:search-query="memberSearchQuery"
           :assignees="taskRef?.assignees ?? []"
           :org-members="workspaceMembers"
           :disabled="disabled"
+          :can-clear="canClearAssignees"
           :error="popoverError"
-          empty-members-message="スペースユーザーがいません。"
+          empty-members-message="スペースメンバーがいません"
           @close="closePopover"
           @toggle-member="toggleMember"
+          @clear="void clearAssignees()"
         />
-        <PopoverShell
+        <TaskLabelsPickerPopover
           v-else-if="activePopover === 'labels'"
           ref="popoverElRef"
-          shell-class="popover popover--labels"
-          header-class="popover-header--labels"
           :style="popoverStyle"
-          title="ラベル"
-          aria-label="ラベル"
-          :close-disabled="disabled"
+          :disabled="disabled"
+          :can-clear="canClearLabels"
+          :error="popoverError"
+          v-model:search-query="labelSearchQuery"
+          :categories="filteredLabelCategories"
+          :selected-ids="(taskRef?.labels ?? []).map(label => label.id)"
+          :has-source-labels="orgLabels.length > 0"
           @close="closePopover"
-        >
-          <input
-            v-model="labelSearchQuery"
-            type="search"
-            class="label-search-input"
-            placeholder="ラベルを検索..."
-            :disabled="disabled"
-            @click.stop
-          />
-          <div class="popover-scroll">
-            <LabelPickerGroupedList
-              :categories="filteredLabelCategories"
-              :selected-ids="(taskRef?.labels ?? []).map(label => label.id)"
-              :has-source-labels="orgLabels.length > 0"
-              :disabled="disabled"
-              @toggle="toggleLabel"
-            />
-            <p v-if="popoverError" class="err">{{ popoverError }}</p>
-          </div>
-        </PopoverShell>
-        <PopoverShell
+          @toggle="toggleLabel"
+          @clear="void clearLabels()"
+        />
+        <TaskListPickerPopover
           v-else-if="activePopover === 'list'"
           ref="popoverElRef"
-          shell-class="popover popover--list"
           :style="popoverStyle"
-          title="リストを選択"
-          aria-label="リストを選択"
-          :close-disabled="listSaving"
+          :disabled="listSaving"
+          :error="popoverError"
+          :lists="workspaceLists"
+          :selected-id="taskRef?.list_id ?? null"
+          variant="bar"
+          :bar-style="listPickerBarStyle"
           @close="closePopover"
-        >
-          <div class="popover-scroll">
-            <ul class="list-picker-list">
-              <li
-                v-for="list in workspaceLists"
-                :key="list.id"
-              >
-                <button
-                  type="button"
-                  class="list-picker-row"
-                  :class="{ 'list-picker-row--selected': taskRef?.list_id === list.id }"
-                  :disabled="listSaving"
-                  @click.stop="selectList(list.id)"
-                >
-                  <span
-                    class="list-picker-radio"
-                    :class="{ 'list-picker-radio--checked': taskRef?.list_id === list.id }"
-                    aria-hidden="true"
-                  />
-                  <span class="list-picker-label">{{ list.name }}</span>
-                </button>
-              </li>
-            </ul>
-            <p v-if="!workspaceLists.length" class="empty-text list-picker-empty">
-              リストがありません。
-            </p>
-            <p v-if="popoverError" class="err">{{ popoverError }}</p>
-          </div>
-        </PopoverShell>
-        <PopoverShell
+          @select="selectList"
+        />
+        <TaskDescriptionPickerPopover
           v-else-if="activePopover === 'description'"
           ref="popoverElRef"
-          :shell-class="[
-            'popover',
-            'popover--description',
-            { 'popover--description-edit': !readonlyDescription },
-          ]"
           :style="popoverStyle"
-          title="説明"
-          aria-label="説明"
-          :close-disabled="disabled"
+          :disabled="disabled"
+          :saving="descriptionSaving"
+          :can-clear="canClearDescription"
+          :error="popoverError"
+          :readonly="readonlyDescription"
+          :draft="descriptionDraft"
+          :text="descriptionDisplayText"
+          :max-length="TASK_DESCRIPTION_MAX_LENGTH"
           @close="closePopover"
-        >
-          <template #header-end>
-            <div
-              class="description-mode-tabs"
-              role="tablist"
-              aria-label="説明の表示形式"
-            >
-              <button
-                type="button"
-                class="description-mode-tab"
-                :class="{ 'description-mode-tab--active': descriptionViewMode === 'preview' }"
-                role="tab"
-                :aria-selected="descriptionViewMode === 'preview'"
-                :disabled="disabled || descriptionSaving"
-                @click="setDescriptionViewMode('preview')"
-              >
-                Preview
-              </button>
-              <button
-                type="button"
-                class="description-mode-tab"
-                :class="{ 'description-mode-tab--active': descriptionViewMode === 'markdown' }"
-                role="tab"
-                :aria-selected="descriptionViewMode === 'markdown'"
-                :disabled="disabled || descriptionSaving"
-                @click="setDescriptionViewMode('markdown')"
-              >
-                Markdown
-              </button>
-            </div>
-          </template>
-          <template v-if="readonlyDescription">
-            <div class="description-view popover-scroll">
-              <div
-                v-if="descriptionViewMode === 'preview' && renderedDescriptionHtml"
-                class="description-preview"
-                v-html="renderedDescriptionHtml"
-              />
-              <p
-                v-else-if="descriptionViewMode === 'markdown' && descriptionDisplayText"
-                class="description-view-text"
-              >{{ descriptionDisplayText }}</p>
-              <p
-                v-else
-                class="empty-text description-view-empty"
-              >説明はありません。</p>
-            </div>
-          </template>
-          <template v-else>
-            <div class="description-body">
-              <textarea
-                v-if="descriptionViewMode === 'markdown'"
-                ref="descriptionInputRef"
-                v-model="descriptionDraft"
-                class="description-input"
-                rows="6"
-                :maxlength="TASK_DESCRIPTION_MAX_LENGTH"
-                aria-label="説明"
-                :disabled="disabled || descriptionSaving"
-                spellcheck="false"
-                @blur="void saveDescription()"
-              />
-              <div
-                v-else-if="renderedDescriptionHtml"
-                class="description-preview description-preview--edit popover-scroll"
-                v-html="renderedDescriptionHtml"
-              />
-              <p
-                v-else
-                class="empty-text description-view-empty description-view-empty--edit"
-              >説明はありません。</p>
-              <p v-if="popoverError" class="err">{{ popoverError }}</p>
-            </div>
-          </template>
-        </PopoverShell>
+          @update:draft="descriptionDraft = $event"
+          @blur-save="void saveDescription()"
+          @clear="void clearDescription()"
+        />
       </div>
     </Transition>
   </Teleport>
@@ -334,15 +141,22 @@ import {
   type WorkspaceListOption,
   type TaskPopoverEditable,
 } from '../../composables/useTaskPopoverEditor'
-import type { TaskFormLabel, TaskFormMember } from '../../composables/useTaskFormHelpers'
+import { listBarSurfaceStyle, type TaskFormLabel, type TaskFormMember } from '../../composables/useTaskFormHelpers'
+import type { TaskPopoverListOption } from '../../utils/taskPopoverTypes'
 import { TASK_DESCRIPTION_MAX_LENGTH } from '../../constants/fieldLengthLimits'
 import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
 import { resolveDisplayAvatarUrl } from '../../composables/userProfileUpdated'
 import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
-import { renderMarkdownToSafeHtml } from '../../utils/renderMarkdown'
-import PopoverShell from '../ui/PopoverShell.vue'
+import { schedulePopoverInputFocus } from '../../utils/schedulePopoverInputFocus'
+import { resolvePopoverExposedInput } from '../../utils/popoverComponentRef'
 import WorkspaceMemberPickerPopover from '../workspace/WorkspaceMemberPickerPopover.vue'
-import LabelPickerGroupedList from './LabelPickerGroupedList.vue'
+import TaskDatePickerPopover from './popover/TaskDatePickerPopover.vue'
+import TaskDescriptionPickerPopover from './popover/TaskDescriptionPickerPopover.vue'
+import TaskEffortPickerPopover from './popover/TaskEffortPickerPopover.vue'
+import TaskProgressRatePickerPopover from './popover/TaskProgressRatePickerPopover.vue'
+import TaskLabelsPickerPopover from './popover/TaskLabelsPickerPopover.vue'
+import TaskListPickerPopover from './popover/TaskListPickerPopover.vue'
+import TaskMemberDetailPopover from './popover/TaskMemberDetailPopover.vue'
 import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
 const props = withDefaults(defineProps<{
   orgSlug: string
@@ -376,18 +190,14 @@ function memberAvatarSrc (member: { id: number; avatar_url?: string | null }): s
     String(config.public.apiBaseUrl || '/api'),
   )
 }
+function listPickerBarStyle (list: TaskPopoverListOption) {
+  return listBarSurfaceStyle(list.color ?? '')
+}
 const taskRef = ref<TaskPopoverEditable | null>(null)
 const memberSearchQuery = ref('')
-type DescriptionViewMode = 'preview' | 'markdown'
-const descriptionViewMode = ref<DescriptionViewMode>('markdown')
-function bindTask (task: TaskPopoverEditable | null) {
-  if (taskRef.value && taskRef.value.id !== task?.id) {
-    dismissPopover()
-  }
-  taskRef.value = task
-}
 const {
   EFFORT_UNIT_LABEL,
+  PROGRESS_RATE_UNIT_LABEL,
   activePopover,
   selectedMember,
   popoverError,
@@ -395,31 +205,44 @@ const {
   popoverElRef,
   labelSearchQuery,
   effortDraft,
-  effortInputRef,
+  progressRateDraft,
   descriptionDraft,
-  descriptionInputRef,
   descriptionSaving,
   weekdayLabels,
   filteredLabelCategories,
-  activeCalendarDate,
+  periodRangeStartIso,
+  periodRangeEndIso,
   calendarMonthLabel,
   calendarCells,
   memberEmailLine,
-  pendingDate,
   dateSaving,
   effortSaving,
+  progressRateSaving,
   canClearCalendarDate,
   canClearEffort,
+  canClearProgressRate,
+  canClearAssignees,
+  canClearLabels,
+  canClearDescription,
   openDatePicker,
   shiftCalendarMonth,
   pickCalendarDay,
+  pickCalendarRange,
   clearCalendarDate,
+  clearEffort,
+  clearProgressRate,
+  clearAssignees,
+  clearLabels,
+  clearDescription,
   openEffortPicker,
   updateEffortDraft,
   finalizeEffortPopover,
-  clearEffort,
+  openProgressRatePicker,
+  updateProgressRateDraft,
+  finalizeProgressRatePopover,
   closePopover,
   dismissPopover,
+  notifyPopoverAfterLeave,
   openMemberPicker,
   openMemberDetail,
   openLabelPicker,
@@ -445,40 +268,59 @@ const {
   onUpdated: (task) => emit('updated', task),
   zIndex: 130,
 })
+async function bindTask (task: TaskPopoverEditable | null) {
+  if (taskRef.value && taskRef.value.id !== task?.id) {
+    await closePopover()
+  }
+  taskRef.value = task
+}
 const descriptionDisplayText = computed(() => (
   props.readonlyDescription
     ? (taskRef.value?.description ?? '')
     : descriptionDraft.value
 ))
-const renderedDescriptionHtml = computed(() => (
-  renderMarkdownToSafeHtml(descriptionDisplayText.value, {
-    preserveLineBreaks: props.readonlyDescription,
-  })
-))
-async function setDescriptionViewMode (mode: DescriptionViewMode) {
-  if (descriptionViewMode.value === mode) {
+function openDescriptionPicker (event?: Event) {
+  openDescriptionPickerBase(event)
+}
+function onPopoverAfterEnter () {
+  updatePopoverPosition()
+  const popover = activePopover.value
+  if (!popover) {
     return
   }
-  if (
-    !props.readonlyDescription
-    && mode === 'preview'
-    && descriptionViewMode.value === 'markdown'
-  ) {
-    await saveDescription()
+  if (popover === 'effort') {
+    schedulePopoverInputFocus(
+      () => {
+        const el = resolvePopoverExposedInput(popoverElRef.value)
+        return el instanceof HTMLInputElement ? el : null
+      },
+      { select: 'all' },
+    )
+    return
   }
-  descriptionViewMode.value = mode
-  if (!props.readonlyDescription && mode === 'markdown') {
-    await nextTick()
-    const el = descriptionInputRef.value
-    if (!el) return
-    el.focus()
-    const len = el.value.length
-    el.setSelectionRange(len, len)
+  if (popover === 'progress-rate') {
+    schedulePopoverInputFocus(
+      () => {
+        const el = resolvePopoverExposedInput(popoverElRef.value)
+        return el instanceof HTMLInputElement ? el : null
+      },
+      { select: 'all' },
+    )
+    return
   }
-}
-function openDescriptionPicker (event?: Event) {
-  descriptionViewMode.value = props.readonlyDescription ? 'preview' : 'markdown'
-  openDescriptionPickerBase(event)
+  if (popover === 'description' && !props.readonlyDescription) {
+    schedulePopoverInputFocus(
+      () => {
+        const el = resolvePopoverExposedInput(popoverElRef.value)
+        return el instanceof HTMLTextAreaElement ? el : null
+      },
+      { select: 'end' },
+    )
+    return
+  }
+  if (popover === 'labels' || popover === 'members') {
+    schedulePopoverInputFocus(() => resolvePopoverExposedInput(popoverElRef.value))
+  }
 }
 watch(
   [activePopover, () => taskRef.value?.id ?? null, () => selectedMember.value?.id ?? null],
@@ -491,10 +333,16 @@ watch(
   },
   { flush: 'sync' },
 )
+watch(memberSearchQuery, () => {
+  if (activePopover.value === 'members') {
+    updatePopoverPosition()
+  }
+})
 defineExpose({
   bindTask,
   openDatePicker,
   openEffortPicker,
+  openProgressRatePicker,
   openMemberPicker,
   openMemberDetail,
   openLabelPicker,

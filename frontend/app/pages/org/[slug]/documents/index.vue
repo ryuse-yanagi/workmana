@@ -37,6 +37,7 @@
           <button
             class="primary-btn"
             type="button"
+            title="資料作成（N）"
             :disabled="pending || !pageReady"
             @click="openDocumentCreateModal"
           >
@@ -44,18 +45,6 @@
             資料作成
           </button>
           <div class="subheader-actions" data-subheader-actions-root>
-            <button
-              ref="listFilterTriggerRef"
-              type="button"
-              class="subheader-menu-btn"
-              :aria-expanded="listFilterOpen"
-              aria-haspopup="dialog"
-              aria-label="絞り込み"
-              :disabled="pending || !pageReady"
-              @click.stop="toggleListFilter"
-            >
-              <ListFilter :size="18" :stroke-width="2.25" aria-hidden="true" />
-            </button>
             <button
               ref="subheaderMenuTriggerRef"
               type="button"
@@ -173,93 +162,6 @@
           </div>
         </section>
       </div>
-      <Teleport to="body">
-        <div
-          v-if="listFilterOpen && listFilterPosition"
-          ref="listFilterDropdownRef"
-          class="board-filter-dropdown"
-          role="dialog"
-          aria-label="絞り込み"
-          :style="listFilterStyle"
-          @click.stop
-        >
-          <section class="board-filter-section">
-            <h3 class="board-filter-section-title">ラベル</h3>
-            <ul class="board-filter-options">
-              <li>
-                <label class="board-filter-option">
-                  <input
-                    type="checkbox"
-                    :checked="isLabelFilterSelected('unset')"
-                    @change="toggleLabelFilter('unset')"
-                  >
-                  <span>未設定</span>
-                </label>
-              </li>
-            </ul>
-            <div
-              v-for="category in labelFilterCategories"
-              :key="category.id"
-              class="board-filter-label-group"
-            >
-              <p class="board-filter-category-title">{{ category.name }}</p>
-              <ul class="board-filter-options">
-                <li v-for="label in category.labels" :key="label.id">
-                  <label class="board-filter-option">
-                    <input
-                      type="checkbox"
-                      :checked="isLabelFilterSelected(String(label.id))"
-                      @change="toggleLabelFilter(String(label.id))"
-                    >
-                    <span
-                      class="board-filter-label-bar"
-                      :style="{
-                        backgroundColor: label.color,
-                        color: labelBarTextColor(label.color),
-                      }"
-                    >{{ label.name }}</span>
-                  </label>
-                </li>
-              </ul>
-            </div>
-          </section>
-          <section class="board-filter-section">
-            <h3 class="board-filter-section-title">カテゴリ</h3>
-            <ul class="board-filter-options">
-              <li>
-                <label class="board-filter-option">
-                  <input
-                    type="checkbox"
-                    :checked="isCategoryFilterSelected('unset')"
-                    @change="toggleCategoryFilter('unset')"
-                  >
-                  <span>未設定</span>
-                </label>
-              </li>
-            </ul>
-            <div class="board-filter-label-group">
-              <ul class="board-filter-options">
-                <li v-for="category in documentCategories" :key="category.name">
-                  <label class="board-filter-option">
-                    <input
-                      type="checkbox"
-                      :checked="isCategoryFilterSelected(category.name)"
-                      @change="toggleCategoryFilter(category.name)"
-                    >
-                    <span
-                      class="board-filter-label-bar"
-                      :style="{
-                        backgroundColor: category.color,
-                        color: labelBarTextColor(category.color),
-                      }"
-                    >{{ category.name }}</span>
-                  </label>
-                </li>
-              </ul>
-            </div>
-          </section>
-        </div>
-      </Teleport>
       <FloatingMenu
         :open="Boolean(subheaderMenuOpen && subheaderMenuPosition)"
         density="compact"
@@ -315,7 +217,7 @@
   </main>
 </template>
 <script setup lang="ts">
-import { Ellipsis, ListFilter, NotebookPen, NotebookText } from 'lucide-vue-next'
+import { Ellipsis, NotebookPen, NotebookText } from 'lucide-vue-next'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
 import { useApi } from '../../../../composables/useApi'
@@ -325,7 +227,7 @@ import {
   type OrgDocumentCategory,
   type OrgDocumentsPageSnapshot,
 } from '../../../../composables/useOrgDocumentsPageData'
-import { labelBarTextColor, type TaskFormCategory, type TaskFormLabel } from '../../../../composables/useTaskFormHelpers'
+import { type TaskFormCategory, type TaskFormLabel } from '../../../../composables/useTaskFormHelpers'
 import type { LabelCategoryGroup } from '../../../../composables/useLabelCategories'
 import { resolveLabelColors, resolveStandardColors } from '../../../../utils/colorPresetResolution'
 import { buildDestructiveConfirmMessage } from '../../../../utils/destructiveConfirmMessage'
@@ -340,9 +242,6 @@ import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
 import LabelStrip from '../../../../components/ui/LabelStrip.vue'
 import OverflowFlexRow from '../../../../components/ui/OverflowFlexRow.vue'
-import { useDropdownEscapeClose } from '../../../../composables/useDropdownEscapeClose'
-import { useExclusivePopover } from '../../../../composables/useExclusivePopover'
-import { popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../../../utils/popoverScrollbar'
 import { useOrgRole } from '../../../../composables/useOrgRole'
 definePageMeta({
   name: 'org-slug-documents',
@@ -383,14 +282,6 @@ const subheaderMenuOpen = ref(false)
 const subheaderMenuTriggerRef = ref<HTMLElement | null>(null)
 const subheaderMenuPosition = ref<{ top: number; left: number } | null>(null)
 const SUBHEADER_MENU_MIN_WIDTH = 220
-const listFilterOpen = ref(false)
-const listFilterTriggerRef = ref<HTMLElement | null>(null)
-const listFilterDropdownRef = ref<HTMLElement | null>(null)
-const listFilterPosition = ref<{ top: number; left: number; scrollbarGutter: number } | null>(null)
-const LIST_FILTER_WIDTH = 384
-const LIST_FILTER_BOTTOM_OFFSET = 12
-const labelFilterSelected = ref(new Set<string>())
-const categoryFilterSelected = ref(new Set<string>())
 const searchQuery = ref('')
 const debouncedSearchQuery = ref('')
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -419,17 +310,13 @@ const visibleDocuments = computed(() => {
     : searchQuery.value.trim()
       ? documents.value.filter(document => document.name.toLowerCase().includes(searchQuery.value.trim().toLowerCase()))
       : [...documents.value]
-  const sorted = filtered.filter(document => (
-    matchesLabelFilter(document)
-    && matchesCategoryFilter(document)
-  ))
   if (sortMode.value === 'name') {
-    return sorted.sort((a, b) => a.name.localeCompare(b.name, 'ja') || b.id - a.id)
+    return filtered.sort((a, b) => a.name.localeCompare(b.name, 'ja') || b.id - a.id)
   }
   if (sortMode.value === 'updated') {
-    return sorted.sort((a, b) => compareTimestampDesc(a.updated_at, b.updated_at) || b.id - a.id)
+    return filtered.sort((a, b) => compareTimestampDesc(a.updated_at, b.updated_at) || b.id - a.id)
   }
-  return sorted.sort((a, b) => compareTimestampDesc(a.created_at, b.created_at) || b.id - a.id)
+  return filtered.sort((a, b) => compareTimestampDesc(a.created_at, b.created_at) || b.id - a.id)
 })
 function compareTimestampDesc (a?: string | null, b?: string | null): number {
   const aTime = a ? Date.parse(a) : Number.NaN
@@ -478,68 +365,6 @@ const subheaderMenuStyle = computed(() => {
     zIndex: 80,
   }
 })
-const listFilterStyle = computed(() => {
-  if (!listFilterPosition.value) {
-    return {}
-  }
-  const { top, left, scrollbarGutter } = listFilterPosition.value
-  return {
-    position: 'fixed' as const,
-    top: `${top}px`,
-    left: `${left}px`,
-    bottom: `${LIST_FILTER_BOTTOM_OFFSET}px`,
-    width: `${LIST_FILTER_WIDTH + popoverWidthExtraForGutter(scrollbarGutter)}px`,
-    zIndex: 1000,
-    ...popoverScrollbarGutterStyle(scrollbarGutter),
-  }
-})
-const labelFilterCategories = computed(() =>
-  documentLabelCategories.value.filter(category => category.labels.length > 0),
-)
-function matchesLabelFilter (document: OrgDocument): boolean {
-  if (labelFilterSelected.value.size === 0) {
-    return true
-  }
-  const labels = document.labels ?? []
-  if (labelFilterSelected.value.has('unset') && labels.length === 0) {
-    return true
-  }
-  return labels.some(label => labelFilterSelected.value.has(String(label.id)))
-}
-function matchesCategoryFilter (document: OrgDocument): boolean {
-  if (categoryFilterSelected.value.size === 0) {
-    return true
-  }
-  const categoryName = document.category?.name
-  if (categoryFilterSelected.value.has('unset') && !categoryName) {
-    return true
-  }
-  return Boolean(categoryName && categoryFilterSelected.value.has(categoryName))
-}
-function isLabelFilterSelected (key: string): boolean {
-  return labelFilterSelected.value.has(key)
-}
-function toggleLabelFilter (key: string) {
-  const next = new Set(labelFilterSelected.value)
-  if (next.has(key)) {
-    next.delete(key)
-  } else {
-    next.add(key)
-  }
-  labelFilterSelected.value = next
-}
-function isCategoryFilterSelected (key: string): boolean {
-  return categoryFilterSelected.value.has(key)
-}
-function toggleCategoryFilter (key: string) {
-  const next = new Set(categoryFilterSelected.value)
-  if (next.has(key)) {
-    next.delete(key)
-  } else {
-    next.add(key)
-  }
-  categoryFilterSelected.value = next
-}
 const documentFormInitialValues = computed(() => {
   if (documentFormMode.value !== 'edit' || !documentEditTarget.value) {
     return null
@@ -633,7 +458,6 @@ function applySnapshot (snapshot: OrgDocumentsPageSnapshot) {
 function openDocumentCreateModal () {
   closeDocumentMenu()
   closeSubheaderMenu()
-  closeListFilter()
   documentFormMode.value = 'create'
   documentEditTarget.value = null
   documentFormModalOpen.value = true
@@ -646,12 +470,6 @@ function closeSubheaderMenu () {
   subheaderMenuOpen.value = false
   subheaderMenuPosition.value = null
 }
-function closeListFilter () {
-  listFilterOpen.value = false
-  listFilterPosition.value = null
-}
-useExclusivePopover(listFilterOpen, closeListFilter)
-useDropdownEscapeClose(listFilterOpen, closeListFilter)
 function positionSubheaderMenu () {
   const anchor = subheaderMenuTriggerRef.value
   if (!anchor || !import.meta.client) {
@@ -674,56 +492,11 @@ function toggleSubheaderMenu () {
     return
   }
   closeDocumentMenu()
-  closeListFilter()
   subheaderMenuOpen.value = true
   nextTick(() => positionSubheaderMenu())
 }
-function positionListFilter () {
-  const anchor = listFilterTriggerRef.value
-  if (!anchor || !import.meta.client) {
-    listFilterPosition.value = null
-    return
-  }
-  const rect = anchor.getBoundingClientRect()
-  const pad = 8
-  const gap = 6
-  const top = rect.bottom + gap
-  const maxHeight = Math.max(0, window.innerHeight - top - LIST_FILTER_BOTTOM_OFFSET)
-  const el = listFilterDropdownRef.value
-  const scrollbarGutter = el
-    ? resolvePopoverScrollbarGutter(el, maxHeight)
-    : 0
-  const width = LIST_FILTER_WIDTH + popoverWidthExtraForGutter(scrollbarGutter)
-  let left = rect.right - width
-  left = Math.max(pad, Math.min(left, window.innerWidth - width - pad))
-  listFilterPosition.value = {
-    top,
-    left,
-    scrollbarGutter,
-  }
-}
-function openListFilter () {
-  if (listFilterOpen.value) {
-    return
-  }
-  closeDocumentMenu()
-  closeSubheaderMenu()
-  listFilterOpen.value = true
-  nextTick(() => {
-    positionListFilter()
-    requestAnimationFrame(() => positionListFilter())
-  })
-}
-function toggleListFilter () {
-  if (listFilterOpen.value) {
-    closeListFilter()
-    return
-  }
-  openListFilter()
-}
 function openArchivedDocumentsModal () {
   closeSubheaderMenu()
-  closeListFilter()
   archivedDocumentsOpen.value = true
 }
 function positionDocumentMenu (anchor: HTMLElement) {
@@ -750,7 +523,6 @@ function openDocumentMenu (documentId: number, anchor: HTMLElement) {
     return
   }
   closeSubheaderMenu()
-  closeListFilter()
   positionDocumentMenu(anchor)
   openMenuDocumentId.value = documentId
 }
@@ -820,18 +592,13 @@ function onGlobalClick (ev: Event) {
     if (el?.closest('[data-floating-menu]')) {
       return
     }
-    if (el?.closest('.board-filter-dropdown')) {
-      return
-    }
   }
   closeDocumentMenu()
   closeSubheaderMenu()
-  closeListFilter()
 }
 function onWindowResize () {
   closeDocumentMenu()
   closeSubheaderMenu()
-  closeListFilter()
 }
 function canUseDocumentListKeyboardShortcut (): boolean {
   if (!pageReady.value || fatalLoadError.value) {
@@ -846,7 +613,6 @@ function canUseDocumentListKeyboardShortcut (): boolean {
     || archivedDocumentsOpen.value
     || openMenuDocumentId.value !== null
     || subheaderMenuOpen.value
-    || listFilterOpen.value
     || pending.value
     || archivePending.value
   ) {
@@ -856,7 +622,7 @@ function canUseDocumentListKeyboardShortcut (): boolean {
 }
 function onDocumentListKeydown (event: KeyboardEvent) {
   const key = event.key
-  if (key !== 'n' && key !== 'N' && key !== 'f' && key !== 'F') {
+  if (key !== 'n' && key !== 'N') {
     return
   }
   if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
@@ -866,11 +632,6 @@ function onDocumentListKeydown (event: KeyboardEvent) {
     return
   }
   if (!canUseDocumentListKeyboardShortcut()) {
-    return
-  }
-  if (key === 'f' || key === 'F') {
-    event.preventDefault()
-    openListFilter()
     return
   }
   event.preventDefault()
@@ -1180,7 +941,6 @@ onActivated(() => {
 onDeactivated(() => {
   closeDocumentMenu()
   closeSubheaderMenu()
-  closeListFilter()
   if (import.meta.client) {
     document.removeEventListener('keydown', onDocumentListKeydown)
   }
@@ -1219,7 +979,6 @@ onBeforeUnmount(() => {
   globalHeaderObserver = null
   closeDocumentMenu()
   closeSubheaderMenu()
-  closeListFilter()
 })
 </script>
 <style lang="scss" scoped src="~/assets/styles/pages/org/slug/documents/index.scss"></style>

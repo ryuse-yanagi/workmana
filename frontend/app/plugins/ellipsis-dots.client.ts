@@ -11,14 +11,11 @@ const TRUNCATE_SELECTOR = [
   '.member-detail-name',
   '.member-detail-email',
   '.list-picker-label',
-  '.task-hierarchy__row-title',
-  '.task-hierarchy__badge',
   '.task-detail-parent-task',
   '.task-detail-list-badge',
   '.subheader-doc-name',
   '.subheader-workspace-name',
-  '.document-sidebar__related-link-text',
-  '.workspace-sidebar__related-link-text',
+  '.workspace-linked-items-modal__item-name',
   '.name-text',
   '.description-text',
   '.label-strip',
@@ -27,7 +24,8 @@ const TRUNCATE_SELECTOR = [
 ].join(', ')
 const DOTS = '...'
 type TruncateState = {
-  node: Text
+  kind: 'text' | 'input'
+  node?: Text
   full: string
   applied: string
   width: number
@@ -58,10 +56,72 @@ export default defineNuxtPlugin(() => {
   }
   function fits (el: Element, clamped: boolean): boolean {
     return clamped
-      ? el.scrollHeight <= el.clientHeight + 1
+      ? el.scrollHeight <= el.clientHeight + 2
       : el.scrollWidth <= el.clientWidth + 1
   }
+  function readFullText (previous: TruncateState | undefined, current: string): string {
+    return previous && previous.applied === current ? previous.full : current
+  }
+  function truncateInput (el: HTMLInputElement) {
+    const previous = states.get(el)
+    const current = el.value
+    const full = readFullText(previous, current)
+    const width = el.clientWidth
+    const height = el.clientHeight
+    if (width === 0 && height === 0) {
+      return
+    }
+    if (
+      previous
+      && previous.kind === 'input'
+      && previous.full === full
+      && previous.applied === current
+      && previous.width === width
+      && previous.height === height
+    ) {
+      return
+    }
+    if (el.style.textOverflow !== 'clip') {
+      el.style.textOverflow = 'clip'
+    }
+    if (el.value !== full) {
+      el.value = full
+    }
+    if (fits(el, false)) {
+      states.set(el, {
+        kind: 'input',
+        full,
+        applied: full,
+        width: el.clientWidth,
+        height: el.clientHeight,
+      })
+      return
+    }
+    let low = 0
+    let high = full.length
+    while (low < high) {
+      const middle = Math.ceil((low + high) / 2)
+      el.value = full.slice(0, middle).trimEnd() + DOTS
+      if (fits(el, false)) {
+        low = middle
+      } else {
+        high = middle - 1
+      }
+    }
+    el.value = full.slice(0, low).trimEnd() + DOTS
+    states.set(el, {
+      kind: 'input',
+      full,
+      applied: el.value,
+      width: el.clientWidth,
+      height: el.clientHeight,
+    })
+  }
   function truncate (el: Element) {
+    if (el instanceof HTMLInputElement) {
+      truncateInput(el)
+      return
+    }
     const node = findTextNode(el)
     if (!node) {
       return
@@ -73,7 +133,7 @@ export default defineNuxtPlugin(() => {
     }
     const previous = states.get(el)
     const current = node.data
-    const full = previous && previous.applied === current ? previous.full : current
+    const full = readFullText(previous, current)
     const width = el.clientWidth
     const height = el.clientHeight
     if (width === 0 && height === 0) {
@@ -81,6 +141,7 @@ export default defineNuxtPlugin(() => {
     }
     if (
       previous
+      && previous.kind === 'text'
       && previous.node === node
       && previous.full === full
       && previous.applied === current
@@ -99,6 +160,7 @@ export default defineNuxtPlugin(() => {
     const clamped = style.webkitLineClamp !== 'none' && style.webkitLineClamp !== ''
     if (fits(el, clamped)) {
       states.set(el, {
+        kind: 'text',
         node,
         full,
         applied: full,
@@ -120,6 +182,7 @@ export default defineNuxtPlugin(() => {
     }
     node.data = full.slice(0, low).trimEnd() + DOTS
     states.set(el, {
+      kind: 'text',
       node,
       full,
       applied: node.data,
@@ -154,6 +217,8 @@ export default defineNuxtPlugin(() => {
     childList: true,
     subtree: true,
     characterData: true,
+    attributes: true,
+    attributeFilter: ['value'],
   })
   window.addEventListener('resize', scheduleScan)
   scheduleScan()

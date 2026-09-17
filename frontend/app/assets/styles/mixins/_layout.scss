@@ -1,0 +1,39 @@
+@use "tokens" as *;
+
+/** 作業画面の背景（フラット1色よりヘッダー色とつながる控えめな演出） */
+@mixin app-canvas-background {
+  background-color: $bg-canvas;
+  background-image:
+    radial-gradient(ellipse 120% 72% at 50% -28%, rgba(40, 56, 74, 0.09), transparent 58%),
+    radial-gradient(ellipse 58% 42% at 100% 0%, rgba(12, 102, 228, 0.05), transparent 52%),
+    linear-gradient(180deg, $bg-canvas-top 0%, $bg-canvas 36%);
+  background-attachment: fixed;
+}
+
+/** 詳細サイドバー — メイン領域側（右端）の分離影 */
+@mixin detail-sidebar-edge-shadow {
+  box-shadow: 2px 0 4px ink-a(0.05);
+}
+
+/** 詳細サイドバー — 狭い画面で下に積むときの分離影 */
+@mixin detail-sidebar-bottom-shadow {
+  box-shadow: 0 2px 4px ink-a(0.05);
+}
+
+/** 設定画面の並べ替えグリップ */
+@mixin settings-drag-handle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: $grip;
+  cursor: grab;
+  touch-action: none;
+}

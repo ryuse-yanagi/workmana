@@ -1,156 +1,168 @@
 <template>
   <SettingsPanel title="組織設定">
-    <p v-if="canManage" class="org-icon-note">組織アイコンを設定できます。</p>
-    <p v-else class="org-icon-readonly">
-      組織アイコンの変更は組織管理者のみ行えます。
+    <template v-if="canManage" #actions>
+      <button
+        type="button"
+        class="settings-panel__action-btn"
+        @click="editModalOpen = true"
+      >
+        <Pencil :size="20" :stroke-width="2.1" aria-hidden="true" />
+        組織設定
+      </button>
+    </template>
+
+    <p v-if="!canManage" class="org-readonly">
+      組織情報の変更は組織管理者のみ行えます。
     </p>
-    <div class="org-icon-row">
-      <img
-        v-if="iconPreviewUrl"
-        :src="iconPreviewUrl"
-        alt="組織アイコン"
-        class="org-icon-image"
-      />
-      <div v-else class="org-icon-placeholder">No Icon</div>
-      <div v-if="canManage" class="org-icon-actions">
-        <input
-          type="file"
-          accept="image/*"
-          :disabled="iconLoading"
-          @change="onIconFileChange"
+
+    <div class="org-profile">
+      <div class="org-profile__icon-wrap">
+        <img
+          v-if="iconUrl && !iconFailed"
+          :src="iconUrl"
+          alt="組織アイコン"
+          class="org-profile__icon"
+          @error="onIconError"
         />
-        <p v-if="iconError" class="field-error">{{ iconError }}</p>
-        <div class="settings-button-row settings-button-row--start">
-          <button
-            type="button"
-            class="settings-primary-btn"
-            :disabled="iconLoading"
-            @click="uploadIcon"
-          >
-            アイコンを保存
-          </button>
-          <button
-            type="button"
-            class="settings-ghost-btn"
-            :disabled="iconLoading || !iconPreviewUrl"
-            @click="deleteIcon"
-          >
-            削除
-          </button>
+        <div v-else class="org-profile__placeholder" aria-hidden="true">
+          <span class="org-profile__initial">{{ orgInitial }}</span>
         </div>
       </div>
+
+      <dl class="org-fields">
+        <div class="org-field">
+          <dt class="org-field__label">組織名</dt>
+          <dd class="org-field__value">
+            <div class="org-field__box">{{ displayName }}</div>
+          </dd>
+        </div>
+
+        <div class="org-field">
+          <dt class="org-field__label">組織コード</dt>
+          <dd class="org-field__value">
+            <div class="org-field__box">{{ orgSlugDisplay }}</div>
+          </dd>
+        </div>
+
+        <div class="org-field">
+          <dt class="org-field__label">メンバー数</dt>
+          <dd class="org-field__value">
+            <div class="org-field__box">{{ memberCountLabel }}</div>
+          </dd>
+        </div>
+
+        <div class="org-field">
+          <dt class="org-field__label">作成日</dt>
+          <dd class="org-field__value">
+            <div class="org-field__box">{{ createdAtLabel }}</div>
+          </dd>
+        </div>
+      </dl>
     </div>
-    <p v-if="message" class="settings-msg">
-      {{ message }}
-    </p>
+
+    <OrganizationSettingsModal
+      v-model="editModalOpen"
+      :org-slug="orgSlug"
+      @saved="onOrgSaved"
+    />
   </SettingsPanel>
 </template>
 <script setup lang="ts">
-import { useApi } from '../../composables/useApi'
+import { Pencil } from 'lucide-vue-next'
 import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
+import { formatDateDisplay } from '../../composables/useTaskFormHelpers'
+import OrganizationSettingsModal from '../modals/OrganizationSettingsModal.vue'
 import SettingsPanel from './SettingsPanel.vue'
 
 const props = withDefaults(defineProps<{
   orgSlug: string
+  initialName?: string | null
   initialIconUrl?: string | null
+  createdAt?: string | null
+  memberCount?: number | null
   canManage?: boolean
 }>(), {
+  memberCount: null,
   canManage: false,
 })
 
-const { api } = useApi()
 const { getCached, patchOrgSettingsCache } = useOrgSettingsPageData()
 
-const iconPreviewUrl = ref<string | null>(props.initialIconUrl ?? null)
-const selectedIconFile = ref<File | null>(null)
-const iconLoading = ref(false)
-const iconError = ref<string | null>(null)
-const message = ref('')
-const messageKind = ref<'ok' | 'err'>('ok')
+const editModalOpen = ref(false)
+const orgName = ref((props.initialName || '').trim())
+const iconUrl = ref<string | null>(props.initialIconUrl ?? null)
+const iconFailed = ref(false)
+
+const displayName = computed(() => orgName.value || props.orgSlug)
+const orgSlugDisplay = computed(() => props.orgSlug.trim() || '—')
+
+const orgInitial = computed(() => {
+  const source = displayName.value
+  return Array.from(source)[0]?.toUpperCase() || '?'
+})
+
+const memberCountLabel = computed(() => {
+  if (props.memberCount == null) {
+    return '—'
+  }
+  return `${props.memberCount.toLocaleString('ja-JP')}人`
+})
+
+const createdAtLabel = computed(() => {
+  const formatted = formatDateDisplay(props.createdAt)
+  return formatted || '—'
+})
+
+watch(
+  () => props.initialName,
+  (name) => {
+    orgName.value = (name || '').trim()
+  },
+)
 
 watch(
   () => props.initialIconUrl,
   (url) => {
-    if (selectedIconFile.value) return
-    iconPreviewUrl.value = url ?? null
+    iconUrl.value = url ?? null
+    iconFailed.value = false
   },
 )
 
-function setMessage (msg: string, kind: 'ok' | 'err') {
-  message.value = msg
-  messageKind.value = kind
+watch(iconUrl, () => {
+  iconFailed.value = false
+})
+
+function onIconError () {
+  iconFailed.value = true
 }
 
-function notifyOrgIconUpdated (iconUrl: string | null) {
+function notifyOrgUpdated (payload: { name: string; icon_url: string | null }) {
   if (!import.meta.client) return
-  window.dispatchEvent(new CustomEvent('tm:org-icon-updated', {
-    detail: { slug: props.orgSlug, icon_url: iconUrl },
+  window.dispatchEvent(new CustomEvent('tm:org-updated', {
+    detail: {
+      slug: props.orgSlug,
+      name: payload.name,
+      icon_url: payload.icon_url,
+    },
   }))
 }
 
-function patchCachedIconUrl (iconUrl: string | null) {
+function patchCachedOrg (payload: { name: string; icon_url: string | null }) {
   const cached = getCached(props.orgSlug)
   if (!cached) return
   patchOrgSettingsCache(props.orgSlug, {
     ...cached.orgSettings,
-    icon_url: iconUrl,
+    name: payload.name,
+    icon_url: payload.icon_url,
   })
 }
 
-function onIconFileChange (event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0] ?? null
-  selectedIconFile.value = file
-  iconError.value = null
-  if (file) {
-    iconPreviewUrl.value = URL.createObjectURL(file)
-  }
-}
-
-async function uploadIcon () {
-  if (iconLoading.value || !props.canManage) return
-  if (!selectedIconFile.value) {
-    iconError.value = 'アイコン画像を選択してください'
-    return
-  }
-  iconError.value = null
-  iconLoading.value = true
-  setMessage('', 'ok')
-  try {
-    const body = new FormData()
-    body.append('icon', selectedIconFile.value)
-    const res = await api<{ icon_url: string | null }>(`/orgs/${props.orgSlug}/icon`, {
-      method: 'POST',
-      body,
-    })
-    iconPreviewUrl.value = res.icon_url
-    selectedIconFile.value = null
-    patchCachedIconUrl(res.icon_url)
-    notifyOrgIconUpdated(res.icon_url)
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'アイコン更新に失敗しました'
-    setMessage(msg, 'err')
-  } finally {
-    iconLoading.value = false
-  }
-}
-
-async function deleteIcon () {
-  if (iconLoading.value || !props.canManage) return
-  iconLoading.value = true
-  setMessage('', 'ok')
-  try {
-    await api(`/orgs/${props.orgSlug}/icon`, { method: 'DELETE' })
-    iconPreviewUrl.value = null
-    selectedIconFile.value = null
-    patchCachedIconUrl(null)
-    notifyOrgIconUpdated(null)
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'アイコン削除に失敗しました'
-    setMessage(msg, 'err')
-  } finally {
-    iconLoading.value = false
-  }
+function onOrgSaved (payload: { name: string; icon_url: string | null }) {
+  orgName.value = payload.name
+  iconUrl.value = payload.icon_url
+  iconFailed.value = false
+  patchCachedOrg(payload)
+  notifyOrgUpdated(payload)
 }
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/settings/SettingsOrganizationPanel.scss"></style>

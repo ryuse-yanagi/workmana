@@ -15,10 +15,19 @@ logs
 
 # Misc
 .DS_Store
+Thumbs.db
 .fleet
 .idea
+.vscode
 
 # Local env files
 .env
 .env.*
 !.env.example
+
+# Test / coverage artifacts (Playwright etc.)
+coverage
+playwright-report
+test-results
+blob-report
+playwright/.cache

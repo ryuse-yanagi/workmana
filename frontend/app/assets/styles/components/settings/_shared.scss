@@ -1,5 +1,23 @@
 @use "~/assets/styles/mixin" as mixin;
 
+$settings-menu-section-title-font-size: 12px;
+$settings-menu-section-inner-gap: 6px;
+$settings-menu-item-font-size: 14px;
+$settings-panel-title-font-size: 16px;
+$settings-panel-title-height: 32px;
+$settings-panel-header-margin-bottom: 32px;
+/** サイドバー先頭の「組織設定」メニュー上端までのオフセット（見出しは html の line-height: 1.5 を継承） */
+$settings-sidebar-first-menu-offset: $settings-menu-section-title-font-size * 1.5 + $settings-menu-section-inner-gap;
+
+/** 設定画面 — button 等は UA 既定 (Arial 等) になるため明示 */
+@mixin settings-font {
+  font-family: mixin.$font-family;
+
+  :where(button, input, select, textarea, a) {
+    font-family: inherit;
+  }
+}
+
 .settings-panel {
   box-sizing: border-box;
   width: 880px;
@@ -15,17 +33,20 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 0 0 14px;
+  margin: 0 0 $settings-panel-header-margin-bottom;
   padding: 0 0 0 12px;
   border-left: 8px solid mixin.$main;
 }
 
 .settings-panel__title {
   margin: 0;
-  font-size: 16.8px;
+  box-sizing: border-box;
+  height: $settings-panel-title-height;
+  display: flex;
+  align-items: center;
+  font-size: $settings-panel-title-font-size;
   font-weight: 700;
   color: mixin.$text;
-  line-height: 1.3;
 }
 
 .settings-panel__actions {
@@ -51,7 +72,6 @@
 }
 
 .settings-panel__action-btn:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }
 
@@ -66,13 +86,13 @@
 
 .settings-input {
   border: 1px solid mixin.$border;
-  border-radius: 8px;
+  border-radius: mixin.$input-border-radius;
   padding: 7.7px 9.8px;
   font-size: 13.3px;
   background: mixin.$white;
 
   &:focus {
-    @include mixin.input-focus-ring;
+    @include mixin.input-focus-neutral;
   }
 }
 
@@ -104,12 +124,11 @@
 .settings-ghost-btn {
   background: mixin.$white;
   color: mixin.$text-strong;
-  border-color: mixin.$text-placeholder;
+  border-color: mixin.$text-gray;
 }
 
 .settings-primary-btn:disabled,
 .settings-ghost-btn:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }
 
@@ -153,4 +172,10 @@
 .settings-label-empty {
   color: mixin.$text-muted;
   font-size: 12.6px;
+}
+
+.settings-drag-handle--readonly {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
 }

@@ -17,6 +17,6 @@ class DefaultWorkspaceStatusItemsUseExpectedColorsTest extends TestCase
             ['name' => '稼働中', 'color_index' => 0],
             ['name' => '保留', 'color_index' => 3],
             ['name' => '完了', 'color_index' => 5],
-        ], DefaultWorkspaceStatuses::DEFAULT_ITEMS);
+        ], DefaultWorkspaceStatuses::defaultItems());
     }
 }

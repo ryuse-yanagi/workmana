@@ -1,39 +1,178 @@
+@use '~/assets/styles/components/settings/shared' as settings;
+
+$settings-page-padding: 14px;
+/** 左右余白の下限（ビューポート端〜レイアウト） */
+$settings-page-padding-inline-min: 8px;
+$settings-page-padding-inline: max($settings-page-padding-inline-min, $settings-page-padding);
+/** スクロール末尾・短いときの下余白 */
+$settings-content-bottom-gap: 32px;
+$settings-content-width: 880px;
+$settings-sidebar-width: 320px;
+$settings-sidebar-min-width: 160px;
+$settings-layout-gap: 14px;
+/**
+ * 右カラムの最小高さ — ヘッダー・上下余白・サイドバー先頭オフセットを除き、
+ * 短いときも画面下の 32px 余白直前まで白パネルを伸ばす。
+ */
+$settings-content-min-height: calc(
+  100dvh
+  - var(--tm-global-header-height, 56px)
+  - #{$settings-page-padding}
+  - #{$settings-content-bottom-gap}
+  - #{settings.$settings-sidebar-first-menu-offset}
+);
+/** フル幅（サイド 320 + ギャップ + コンテンツ 880）を保てなくなる幅 */
+$settings-shrink-sidebar-below: (
+  $settings-page-padding-inline * 2
+  + $settings-sidebar-width
+  + $settings-layout-gap
+  + $settings-content-width
+);
+/** サイドが 160px 下限に達し、以降は右コンテンツを狭める幅 */
+$settings-shrink-content-below: (
+  $settings-page-padding-inline * 2
+  + $settings-sidebar-min-width
+  + $settings-layout-gap
+  + $settings-content-width
+);
+
 .settings-page {
-  min-height: 100vh;
-  padding: 14px;
+  @include settings.settings-font;
+  box-sizing: border-box;
+  /* ヘッダー下〜画面下端。スクロールバーは画面右端・ヘッダーより下 */
+  height: calc(100dvh - var(--tm-global-header-height, 56px));
+  max-height: calc(100dvh - var(--tm-global-header-height, 56px));
+  padding: $settings-page-padding;
+  padding-left: $settings-page-padding-inline;
+  padding-right: $settings-page-padding-inline;
+  padding-bottom: $settings-content-bottom-gap;
+  overflow-x: hidden;
+  /* scroll でガターを常時確保し、バー出現で中央寄せコンテンツが左ずれしないようにする */
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  @include mixin.thin-scrollbar;
+}
+
+.settings-main {
+  overflow-x: visible;
+  min-height: 100%;
 }
 
 .settings-layout {
-  width: calc(320px + 880px + 14px);
+  box-sizing: border-box;
+  width: calc(#{$settings-sidebar-width} + #{$settings-content-width} + #{$settings-layout-gap});
   max-width: 100%;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 320px 880px;
-  gap: 14px;
+  grid-template-columns: $settings-sidebar-width $settings-content-width;
+  gap: $settings-layout-gap;
   align-items: start;
+  overflow: visible;
+  min-height: 100%;
 }
 
 .settings-content {
-  width: 880px;
+  position: relative;
+  box-sizing: border-box;
+  width: $settings-content-width;
   max-width: 100%;
-  min-height: 308px;
+  margin-top: settings.$settings-sidebar-first-menu-offset;
+  min-height: $settings-content-min-height;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/**
+ * ページ側でスクロールするため、ここはラッパーのみ。
+ * 白い枠は短いときもカラム高さいっぱいまで伸ばす。
+ */
+.settings-content__scroller {
+  box-sizing: border-box;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: $settings-content-min-height;
+  display: flex;
+  flex-direction: column;
+
+  :deep(.settings-panel) {
+    box-sizing: border-box;
+    width: $settings-content-width;
+    min-width: $settings-content-width;
+    max-width: $settings-content-width;
+    flex: 1 1 auto;
+    min-height: $settings-content-min-height;
+  }
 }
 
 .settings-content-loading {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 308px;
-  width: 100%;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: $settings-content-min-height;
+  width: $settings-content-width;
 }
 
-@media (max-width: 1240px) {
+.settings-content-body {
+  box-sizing: border-box;
+  width: $settings-content-width;
+  flex: 1 1 auto;
+  min-height: $settings-content-min-height;
+  display: flex;
+  flex-direction: column;
+
+  :deep(.settings-panel) {
+    flex: 1 1 auto;
+    min-height: $settings-content-min-height;
+  }
+}
+
+.settings-content-body--fade-in {
+  animation: settingsContentFadeIn 220ms ease-out;
+}
+
+@keyframes settingsContentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 幅不足時はまず左タブを 320px → 160px まで縮める（右は 880px 維持） */
+@media (max-width: $settings-shrink-sidebar-below) {
   .settings-layout {
-    grid-template-columns: 1fr;
     width: 100%;
+    grid-template-columns: minmax(#{$settings-sidebar-min-width}, #{$settings-sidebar-width}) #{$settings-content-width};
+  }
+}
+
+/* 左タブが 160px 下限に達したら、以降は右コンテンツを狭める（高さの下端伸ばしは維持） */
+@media (max-width: $settings-shrink-content-below) {
+  .settings-layout {
+    width: 100%;
+    grid-template-columns: $settings-sidebar-min-width minmax(0, 1fr);
   }
 
   .settings-content {
+    width: 100%;
+  }
+
+  .settings-content__scroller {
+    :deep(.settings-panel) {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+    }
+  }
+
+  .settings-content-loading,
+  .settings-content-body {
     width: 100%;
   }
 }

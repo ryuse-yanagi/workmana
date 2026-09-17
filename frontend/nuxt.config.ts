@@ -1,8 +1,17 @@
 /// <reference types="node" />
+import { fileURLToPath } from 'node:url'
+import { dirname, resolve } from 'node:path'
+
+const rootDir = dirname(fileURLToPath(import.meta.url))
+const sharedDir = resolve(rootDir, '../shared')
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+  alias: {
+    '#shared': sharedDir,
+  },
   css: [
     '~/assets/styles/fonts.css',
     '~/assets/styles/_buttons.scss',
@@ -10,6 +19,18 @@ export default defineNuxtConfig({
   ],
   app: {
     head: {
+      title: 'WorkMana',
+      meta: [
+        { name: 'application-name', content: 'WorkMana' },
+        { property: 'og:site_name', content: 'WorkMana' },
+      ],
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
+        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+      ],
       // 初回ペイント前に隠し、fonts-ready 後に設定どおりの太さで表示する
       style: [
         {
@@ -37,9 +58,11 @@ export default defineNuxtConfig({
     {
       path: '~/components',
       pathPrefix: false,
+      ignore: ['**/*.ts'],
     },
   ],
   runtimeConfig: {
+    apiInternalBase: process.env.NUXT_DEV_API_PROXY_TARGET || 'http://127.0.0.1:8000',
     public: {
       // 未指定時は相対パス（`vite.server.proxy` 経由で Laravel へ）。本番・Vercel では必ず絶対 URL を .env で指定すること。
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || '/api',
@@ -51,12 +74,22 @@ export default defineNuxtConfig({
     },
   },
   vite: {
+    resolve: {
+      alias: {
+        '#shared': sharedDir,
+      },
+    },
     css: {
       preprocessorOptions: {
         scss: {
           additionalData: (source: string, filename: string) => {
             const file = filename.replace(/\\/g, '/').split('?')[0]
-            if (file.endsWith('/assets/styles/_mixin.scss') || file.endsWith('/assets/styles/mixin.scss')) {
+            // mixin 本体とその分割ファイルへ注入すると循環参照になる
+            if (
+              file.endsWith('/assets/styles/_mixin.scss') ||
+              file.endsWith('/assets/styles/mixin.scss') ||
+              file.includes('/assets/styles/mixins/')
+            ) {
               return source
             }
             if (source.includes('@use "~/assets/styles/mixin" as mixin')) {
@@ -67,16 +100,31 @@ export default defineNuxtConfig({
         },
       },
     },
+    optimizeDeps: {
+      include: [
+        '@tanstack/vue-query',
+        '@vueuse/core',
+        '@floating-ui/dom',
+        'lucide-vue-next',
+        'laravel-echo',
+        'pusher-js',
+        'zod',
+      ],
+    },
     server: {
+      fs: {
+        allow: [rootDir, sharedDir],
+      },
       proxy: {
-        // ブラウザ → :3000/api/* を :8000/api/* に転送（CORS・WSL のループバック差を避ける）
+        // ブラウザ → :3000/api/* を Laravel へ転送（CORS・WSL のループバック差を避ける）
+        // ポート競合で artisan が 8001 等になったときは NUXT_DEV_API_PROXY_TARGET で上書き
         '/api': {
-          target: 'http://127.0.0.1:8000',
+          target: process.env.NUXT_DEV_API_PROXY_TARGET || 'http://127.0.0.1:8000',
           changeOrigin: true,
         },
         // アバター等の公開ストレージ（API は相対 /storage/... を返す）
         '/storage': {
-          target: 'http://127.0.0.1:8000',
+          target: process.env.NUXT_DEV_API_PROXY_TARGET || 'http://127.0.0.1:8000',
           changeOrigin: true,
         },
       },

@@ -1,4 +1,3 @@
-import { formatTaskCardEffort, formatTaskCardSingleDate } from './useTaskCardMeta'
 import type { TaskChecklist } from '../components/task/TaskDetailChecklistBlock.vue'
 export type WbsTaskLabel = { id: number; name: string; color: string }
 export type WbsTaskMember = {
@@ -18,6 +17,7 @@ export type WbsTask = {
   due_date?: string | null
   gantt_bar_color?: string | null
   effort_hours?: number | string | null
+  progress_rate?: number | string | null
   labels?: WbsTaskLabel[]
   assignees?: WbsTaskMember[]
   checklists?: TaskChecklist[]
@@ -29,6 +29,45 @@ export type WbsDisplayRow =
   | { kind: 'parent'; task: WbsTask; childCount: number }
   | { kind: 'child'; task: WbsTask }
   | { kind: 'task'; task: WbsTask }
+export type WbsReorderSnapshot = {
+  tasks: WbsTask[]
+  collapsedParentIds: Set<number>
+}
+export type WbsCodedDisplayRow = WbsDisplayRow & { wbsCode: string }
+/** セクション内の行に WBS 番号（1, 1.1, 1.2 …）を付与する */
+export function assignWbsCodes (rows: WbsDisplayRow[]): WbsCodedDisplayRow[] {
+  let topLevel = 0
+  const parentCodeById = new Map<number, string>()
+  const childCountByParent = new Map<number, number>()
+  return rows.map((row) => {
+    if (row.kind === 'parent') {
+      topLevel += 1
+      const code = String(topLevel)
+      parentCodeById.set(row.task.id, code)
+      childCountByParent.set(row.task.id, 0)
+      return { ...row, wbsCode: code }
+    }
+    if (row.kind === 'child') {
+      const parentId = row.task.parent_task_id!
+      const parentCode = parentCodeById.get(parentId) ?? '0'
+      const childIndex = (childCountByParent.get(parentId) ?? 0) + 1
+      childCountByParent.set(parentId, childIndex)
+      return { ...row, wbsCode: `${parentCode}.${childIndex}` }
+    }
+    topLevel += 1
+    return { ...row, wbsCode: String(topLevel) }
+  })
+}
+/** 同一親の子タスク群のうち、最後の行か */
+export function isLastChildInWbsGroup (rows: WbsDisplayRow[], rowIndex: number): boolean {
+  const row = rows[rowIndex]
+  if (!row || row.kind !== 'child') {
+    return false
+  }
+  const parentId = row.task.parent_task_id
+  const next = rows[rowIndex + 1]
+  return !next || next.kind !== 'child' || next.task.parent_task_id !== parentId
+}
 export function sortWbsTasks (tasks: WbsTask[]): WbsTask[] {
   return [...tasks].sort((a, b) => (
     (a.sort_order ?? 0) - (b.sort_order ?? 0)
@@ -210,76 +249,77 @@ export function previewWbsDragInsert (
     ...without.slice(insertAt),
   ]
 }
+/** ドラッグ中のドロップ判定用スロット（除外行を除いた固定幾何） */
+export type WbsDropSlot = {
+  taskId: number
+  baseIndex: number
+  top: number
+  mid: number
+  bottom: number
+}
+/**
+ * ドラッグ開始時点の行矩形を記録する。
+ * ライブプレビューで DOM が動いても、判定基準がぶれないようにする。
+ */
+export function captureWbsDropSlotsFromDom (
+  tbody: HTMLElement,
+  baseRows: WbsDisplayRow[],
+  excludeTaskIds: ReadonlySet<number>,
+): WbsDropSlot[] {
+  const slots: WbsDropSlot[] = []
+  const rowEls = tbody.querySelectorAll<HTMLElement>('[data-wbs-task-id]')
+  for (const rowEl of rowEls) {
+    const taskId = Number(rowEl.dataset.wbsTaskId)
+    if (!Number.isFinite(taskId) || excludeTaskIds.has(taskId)) {
+      continue
+    }
+    const baseIndex = baseRows.findIndex(row => row.task.id === taskId)
+    if (baseIndex < 0) {
+      continue
+    }
+    const rect = rowEl.getBoundingClientRect()
+    slots.push({
+      taskId,
+      baseIndex,
+      top: rect.top,
+      mid: rect.top + (rect.height / 2),
+      bottom: rect.bottom,
+    })
+  }
+  return slots
+}
+/**
+ * SortableJS と同様、行の中点で「前に挿入 / 後ろに挿入」を切り替える。
+ * 上→下と下→上が対称になり、行全体を「前」扱いしていたときの厳しさを解消する。
+ */
+export function resolveWbsDropIndexFromSlots (
+  clientY: number,
+  slots: WbsDropSlot[],
+  baseRowsLength: number,
+): number {
+  if (slots.length === 0) {
+    return baseRowsLength
+  }
+  for (const slot of slots) {
+    if (clientY < slot.mid) {
+      return slot.baseIndex
+    }
+  }
+  return baseRowsLength
+}
 export function resolveWbsDropIndexFromDom (
   clientX: number,
   clientY: number,
   tbody: HTMLElement,
   baseRows: WbsDisplayRow[],
   excludeTaskIds: ReadonlySet<number>,
+  frozenSlots?: WbsDropSlot[] | null,
 ): number {
-  const rowEls = tbody.querySelectorAll<HTMLElement>('[data-wbs-task-id]')
-  const hitEl = document.elementFromPoint(clientX, clientY)
-  const hitRowEl = hitEl?.closest<HTMLElement>('[data-wbs-task-id]')
-  if (hitRowEl && tbody.contains(hitRowEl)) {
-    const taskId = Number(hitRowEl.dataset.wbsTaskId)
-    if (!excludeTaskIds.has(taskId)) {
-      const baseIndex = baseRows.findIndex(row => row.task.id === taskId)
-      if (baseIndex >= 0) {
-        return baseIndex
-      }
-    }
-  }
-  for (const rowEl of rowEls) {
-    const taskId = Number(rowEl.dataset.wbsTaskId)
-    if (excludeTaskIds.has(taskId)) {
-      continue
-    }
-    const rect = rowEl.getBoundingClientRect()
-    if (
-      clientX >= rect.left
-      && clientX <= rect.right
-      && clientY >= rect.top
-      && clientY <= rect.bottom
-    ) {
-      const baseIndex = baseRows.findIndex(row => row.task.id === taskId)
-      if (baseIndex >= 0) {
-        return baseIndex
-      }
-    }
-  }
-  if (rowEls.length > 0) {
-    const firstEl = rowEls[0]!
-    const firstRect = firstEl.getBoundingClientRect()
-    if (clientY < firstRect.top) {
-      const firstTaskId = Number(firstEl.dataset.wbsTaskId)
-      if (!excludeTaskIds.has(firstTaskId)) {
-        return 0
-      }
-    }
-    const lastEl = rowEls[rowEls.length - 1]!
-    const lastRect = lastEl.getBoundingClientRect()
-    if (clientY > lastRect.bottom) {
-      return baseRows.length
-    }
-  }
-  let nearestIndex = baseRows.length
-  let nearestDistance = Number.POSITIVE_INFINITY
-  for (const rowEl of rowEls) {
-    const taskId = Number(rowEl.dataset.wbsTaskId)
-    if (excludeTaskIds.has(taskId)) {
-      continue
-    }
-    const rect = rowEl.getBoundingClientRect()
-    const distance = Math.abs(clientY - (rect.top + rect.height / 2))
-    if (distance < nearestDistance) {
-      const baseIndex = baseRows.findIndex(row => row.task.id === taskId)
-      if (baseIndex >= 0) {
-        nearestDistance = distance
-        nearestIndex = baseIndex
-      }
-    }
-  }
-  return nearestIndex
+  void clientX
+  const slots = frozenSlots && frozenSlots.length > 0
+    ? frozenSlots
+    : captureWbsDropSlotsFromDom(tbody, baseRows, excludeTaskIds)
+  return resolveWbsDropIndexFromSlots(clientY, slots, baseRows.length)
 }
 export function resolveParentIdForChildAt (
   rows: WbsDisplayRow[],
@@ -426,20 +466,42 @@ export function formatWbsDate (value: string | null | undefined): string {
   }
   return `${yearMatch[1]}（${weekday}）${yearMatch[2] ?? ''}`
 }
+
+/** WBS期間列: `MM/DD～MM/DD`。同一日は `MM/DD` のみ（年なし） */
+export function formatWbsPeriod (
+  startDate: string | null | undefined,
+  dueDate: string | null | undefined,
+): string {
+  const startMatch = startDate?.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  const dueMatch = dueDate?.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!startMatch && !dueMatch) {
+    return ''
+  }
+  const formatMd = (match: RegExpMatchArray) => `${match[2]}/${match[3]}`
+  if (startMatch && dueMatch) {
+    const startIso = `${startMatch[1]}-${startMatch[2]}-${startMatch[3]}`
+    const dueIso = `${dueMatch[1]}-${dueMatch[2]}-${dueMatch[3]}`
+    const startText = formatMd(startMatch)
+    if (startIso === dueIso) {
+      return startText
+    }
+    return `${startText}～${formatMd(dueMatch)}`
+  }
+  if (startMatch) return formatMd(startMatch)
+  return formatMd(dueMatch!)
+}
 export function formatWbsEffort (task: WbsTask): string {
   return formatTaskCardEffort(task) ?? ''
+}
+export function formatWbsProgressRate (task: WbsTask): string {
+  return formatTaskCardProgressRate(task) ?? ''
 }
 /** WBSの説明列は 1 行目のみ表示し、続きがあれば省略記号を付ける */
 export function formatWbsDescription (value: string | null | undefined): string {
   if (!value?.trim()) {
     return ''
   }
-  const lines = value
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/[*_~`]/g, '')
-    .split(/\r?\n/)
+  const lines = value.split(/\r?\n/)
   const firstIndex = lines.findIndex(line => line.trim() !== '')
   if (firstIndex < 0) {
     return ''

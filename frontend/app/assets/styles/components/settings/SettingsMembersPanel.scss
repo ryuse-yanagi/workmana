@@ -28,7 +28,7 @@
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: 12px;
 }
 
 .invite-list__item {
@@ -56,6 +56,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: mixin.$text-line-height-safe;
 }
 
 .invite-list__role {
@@ -103,7 +104,6 @@
 }
 
 .invite-list__btn:disabled {
-  opacity: 0.5;
   cursor: pointer;
 }
 

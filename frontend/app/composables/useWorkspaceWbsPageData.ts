@@ -5,10 +5,12 @@ import { useApi } from './useApi'
 import {
   flattenLabelCategories,
   normalizeLabelCategories,
+  resolveAndSortLabels,
   type LabelCategoryGroup,
 } from './useLabelCategories'
-import { resolveLabelColors, resolveListColors } from '../utils/colorPresetResolution'
+import { resolveListColors } from '../utils/colorPresetResolution'
 import { sortMembersByDisplayName } from './useMemberDisplay'
+import { getCachedWorkspaceAssignees } from './useOrgWorkspaceIndexPageData'
 export type WorkspaceWbsPageSnapshot = {
   tasks: WbsTask[]
   orgLabels: TaskFormLabel[]
@@ -45,30 +47,28 @@ export function useWorkspaceWbsPageData () {
       return inflight
     }
     const job = (async () => {
-      const [tasksRes, labelCategoriesRes, membersRes, listsRes] = await Promise.all([
+      const [tasksRes, labelCategoriesRes, listsRes] = await Promise.all([
         api<{ data: WbsTask[] }>(
           `/orgs/${slug}/workspaces/${id}/tasks/wbs`,
         ),
         api<{ data: LabelCategoryGroup[] }>(
           `/orgs/${slug}/task-label-categories`,
         ),
-        api<{ data: TaskFormMember[] }>(
-          `/orgs/${slug}/workspaces/${id}/members`,
-        ),
         api<{ data: WorkspaceListOption[] }>(
           `/orgs/${slug}/workspaces/${id}/lists`,
         ),
       ])
       const orgLabelCategories = normalizeLabelCategories(labelCategoriesRes.data ?? [])
+      const orgLabels = flattenLabelCategories(orgLabelCategories)
       const snapshot: WorkspaceWbsPageSnapshot = {
         tasks: (tasksRes.data ?? []).map(task => ({
           ...task,
           assignees: sortMembersByDisplayName(task.assignees ?? []),
-          labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
+          labels: task.labels ? resolveAndSortLabels(task.labels, orgLabels) : task.labels,
         })),
-        orgLabels: flattenLabelCategories(orgLabelCategories),
+        orgLabels,
         orgLabelCategories,
-        workspaceMembers: sortMembersByDisplayName(membersRes.data ?? []),
+        workspaceMembers: getCachedWorkspaceAssignees(slug, id),
         workspaceLists: resolveListColors([...(listsRes.data ?? [])]).sort(
           (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
         ),

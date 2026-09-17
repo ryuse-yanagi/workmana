@@ -1,16 +1,19 @@
 <template>
   <div
     class="document-category-select"
+    :class="{ 'document-category-select--readonly': readonly }"
     data-document-category-select-root
-    @pointerdown.stop
-    @pointerup.stop
+    @pointerdown="onRootPointerDown"
+    @pointerup="onRootPointerUp"
   >
     <button
+      v-if="!readonly"
       ref="triggerRef"
       type="button"
       class="document-category-select__trigger"
+      data-popover-trigger
       :aria-expanded="isOpen"
-      aria-haspopup="listbox"
+      aria-haspopup="dialog"
       :aria-label="triggerAriaLabel"
       :disabled="disabled || pending || !categories.length"
       @click.stop="toggleDropdown"
@@ -26,54 +29,136 @@
         class="document-category-select__empty"
       >未設定</span>
     </button>
+    <div
+      v-else
+      class="document-category-select__display"
+      :aria-label="triggerAriaLabel"
+    >
+      <LabelStrip
+        v-if="currentCategory"
+        :label="categoryLabel(currentCategory)"
+        :text-color="categoryTextColor(currentCategory.color)"
+        size="sm"
+      />
+      <span
+        v-else
+        class="document-category-select__empty document-category-select__empty--readonly"
+      >未設定</span>
+    </div>
   </div>
-  <Teleport to="body">
+  <Teleport v-if="!readonly" to="body">
     <div
       v-if="isOpen"
       ref="dropdownRef"
       class="document-category-select__dropdown"
-      role="listbox"
-      aria-label="カテゴリを選択"
+      role="dialog"
+      aria-label="カテゴリ"
       :style="dropdownStyle"
+      @click.stop
     >
-      <ul
+      <header class="document-category-select__header">
+        <button
+          v-if="currentCategory"
+          type="button"
+          class="board-filter-clear"
+          @click.stop="clearCategory"
+        >
+          クリア
+        </button>
+        <p class="document-category-select__title">カテゴリ</p>
+        <button
+          type="button"
+          class="document-category-select__close"
+          :disabled="pending"
+          aria-label="閉じる"
+          @click.stop="closeDropdown"
+        >
+          <X
+            :size="16"
+            :stroke-width="2.25"
+            aria-hidden="true"
+          />
+        </button>
+      </header>
+      <input
+        v-model="searchQuery"
+        type="search"
+        class="document-category-select__search"
+        placeholder="カテゴリを検索..."
+        :disabled="pending"
+        @click.stop
+      />
+      <p class="document-category-select__section-heading">カテゴリ</p>
+      <div
         class="document-category-select__list"
         :style="listStyle"
       >
+        <ul class="document-category-select__picker-list">
         <li
-          v-for="category in categories"
+            v-for="category in filteredCategories"
           :key="category.name"
-          class="document-category-select__item"
-          role="option"
-          :aria-selected="isSelected(category)"
         >
           <button
             type="button"
-            class="document-category-select__option"
-            :class="{ 'document-category-select__option--selected': isSelected(category) }"
+              class="document-category-select__row"
             :disabled="pending"
             @click.stop="selectCategory(category)"
           >
-            <LabelStrip
-              :label="categoryLabel(category)"
-              :text-color="categoryTextColor(category.color)"
-              size="sm"
-            />
+              <input
+                type="radio"
+                class="document-category-select__checkbox"
+                :checked="isSelected(category)"
+                tabindex="-1"
+                aria-hidden="true"
+              >
+              <span
+                class="document-category-select__pill"
+                :style="surfacePillStyle(category.color)"
+              >
+                {{ category.name }}
+              </span>
           </button>
         </li>
       </ul>
+        <p
+          v-if="!categories.length"
+          class="document-category-select__empty-text"
+        >
+          カテゴリは設定画面で追加できます
+        </p>
+        <p
+          v-else-if="!filteredCategories.length"
+          class="document-category-select__empty-text"
+        >
+          該当するカテゴリがありません
+        </p>
+      </div>
     </div>
   </Teleport>
 </template>
 <script setup lang="ts">
+import { X } from 'lucide-vue-next'
 import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,
 } from '../../constants/colorPresets'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { isScrollInsideRoot } from '../../utils/uiInteraction'
-import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, POPOVER_SCROLLBAR_GUTTER_VAR, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
+import { dismissPopoverFromOutsidePointer, isInsideFloatingPopover, isScrollInsideRoot } from '../../utils/uiInteraction'
+import {
+  POPOVER_PANEL_BASE_WIDTH,
+  POPOVER_VIEWPORT_INSET,
+  clampPopoverBox,
+  measurePopoverNaturalHeight,
+  resolveFlippedPopoverVerticalLayout,
+  popoverMaxHeightStyle,
+  popoverPositionVisibilityStyle,
+  popoverScrollbarLayoutStyle,
+  popoverStablePanelWidthStyle,
+  resolveAnchoredPopoverLayoutWidth,
+  resolvePopoverScrollbarGutter,
+  schedulePopoverOpenLayout,
+} from '../../utils/popoverScrollbar'
 import type { TaskFormCategory } from '../../composables/useTaskFormHelpers'
 import LabelStrip from '../ui/LabelStrip.vue'
 
@@ -82,31 +167,60 @@ const props = withDefaults(defineProps<{
   categories: TaskFormCategory[]
   disabled?: boolean
   pending?: boolean
+  readonly?: boolean
 }>(), {
   category: null,
   disabled: false,
   pending: false,
+  readonly: false,
 })
 
 const emit = defineEmits<{
-  select: [category: TaskFormCategory]
+  select: [category: TaskFormCategory | null]
 }>()
 
 const DROPDOWN_GAP = 6
-const VIEWPORT_PAD = 8
-const DROPDOWN_VERTICAL_PADDING = 12
+const DROPDOWN_CHROME_HEIGHT = 96
 const triggerRef = ref<HTMLElement | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
-const dropdownPosition = ref<{ top: number; left: number; scrollbarGutter: number } | null>(null)
+const searchQuery = ref('')
+const layoutSettled = ref(false)
+const dropdownPosition = ref<{ top: number; left: number; scrollbarGutter: number; panelWidth: number } | null>(null)
 const listMaxHeight = ref<number | null>(null)
 
 const currentCategory = computed(() => props.category ?? null)
 const triggerAriaLabel = computed(() => {
+  if (props.readonly) {
+    if (currentCategory.value) {
+      return `カテゴリ ${currentCategory.value.name}`
+    }
+    return 'カテゴリ未設定'
+  }
   if (currentCategory.value) {
     return `カテゴリ ${currentCategory.value.name}。クリックして変更`
   }
   return 'カテゴリ未設定。クリックして選択'
+})
+
+function onRootPointerDown (event: PointerEvent) {
+  if (!props.readonly) {
+    event.stopPropagation()
+  }
+}
+
+function onRootPointerUp (event: PointerEvent) {
+  if (!props.readonly) {
+    event.stopPropagation()
+  }
+}
+
+const filteredCategories = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) {
+    return props.categories
+  }
+  return props.categories.filter(category => category.name.toLowerCase().includes(query))
 })
 
 const listStyle = computed(() => {
@@ -119,16 +233,15 @@ const listStyle = computed(() => {
 
 const dropdownStyle = computed(() => {
   if (!dropdownPosition.value) {
-    return {
-      visibility: 'hidden',
-    } as Record<string, string>
+    return popoverPositionVisibilityStyle(false)
   }
-  const { top, left, scrollbarGutter } = dropdownPosition.value
+  const { top, left, scrollbarGutter, panelWidth } = dropdownPosition.value
   return {
     top: `${top}px`,
     left: `${left}px`,
-    visibility: 'visible',
-    ...popoverScrollbarGutterStyle(scrollbarGutter),
+    ...popoverPositionVisibilityStyle(layoutSettled.value),
+    ...popoverStablePanelWidthStyle(panelWidth),
+    ...popoverScrollbarLayoutStyle(scrollbarGutter, true),
   }
 })
 
@@ -143,12 +256,21 @@ function categoryTextColor (color: string) {
   return standardColorEmphasisText(color)
 }
 
+function surfacePillStyle (color: string) {
+  return {
+    backgroundColor: standardColorSurfaceBackground(color),
+    color: standardColorEmphasisText(color),
+  }
+}
+
 function isSelected (category: TaskFormCategory) {
   return currentCategory.value?.name === category.name
 }
 
 function closeDropdown () {
   isOpen.value = false
+  searchQuery.value = ''
+  layoutSettled.value = false
   dropdownPosition.value = null
   listMaxHeight.value = null
 }
@@ -162,35 +284,60 @@ function positionDropdown () {
   }
   const rect = trigger.getBoundingClientRect()
   const dropdown = dropdownRef.value
-  if (dropdown) {
-    dropdown.style.setProperty(POPOVER_SCROLLBAR_GUTTER_VAR, '0px')
-  }
   const list = dropdown?.querySelector('.document-category-select__list')
-  const top = Math.max(VIEWPORT_PAD, rect.top)
-  listMaxHeight.value = Math.max(
-    0,
-    window.innerHeight - VIEWPORT_PAD - top - DROPDOWN_VERTICAL_PADDING,
-  )
-  const scrollbarGutter = list instanceof HTMLElement && listMaxHeight.value != null
-    ? resolvePopoverScrollbarGutter(list, listMaxHeight.value)
-    : 0
-  const dropdownWidth = (dropdown?.offsetWidth ?? 128) + popoverWidthExtraForGutter(scrollbarGutter)
-  let left = rect.right + DROPDOWN_GAP
-  if (left + dropdownWidth > window.innerWidth - VIEWPORT_PAD) {
-    left = rect.left - dropdownWidth - DROPDOWN_GAP
+  const pad = POPOVER_VIEWPORT_INSET
+  const measuredHeight = dropdown ? Math.ceil(measurePopoverNaturalHeight(dropdown) || 0) : 0
+  const preferredTop = rect.bottom + DROPDOWN_GAP
+  const spaceBelow = window.innerHeight - rect.bottom - pad
+  let top: number
+  if (spaceBelow >= 160) {
+    const vertical = resolveFlippedPopoverVerticalLayout(preferredTop, {
+      pad,
+      contentHeight: measuredHeight,
+    })
+    top = vertical.top
+    listMaxHeight.value = Math.max(0, vertical.maxHeight - DROPDOWN_CHROME_HEIGHT)
+  } else {
+    const vertical = resolveFlippedPopoverVerticalLayout(rect.top - DROPDOWN_GAP, {
+    pad,
+    contentHeight: measuredHeight,
+  })
+    top = vertical.top
+    listMaxHeight.value = Math.max(0, vertical.maxHeight - DROPDOWN_CHROME_HEIGHT)
   }
-  left = Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - dropdownWidth - VIEWPORT_PAD))
-  dropdownPosition.value = { top, left, scrollbarGutter }
+  const baseWidth = POPOVER_PANEL_BASE_WIDTH.category
+  const scrollbarGutter = list instanceof HTMLElement && listMaxHeight.value != null
+    ? resolvePopoverScrollbarGutter(list, listMaxHeight.value, baseWidth)
+    : 0
+  const panelWidth = resolveAnchoredPopoverLayoutWidth(baseWidth, scrollbarGutter)
+  let left = rect.left
+  if (left + panelWidth > window.innerWidth - pad) {
+    left = rect.right - panelWidth
+  }
+  left = Math.max(pad, Math.min(left, window.innerWidth - panelWidth - pad))
+  const panelHeight = measuredHeight > 0
+    ? measuredHeight
+    : Math.min(160, (listMaxHeight.value ?? 0) + DROPDOWN_CHROME_HEIGHT)
+  const clamped = clampPopoverBox(top, left, panelWidth, panelHeight, pad)
+  dropdownPosition.value = { top: clamped.top, left: clamped.left, scrollbarGutter, panelWidth }
 }
 
 function openDropdown () {
   if (props.disabled || props.pending || !props.categories.length) {
     return
   }
+  searchQuery.value = ''
+  layoutSettled.value = false
   isOpen.value = true
+  dropdownPosition.value = null
+  listMaxHeight.value = null
   nextTick(() => {
-    positionDropdown()
-    requestAnimationFrame(() => positionDropdown())
+    schedulePopoverOpenLayout(
+      () => positionDropdown(),
+      () => {
+        layoutSettled.value = true
+      },
+    )
   })
 }
 
@@ -206,12 +353,14 @@ function selectCategory (category: TaskFormCategory) {
   if (props.pending) {
     return
   }
-  if (isSelected(category)) {
-    closeDropdown()
+  emit('select', isSelected(category) ? null : category)
+}
+
+function clearCategory () {
+  if (props.pending || !currentCategory.value) {
     return
   }
-  emit('select', category)
-  closeDropdown()
+  emit('select', null)
 }
 
 function isTriggerVisible (): boolean {
@@ -244,7 +393,10 @@ function onDocumentPointerUp (event: PointerEvent) {
   if (shouldIgnoreOutsidePointer(target)) {
     return
   }
-  closeDropdown()
+  if (isInsideFloatingPopover(target)) {
+    return
+  }
+  dismissPopoverFromOutsidePointer(target, closeDropdown)
 }
 
 function onWindowResize () {
@@ -300,6 +452,15 @@ watch(isOpen, (open) => {
       return
     }
     bindGlobalListeners()
+  })
+})
+
+watch(searchQuery, () => {
+  if (!isOpen.value) {
+    return
+  }
+  nextTick(() => {
+    positionDropdown()
   })
 })
 

@@ -1,0 +1,79 @@
+.role-radio-group {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.role-radio-group__legend {
+  margin: 0 0 8px;
+  padding: 0;
+  @include mixin.modal-field-label;
+}
+
+.role-radio-group__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 260px);
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.role-radio-group__item {
+  min-width: 0;
+}
+
+.role-radio-group__option {
+  @include mixin.picker-checkbox-row;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 260px;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+  margin: 0;
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  background: mixin.$white;
+  padding: 0 12px;
+  text-align: left;
+  color: mixin.$text-heading;
+  font-size: 14px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.role-radio-group__option:hover:not(:disabled) {
+  background: mixin.$bg-main-soft;
+  border-color: color-mix(in srgb, mixin.$main 22%, mixin.$border);
+}
+
+.role-radio-group__option--checked {
+  background: mixin.$bg-main-soft;
+  border-color: color-mix(in srgb, mixin.$main 34%, mixin.$border);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, mixin.$main 12%, transparent);
+}
+
+.role-radio-group__option--checked:hover:not(:disabled) {
+  background: mixin.$bg-main-soft;
+  border-color: color-mix(in srgb, mixin.$main 48%, mixin.$border);
+}
+
+.role-radio-group__radio {
+  @include mixin.picker-native-radio(16px);
+}
+
+.role-radio-group__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: mixin.$text-heading;
+}

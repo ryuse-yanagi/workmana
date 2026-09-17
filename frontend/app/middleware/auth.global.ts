@@ -11,11 +11,26 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
   const { ensureCurrentUser } = useCurrentUser()
-  const userId = await ensureCurrentUser()
-  if (userId === null) {
-    return navigateTo({
-      path: '/login',
-      query: { next: to.fullPath },
-    })
+  let userId: number | null = null
+  try {
+    userId = await Promise.race([
+      ensureCurrentUser(),
+      new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), 4_000)
+      }),
+    ])
+  } catch {
+    userId = null
   }
+  if (userId !== null) {
+    return
+  }
+  // /org は SSR 済みの一覧を優先。未ログインなら API が 401 になる
+  if (to.path.startsWith('/org/')) {
+    return
+  }
+  return navigateTo({
+    path: '/login',
+    query: { next: to.fullPath },
+  })
 })

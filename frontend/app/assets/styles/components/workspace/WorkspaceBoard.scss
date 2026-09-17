@@ -1,11 +1,12 @@
 .board-page {
   height: calc(100dvh - var(--global-header-offset, 56px));
+  max-height: calc(100dvh - var(--global-header-offset, 56px));
   padding: 0 14px 0;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
-  padding-top: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .page-shell-fade {
   flex: 1;
@@ -25,19 +26,29 @@
   overflow: hidden;
 }
 .workspace-sidebar-slot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
   align-self: stretch;
   width: 400px;
   min-height: 0;
   overflow: hidden;
-  transition: width 0.28s ease;
+  transition: width 0.28s ease, box-shadow 0.28s ease;
+  @include mixin.detail-sidebar-edge-shadow;
 }
 .workspace-sidebar-slot--closed {
   width: 0;
+  box-shadow: none;
 }
 .workspace-sidebar-slot :deep(.workspace-sidebar) {
+  flex: 1 1 auto;
+  align-self: stretch;
   width: 400px;
-  height: 100%;
+  min-height: 0;
+  height: auto;
+  max-height: 100%;
   max-width: none;
   transform: translateX(0);
   transition: transform 0.28s ease;
@@ -46,9 +57,13 @@
   transform: translateX(-100%);
 }
 .subheader-workspace-name {
-  margin: 0;
+  box-sizing: border-box;
+  margin: 0 0 0 20px;
+  /* 表示は最大15文字（全角）分。入力上限20はそのまま。letter-spacing 分も確保 */
+  width: calc(15em + 14 * 0.02em);
+  max-width: calc(15em + 14 * 0.02em);
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -56,7 +71,18 @@
   font-weight: 500;
   color: mixin.$text-muted;
   letter-spacing: 0.02em;
-  flex-shrink: 1;
+}
+.subheader-start {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  height: 100%;
+  gap: 7px;
+  /* 検索が下限に達したあとだけ縮む（shrink は filters より十分小さく） */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  z-index: 1;
 }
 .page-header {
   position: relative;
@@ -72,17 +98,13 @@
   height: 100%;
 }
 .subheader {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 7px;
   height: 100%;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-.subheader::-webkit-scrollbar {
-  display: none;
+  overflow: hidden;
 }
 .subheader-title {
   @include mixin.page-header-title;
@@ -90,7 +112,7 @@
 .subheader-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 4.2px;
+  gap: 4px;
   border: none;
   background: transparent;
   font-family: inherit;
@@ -101,6 +123,7 @@
   color: mixin.$main;
   letter-spacing: 0.05em;
   line-height: 1.1;
+  flex-shrink: 0;
   transition: opacity 0.16s ease;
   &::before {
     content: '';
@@ -119,47 +142,103 @@
     mask-position: center;
   }
 }
+/*
+ * 検索クラスタ:
+ * - flex-shrink を大きくし、先に 600→下限まで縮む
+ * - min-width で検索本体 240px + 件数分を確保
+ * - overflow:hidden で隣のタブ・ボタンへはみ出さない
+ */
 .subheader-filters {
+  --subheader-search-min: 240px;
   display: flex;
   align-items: center;
-  gap: 6.3px;
-  flex: 1;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 999 600px;
+  min-width: calc(var(--subheader-search-min) + 6px + 3ch + 1.35em);
+  max-width: 100%;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: auto;
+}
+.header-search-field {
+  position: relative;
+  flex: 1 1 auto;
+  width: auto;
   min-width: 0;
+  max-width: 600px;
+}
+.header-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: mixin.$text-muted;
+  pointer-events: none;
 }
 .header-search {
-  flex: 1;
-  min-width: 84px;
-  max-width: 252px;
+  display: block;
+  width: 100%;
+  min-width: 0;
   border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 0 7.7px;
-  font-size: 11.48px;
-  background: mixin.$white;
+  border-radius: mixin.$input-border-radius;
+  padding: 0 12px 0 32px;
+  font-size: 14px;
   color: mixin.$text;
   box-sizing: border-box;
   height: 32px;
   line-height: 32px;
+  @include mixin.popover-input-background;
+}
+.header-search::-webkit-search-decoration,
+.header-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 .header-search::placeholder {
-  color: mixin.$text-placeholder;
+  color: mixin.$text-gray;
 }
 .header-search:focus {
-  @include mixin.input-focus-ring;
+  @include mixin.input-focus-neutral;
 }
 .header-search:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }
 .subheader-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
   margin: 0;
-  font-size: 11.48px;
+  box-sizing: border-box;
+  font-size: 14px;
   font-weight: 600;
   color: mixin.$text-muted;
   white-space: nowrap;
   flex-shrink: 0;
 }
+.subheader-count__num {
+  display: inline-block;
+  width: 3ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.subheader-count__unit {
+  flex-shrink: 0;
+}
 .subheader-actions {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  flex: 0 0 auto;
+  z-index: 1;
+}
+.subheader-actions .subheader-secondary-btn--add {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+.subheader-actions__menus {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
@@ -176,34 +255,33 @@
 .board {
   width: calc(100% + 28px);
   max-width: none;
-  margin: 7.7px -14px 0;
+  margin: 8px -14px 0;
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 28px;
   margin-bottom: 0;
   flex: 1;
   min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: mixin.ink-a(0.1) transparent;
+  @include mixin.thin-scrollbar;
 }
-.board::-webkit-scrollbar {
-  height: 3px;
+.board--fade-in {
+  animation: boardContentFadeIn 220ms ease-out;
 }
-.board::-webkit-scrollbar-track {
-  background: transparent;
-}
-.board::-webkit-scrollbar-thumb {
-  background: mixin.ink-a(0.08);
-  border-radius: 999px;
-}
-.board::-webkit-scrollbar-thumb:hover {
-  background: mixin.ink-a(0.14);
+@keyframes boardContentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .board-columns {
   display: flex;
   flex-direction: row;
   align-items: start;
-  gap: 12.6px;
+  gap: 13px;
   width: max-content;
   margin-inline: auto;
   padding-inline: 14px;
@@ -211,11 +289,11 @@
 }
 .board-lists-sortable {
   --task-card-width: 246px;
-  --list-column-width: calc(var(--task-card-width) + 21px);
+  --list-column-width: calc(var(--task-card-width) + 24px);
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: var(--list-column-width);
-  gap: 12.6px;
+  gap: 13px;
   align-items: start;
 }
 .board-lists-sortable .list-column {
@@ -224,8 +302,11 @@
   max-width: var(--list-column-width);
   min-width: 0;
 }
+.list-column--fade-in {
+  animation: boardContentFadeIn 220ms ease-out;
+}
 .board-lists-sortable .list-column.drag-ghost {
-  border: 1px dashed mixin.$text-placeholder;
+  border: 1px dashed mixin.$text-gray;
   min-height: 49px;
   opacity: 1;
 }
@@ -256,8 +337,10 @@
   max-height: calc(100dvh - var(--tm-global-header-height, 56px) - var(--tm-page-header-height, 48px) - 42px);
   box-sizing: border-box;
   position: relative;
-  background: mixin.$list-column-bg;
+  background: mixin.$bg-gray;
   overflow: hidden;
+  /* expand した縦バーを列の overflow:hidden で切らない */
+  padding-inline-end: mixin.$scrollbar-lane;
   box-shadow:
     0 4px 8px mixin.ink-a(0.09),
     0 2px 4px mixin.ink-a(0.05);
@@ -267,11 +350,13 @@
   justify-content: space-between;
   align-items: center;
   gap: 7px;
-  padding: 11.2px;
+  padding: 8px;
   flex-shrink: 0;
   cursor: pointer;
   touch-action: none;
   border-radius: 14px 14px 0 0;
+  /* レーン予約分をヘッダーはフルブリードに戻す */
+  margin-inline-end: calc(-1 * #{mixin.$scrollbar-lane});
 }
 .board-list-dragging .list-header {
   cursor: default;
@@ -294,12 +379,12 @@
   margin: 0;
   width: 100%;
   box-sizing: border-box;
-  font-size: 15.4px;
+  font-size: 16px;
   line-height: 1.35;
   font-weight: 700;
   font-family: inherit;
-  color: mixin.$white;
-  padding: 1.4px 8.4px;
+  color: inherit;
+  padding: 6px 8px;
   border: 1px solid transparent;
   border-radius: 4px;
   overflow-wrap: anywhere;
@@ -312,7 +397,7 @@
   cursor: pointer;
 }
 .list-title-clickable:focus-visible {
-  outline: 2px solid mixin.white-a(0.85);
+  outline: 2px solid color-mix(in srgb, currentColor 85%, transparent);
   outline-offset: 2px;
 }
 .list-title-input {
@@ -330,7 +415,7 @@
 }
 .list-title-input:focus {
   outline: none;
-  border-color: mixin.$main;
+  border-color: mixin.$border;
 }
 .list-header--editing .list-title-field,
 .list-header--editing .list-title-field * {
@@ -341,23 +426,23 @@
 .list-header-right {
   display: flex;
   align-items: center;
-  gap: 2.1px;
+  gap: 2px;
   flex-shrink: 0;
 }
 .edit-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 5.6px;
+  gap: 6px;
 }
 .ghost-btn.small {
-  padding: 4.9px 7.7px;
-  font-size: 10.92px;
+  padding: 5px 8px;
+  font-size: 11px;
   border-radius: 8px;
 }
 .card-edit-form {
   display: flex;
   flex-direction: column;
-  gap: 6.3px;
+  gap: 6px;
   touch-action: auto;
   user-select: text;
   -webkit-user-select: text;
@@ -366,12 +451,12 @@
   width: 100%;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
-  border-radius: 6px;
-  padding: 2.8px 4.9px;
+  border-radius: mixin.$input-border-radius;
+  padding: 3px 5px;
   font: inherit;
-  font-size: 12.25px;
+  font-size: 12px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text;
   background: mixin.$white;
   resize: none;
@@ -381,75 +466,55 @@
   display: block;
 }
 .card-title-input:focus {
-  @include mixin.input-focus-ring;
+  @include mixin.input-focus-neutral;
 }
 .list-count {
   border-radius: 999px;
   font-size: 14px;
-  padding: 1.68px 7.7px;
-  color: mixin.$white;
+  padding: 2px 8px;
+  color: inherit;
   font-weight: 600;
-  margin-right: 1.4px;
+  margin-right: 1px;
 }
 .list-header-menu-host {
   display: inline-flex;
   align-items: center;
 }
 .list-header-menu-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 25.9px;
-  height: 25.9px;
-  border: none;
-  border-radius: 999px;
-  padding: 0;
-  margin: -2.1px -1.4px -2.1px 0;
+  /* リスト色の上に乗るため背景なし。アイコンはヘッダー文字色に合わせる */
+  margin: 0;
   background: transparent;
-  color: mixin.white-a(0.92);
-  cursor: pointer;
-  &:focus-visible {
-    outline: 2px solid mixin.white-a(0.85);
-    outline-offset: 1px;
-  }
+  color: inherit;
+}
+.list-header .list-header-menu-trigger.subheader-menu-btn {
+  background: transparent;
+  color: inherit;
+}
+.list-header-menu-trigger:hover,
+.list-header-menu-trigger:focus-visible {
+  background: transparent;
 }
 .list-drop-zone {
-  padding: 9.1px 10.5px 0;
+  padding: 8px 12px;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6.3px;
+  gap: 6px;
   flex: 0 1 auto;
   min-height: 0;
   max-height: calc(100dvh - var(--tm-global-header-height, 56px) - var(--tm-page-header-height, 48px) - 119px);
   position: relative;
-  scrollbar-width: none;
-}
-.list-drop-zone::-webkit-scrollbar {
-  width: 0;
-}
-.list-drop-zone::-webkit-scrollbar-track {
-  background: transparent;
-}
-.list-drop-zone--scrollable {
-  scrollbar-width: thin;
-  scrollbar-color: mixin.ink-a(0.1) transparent;
-}
-.list-drop-zone--scrollable::-webkit-scrollbar {
-  width: 3px;
-}
-.list-drop-zone--scrollable::-webkit-scrollbar-thumb {
-  background: mixin.ink-a(0.08);
-  border-radius: 999px;
-}
-.list-drop-zone--scrollable::-webkit-scrollbar-thumb:hover {
-  background: mixin.ink-a(0.14);
+  box-sizing: border-box;
+  /* バーは列の右レーンへ。カード幅は出現前後で変わらない */
+  width: calc(100% + #{mixin.$scrollbar-lane});
+  margin-inline-end: calc(-1 * #{mixin.$scrollbar-lane});
+  @include mixin.thin-scrollbar;
 }
 .list-column--empty .list-drop-zone {
   padding-top: 0;
-  padding-bottom: 1.4px;
+  padding-bottom: 1px;
   gap: 0;
 }
 /* 他リストへ移動中はソース列にプレースホルダを出さない */
@@ -474,7 +539,7 @@
   overflow: hidden !important;
 }
 .list-column--tail-target .list-drop-zone {
-  min-height: 38.5px;
+  min-height: 39px;
 }
 .drag-ghost--tail-preview {
   flex-shrink: 0;
@@ -538,7 +603,7 @@
   background: mixin.$white;
   border: 1px solid mixin.$border;
   border-radius: 10px;
-  padding: 6.3px 7.7px;
+  padding: 6px 8px;
   cursor: pointer;
   box-shadow: 0 1px 0 mixin.ink-a(0.06);
   user-select: none;
@@ -600,7 +665,7 @@
   visibility: visible !important;
 }
 .task-parent-title {
-  margin: 0 0 2.8px;
+  margin: 0 0 3px;
   max-width: 100%;
   font-size: 12px;
   font-weight: 700;
@@ -613,13 +678,13 @@
 .task-title-row {
   display: flex;
   align-items: flex-start;
-  gap: 4.2px;
+  gap: 4px;
   margin: 0;
   min-width: 0;
 }
 .task-title-row__icon {
   flex-shrink: 0;
-  margin-top: 1.68px;
+  margin-top: 2px;
   color: mixin.$main;
 }
 .task-title {
@@ -637,15 +702,15 @@
 .task-card-meta {
   display: flex;
   flex-direction: column;
-  gap: 2.52px;
-  margin-top: 4.9px;
+  gap: 3px;
+  margin-top: 5px;
 }
 .task-card-meta__row {
   display: inline-flex;
   align-items: center;
-  gap: 3.92px;
+  gap: 4px;
   margin: 0;
-  font-size: 10.08px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1.25;
   color: mixin.$text-muted;
@@ -662,15 +727,15 @@
 .task-card-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 4.2px;
+  margin-top: 4px;
 }
 .task-card-members {
   display: flex;
   align-items: center;
 }
 .task-card-member {
-  width: 17.5px;
-  height: 17.5px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   overflow: hidden;
   flex-shrink: 0;
@@ -682,7 +747,7 @@
   justify-content: center;
 }
 .task-card-member + .task-card-member {
-  margin-left: -4.9px;
+  margin-left: -5px;
 }
 .task-card-member-image {
   width: 100%;
@@ -690,7 +755,7 @@
   object-fit: cover;
 }
 .task-card-member-initial {
-  font-size: 7.84px;
+  font-size: 8px;
   font-weight: 700;
   color: mixin.$text-sub;
   line-height: 1;
@@ -717,61 +782,34 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
   border: none;
   background: mixin.$white;
   color: mixin.$text-muted;
-  line-height: 1;
-  padding: 2.8px;
+  line-height: 0;
+  padding: 0;
   border-radius: 999px;
   cursor: pointer;
+  :deep(svg) {
+    width: 20px;
+    height: 20px;
+  }
 }
 .card-menu-trigger:focus-visible {
   outline: 2px solid mixin.$main;
   outline-offset: 2px;
 }
-.undo-toast {
-  position: fixed;
-  bottom: 42px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 55;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 336px;
-  max-width: min(588px, calc(100vw - 21px));
-  gap: 9.8px;
-  padding: 9.8px 15.4px;
-  background: mixin.$main;
-  color: mixin.$white;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.55;
-  white-space: nowrap;
-  box-shadow: 0 10px 22px color-mix(in srgb, mixin.$main 28%, transparent);
-}
-.undo-toast-message {
-  text-align: left;
-  flex: 1;
-  min-width: 0;
-}
-.undo-toast-close {
-  border: none;
-  background: transparent;
-  color: mixin.$white;
-  font-size: 18.9px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 1.4px;
-  flex-shrink: 0;
-}
 .composer {
   display: flex;
-  justify-content: center;
+  justify-content: stretch;
   align-items: center;
-  padding: 6.3px 10.5px 7px;
+  width: 100%;
+  box-sizing: border-box;
+  padding-bottom: 8px;
   flex-shrink: 0;
+  margin-inline-end: calc(-1 * #{mixin.$scrollbar-lane});
 }
 .composer-form {
   display: flex;
@@ -782,10 +820,10 @@
   width: 100%;
   box-sizing: border-box;
   border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 7.7px 9.1px;
+  border-radius: mixin.$input-border-radius;
+  padding: 8px 9px;
   font: inherit;
-  font-size: 12.25px;
+  font-size: 12px;
   line-height: 1.4;
   background: mixin.$white;
   box-shadow: none;
@@ -796,42 +834,64 @@
   display: block;
 }
 .composer-input:focus {
-  @include mixin.input-focus-ring;
+  @include mixin.input-focus-neutral;
 }
 .composer-actions {
   display: flex;
   align-items: center;
-  gap: 3.5px;
+  gap: 4px;
 }
 .composer-submit-btn {
   border: none;
   border-radius: 8px;
-  padding: 5.88px 10.08px;
+  padding: 6px 10px;
   background: mixin.$main;
   color: mixin.$white;
-  font-size: 12.25px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 .composer-submit-btn:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }
 .composer-close-btn {
   border: none;
   background: transparent;
   color: mixin.$text-secondary-alt;
-  font-size: 16.8px;
+  font-size: 17px;
   line-height: 1;
-  padding: 4.9px 6.3px;
+  padding: 5px 6px;
   border-radius: 6px;
   cursor: pointer;
   margin-left: auto;
 }
+.composer-add-btn {
+  border: none;
+  background: transparent;
+  color: mixin.$main;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  gap: 6px;
+  :deep(svg) {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+}
 .primary-btn {
   border: 1px solid transparent;
   border-radius: 999px;
-  padding: 5.6px 28px;
+  padding: 6px 28px;
   font-size: 14px;
   font-weight: bold;
   letter-spacing: 0.1em;
@@ -845,82 +905,37 @@
   background: mixin.$main;
   color: mixin.$white;
 }
+.primary-btn:disabled {
+  cursor: pointer;
+}
 .primary-btn--compact {
-  padding: 4.9px 14px;
-  font-size: 11.48px;
+  padding: 5px 14px;
+  font-size: 11px;
 }
 .ghost-btn {
   background: transparent;
   color: mixin.$text;
-  border: 1px solid mixin.$text-placeholder;
+  border: 1px solid mixin.$text-gray;
   font-weight: 600;
   border-radius: 10px;
-  padding: 9.1px 11.9px;
+  padding: 9px 12px;
   cursor: pointer;
 }
 button:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }
 .err {
   max-width: 1008px;
-  margin: 0 auto 11.2px;
+  margin: 0 auto 11px;
   color: mixin.$danger;
   font-weight: 700;
 }
-/* 初回ロード中の枠組プレースホルダー */
-.list-column--skeleton {
-  pointer-events: none;
-}
-.list-header--skeleton {
-  cursor: default;
-  min-height: 42px;
-}
-.list-drop-zone--skeleton {
+.board--loading {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 7px 10.5px 3.5px;
-  min-height: 56px;
-}
-.task-card--skeleton {
-  cursor: default;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8.4px;
-  padding: 12.6px 10.5px;
-  box-shadow: none;
-}
-.task-card--skeleton:hover {
-  border-color: mixin.$border;
-}
-.composer--skeleton {
-  justify-content: stretch;
-  padding: 8.4px 10.5px 10.5px;
-}
-.board-skeleton-bar {
-  display: block;
-  box-sizing: border-box;
-  height: 12px;
-  border-radius: 4px;
-  background: color-mix(in srgb, mixin.$border 80%, mixin.$white);
-}
-.board-skeleton-bar--list-title {
-  width: 48%;
-  height: 14px;
-  background: mixin.white-a(0.45);
-}
-.board-skeleton-bar--card-title {
-  width: 72%;
-}
-.board-skeleton-bar--card-meta {
-  width: 42%;
-  height: 10px;
-}
-.board-skeleton-bar--composer {
-  width: 100%;
-  height: 32px;
-  border-radius: 8px;
-  background: color-mix(in srgb, mixin.$border 65%, mixin.$white);
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding-bottom: 0;
+  /* 親 flex 高さが未確定でも中央に見えるよう最低高さを確保 */
+  min-height: min(42vh, 392px);
 }

@@ -1,3 +1,5 @@
+import { closeExclusivePopoverIfOpen } from '../composables/useExclusivePopover'
+
 const FORM_OR_EDITOR_SELECTOR = [
   'input',
   'textarea',
@@ -19,31 +21,62 @@ const DRAG_SCROLL_SKIP_SELECTOR = [
   '.sortable-fallback',
   '.sortable-chosen',
   '.workspace-wbs__drag-handle',
-  '.workspace-wbs__title-cell',
-  '.workspace-wbs__title-field',
-  // WBSヘッダー（ドラッグスクロール対象外）
-  '.workspace-wbs__header-cell',
-  '.workspace-wbs__day-header',
-  '.workspace-wbs__gantt-controls-header',
-  '.workspace-wbs__month-btn',
+  // 列幅リサイズのみ常時対象外（ガント上側ヘッダーはドラッグ可）
+  '.workspace-wbs__resize-handle',
   '.popover-layer',
   '.popover',
   '.popover-shell',
   '.board-filter-dropdown',
   '.workspace-member-picker-popover',
   '.workspace-status-select__dropdown',
-  '.document-label-select__dropdown',
   '.document-category-select__dropdown',
   '.settings-sidebar',
   '[data-no-drag-scroll]',
 ].join(', ')
 const MODAL_OVERLAY_SELECTOR = '.modal-overlay, .base-modal-overlay'
-/** 作成モーダル等の送信ショートカット（Ctrl+Enter / Mac は Cmd+Enter） */
+/** メニュー／プルダウンの開閉トリガー — 外側クリック閉じの対象外（各トリガーがトグルで閉じる） */
+export const POPOVER_TRIGGER_SELECTOR = [
+  '[data-popover-trigger]',
+  '.action-buttons .action-btn',
+  '.detail-value-btn',
+  '.member-avatar-btn',
+  '.task-detail-list-badge',
+  '.task-detail-list-btn',
+  '.workspace-form-status-btn',
+  '.label-chip',
+  '.label-chip-add',
+  '.workspace-wbs__cell-btn',
+  '.workspace-wbs__avatar-btn',
+  '.workspace-wbs__members-cell',
+  '.workspace-sidebar__assignee-avatar',
+  /** ガントバー色ピッカーは pointerup で開くため、続く click で即閉じない */
+  '.workspace-wbs__day-cell',
+  '.workspace-wbs__gantt-edge',
+].join(', ')
+/** body Teleport 先のポップオーバー／ドロップダウン内クリック */
+const FLOATING_POPOVER_ROOT_SELECTOR = [
+  '.popover-layer',
+  '.popover-shell',
+  '.workspace-status-select__dropdown',
+  '.document-category-select__dropdown',
+  '.workspace-member-picker-popover',
+  '.floating-menu',
+  '.board-filter-dropdown',
+  '.gantt-color-popover-layer',
+  '.popover',
+  '[data-popover-panel]',
+].join(',')
+/** 作成・編集・削除モーダル等の決定ショートカット（Ctrl+Enter / Mac は Cmd+Enter） */
 export function isCtrlEnterKeydown (event: KeyboardEvent): boolean {
   return event.key === 'Enter' && (event.ctrlKey || event.metaKey)
 }
-/** 入力中・編集 UI 上ではキーボードショートカットを無効にする */
+/** 入力中・編集 UI 上ではキーボードショートカットを無効にする。
+ * ただしフィルター等の浮動ポップオーバー内は、ショートカット優先のため妨げない。
+ */
 export function isKeyboardShortcutBlockedTarget (target: EventTarget | null): boolean {
+  if (target instanceof Node && isInsideFloatingPopover(target)) {
+    return false
+  }
   return isInsideSelectableText(target)
 }
 /** 最前面のモーダルオーバーレイ（ネスト時は z-index が最大のもの） */
@@ -115,25 +148,35 @@ export function findScrollableAncestor (target: Element): Element | null {
 function isBoardDragScrollBackground (target: Element): boolean {
   return !target.closest(DRAG_SCROLL_SKIP_SELECTOR)
 }
-/** WBSヘッダー、編集時のガント操作・並び替えはドラッグスクロール対象外 */
+/**
+ * WBS ドラッグスクロール対象外:
+ * - 編集モードのガント本体（日セル・バー端）※上側ヘッダーは可
+ * - 列幅リサイズハンドル
+ * - 編集時の並び替えハンドル・タイトル入力中・明示除外
+ * （タイトルセル自体はクリックで編集・ドラッグでスクロール）
+ */
 function isExcludedWorkspaceWbsDragScrollTarget (target: Element): boolean {
-  if (target.closest('thead, .workspace-wbs__header-cell, .workspace-wbs__day-header, .workspace-wbs__gantt-controls-header')) {
+  const inEdit = Boolean(target.closest('.workspace-wbs--edit'))
+
+  // 編集モードのガント本体のみ対象外（月ナビ／日付ヘッダーはドラッグ移動可）
+  if (inEdit && target.closest('.workspace-wbs__day-cell, .workspace-wbs__gantt-edge')) {
+    return true
+  }
+  if (target.closest('.workspace-wbs__resize-handle')) {
     return true
   }
   if (
-    target.closest('.workspace-wbs--edit')
-    && target.closest(
-      '.workspace-wbs__day-cell, .workspace-wbs__gantt-edge, .workspace-wbs__drag-handle',
-    )
+    inEdit
+    && target.closest('.workspace-wbs__drag-handle, .workspace-wbs__title-input, [data-no-drag-scroll]')
   ) {
     return true
   }
   return false
 }
 /**
- * WBS本文では、ボタンや文字上を含む全領域を
- * WBSの縦横ドラッグスクロール対象にする。
- * 編集モードではガントチャート操作領域・並び替えハンドルを除く。
+ * WBSの項目名ヘッダー・ガント上側ヘッダー・本文を
+ * 縦横ドラッグスクロール対象にする。
+ * 編集モードのガント本体（日セル）のみ対象外。
  */
 function resolveWorkspaceWbsDragScrollContainer (target: Element): {
   container: Element
@@ -203,6 +246,66 @@ export function isModalOverlayBackdropTarget (target: Node): boolean {
   const overlay = target.closest(MODAL_OVERLAY_SELECTOR)
   return overlay instanceof Element && target === overlay
 }
+/** 浮動ポップオーバー／ドロップダウン内のクリックか */
+export function isInsideFloatingPopover (target: Node): boolean {
+  const el = target instanceof Element ? target : target.parentElement
+  if (!el) {
+    return false
+  }
+  return el.closest(FLOATING_POPOVER_ROOT_SELECTOR) != null
+}
+
+/** ポップオーバー内で pointerdown したジェスチャか（外で pointerup しても閉じない） */
+let pointerDownInsideFloatingPopover = false
+let popoverPointerGestureTrackingInstalled = false
+
+function onDocumentPointerDownForPopoverGesture (event: PointerEvent) {
+  if (event.button !== 0) {
+    return
+  }
+  const target = event.target
+  pointerDownInsideFloatingPopover = target instanceof Node && isInsideFloatingPopover(target)
+}
+
+export function ensurePopoverPointerGestureTracking () {
+  if (popoverPointerGestureTrackingInstalled || !import.meta.client) {
+    return
+  }
+  popoverPointerGestureTrackingInstalled = true
+  document.addEventListener('pointerdown', onDocumentPointerDownForPopoverGesture, true)
+}
+
+/** 現在のポインタ操作がポップオーバー内の pointerdown から始まっているか */
+export function didPointerGestureStartInsideFloatingPopover (): boolean {
+  return pointerDownInsideFloatingPopover
+}
+/** ポップオーバー開閉トリガー上のクリックか */
+export function isPopoverTriggerTarget (target: Node): boolean {
+  if (!(target instanceof Element)) {
+    return false
+  }
+  return target.closest(POPOVER_TRIGGER_SELECTOR) != null
+}
+const POPOVER_SHELL_SELECTOR = '.popover-layer, .popover-shell, .popover'
+/** 外側クリックで閉じるべきポップオーバーが開いているとき、対象クリックか */
+export function shouldDismissPopoverForPointerTarget (target: Node): boolean {
+  if (didPointerGestureStartInsideFloatingPopover()) {
+    return false
+  }
+  if (isInsideFloatingPopover(target)) {
+    return false
+  }
+  if (isPopoverTriggerTarget(target)) {
+    return false
+  }
+  if (target instanceof Element && target.closest(POPOVER_SHELL_SELECTOR)) {
+    return false
+  }
+  if (target instanceof Element && target.closest('[data-popover-panel], .notifications-drawer-overlay')) {
+    return false
+  }
+  return true
+}
 /**
  * プルダウン外クリックでモーダル背面を押したとき、続く mouseup によるモーダル閉じを抑止する。
  * （プルダウンが mouseup で閉じるとき、同じ mouseup でモーダルまで閉じないようにする）
@@ -222,10 +325,17 @@ export function dismissPopoverFromOutsidePointer (
   target: Node,
   dismiss: () => void | Promise<void>,
 ) {
+  if (didPointerGestureStartInsideFloatingPopover()) {
+    return
+  }
   if (isModalOverlayBackdropTarget(target)) {
     suppressOverlayBackdropCloseOnce()
   }
   void dismiss()
+}
+/** モーダルを閉じる前に、開いている排他ポップオーバーを閉じる（閉じた場合は true） */
+export function dismissExclusivePopoverBeforeModalClose (): boolean {
+  return closeExclusivePopoverIfOpen()
 }
 /**
  * capture の scroll 監視で、ポップオーバー内部スクロールを除外する。
@@ -266,6 +376,10 @@ export function createOverlayBackdropClose (options: {
       return
     }
     if (event.target === overlay) {
+      if (closeExclusivePopoverIfOpen()) {
+        suppressOverlayBackdropCloseOnce()
+        return
+      }
       options.onClose()
     }
   }
@@ -287,3 +401,5 @@ export function createOverlayBackdropClose (options: {
     resetOverlayBackdropClose,
   }
 }
+
+ensurePopoverPointerGestureTracking()

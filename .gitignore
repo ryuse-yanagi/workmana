@@ -1,4 +1,38 @@
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor / IDE
+.idea/
+.vscode/
+.fleet/
+.zed/
+*.swp
+*.swo
+*~
+
+# Env & secrets (repo root)
+.env
+.env.*
+!.env.example
+*.pem
+auth.json
+credentials.json
+
+# Logs / caches
+*.log
+.cache/
+
+# Dependencies & local AWS CLI leftover
 node_modules/
-frontend/.nuxt/
 aws/
 awscliv2.zip
+
+# Build / install artifacts (belt-and-suspenders; also ignored in package dirs)
+frontend/.nuxt/
+frontend/.output/
+frontend/dist/
+backend/vendor/
+backend/public/hot
+backend/public/storage

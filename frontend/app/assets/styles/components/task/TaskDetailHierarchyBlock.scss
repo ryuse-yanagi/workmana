@@ -1,12 +1,13 @@
 .task-hierarchy {
   display: flex;
   flex-direction: column;
-  gap: 11.9px;
-  padding: 11.9px 0;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
 }
 .task-hierarchy--compact {
   padding: 0;
-  gap: 9.8px;
+  gap: 12px;
 }
 .task-hierarchy__header {
   display: inline-flex;
@@ -20,29 +21,34 @@
 }
 .task-hierarchy__title {
   margin: 0;
-  font-size: 13.3px;
-  font-weight: 800;
-  color: mixin.$text;
+  @include mixin.modal-field-label;
   line-height: 1.3;
 }
 .task-hierarchy__group {
   display: flex;
   flex-direction: column;
-  gap: 6.3px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 .task-hierarchy__group-label {
   margin: 0;
-  font-size: 10.92px;
-  font-weight: 700;
-  color: mixin.$text-muted;
+  width: var(--task-card-width, 246px);
+  max-width: 100%;
+  font-size: mixin.$popover-section-heading-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-subtle;
 }
 .task-hierarchy__empty {
   margin: 0;
+  width: var(--task-card-width, 246px);
+  max-width: 100%;
+  box-sizing: border-box;
   border: 1px dashed mixin.$border;
   border-radius: 10px;
-  padding: 9.1px 10.5px;
-  font-size: 11.48px;
-  color: mixin.$text-placeholder;
+  padding: 10px 12px;
+  font-size: mixin.$popover-list-font-size;
+  color: mixin.$text-gray;
   background: mixin.$list-column-bg;
 }
 .task-hierarchy__child-list {
@@ -51,98 +57,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2.8px;
-}
-.task-hierarchy__row {
-  display: flex;
   align-items: center;
-  gap: 7.7px;
+  gap: 8px;
   width: 100%;
-  min-width: 0;
-  margin: 0;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  padding: 8.4px 4.9px;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  transition: background-color 0.12s ease;
-}
-.task-hierarchy__row:hover {
-  background: mixin.$list-column-bg;
-}
-.task-hierarchy__row:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
-.task-hierarchy__row--parent {
-  gap: 7px;
-}
-.task-hierarchy__row--child {
-  justify-content: flex-start;
-}
-.task-hierarchy__row-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 6.3px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.task-hierarchy__row-title {
-  min-width: 0;
-  flex: 0 1 auto;
-  font-size: 12.32px;
-  font-weight: 600;
-  color: mixin.$text;
-  line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.task-hierarchy__date {
-  display: inline-flex;
-  align-items: center;
-  gap: 4.2px;
-  flex-shrink: 0;
-  font-size: 10.92px;
-  color: mixin.$text-muted;
-  white-space: nowrap;
-}
-.task-hierarchy__badge {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  min-height: 21.7px;
-  max-width: 40%;
-  padding: 0 8.4px;
-  border-radius: 999px;
-  background: mixin.$surface-muted;
-  color: mixin.$text-sub;
-  font-size: 10.36px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.task-hierarchy__chevron {
-  flex-shrink: 0;
-  display: block;
-  width: 0.65em;
-  height: 0.85em;
-  margin-left: auto;
-  background-color: mixin.$main;
-  -webkit-mask-image: url('~/assets/images/chevron-left.svg');
-  mask-image: url('~/assets/images/chevron-left.svg');
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  transform: scaleX(-1);
 }

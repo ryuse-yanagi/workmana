@@ -1,5 +1,5 @@
 .member-edit-modal-body {
-  padding: 14px 14px 0;
+  padding: 16px 16px 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -17,10 +17,6 @@
   height: 56px;
 }
 
-.member-edit-modal__profile :deep(.member-avatar__initial) {
-  font-size: 20px;
-}
-
 .member-edit-modal__identity {
   min-width: 0;
 }
@@ -33,6 +29,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: mixin.$text-line-height-safe;
 }
 
 .member-edit-modal__email {
@@ -42,6 +39,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: mixin.$text-line-height-safe;
 }
 
 .member-edit-modal__roles {
@@ -54,9 +52,7 @@
 .member-edit-modal__roles-legend {
   margin: 0 0 8px;
   padding: 0;
-  font-size: mixin.$modal-field-font-size;
-  font-weight: 700;
-  color: mixin.$text-heading;
+  @include mixin.modal-field-label;
 }
 
 .member-edit-modal__role-list {
@@ -83,28 +79,11 @@
 }
 
 .member-edit-modal__role-option:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }
 
 .member-edit-modal__checkbox {
-  width: 16px;
-  height: 16px;
-  border: 2px solid mixin.$border-checkbox;
-  border-radius: 3px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-  color: mixin.$white;
-  background: mixin.$white;
-}
-
-.member-edit-modal__checkbox--checked {
-  background: mixin.$main;
-  border-color: mixin.$main;
+  @include mixin.picker-native-radio(16px);
 }
 
 .member-edit-modal__role-label {
@@ -117,26 +96,4 @@
   font-size: mixin.$modal-field-font-size;
   font-weight: 700;
   color: mixin.$danger;
-}
-
-.actions {
-  @include mixin.modal-footer-actions;
-}
-
-.ghost-btn,
-.primary-btn {
-  @include mixin.btn-base;
-}
-
-.ghost-btn--pill,
-.primary-btn--pill {
-  @include mixin.btn-pill;
-}
-
-.ghost-btn {
-  @include mixin.btn-ghost;
-}
-
-.primary-btn {
-  @include mixin.btn-primary;
 }

@@ -3,7 +3,7 @@
     <NuxtRouteAnnouncer />
     <AppGlobalHeader v-if="!isAuthRoute" />
     <div class="app-shell__page" :class="{ 'app-shell__page--auth': isAuthRoute }">
-      <NuxtPage keepalive />
+      <NuxtPage :keepalive="{ exclude: ['login', 'post-login', 'register'] }" />
     </div>
   </div>
 </template>

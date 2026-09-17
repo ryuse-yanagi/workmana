@@ -84,6 +84,11 @@ class Workspace extends Model
             ->withTimestamps();
     }
 
+    public function documents(): BelongsToMany
+    {
+        return $this->relatedDocuments();
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereNull('deleted_at');
@@ -102,6 +107,21 @@ class Workspace extends Model
     public function isArchived(): bool
     {
         return $this->archived_at !== null;
+    }
+
+    public function isPinnedBy(User $viewer): bool
+    {
+        return $this->pinnedAtFor($viewer) !== null;
+    }
+
+    public function pinnedAtFor(User $viewer): ?string
+    {
+        $value = $this->getAttribute('viewer_pinned_at');
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return is_string($value) ? $value : (string) $value;
     }
 
     /**

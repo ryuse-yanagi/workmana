@@ -1,10 +1,21 @@
 @use '~/assets/styles/text-select';
+@include mixin.popover-fade-transition;
 :root {
-  --tm-global-header-height: 56px;
-  --tm-page-header-height: 48px;
+  --wm-global-header-height: 56px;
+  --wm-page-header-height: 48px;
   /** 画面別ヘッダー(125)・タスク編集ポップオーバー(130)より上。モーダル外操作を遮断する */
-  --tm-z-modal: 200;
-  --tm-z-modal-popover: 210;
+  --wm-z-popover: 150;
+  --wm-z-modal: 200;
+  --wm-z-modal-popover: 210;
+  /** body Teleport のポップオーバー等。モーダル開閉で useModalLayer が切り替える */
+  --wm-z-floating: var(--wm-z-popover);
+  /* 旧 --tm-* 参照との互換（未定義だと z-index が無効になりクリックが裏に抜ける／重なる） */
+  --tm-global-header-height: var(--wm-global-header-height);
+  --tm-page-header-height: var(--wm-page-header-height);
+  --tm-z-popover: var(--wm-z-popover);
+  --tm-z-modal: var(--wm-z-modal);
+  --tm-z-modal-popover: var(--wm-z-modal-popover);
+  --tm-z-floating: var(--wm-z-floating);
 }
 html,
 body {
@@ -27,24 +38,35 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: transparent;
 }
+* {
+  @include mixin.thin-scrollbar;
+}
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
 /* Teleport 先でも効くよう、ポップオーバータイトルはグローバル指定 */
 .popover-shell__title,
-.document-label-select__title,
-.workspace-status-select__title {
+.named-pill-select__title,
+.filter-popover-title {
   @include mixin.popover-title-text;
+}
+/* body Teleport の浮動 UI — モーダル内でも必ず前面に出す（inline z-index より優先度低い点に注意） */
+.named-pill-select__dropdown,
+.workspace-assignee-picker-popover.popover,
+.popover-layer--portal,
+.gantt-color-popover-layer {
+  z-index: var(--wm-z-floating);
 }
 /* ポップオーバー本体の文字太さの既定値 */
 .popover,
 .popover-shell,
 .floating-menu,
-.workspace-status-select__dropdown,
-.document-label-select__dropdown,
-.document-category-select__dropdown,
-.board-filter-dropdown,
-.global-header .dropdown,
-.comment-item__delete-menu,
-.comment-item__reaction-menu,
-.mention-menu {
+.named-pill-select__dropdown,
+.filter-popover-dropdown,
+.global-header .dropdown {
   font-weight: mixin.$popover-font-weight;
 }
 html.workspace-view-page-root,
@@ -57,15 +79,9 @@ body.workspace-view-page-root {
   background: transparent;
 }
 .app-shell--auth {
-  --tm-auth-chrome-offset: 0px;
+  --wm-auth-chrome-offset: 0px;
   /* 認証画面は AuthGateShell が全面を塗る。本編キャンバスが覗かないようにする */
   background: #07111f;
-}
-.app-shell__page {
-  padding-top: 3.5px;
-}
-.app-shell__page--auth {
-  padding-top: 0;
 }
 .global-header,
 .page-header {
@@ -103,7 +119,7 @@ body.workspace-view-page-root {
   box-sizing: border-box;
   max-width: 504px;
   margin: 28px auto;
-  padding: 21px 17.5px;
+  padding: 21px 18px;
   background: mixin.white-a(0.95);
   border: 1px solid mixin.placeholder-a(0.55);
   border-radius: 12px;
@@ -113,35 +129,89 @@ body.workspace-view-page-root {
   margin: 0 0 14px;
   color: mixin.$danger;
   font-weight: 700;
-  font-size: 13.3px;
+  font-size: 13px;
 }
 .load-fatal-retry {
   border: 1px solid mixin.$ink;
   border-radius: 8px;
-  padding: 7px 15.4px;
-  font-size: 12.6px;
+  padding: 7px 15px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   background: mixin.$ink;
   color: mixin.$white;
 }
-input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']),
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']):not(.workspace-wbs__title-input):not(.workspace-wbs__title-text),
 textarea,
 select {
   @include mixin.input-border-default;
 }
-input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']):focus,
-input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']):focus-visible,
-textarea:focus,
-textarea:focus-visible,
+.title-input,
+.title-input-placeholder,
+.card-title-input,
+.list-title-input {
+  line-height: mixin.$text-line-height-safe;
+}
+/* 固定高さの検索欄は line-height を個別指定するため除外 */
+.header-search,
+.header-sort {
+  line-height: 32px;
+}
+/* ポップオーバー検索・ユーザー名など — descender の clip を防ぐ */
+.label-search-input,
+.named-pill-select__search,
+.label-picker-bar,
+.option-picker-bar,
+.label-picker-bar,
+.list-picker-label,
+.parent-task-picker-label,
+.parent-task-picker-row,
+.assignee-detail-name,
+.assignee-detail-email,
+.profile-name,
+.dropdown-item--org span,
+.name-text,
+.description-text,
+.subheader-doc-name,
+.subheader-workspace-name,
+.member-edit-modal__name,
+.member-edit-modal__email,
+.invite-list__email {
+  line-height: mixin.$text-line-height-safe;
+}
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']):not(.workspace-wbs__title-input):not(.workspace-wbs__title-text):not(.task-checklist__title-input):not(.task-checklist__item-text):not(.task-checklist__composer-input):focus,
+input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']):not([type='hidden']):not(.workspace-wbs__title-input):not(.workspace-wbs__title-text):not(.task-checklist__title-input):not(.task-checklist__item-text):not(.task-checklist__composer-input):focus-visible,
+textarea:not(.task-checklist__item-text):focus,
+textarea:not(.task-checklist__item-text):focus-visible,
 select:focus,
 select:focus-visible {
+  @include mixin.input-focus-neutral;
+}
+/* タスク名など、青枠フォーカスを残す入力欄 */
+.modal-pane--detail .title-input:focus,
+.modal-pane--detail .title-input:focus-visible,
+.task-checklist__title-input:focus,
+.task-checklist__title-input:focus-visible,
+.task-checklist__item-text--editing:focus,
+.task-checklist__item-text--editing:focus-visible,
+.task-checklist__composer-input:focus,
+.task-checklist__composer-input:focus-visible {
   @include mixin.input-focus-ring;
+}
+/* WBS タスク名 — td の overflow:hidden で外側 shadow が切れるため内側 outline。
+   inset box-shadow は文字位置をずらすので使わない */
+.workspace-wbs__title-input,
+.workspace-wbs__title-input:focus,
+.workspace-wbs__title-input:focus-visible {
+  border: 1px solid mixin.$main;
+  box-shadow: none;
+  outline: 1px solid mixin.$main;
+  outline-offset: -2px;
 }
 // チェックボックス風の選択 UI — 保存中などで disabled でも禁止カーソルにしない
 button.label-picker-row,
 button.parent-task-picker-row,
-button.member-picker-row,
+button.assignee-picker-row,
 button.color-preset-picker__btn {
   @include mixin.picker-checkbox-row;
 }

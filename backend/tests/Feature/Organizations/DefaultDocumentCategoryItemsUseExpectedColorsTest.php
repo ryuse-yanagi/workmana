@@ -14,7 +14,7 @@ class DefaultDocumentCategoryItemsUseExpectedColorsTest extends TestCase
     {
         $this->assertSame([
             ['name' => 'その他', 'color_index' => 5],
-        ], DefaultDocumentCategories::DEFAULT_ITEMS);
+        ], DefaultDocumentCategories::defaultItems());
     }
 
     public function test_dummy_document_category_items_use_expected_colors(): void

@@ -1,0 +1,75 @@
+@use "tokens" as *;
+
+/** 非フォーカス時の枠線 */
+@mixin input-border-default {
+  border: 1px solid $border;
+  border-radius: $input-border-radius;
+  line-height: $text-line-height-safe;
+}
+
+/**
+ * フォーカス表示
+ * - ring: 青枠（border ありの入力向け）
+ * - neutral: 青枠なし（既定）
+ * - outline: border なし要素向け
+ */
+@mixin input-focus-ring {
+  outline: none;
+  border-color: $main;
+  box-shadow: 0 0 0 1px $main;
+}
+
+@mixin input-focus-neutral {
+  outline: none;
+  box-shadow: none;
+}
+
+@mixin input-focus-outline {
+  outline: 2px solid $main;
+  outline-offset: 2px;
+}
+
+/** 担当者追加（＋）などで青フォーカスリングを出さない */
+@mixin member-avatar-add-btn-focus {
+  &:focus,
+  &:focus-visible {
+    @include input-focus-neutral;
+  }
+}
+
+@mixin hide-number-spin-buttons {
+  -moz-appearance: textfield;
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+/** 説明欄など、高さ可変の複数行入力 */
+@mixin description-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 77px;
+  border: 1px solid $border;
+  border-radius: $input-border-radius;
+  padding: 8px 11px;
+  font: inherit;
+  font-size: $modal-field-font-size;
+  line-height: 1.45;
+  color: $text;
+  background: $bg-gray;
+  resize: none;
+  overflow: hidden;
+
+  &:focus {
+    @include input-focus-neutral;
+  }
+
+  &:disabled {
+    cursor: pointer;
+  }
+}

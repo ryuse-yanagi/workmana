@@ -7,12 +7,24 @@ use App\Models\SharedDocument;
 
 class DefaultDocumentCategories
 {
-    /** @var list<array{name: string, color_index: int}> */
-    public const DEFAULT_ITEMS = [
-        ['name' => 'その他', 'color_index' => 5],
-    ];
+    /**
+     * 組織未設定時のフォールバック（正本: shared/default-named-color-items.json）。
+     *
+     * @return list<array{name: string, color_index: int}>
+     */
+    public static function defaultItems(): array
+    {
+        /** @var list<array{name: string, color_index: int}> $items */
+        $items = SharedJson::load('default-named-color-items.json')['documentCategories'];
 
-    /** @var list<array{name: string, color_index: int}> */
+        return $items;
+    }
+
+    /**
+     * 開発用ダミーデータ（シーダー専用。共有契約ではない）。
+     *
+     * @var list<array{name: string, color_index: int}>
+     */
     public const DUMMY_ITEMS = [
         ['name' => '仕様書', 'color_index' => 1],
         ['name' => '設計書', 'color_index' => 0],
@@ -20,17 +32,17 @@ class DefaultDocumentCategories
         ['name' => '議事録', 'color_index' => 3],
     ];
 
-    /** @var list<string> */
-    public const DEFAULT_NAMES = ['その他'];
-
     /**
-     * 開発用シーダーが組織に投入する資料カテゴリ（ダミー4件 + その他）。
+     * 開発用シーダーが組織に投入する資料カテゴリ。
      *
      * @return list<array{name: string, color_index: int}>
      */
     public static function seededItems(): array
     {
-        return array_merge(self::DUMMY_ITEMS, self::DEFAULT_ITEMS);
+        return array_values([
+            ...self::DUMMY_ITEMS,
+            ...self::defaultItems(),
+        ]);
     }
 
     /**
@@ -57,7 +69,7 @@ class DefaultDocumentCategories
      */
     public static function normalizeItems(?array $raw): array
     {
-        return DefaultNamedColorItems::normalize($raw, self::DEFAULT_ITEMS);
+        return DefaultNamedColorItems::normalize($raw, self::defaultItems(), FieldLengthLimits::DOCUMENT_CATEGORY_NAME);
     }
 
     public static function defaultCategoryForOrganization(Organization $organization): ?string
@@ -105,5 +117,25 @@ class DefaultDocumentCategories
         }
 
         return $trimmed;
+    }
+
+    /**
+     * 組織のカテゴリ設定変更に合わせ、資料へ保存済みの category 文字列を更新する。
+     * リネームは書き換え、削除された名前のみ null にする。
+     *
+     * @param  list<array{name: string, color_index: int}>  $oldItems
+     * @param  list<array{name: string, color_index: int}>  $newItems
+     */
+    public static function syncDocumentCategoryNames(
+        Organization $organization,
+        array $oldItems,
+        array $newItems,
+    ): void {
+        $diff = DefaultNamedColorItems::diffNameChanges($oldItems, $newItems);
+        DefaultNamedColorItems::syncStoredNames(
+            SharedDocument::withTrashed()->where('organization_id', $organization->id),
+            'category',
+            $diff,
+        );
     }
 }

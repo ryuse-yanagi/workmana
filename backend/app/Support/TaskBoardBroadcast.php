@@ -27,6 +27,7 @@ final class TaskBoardBroadcast
             'due_date' => $task->due_date,
             'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
+            'progress_rate' => $task->progress_rate,
             'labels' => $task->labels->map(fn ($l) => [
                 'id' => $l->id,
                 'name' => $l->name,

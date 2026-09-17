@@ -79,6 +79,11 @@ import {
 } from '../constants/fieldLengthLimits'
 import { emailFieldError, passwordFieldError, requiredTextFieldError } from '../utils/formValidation'
 
+definePageMeta({
+  name: 'register',
+  keepalive: false,
+})
+
 const { api } = useApi()
 const { startLogin, fetchSession } = useAuth()
 
@@ -87,7 +92,7 @@ const email = ref('')
 const password = ref('')
 const submitting = ref(false)
 const completed = ref(false)
-const bootstrapping = ref(true)
+const bootstrapping = ref(false)
 const errorMessage = ref('')
 const nameError = ref<string | null>(null)
 const emailError = ref<string | null>(null)
@@ -131,11 +136,17 @@ watch(email, () => { if (emailError.value) emailError.value = null })
 watch(password, () => { if (passwordError.value) passwordError.value = null })
 
 onMounted(async () => {
-  const session = await fetchSession()
-  if (session.authenticated) {
-    await navigateTo('/post-login')
-    return
+  try {
+    const session = await fetchSession()
+    if (session.authenticated) {
+      bootstrapping.value = false
+      await navigateTo('/post-login')
+      return
+    }
+  } catch {
+    // セッション確認失敗時は登録フォームを出す
+  } finally {
+    bootstrapping.value = false
   }
-  bootstrapping.value = false
 })
 </script>

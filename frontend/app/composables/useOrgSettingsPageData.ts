@@ -1,4 +1,10 @@
-import type { SettingsLabelCategory, SettingsLabelTabKey, SettingsPageSnapshot } from '../components/settings/types'
+import type {
+  SettingsLabelCategory,
+  SettingsLabelTabKey,
+  SettingsOrgMember,
+  SettingsPageSnapshot,
+  SettingsPendingInvite,
+} from '../components/settings/types'
 import { normalizeSettingsLabelCategories } from '../components/settings/labelCategoryNormalize'
 import { useApi } from './useApi'
 import {
@@ -17,6 +23,17 @@ export function clearAllOrgSettingsPageCaches (): void {
   clearAllOrgSettingsResourceCaches()
 }
 
+export function isSettingsSnapshotReady (snapshot: SettingsPageSnapshot | null | undefined): boolean {
+  return Boolean(
+    snapshot?.orgSettings?.role
+    && Array.isArray(snapshot.members)
+    && typeof snapshot.memberCount === 'number'
+    && Array.isArray(snapshot.pendingInvites)
+    && Array.isArray(snapshot.workspaceLabelCategories)
+    && Array.isArray(snapshot.taskLabelCategories),
+  )
+}
+
 export function useOrgSettingsPageData () {
   const { api } = useApi()
   const { fetchOrgSettings } = useOrgSettingsResource()
@@ -28,7 +45,7 @@ export function useOrgSettingsPageData () {
       inflightBySlug.delete(slug)
     } else {
       const cached = cacheBySlug.get(slug)
-      if (cached) {
+      if (cached && isSettingsSnapshotReady(cached)) {
         return cached
       }
     }
@@ -39,17 +56,31 @@ export function useOrgSettingsPageData () {
     }
 
     const job = (async () => {
-      const [orgSettings, workspaceLabelCategoriesRes, taskLabelCategoriesRes, documentLabelCategoriesRes] = await Promise.all([
-        fetchOrgSettings(slug, opts?.refresh ? { refresh: true } : undefined),
-        api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/workspace-label-categories`),
-        api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/task-label-categories`),
-        api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/document-label-categories`),
+      const orgSettingsPromise = fetchOrgSettings(slug, opts?.refresh ? { refresh: true } : undefined)
+      const workspacePromise = api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/workspace-label-categories`)
+      const taskPromise = api<{ data: SettingsLabelCategory[] }>(`/orgs/${slug}/task-label-categories`)
+      const membersPromise = api<{ data: SettingsOrgMember[] }>(`/orgs/${slug}/members`)
+
+      const orgSettings = await orgSettingsPromise
+      const invitesPromise = orgSettings.role === 'admin'
+        ? api<{ data: SettingsPendingInvite[] }>(`/orgs/${slug}/invites`)
+        : Promise.resolve({ data: [] as SettingsPendingInvite[] })
+
+      const [workspaceLabelCategoriesRes, taskLabelCategoriesRes, membersRes, invitesRes] = await Promise.all([
+        workspacePromise,
+        taskPromise,
+        membersPromise,
+        invitesPromise,
       ])
+
+      const members = Array.isArray(membersRes.data) ? membersRes.data : []
       const snapshot: SettingsPageSnapshot = {
         orgSettings,
         workspaceLabelCategories: normalizeSettingsLabelCategories(workspaceLabelCategoriesRes.data),
         taskLabelCategories: normalizeSettingsLabelCategories(taskLabelCategoriesRes.data),
-        documentLabelCategories: normalizeSettingsLabelCategories(documentLabelCategoriesRes.data),
+        members,
+        memberCount: members.length,
+        pendingInvites: Array.isArray(invitesRes.data) ? invitesRes.data : [],
       }
       cacheBySlug.set(slug, snapshot)
       return snapshot
@@ -83,9 +114,7 @@ export function useOrgSettingsPageData () {
     }
     return labelKind === 'workspace'
       ? snapshot.workspaceLabelCategories
-      : labelKind === 'task'
-        ? snapshot.taskLabelCategories
-        : snapshot.documentLabelCategories
+      : snapshot.taskLabelCategories
   }
 
   function patchLabelCategoriesCache (
@@ -102,9 +131,7 @@ export function useOrgSettingsPageData () {
       ...existing,
       ...(labelKind === 'workspace'
         ? { workspaceLabelCategories: categories }
-        : labelKind === 'task'
-          ? { taskLabelCategories: categories }
-          : { documentLabelCategories: categories }),
+        : { taskLabelCategories: categories }),
     })
   }
 
@@ -121,6 +148,24 @@ export function useOrgSettingsPageData () {
     cacheBySlug.set(slug, {
       ...existing,
       orgSettings,
+    })
+  }
+
+  function patchMembersCache (
+    orgSlug: string,
+    members: SettingsOrgMember[],
+    pendingInvites?: SettingsPendingInvite[],
+  ): void {
+    const slug = orgSlug.trim()
+    const existing = cacheBySlug.get(slug)
+    if (!existing) {
+      return
+    }
+    cacheBySlug.set(slug, {
+      ...existing,
+      members,
+      memberCount: members.length,
+      pendingInvites: pendingInvites ?? existing.pendingInvites,
     })
   }
 
@@ -141,6 +186,7 @@ export function useOrgSettingsPageData () {
     getCachedLabelCategories,
     patchLabelCategoriesCache,
     patchOrgSettingsCache,
+    patchMembersCache,
     invalidateCached,
     clearAllCached,
   }

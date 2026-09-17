@@ -1,0 +1,203 @@
+// デザイントークン（変数・色関数）— mixin 本体はドメイン別ファイルへ
+
+$font-family: "Noto Sans JP", sans-serif;
+/** 全画面共通ヘッダー — Workspaces / Documents ラベル */
+$header-nav-label-font-size: 16px;
+$header-nav-label-font-weight: 600;
+/** 画面別ヘッダー — Workspaces / Documents タイトル */
+$page-header-title-font-size: 16px;
+$modal-title-font-size: 16px;
+/** モーダルの項目名・入力欄・バリデーションメッセージ */
+$modal-field-font-size: 14px;
+/** モーダルのラベルチップなど（アクションボタン本体は modal-action-btn） */
+$modal-action-btn-font-size: 12px;
+/** モーダル内の項目名（担当者・ラベル・説明など） */
+$modal-meta-label-font-weight: 500;
+/** ポップオーバーのタイトル・タイトルなしメニュー項目 */
+$popover-title-font-size: 14px;
+/** ポップオーバー見出しの行高（閉じるボタンの縦位置合わせにも使う） */
+$popover-title-line-height: 1.3;
+/**
+ * タイトル行コントロールの高さ。
+ * クリアボタン（上下 padding 4px + 1px ボーダー）が出ても高さが変わらないよう、
+ * クリア有無に関係なくこの高さで揃える。
+ */
+$popover-header-clear-padding-y: 4px;
+$popover-header-clear-border-width: 1px;
+$popover-title-row-height: $popover-title-font-size
+  + (2 * $popover-header-clear-padding-y)
+  + (2 * $popover-header-clear-border-width);
+/** ポップオーバー内の担当者/ユーザー見出し・ラベル名/ユーザー名 */
+$popover-list-font-size: 14px;
+/** ポップオーバー内のセクション見出し（ラベルカテゴリ・担当者/メンバー・タスク階層など） */
+$popover-section-heading-font-size: 12px;
+/** ポップオーバー内テキストの字重 */
+$popover-font-weight: 500;
+/** ポップオーバーの内側余白 — 左右および本体コンテンツ周りは最低 8px */
+$popover-padding: 8px;
+/** タイトル枠の上下余白 */
+$popover-header-block-padding: 16px;
+/** タイトル・メインコンテンツ・削除ボタン間のセクション間隔 */
+$popover-section-gap: 16px;
+/** ビューポート端からポップオーバー外縁までの余白（最低 8px） */
+$popover-viewport-inset: 8px;
+/** ポップオーバー本体の角丸 */
+$popover-border-radius: 8px;
+/** ポップオーバー共通の影 */
+$popover-box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+/** 縦スクロールバーが出るとき、一覧幅を保つため外側へ足す量（JS がセット） */
+$popover-scrollbar-gutter-var: --tm-popover-scrollbar-gutter;
+/** オーバーレイ型スクロールバー用の右パディング（JS がセット） */
+$popover-scrollbar-overlay-pad-var: --tm-popover-scrollbar-overlay-pad;
+/** 担当者・メンバー・ステータス・カテゴリ・チェックリスト・ラベルの基準幅（スクロールバーなし時） */
+$popover-standard-panel-width: 320px;
+/** 担当者・メンバー系ポップオーバーの基準幅 */
+$popover-members-panel-width: $popover-standard-panel-width;
+/** リスト選択ポップオーバーの基準幅 */
+$popover-list-panel-width: 360px;
+/** ラベル系ポップオーバーの基準幅 */
+$popover-labels-panel-width: $popover-standard-panel-width;
+/** ステータス／カテゴリ選択ポップオーバーの基準幅 */
+$popover-status-category-panel-width: $popover-standard-panel-width;
+/** ラベル色バーの高さ */
+$popover-label-bar-height: 40px;
+/** 担当者ポップオーバーのユーザー名 — 最大幅まで、不足時は省略 */
+$popover-member-name-width: 234px;
+/** g / j / p / y 等の descender が clip されない行高 */
+$text-line-height-safe: 1.35;
+/** ポップオーバー開閉フェード（Transition name="popover-fade"） */
+$popover-fade-duration: 0.1s;
+
+$page-header-title-font-weight: $header-nav-label-font-weight;
+/** 画面別ヘッダー — 左右 padding */
+$page-header-inline-padding: 16px;
+/** 一覧画面タイトル幅 — アイコン + ラベルを収める */
+$page-header-list-title-width: 152px;
+
+/** 代表色 */
+$main: #0c66e4;
+$main-aqua: #25e0f8;
+$danger: #f24545;
+$notification: #f00;
+$grip: #a2abb6;
+
+/** 基本色 */
+$green: #16a34a;
+$white: #fff;
+$gray: #e2e5e8;
+
+/** ピン留め */
+$pin: #d97706;
+$pin-surface: #fff7ed;
+
+/** スピナー */
+$spinner-track: #ddd;
+$spinner-accent: #3498db;
+
+/** 文字色（濃 → 淡） */
+$text: #000;
+$text-heading: #1e293b;
+$text-strong: #334155;
+$text-sub: #475569;
+$text-muted: #64748b;
+$text-faint: #9ca3af;
+$text-disabled: #d1d5db;
+
+/** 背景色 */
+$bg-header: #28384a;
+$bg-white: $white;
+$bg-gray: #f9f9f9;
+$bg-muted: #f1f5f9;
+$bg-canvas: #f5f6fa;
+$bg-canvas-top: #eef1f6;
+$bg-overlay: #091e420f;
+$bg-aqua: #eef5ff;
+$bg-danger: #fef2f2;
+
+/** border */
+$border: $gray;
+$border-checkbox: #a2abb6;
+
+/** 未選択チェックマーク — 枠より一段薄い灰色 */
+$picker-check-mark-muted: #c5cdd6;
+
+/** 影・オーバーレイ基準色 (#0f172a) */
+/** 濃いインク — 致命的エラー再試行ボタン・ログイン系ボタン背景、影の基準色 */
+$ink: #0f172a;
+
+/** スクロールバー関連 */
+$scrollbar-thumb: #0f172a33;
+$scrollbar-lane: 12px;
+
+/** モーダルカード上下に残すビューポート余白 */
+$modal-viewport-inset-block: 56px;
+/** モーダルカードの最大高さ（ヘッダー48pxを含む） */
+$modal-card-max-height: calc(100dvh - #{$modal-viewport-inset-block} * 2);
+/** モーダルカードの最小高さ（ヘッダー含む・確認モーダル相当） */
+$modal-card-min-height: 240px;
+/** モーダルヘッダーの高さ */
+$modal-header-height: 48px;
+/** モーダル背面オーバーレイの余白（上下は $modal-viewport-inset-block と揃える） */
+$modal-overlay-padding: 56px 14px;
+/** モーダル内の単一行入力欄の高さ（タスク詳細モーダル除く） */
+$modal-input-height: 36px;
+/** 入力欄の角丸 */
+$input-border-radius: 4px;
+
+@function ink-a($alpha) {
+  @return rgba(15, 23, 42, $alpha);
+}
+
+@function white-a($alpha) {
+  @return rgba(255, 255, 255, $alpha);
+}
+
+@function black-a($alpha) {
+  @return rgba(0, 0, 0, $alpha);
+}
+
+@function main-a($alpha) {
+  @return rgba(12, 102, 228, $alpha);
+}
+
+@function placeholder-a($alpha) {
+  @return rgba(148, 163, 184, $alpha);
+}
+
+@function emphasis-a($alpha) {
+  @return rgba(15, 41, 69, $alpha);
+}
+
+// ---------------------------------------------------------------------------
+// 互換エイリアス（分割前の名前を参照している SCSS 向け）
+// ---------------------------------------------------------------------------
+
+$success: $green;
+$bg-main-soft: $bg-aqua;
+$bg-global-header: $bg-header;
+$surface-muted: $bg-muted;
+$surface-canvas: $bg-canvas;
+$surface-canvas-top: $bg-canvas-top;
+$surface-hover: #f0f0f0;
+$surface-subtle: #f3f4f6;
+$list-column-bg: #f8fafc;
+$bg-list-column: $list-column-bg;
+$main-aqua-surface: $bg-aqua;
+$main-aqua-surface-light: #f7fbff;
+$danger-surface: $bg-danger;
+$info-surface: #eff6ff;
+$info-border: #bfdbfe;
+$chat-mine-surface: #e8f0ff;
+$overlay-navy: $bg-overlay;
+$popover-label-bar-width: 234px;
+$text-gray: $text-muted;
+$text-emphasis: #0f2945;
+$text-on-surface: #172b4d;
+$text-subtle: #5e6c84;
+$text-soft: #6b7280;
+$text-ink-soft: #111827;
+$text-secondary-alt: #626f86;
+$text-hint: #97a0af;
+$text-quiet: #a2abb6;
+$text-placeholder: #94a3b8;
+$border-edit: #ff8a00;

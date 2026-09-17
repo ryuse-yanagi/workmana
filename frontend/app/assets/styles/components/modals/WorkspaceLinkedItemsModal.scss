@@ -1,0 +1,63 @@
+.workspace-linked-items-modal__body {
+  padding: 14px;
+  max-height: min(70vh, 504px);
+  overflow-y: auto;
+}
+
+.workspace-linked-items-modal__empty {
+  color: mixin.$text-muted;
+  font-size: 12.6px;
+
+  p {
+    margin: 0;
+  }
+}
+
+.workspace-linked-items-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-linked-items-modal__item {
+  margin: 0;
+}
+
+.workspace-linked-items-modal__item-btn {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  background: mixin.$white;
+  color: mixin.$text;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: mixin.$border-strong;
+    background: mixin.$surface-muted;
+  }
+
+  &:focus-visible {
+    outline: 2px solid mixin.$main;
+    outline-offset: 2px;
+  }
+}
+
+.workspace-linked-items-modal__item-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workspace-linked-items-modal__item-description {
+  margin: 4px 0 0;
+  color: mixin.$text-sub;
+  font-size: 12px;
+  line-height: 1.5;
+}

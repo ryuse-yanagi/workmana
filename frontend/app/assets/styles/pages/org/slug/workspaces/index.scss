@@ -1,44 +1,70 @@
 .list-page {
-  min-height: calc(100dvh - var(--global-header-offset, 56px));
-  padding: 0 14px 14px;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
-  padding-top: 0;
+  height: calc(100dvh - var(--global-header-offset, 56px));
+  max-height: calc(100dvh - var(--global-header-offset, 56px));
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   box-sizing: border-box;
 }
 .table-card,
 .err {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 1304px;
   margin-left: auto;
   margin-right: auto;
 }
 .page-header {
-  position: sticky;
-  top: var(--global-header-offset, 56px);
+  position: relative;
   z-index: 40;
-  width: calc(100% + 28px);
-  margin-left: -14px;
-  margin-right: -14px;
+  flex-shrink: 0;
+  width: 100%;
   @include mixin.page-header-shell;
 }
 .page-header > * {
   width: 100%;
   height: 100%;
 }
-.subheader {
+.list-page__body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   display: flex;
+  flex-direction: column;
+  @include mixin.scroll-preserve-parent(end);
+}
+.page-shell-fade {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  @include mixin.scroll-preserve-scroller-expand(end);
+  box-sizing: border-box;
+}
+/**
+ * 内容幅を 100cqw で固定。バーは親の lane 余白上に載り、
+ * 出現前後で中央寄せ（margin: auto）がずれない。
+ */
+.page-shell-fade__content {
+  @include mixin.scroll-preserve-body-cqw;
+  box-sizing: border-box;
+  padding: 0 14px 14px;
+}
+.subheader {
+  position: relative;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
   height: 100%;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-.subheader::-webkit-scrollbar {
-  display: none;
 }
 .subheader-title {
   @include mixin.page-header-list-title;
+  position: relative;
+  z-index: 1;
+  justify-self: start;
 }
 .subheader-title__icon {
   @include mixin.page-header-list-title-icon;
@@ -47,51 +73,113 @@
 .subheader-filters {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  flex: 1;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  z-index: 0;
+  pointer-events: auto;
 }
-.header-search,
-.header-sort {
+.header-search-field {
+  position: relative;
+  flex: 0 1 600px;
+  width: auto;
+  min-width: 84px;
+  max-width: 600px;
+}
+.header-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: mixin.$text-muted;
+  pointer-events: none;
+}
+.header-search {
+  display: block;
+  width: 100%;
+  min-width: 0;
   border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 0 8px;
-  font-size: 11.48px;
-  background: mixin.$white;
+  border-radius: mixin.$input-border-radius;
+  padding: 0 12px 0 32px;
+  font-size: 14px;
   color: mixin.$text;
   box-sizing: border-box;
   height: 32px;
   line-height: 32px;
+  @include mixin.popover-input-background;
 }
-.header-search {
-  flex: 1;
-  min-width: 84px;
-  max-width: 252px;
+.header-search::-webkit-search-decoration,
+.header-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 .header-search::placeholder {
-  color: mixin.$text-placeholder;
+  color: mixin.$text-muted;
 }
-.header-search:focus,
-.header-sort:focus {
-  @include mixin.input-focus-ring;
+.header-search:focus {
+  @include mixin.input-focus-neutral;
 }
-.header-sort {
-  flex-shrink: 0;
-  width: auto;
-  min-width: 94.5px;
-  padding-right: 21px;
+.header-search:disabled {
   cursor: pointer;
 }
+/* 検索の左隣。フロー内に置き、タイトル・作成ボタンと被らない */
+.header-sort {
+  position: static;
+  flex-shrink: 0;
+  width: auto;
+  min-width: 7.5em;
+  margin-right: 10px; /* gap 6px と合わせて検索まで 16px */
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  padding: 0 28px 0 10px;
+  font-size: 14px;
+  color: mixin.$text;
+  box-sizing: border-box;
+  height: 32px;
+  line-height: 32px;
+  cursor: pointer;
+  @include mixin.popover-input-background;
+}
+.header-sort:focus {
+  @include mixin.input-focus-neutral;
+}
 .subheader-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
   margin: 0;
-  font-size: 12px;
+  box-sizing: border-box;
+  font-size: 14px;
   font-weight: 600;
   color: mixin.$text-muted;
   white-space: nowrap;
   flex-shrink: 0;
 }
+.subheader-count__num {
+  display: inline-block;
+  width: 3ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.subheader-count__unit {
+  flex-shrink: 0;
+}
 .subheader-actions {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  justify-self: end;
+  z-index: 1;
+}
+.subheader-actions .subheader-secondary-btn--add {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+.subheader-actions__menus {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
@@ -101,19 +189,45 @@
   border: none;
   border-radius: 10px;
   overflow: visible;
-  margin-top: 8px;
+  margin-top: 0;
 }
 .table-wrap {
   overflow-x: auto;
   background: transparent;
 }
+.table-wrap--fade-in {
+  animation: projectRowFadeIn 220ms ease-out;
+}
 .workspace-table {
-  --col-name-width: 536px;
+  --col-name-max-width: 536px;
+  --col-description-min-width: 240px;
+  --col-description-max-width: 476px;
   --col-assignees-width: 112px;
-  --col-description-width: 476px;
   --col-status-width: 128px;
   --col-actions-width: 52px;
-  width: 1304px;
+  --col-fixed-tail-width: calc(
+    var(--col-assignees-width) + var(--col-status-width) + var(--col-actions-width)
+  );
+  /*
+   * 縮み順: 説明（476→240）→ スペース名（536→）。
+   * 最大幅 1304px では従来どおり name 536 / description 476。
+   */
+  --col-description-width: clamp(
+    var(--col-description-min-width),
+    calc(100% - var(--col-name-max-width) - var(--col-fixed-tail-width)),
+    var(--col-description-max-width)
+  );
+  --col-name-width: min(
+    var(--col-name-max-width),
+    calc(100% - var(--col-description-width) - var(--col-fixed-tail-width))
+  );
+  --workspace-name-pad-left: 24px;
+  --workspace-pin-size: 20px;
+  --workspace-pin-gap: 12px;
+  --workspace-name-text-inset: calc(
+    var(--workspace-name-pad-left) + var(--workspace-pin-size) + var(--workspace-pin-gap)
+  );
+  width: 100%;
   max-width: 1304px;
   table-layout: fixed;
   border-collapse: separate;
@@ -128,40 +242,41 @@
 .workspace-table tbody tr {
   height: 80px;
 }
-.workspace-table th {
+.workspace-table tbody tr:not(:first-child) {
+  height: 86px;
+}
+.workspace-table tbody tr:not(:first-child) > .workspace-card-cell {
+  height: 86px;
+  padding-top: 2px;
+  vertical-align: top;
+}
+.workspace-header-cell {
   height: 24px;
   box-sizing: border-box;
+  padding: 0;
   background: none;
   color: mixin.$text-muted;
   font-size: 14px;
+  font-weight: 500;
   letter-spacing: 0.02em;
   vertical-align: middle;
   text-align: left;
-  padding: 0 16px;
 }
-.workspace-table th:nth-child(1) {
-  width: var(--col-name-width);
-  max-width: var(--col-name-width);
-  padding: 0 16px 0 32px;
+.workspace-table-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
 }
-.workspace-table th:nth-child(2) {
-  width: var(--col-description-width);
-  max-width: var(--col-description-width);
+.workspace-table-header .workspace-card__name {
+  font-weight: 500;
+  font-size: 14px;
+  color: mixin.$text-muted;
 }
-.workspace-table th:nth-child(3) {
-  width: var(--col-assignees-width);
-  max-width: var(--col-assignees-width);
-  text-align: center;
-}
-.workspace-table th:nth-child(4) {
-  width: var(--col-status-width);
-  max-width: var(--col-status-width);
-  text-align: center;
-}
-.workspace-table th:nth-child(5) {
-  width: var(--col-actions-width);
-  max-width: var(--col-actions-width);
-  padding: 0 16px 0 0;
+.workspace-table-header .workspace-card__description,
+.workspace-table-header .workspace-card__assignees,
+.workspace-table-header .workspace-card__status {
+  color: mixin.$text-muted;
 }
 .workspace-card-cell {
   height: 80px;
@@ -179,8 +294,35 @@
   background: mixin.$white;
   border: 1px solid mixin.$border;
   border-radius: 4px;
-  box-shadow: 0 2px 4px mixin.black-a(0.05);
+  box-shadow: 0 2px 4px mixin.ink-a(0.05);
   overflow: hidden;
+}
+.workspace-card__updated {
+  position: absolute;
+  right: var(--col-actions-width);
+  bottom: 6px;
+  z-index: 1;
+  box-sizing: border-box;
+  width: var(--col-status-width);
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  color: mixin.$text-muted;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.workspace-card--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.workspace-list-empty__message {
+  margin: 0;
+  font-size: 14px;
+  color: mixin.$text-muted;
 }
 .workspace-card__labels {
   position: absolute;
@@ -190,7 +332,7 @@
   box-sizing: border-box;
   width: var(--col-name-width);
   max-width: var(--col-name-width);
-  padding: 0 16px 0 32px;
+  padding: 0 16px 0 var(--workspace-name-text-inset);
   min-width: 0;
   pointer-events: none;
 }
@@ -198,20 +340,37 @@
   height: 100%;
   display: flex;
   align-items: center;
-  min-width: 1304px;
+  width: 100%;
+  min-width: 0;
 }
 .workspace-card__name {
   width: var(--col-name-width);
   max-width: var(--col-name-width);
   box-sizing: border-box;
-  padding: 0 16px 0 32px;
+  padding: 0 16px 0 var(--workspace-name-pad-left);
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  gap: var(--workspace-pin-gap);
   min-width: 0;
   flex-shrink: 0;
   font-weight: 600;
   font-size: 16px;
+}
+.workspace-card__pin-slot {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--workspace-pin-size);
+  height: var(--workspace-pin-size);
+}
+.workspace-card__pin {
+  width: var(--workspace-pin-size);
+  height: var(--workspace-pin-size);
+  color: mixin.$pin;
+  fill: mixin.$pin-surface;
+  transform: rotate(45deg);
 }
 .workspace-card__assignees {
   width: var(--col-assignees-width);
@@ -220,7 +379,7 @@
   padding: 0 16px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 8px;
   flex-shrink: 0;
 }
@@ -243,7 +402,7 @@
   padding: 0 16px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   min-width: 0;
   font-size: 14px;
   flex-shrink: 0;
@@ -258,34 +417,27 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.workspace-card__menu-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: mixin.$text-muted;
-  cursor: pointer;
-}
-.workspace-card__menu-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
 .clickable-row {
   cursor: pointer;
 }
-.clickable-row:hover:not(.workspace-row--loading) {
+/*
+ * 行 hover（「〇名」「・・・」以外）:
+ *   ラベル・名前・説明・ステータス → 0.8
+ *   「〇名」「・・・」 → 変化なし（親に opacity をかけない。子の打ち消しは
+ *   opacity が [0,1] にクランプされるため不可）
+ * 「〇名」「・・・」 hover:
+ *   スペース全体 → 変化なし
+ *   その要素だけ → 0.8
+ */
+.clickable-row:hover:not(:has(.workspace-card__assignees:hover)):not(:has(.workspace-card__menu-btn:hover)) .workspace-card__labels,
+.clickable-row:hover:not(:has(.workspace-card__assignees:hover)):not(:has(.workspace-card__menu-btn:hover)) .workspace-card__body > :not(.workspace-card__assignees):not(.workspace-card__actions) {
   opacity: 0.8;
 }
-.workspace-row--loading,
-.workspace-row--loading:hover {
-  opacity: 0.6;
-  cursor: wait;
+.clickable-row .workspace-card__assignees:hover {
+  opacity: 0.8;
+}
+.clickable-row .workspace-card__menu-btn:hover {
+  opacity: 0.8;
 }
 .workspace-row--fade-in {
   animation: projectRowFadeIn 220ms ease-out;
@@ -306,7 +458,8 @@
 }
 .name-text {
   margin: 0;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -314,43 +467,10 @@
 .description-text {
   margin: 0;
   width: 100%;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.4;
-  max-height: calc(1.4em * 2);
-  color: mixin.$text-sub;
-  word-break: break-word;
-}
-.empty {
-  text-align: center;
-  color: mixin.$text-muted;
-  padding: 14px;
-}
-.primary-btn {
-  border: 1px solid transparent;
-  border-radius: 999px;
-  padding: 6px 28px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  letter-spacing: 0.1em;
-  background: mixin.$main;
-  color: mixin.$white;
   white-space: nowrap;
-  flex-shrink: 0;
-  gap: 6px;
-}
-button:disabled {
-  opacity: 0.55;
-  cursor: pointer;
+  color: mixin.$text-sub;
 }
 .err {
   margin-top: 0;

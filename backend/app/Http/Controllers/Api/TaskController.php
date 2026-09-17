@@ -10,6 +10,7 @@ use App\Events\TaskDeleted;
 use App\Events\TaskRestored;
 use App\Events\TaskUpdated;
 use App\Events\WbsTasksReordered;
+use App\Http\Requests\Api\StoreTaskRequest;
 use App\Models\BoardList;
 use App\Models\Organization;
 use App\Models\Task;
@@ -73,6 +74,7 @@ class TaskController extends ApiController
             'due_date',
             'gantt_bar_color',
             'effort_hours',
+            'progress_rate',
             'reporter_id',
             'created_at',
         ];
@@ -134,6 +136,7 @@ class TaskController extends ApiController
                 'due_date',
                 'gantt_bar_color',
                 'effort_hours',
+                'progress_rate',
                 'reporter_id',
                 'created_at',
             ]);
@@ -193,8 +196,12 @@ class TaskController extends ApiController
             ->all();
         $parentIdSet = array_fill_keys($parentIds, true);
 
+        $proposedParents = [];
         foreach ($items as $item) {
+            $taskId = (int) $item['id'];
             $parentTaskId = $item['parent_task_id'];
+            $proposedParents[$taskId] = $parentTaskId === null ? null : (int) $parentTaskId;
+
             if ($parentTaskId === null) {
                 continue;
             }
@@ -205,10 +212,35 @@ class TaskController extends ApiController
                 ], 422);
             }
 
-            if ($parentTaskId === $item['id']) {
+            if ((int) $parentTaskId === $taskId) {
                 return response()->json([
                     'message' => 'A task cannot be its own parent.',
                 ], 422);
+            }
+
+            // 親タスク同士のネストは許可しない（1階層のみ）
+            if (isset($parentIdSet[$taskId])) {
+                return response()->json([
+                    'message' => 'Parent tasks cannot have a parent.',
+                ], 422);
+            }
+        }
+
+        foreach ($proposedParents as $taskId => $parentTaskId) {
+            if ($parentTaskId === null) {
+                continue;
+            }
+
+            $seen = [$taskId => true];
+            $cursor = $parentTaskId;
+            while ($cursor !== null) {
+                if (isset($seen[$cursor])) {
+                    return response()->json([
+                        'message' => 'Task hierarchy cycle is not allowed.',
+                    ], 422);
+                }
+                $seen[$cursor] = true;
+                $cursor = $proposedParents[$cursor] ?? null;
             }
         }
 
@@ -270,6 +302,7 @@ class TaskController extends ApiController
             ->with([
                 'labels:id,name,color_index',
                 'assignees:id,name,email,avatar_path',
+                'parentTask:id,title',
             ])
             ->get([
                 'id',
@@ -280,38 +313,35 @@ class TaskController extends ApiController
                 'due_date',
                 'gantt_bar_color',
                 'effort_hours',
+                'progress_rate',
                 'reporter_id',
+                'is_parent_task',
+                'parent_task_id',
                 'archived_at',
                 'created_at',
             ]);
 
         return response()->json([
-            'data' => $tasks->map(fn (Task $task) => $this->taskListPayload($task)),
+            'data' => $tasks->map(function (Task $task) {
+                $payload = $this->taskListPayload($task);
+                $payload['parent_task_title'] = $task->parentTask?->title;
+
+                return $payload;
+            }),
         ]);
     }
 
-    public function store(Request $request, Organization $organization, Workspace $workspace): JsonResponse
+    public function store(StoreTaskRequest $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->assertCanEditWorkspace($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
 
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:'.FieldLengthLimits::TASK_TITLE],
-            'description' => ['nullable', 'string', 'max:'.FieldLengthLimits::TASK_DESCRIPTION],
-            'list_id' => ['required', 'integer', 'exists:lists,id'],
-            'priority' => ['nullable', 'string', Rule::in(TaskPriority::values())],
-            'start_date' => ['nullable', 'date'],
-            'due_date' => ['nullable', 'date'],
-            'gantt_bar_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-            'effort_hours' => ['nullable', 'numeric', 'min:0', 'max:99999.99'],
-            'assignee_ids' => ['nullable', 'array'],
-            'assignee_ids.*' => ['integer', 'distinct'],
-            'label_ids' => ['nullable', 'array'],
-            'label_ids.*' => ['integer', 'distinct'],
-            'is_parent_task' => ['sometimes', 'boolean'],
-            'parent_task_id' => ['sometimes', 'nullable', 'integer'],
-        ]);
+        $validated = $request->validated();
+
+        if ($invalidRange = $this->assertValidTaskDateRange($validated)) {
+            return $invalidRange;
+        }
 
         $title = trim($validated['title']);
         if ($title === '') {
@@ -365,10 +395,12 @@ class TaskController extends ApiController
                 'priority' => $validated['priority'] ?? TaskPriority::Medium->value,
                 'start_date' => $validated['start_date'] ?? null,
                 'due_date' => $validated['due_date'] ?? null,
+                'gantt_bar_color' => $validated['gantt_bar_color'] ?? null,
                 'reporter_id' => $user->id,
             ]);
 
             $this->applyEffortFields($task, $validated);
+            $this->applyProgressRateFields($task, $validated);
 
             if ($assigneeIds !== []) {
                 $newAssigneeIds = $this->syncAssigneesWithHistory($task, $assigneeIds);
@@ -429,6 +461,7 @@ class TaskController extends ApiController
             'due_date' => ['nullable', 'date'],
             'gantt_bar_color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'effort_hours' => ['nullable', 'numeric', 'min:0', 'max:99999.99'],
+            'progress_rate' => ['nullable', 'integer', 'min:0', 'max:100'],
             'assignee_ids' => ['nullable', 'array'],
             'assignee_ids.*' => ['integer', 'distinct'],
             'label_ids' => ['nullable', 'array'],
@@ -443,6 +476,10 @@ class TaskController extends ApiController
             'checklists.*.items.*.text' => ['required', 'string', 'max:'.FieldLengthLimits::CHECKLIST_ITEM_TEXT],
             'checklists.*.items.*.checked' => ['required', 'boolean'],
         ]);
+
+        if ($invalidRange = $this->assertValidTaskDateRange($validated, $task)) {
+            return $invalidRange;
+        }
 
         if (array_key_exists('title', $validated)) {
             $title = trim($validated['title']);
@@ -477,16 +514,20 @@ class TaskController extends ApiController
             $task->gantt_bar_color = $validated['gantt_bar_color'];
         }
         $this->applyEffortFields($task, $validated);
+        $this->applyProgressRateFields($task, $validated);
 
         $assigneeIdsToSync = null;
         if (array_key_exists('assignee_ids', $validated)) {
             $assigneeIdsToSync = $this->resolveAssigneeIds($workspace, $validated);
         }
 
+        $detachFormerChildren = false;
         if (array_key_exists('is_parent_task', $validated) || array_key_exists('parent_task_id', $validated)) {
+            $wasParent = (bool) $task->is_parent_task;
             [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($workspace, $validated, $task);
             $task->is_parent_task = $isParentTask;
             $task->parent_task_id = $parentTaskId;
+            $detachFormerChildren = $wasParent && ! $isParentTask;
         }
 
         $labelIds = array_key_exists('label_ids', $validated)
@@ -499,9 +540,16 @@ class TaskController extends ApiController
             $assigneeIdsToSync,
             $labelIds,
             $validated,
+            $detachFormerChildren,
             &$newAssigneeIds,
         ) {
             $task->save();
+
+            if ($detachFormerChildren) {
+                Task::query()
+                    ->where('parent_task_id', $task->id)
+                    ->update(['parent_task_id' => null]);
+            }
 
             if ($assigneeIdsToSync !== null) {
                 $newAssigneeIds = $this->syncAssigneesWithHistory($task, $assigneeIdsToSync);
@@ -533,7 +581,7 @@ class TaskController extends ApiController
     public function archive(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->assertCanEditWorkspace($request->user(), $workspace);
+        $this->assertCanManageArchive($request);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -548,18 +596,30 @@ class TaskController extends ApiController
             return response()->json(['message' => 'Task is already archived.'], 422);
         }
 
-        $task->archived_at = now();
-        $task->save();
+        $fresh = DB::transaction(function () use ($task) {
+            // 子はボード上に残す。親子リンクを切らないと WBS 並び替えが壊れ、
+            // 完全削除時にアクティブな子まで巻き込まれる温床になる。
+            Task::query()
+                ->where('parent_task_id', $task->id)
+                ->update(['parent_task_id' => null]);
 
-        $fresh = $task->fresh();
+            $task->archived_at = now();
+            $task->save();
+
+            return $task->fresh();
+        });
+
         $fresh->loadMissing([
             'labels:id,name,color_index',
             'assignees:id,name,email,avatar_path',
+            'parentTask:id,title',
         ]);
+        $archivedPayload = $this->taskListPayload($fresh);
+        $archivedPayload['parent_task_title'] = $fresh->parentTask?->title;
         SafeBroadcast::toOthers(TaskArchived::fromSnapshot(
             (int) $fresh->workspace_id,
             (int) $fresh->id,
-            $this->taskListPayload($fresh),
+            $archivedPayload,
         ));
 
         return response()->json($this->taskPayload($fresh));
@@ -568,7 +628,7 @@ class TaskController extends ApiController
     public function unarchive(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->assertCanRestoreOrPermanentlyDelete($request);
+        $this->assertCanManageArchive($request);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -595,7 +655,7 @@ class TaskController extends ApiController
     public function destroy(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->assertCanRestoreOrPermanentlyDelete($request);
+        $this->assertCanManageArchive($request);
         $this->assertWorkspaceNotArchived($workspace);
 
         if ((int) $task->workspace_id !== (int) $workspace->id) {
@@ -644,6 +704,7 @@ class TaskController extends ApiController
             'due_date' => $task->due_date,
             'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
+            'progress_rate' => $task->progress_rate,
             'assignees' => $this->formatAssignees($task->assignees),
             'reporter_id' => $task->reporter_id,
             'archived_at' => $task->archived_at,
@@ -672,6 +733,7 @@ class TaskController extends ApiController
             'due_date' => $task->due_date,
             'gantt_bar_color' => $task->gantt_bar_color,
             'effort_hours' => $task->effort_hours,
+            'progress_rate' => $task->progress_rate,
             'assignees' => $this->formatAssignees($task->assignees),
             'reporter_id' => $task->reporter_id,
             'archived_at' => $task->archived_at,
@@ -785,11 +847,11 @@ class TaskController extends ApiController
             return [];
         }
 
-        foreach ($ids as $id) {
-            $assignee = User::query()->find($id);
-            if ($assignee === null || ! $assignee->canAccessWorkspace($workspace)) {
-                abort(422, 'Assignees must have access to this workspace.');
-            }
+        $validCount = $workspace->assignees()
+            ->whereIn('users.id', $ids)
+            ->count();
+        if ($validCount !== count($ids)) {
+            abort(422, 'Assignees must be members of this workspace.');
         }
 
         return $ids;
@@ -846,6 +908,7 @@ class TaskController extends ApiController
                 'organization_slug' => $task->organization?->slug,
                 'title' => $task->title,
             ],
+            (int) auth()->id(),
         );
     }
 
@@ -904,6 +967,71 @@ class TaskController extends ApiController
         }
 
         $task->effort_hours = round((float) $validated['effort_hours'], 6);
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function applyProgressRateFields(Task $task, array $validated): void
+    {
+        if (! array_key_exists('progress_rate', $validated)) {
+            return;
+        }
+
+        if ($validated['progress_rate'] === null) {
+            $task->progress_rate = null;
+
+            return;
+        }
+
+        $task->progress_rate = (int) $validated['progress_rate'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function assertValidTaskDateRange(array $validated, ?Task $existing = null): ?JsonResponse
+    {
+        $start = array_key_exists('start_date', $validated)
+            ? $this->normalizeDateOnly($validated['start_date'])
+            : $this->normalizeDateOnly($existing?->start_date);
+        $due = array_key_exists('due_date', $validated)
+            ? $this->normalizeDateOnly($validated['due_date'])
+            : $this->normalizeDateOnly($existing?->due_date);
+
+        if ($start === null || $due === null) {
+            return null;
+        }
+
+        if ($start > $due) {
+            return response()->json([
+                'message' => 'End date must be on or after start date.',
+            ], 422);
+        }
+
+        return null;
+    }
+
+    private function normalizeDateOnly(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        $trimmed = trim((string) $value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        try {
+            return \Carbon\Carbon::parse($trimmed)->format('Y-m-d');
+        } catch (\Throwable) {
+            return substr($trimmed, 0, 10) ?: null;
+        }
     }
 
     /**

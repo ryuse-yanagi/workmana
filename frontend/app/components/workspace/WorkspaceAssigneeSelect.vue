@@ -1,11 +1,13 @@
 <template>
   <div
     class="workspace-assignee-select"
+    :class="{ 'workspace-assignee-select--readonly': readonly }"
     data-workspace-assignee-select-root
     @pointerdown.stop
     @pointerup.stop
   >
     <button
+      v-if="!readonly"
       ref="triggerRef"
       type="button"
       class="workspace-assignee-select__btn"
@@ -18,8 +20,16 @@
     >
       {{ assigneeCount > 0 ? `計${assigneeCount}名` : '未設定' }}
     </button>
+    <div
+      v-else
+      class="workspace-assignee-select__btn"
+      :class="{ 'workspace-assignee-select__btn--empty': assigneeCount === 0 }"
+      :aria-label="triggerAriaLabel"
+    >
+      {{ assigneeCount > 0 ? `計${assigneeCount}名` : '未設定' }}
+    </div>
   </div>
-  <Teleport to="body">
+  <Teleport v-if="!readonly" to="body">
     <WorkspaceMemberPickerPopover
       v-if="isOpen"
       ref="dropdownRef"
@@ -41,8 +51,7 @@
 <script setup lang="ts">
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { isScrollInsideRoot } from '../../utils/uiInteraction'
-import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
+import { popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
 import type { TaskFormMember } from '../../composables/useTaskFormHelpers'
 import WorkspaceMemberPickerPopover from './WorkspaceMemberPickerPopover.vue'
 
@@ -51,12 +60,14 @@ const props = withDefaults(defineProps<{
   orgMembers: TaskFormMember[]
   disabled?: boolean
   pending?: boolean
+  readonly?: boolean
   error?: string | null
   /** 担当者など、ピッカー見出しと aria-label 用 */
   roleLabel?: string
 }>(), {
   disabled: false,
   pending: false,
+  readonly: false,
   error: null,
   roleLabel: '担当者',
 })
@@ -96,8 +107,8 @@ const dropdownStyle = computed(() => {
   return {
     top: `${top}px`,
     left: `${left}px`,
+    maxHeight: `${maxHeight}px`,
     visibility: 'visible',
-    ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
     ...popoverScrollbarGutterStyle(scrollbarGutter),
   }
 })
@@ -135,7 +146,7 @@ function positionDropdown () {
 }
 
 function openDropdown () {
-  if (props.disabled || props.pending) {
+  if (props.readonly || props.disabled || props.pending) {
     return
   }
   memberSearchQuery.value = ''
@@ -207,11 +218,8 @@ function onWindowResize () {
   positionDropdown()
 }
 
-function onWindowScroll (event: Event) {
+function onWindowScroll () {
   if (!isOpen.value) {
-    return
-  }
-  if (isScrollInsideRoot(event, dropdownRef.value?.rootRef)) {
     return
   }
   if (!isTriggerVisible()) {

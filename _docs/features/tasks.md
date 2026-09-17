@@ -46,7 +46,7 @@
 
 組織レベル: `/task-labels`, `/task-label-categories` → [organization-settings.md](./organization-settings.md)
 
-新規担当追加時に `task.assigned` 通知（[notification.md](./notification.md)）。自己割当でも通知される。
+新規担当追加時に `task.assigned` 通知（[notification.md](./notification.md)）。操作者自身への通知は送らない。
 
 ---
 

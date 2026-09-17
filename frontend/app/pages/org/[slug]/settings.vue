@@ -1,5 +1,5 @@
 <template>
-  <main class="settings-page">
+  <main ref="settingsPageRef" class="settings-page">
     <template v-if="settingsFatalError">
       <PageLoadFatal :message="settingsFatalError" @retry="retrySettingsLoad" />
     </template>
@@ -14,51 +14,57 @@
           />
 
           <section class="settings-content">
-            <div
-              v-if="!settingsPageReady || !settingsSnapshot"
-              class="settings-content-loading"
-              aria-busy="true"
-              aria-label="読み込み中"
-            >
-              <div class="spinner" />
+            <div class="settings-content__scroller">
+              <div
+                v-if="!settingsPageReady || !settingsSnapshot"
+                class="settings-content-loading"
+                aria-busy="true"
+                aria-label="読み込み中"
+              >
+                <div class="spinner" />
+              </div>
+              <div
+                v-else
+                :class="['settings-content-body', { 'settings-content-body--fade-in': contentShouldFadeIn }]"
+              >
+                <SettingsOrganizationPanel
+                  v-show="activeTab === 'organization'"
+                  :org-slug="slug"
+                  :initial-name="settingsSnapshot.orgSettings.name"
+                  :initial-icon-url="settingsSnapshot.orgSettings.icon_url"
+                  :can-manage="canManageSettings"
+                />
+                <SettingsMembersPanel
+                  v-show="activeTab === 'members'"
+                  :org-slug="slug"
+                  :can-manage="canManageSettings"
+                />
+                <SettingsLabelsPanel
+                  v-show="activeLabelTab !== null"
+                  :org-slug="slug"
+                  :label-tab="activeLabelTab ?? 'workspace'"
+                  :can-manage="canManageSettings"
+                />
+                <SettingsDefaultWorkspaceStatusesPanel
+                  v-show="activeTab === 'workspace_statuses'"
+                  :org-slug="slug"
+                  :initial-items="defaultWorkspaceStatusItemsFromSnapshot"
+                  :can-manage="canManageSettings"
+                />
+                <SettingsDefaultBoardListsPanel
+                  v-show="activeTab === 'default_board_lists'"
+                  :org-slug="slug"
+                  :initial-items="defaultBoardListItemsFromSnapshot"
+                  :can-manage="canManageSettings"
+                />
+                <SettingsDefaultDocumentCategoriesPanel
+                  v-show="activeTab === 'document_categories'"
+                  :org-slug="slug"
+                  :initial-items="defaultDocumentCategoryItemsFromSnapshot"
+                  :can-manage="canManageSettings"
+                />
+              </div>
             </div>
-            <template v-else>
-              <SettingsOrganizationPanel
-                v-show="activeTab === 'organization'"
-                :org-slug="slug"
-                :initial-icon-url="settingsSnapshot.orgSettings.icon_url"
-                :can-manage="canManageSettings"
-              />
-              <SettingsMembersPanel
-                v-show="activeTab === 'members'"
-                :org-slug="slug"
-                :can-manage="canManageSettings"
-              />
-              <SettingsLabelsPanel
-                v-show="activeLabelTab !== null"
-                :org-slug="slug"
-                :label-tab="activeLabelTab ?? 'workspace'"
-                :can-manage="canManageSettings"
-              />
-              <SettingsDefaultWorkspaceStatusesPanel
-                v-show="activeTab === 'workspace_statuses'"
-                :org-slug="slug"
-                :initial-items="defaultWorkspaceStatusItemsFromSnapshot"
-                :can-manage="canManageSettings"
-              />
-              <SettingsDefaultBoardListsPanel
-                v-show="activeTab === 'default_board_lists'"
-                :org-slug="slug"
-                :initial-items="defaultBoardListItemsFromSnapshot"
-                :can-manage="canManageSettings"
-              />
-              <SettingsDefaultDocumentCategoriesPanel
-                v-show="activeTab === 'document_categories'"
-                :org-slug="slug"
-                :initial-items="defaultDocumentCategoryItemsFromSnapshot"
-                :can-manage="canManageSettings"
-              />
-            </template>
           </section>
         </section>
       </div>
@@ -88,6 +94,7 @@ import {
   type SettingsPageSnapshot,
   type SettingsTabKey,
 } from '../../../components/settings/types'
+import { useWorkspaceViewPageRoot } from '../../../composables/useWorkspaceViewPageRoot'
 
 definePageMeta({
   name: 'org-slug-settings',
@@ -95,9 +102,12 @@ definePageMeta({
   keepalive: true,
 })
 
+useWorkspaceViewPageRoot()
+
 const route = useRoute()
 const router = useRouter()
 const slug = computed(() => route.params.slug as string)
+const settingsPageRef = ref<HTMLElement | null>(null)
 const {
   fetchSnapshot,
   getCached,
@@ -109,12 +119,12 @@ const menuSections: SettingsMenuSection[] = [
   {
     title: '共通',
     items: [
-      { key: 'members', label: 'ユーザー設定' },
       { key: 'organization', label: '組織設定' },
+      { key: 'members', label: 'ユーザー設定' },
     ],
   },
   {
-    title: 'スペース設定',
+    title: 'スペース',
     items: [
       { key: 'workspace_labels', label: 'ラベル設定' },
       { key: 'workspace_statuses', label: 'ステータス設定' },
@@ -122,25 +132,26 @@ const menuSections: SettingsMenuSection[] = [
     ],
   },
   {
-    title: 'タスク設定',
+    title: 'タスク',
     items: [
       { key: 'task_labels', label: 'ラベル設定' },
     ],
   },
   {
-    title: '資料設定',
+    title: '資料',
     items: [
-      { key: 'document_labels', label: 'ラベル設定' },
       { key: 'document_categories', label: 'カテゴリ設定' },
     ],
   },
 ]
 
-const activeTab = ref<SettingsTabKey>('members')
+const activeTab = ref<SettingsTabKey>('organization')
 const settingsPageReady = ref(false)
 const settingsFatalError = ref<string | null>(null)
 const settingsSnapshot = ref<SettingsPageSnapshot | null>(null)
 const loadedForUserId = ref<number | null>(null)
+const contentShouldFadeIn = ref(false)
+let settingsContentInitialRevealDone = false
 
 const activeLabelTab = computed<SettingsLabelTabKey | null>(() => {
   return SETTINGS_LABEL_TAB_BY_KEY[activeTab.value] ?? null
@@ -174,6 +185,7 @@ async function loadInitialData (opts?: { refresh?: boolean }) {
       return
     }
   } else {
+    resetSettingsContentReveal()
     settingsPageReady.value = false
     settingsSnapshot.value = null
   }
@@ -206,9 +218,28 @@ async function syncForCurrentUser () {
   loadedForUserId.value = userId
 }
 
+function revealLoadedSettingsContent () {
+  if (settingsContentInitialRevealDone) {
+    return
+  }
+  settingsContentInitialRevealDone = true
+  contentShouldFadeIn.value = true
+  setTimeout(() => {
+    contentShouldFadeIn.value = false
+  }, 260)
+}
+
+function resetSettingsContentReveal () {
+  settingsContentInitialRevealDone = false
+  contentShouldFadeIn.value = false
+}
+
 function retrySettingsLoad () {
   invalidateCached(slug.value)
   loadedForUserId.value = null
+  resetSettingsContentReveal()
+  settingsPageReady.value = false
+  settingsSnapshot.value = null
   void syncForCurrentUser()
 }
 
@@ -239,26 +270,28 @@ function applyTabFromRoute () {
     activeTab.value = 'task_labels'
     return
   }
-  if (tab === 'document_labels') {
-    activeTab.value = 'document_labels'
-    return
-  }
   if (tab === 'workspace_labels' || tab === 'project_labels' || tab === 'labels') {
     activeTab.value = 'workspace_labels'
     const labelTab = route.query.labelTab
     if (labelTab === 'task') {
       activeTab.value = 'task_labels'
-    } else if (labelTab === 'document') {
-      activeTab.value = 'document_labels'
     }
     return
   }
-  activeTab.value = 'members'
+  activeTab.value = 'organization'
 }
 
 function selectTab (tab: SettingsTabKey) {
   activeTab.value = tab
   void router.replace({ path: route.path, query: { tab } })
+}
+
+function resetSettingsPageScroll () {
+  const page = settingsPageRef.value
+  if (!page) {
+    return
+  }
+  page.scrollTop = 0
 }
 
 onBeforeMount(() => {
@@ -277,6 +310,19 @@ onMounted(() => {
 onActivated(() => {
   applyTabFromRoute()
   void syncForCurrentUser()
+})
+
+watch(settingsPageReady, async (ready) => {
+  if (!ready) {
+    return
+  }
+  await nextTick()
+  revealLoadedSettingsContent()
+}, { immediate: true })
+
+watch(activeTab, async () => {
+  await nextTick()
+  resetSettingsPageScroll()
 })
 
 watch(

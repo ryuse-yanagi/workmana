@@ -10,6 +10,11 @@ button, .btn {
   padding: 7px 14px; border-radius: 6px; border: none; background: mixin.$ink; color: mixin.$white;
   cursor: pointer; text-decoration: none; display: inline-block; font-size: 12.6px;
 }
+.btn.is-disabled {
+  pointer-events: none;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 button.secondary { background: mixin.$text-strong; }
 .status { margin-top: 10.5px; font-size: 12.6px; }
 .status.err { color: mixin.$danger; }

@@ -1,0 +1,49 @@
+.modal-footer-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+  padding: 32px 0;
+}
+
+.modal-footer-actions__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 160px;
+  height: 40px;
+  min-width: 160px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-footer-actions__btn:disabled {
+  cursor: pointer;
+}
+
+.modal-footer-actions__btn--primary {
+  background: mixin.$main;
+  color: mixin.$white;
+  border-color: transparent;
+}
+
+.modal-footer-actions__btn--ghost {
+  background: mixin.$gray;
+  color: mixin.$text-sub;
+  border-color: transparent;
+}
+
+.modal-footer-actions__btn--danger {
+  background: mixin.$danger;
+  color: mixin.$white;
+  border-color: transparent;
+}

@@ -1,115 +1,193 @@
-.table-display-items-modal {
+.wbs-display-items-modal {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px 0;
+  gap: 14px;
+  padding: 16px 16px 0;
   box-sizing: border-box;
+  font-size: 14px;
 }
-.table-display-items-modal__toolbar {
+
+.wbs-display-items-modal__lead {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.55;
+  color: mixin.$text-subtle;
+}
+
+.wbs-display-items-modal__toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
 }
-.table-display-items-modal__select-all {
+
+.wbs-display-items-modal__count {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: mixin.$text-soft;
+  font-variant-numeric: tabular-nums;
+}
+
+.wbs-display-items-modal__text-btn {
   margin: 0;
   padding: 0;
   border: none;
   background: transparent;
   color: mixin.$main;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1.2;
   cursor: pointer;
+  flex-shrink: 0;
 }
-.table-display-items-modal__select-all:hover {
+
+.wbs-display-items-modal__text-btn:hover:not(:disabled) {
   text-decoration: underline;
 }
-.table-display-items-modal__list {
+
+.wbs-display-items-modal__text-btn:disabled {
+  color: mixin.$text-quiet;
+  cursor: default;
+  text-decoration: none;
+}
+
+.wbs-display-items-modal__lists {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wbs-display-items-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid mixin.$gray;
-  border-radius: 8px;
-  overflow: hidden;
 }
-.table-display-items-modal__item {
-  border-bottom: 1px solid mixin.$surface-muted;
+
+.wbs-display-items-modal__list--optional {
+  display: grid;
+  grid-template-columns: repeat(2, 260px);
+  justify-content: space-between;
+  gap: 8px;
 }
-.table-display-items-modal__item:last-child {
-  border-bottom: none;
+
+.wbs-display-items-modal__item {
+  min-width: 0;
 }
-.table-display-items-modal__option {
+
+.wbs-display-items-modal__item--required {
+  width: 100%;
+}
+
+.wbs-display-items-modal__option {
   @include mixin.picker-checkbox-row;
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  border: none;
-  background: transparent;
-  padding: 10px 12px;
-  text-align: left;
-  cursor: pointer;
-}
-.table-display-items-modal__option:hover {
-  background: mixin.$list-column-bg;
-}
-.table-display-items-modal__option--required {
-  cursor: default;
-}
-.table-display-items-modal__option--required:hover {
-  background: transparent;
-}
-.table-display-items-modal__option:disabled {
-  opacity: 1;
-  cursor: default;
-}
-.table-display-items-modal__checkbox {
-  width: 16px;
-  height: 16px;
-  border: 2px solid mixin.$border-checkbox;
-  border-radius: 3px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-  color: mixin.$white;
-  background: mixin.$white;
   box-sizing: border-box;
+  margin: 0;
+  border: 1px solid mixin.$border;
+  border-radius: 8px;
+  background: mixin.$white;
+  padding: 0 12px;
+  text-align: left;
+  color: mixin.$text-emphasis;
+  font-size: 14px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
-.table-display-items-modal__checkbox--checked {
-  background: mixin.$main;
-  border-color: mixin.$main;
+
+.wbs-display-items-modal__list--optional .wbs-display-items-modal__option {
+  width: 260px;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
 }
-.table-display-items-modal__checkbox--required {
-  opacity: 0.72;
+
+.wbs-display-items-modal__list--required .wbs-display-items-modal__option {
+  width: 100%;
+  min-height: 42px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
-.table-display-items-modal__label {
+
+.wbs-display-items-modal__option:hover:not(:disabled) {
+  background: mixin.$main-aqua-surface-light;
+  border-color: color-mix(in srgb, mixin.$main 22%, mixin.$border);
+}
+
+.wbs-display-items-modal__option--checked {
+  background: mixin.$main-aqua-surface-light;
+  border-color: color-mix(in srgb, mixin.$main 34%, mixin.$border);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, mixin.$main 12%, transparent);
+}
+
+.wbs-display-items-modal__option--checked:hover:not(:disabled) {
+  background: mixin.$main-aqua-surface;
+  border-color: color-mix(in srgb, mixin.$main 48%, mixin.$border);
+}
+
+.wbs-display-items-modal__option--required {
+  cursor: default;
+  background: color-mix(in srgb, mixin.$main-aqua-surface 55%, mixin.$white);
+  border-color: color-mix(in srgb, mixin.$main 28%, mixin.$border);
+  box-shadow: none;
+}
+
+.wbs-display-items-modal__option--required:hover {
+  background: color-mix(in srgb, mixin.$main-aqua-surface 55%, mixin.$white);
+  border-color: color-mix(in srgb, mixin.$main 28%, mixin.$border);
+}
+
+.wbs-display-items-modal__checkbox {
+  @include mixin.picker-selection-check(16px, 1.5px);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wbs-display-items-modal__checkbox--checked {
+  @include mixin.picker-selection-check-checked;
+}
+
+.wbs-display-items-modal__checkbox--required {
+  opacity: 0.78;
+}
+
+.wbs-display-items-modal__label {
   flex: 1;
   min-width: 0;
   font-size: 14px;
   font-weight: 700;
-  color: mixin.$text;
+  line-height: 1.3;
+  color: mixin.$text-heading;
 }
-.table-display-items-modal__lock {
+
+.wbs-display-items-modal__option--checked .wbs-display-items-modal__label {
+  color: mixin.$text-emphasis;
+}
+
+.wbs-display-items-modal__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex-shrink: 0;
-  margin-left: auto;
-  color: mixin.$text-placeholder;
-}
-.table-display-items-modal__actions {
-  @include mixin.modal-footer-actions;
-}
-.ghost-btn,
-.primary-btn {
-  @include mixin.btn-base;
-}
-.ghost-btn--pill,
-.primary-btn--pill {
-  @include mixin.btn-pill;
-}
-.ghost-btn {
-  @include mixin.btn-ghost;
-}
-.primary-btn {
-  @include mixin.btn-primary;
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, mixin.$main 10%, mixin.$white);
+  color: mixin.$main;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }

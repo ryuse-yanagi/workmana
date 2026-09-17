@@ -1,0 +1,251 @@
+@include mixin.modal-fade-transition;
+
+.modal-overlay {
+  @include mixin.modal-overlay-shell;
+  @include mixin.modal-overlay-top-aligned;
+  z-index: var(--tm-z-modal);
+}
+.modal-overlay--popover-open {
+  overflow: hidden;
+}
+.modal-card {
+  position: relative;
+  @include mixin.modal-card-width(880px);
+  margin: 0 auto;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: mixin.$white;
+  box-shadow: 0 16px 40px mixin.ink-a(0.18);
+  @include mixin.modal-card-container;
+}
+.modal-card--content-pending {
+  opacity: 0;
+  pointer-events: none;
+}
+.modal-card--fade-in {
+  animation: task-add-modal-content-fade-in 220ms ease-out;
+}
+@keyframes task-add-modal-content-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.modal-header {
+  @include mixin.modal-header-bar;
+  border-radius: 12px 12px 0 0;
+  box-sizing: border-box;
+  width: calc(100% + var(#{mixin.$popover-scrollbar-gutter-var}, 0px));
+  max-width: none;
+  margin-inline-end: calc(-1 * var(#{mixin.$popover-scrollbar-gutter-var}, 0px));
+}
+.icon-close {
+  @include mixin.modal-close-hit-area;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: mixin.$white;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-body {
+  position: relative;
+  padding: 16px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-radius: 0 0 12px 12px;
+  @include mixin.modal-body-scroll-region;
+}
+.parent-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.parent-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid mixin.$main;
+  border-radius: 10px;
+  background: mixin.$main-aqua-surface;
+  padding: 14px;
+}
+.parent-toggle-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.parent-toggle-card__label {
+  font-size: 14px;
+  font-weight: 700;
+  color: mixin.$text;
+  line-height: 1.3;
+}
+.parent-toggle-card__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: mixin.$text;
+  text-align: left;
+}
+.task-form-section {
+  overflow: visible;
+  min-width: 0;
+}
+.toggle-switch {
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.toggle-switch__track {
+  display: inline-flex;
+  align-items: center;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: mixin.$border;
+  padding: 3px;
+  box-sizing: border-box;
+  transition: background 0.15s ease;
+}
+.toggle-switch[aria-checked='true'] .toggle-switch__track {
+  background: mixin.$main;
+}
+.toggle-switch__thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: mixin.$white;
+  box-shadow: 0 1px 3px mixin.ink-a(0.2);
+  transform: translateX(0);
+  transition: transform 0.15s ease;
+}
+.toggle-switch[aria-checked='true'] .toggle-switch__thumb {
+  transform: translateX(18px);
+}
+.parent-picker-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.popover-layer--portal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--tm-z-floating);
+  pointer-events: none;
+}
+.popover-layer--portal :deep(.popover),
+.popover-layer--portal :deep(.popover-shell) {
+  position: fixed;
+  margin: 0;
+  pointer-events: auto;
+}
+.popover {
+  position: absolute;
+  z-index: 10;
+  @include mixin.popover-panel-width(259px);
+  background: mixin.$white;
+  border-radius: mixin.$popover-border-radius;
+  box-shadow: mixin.$popover-box-shadow;
+  border: 1px solid mixin.$gray;
+  padding: mixin.$popover-padding;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+:deep(.popover-shell__title) {
+  @include mixin.popover-title-text;
+}
+.popover--parent-task {
+  @include mixin.popover-panel-width(#{mixin.$popover-list-panel-width});
+  min-height: 0;
+  overflow: hidden;
+  padding: mixin.$popover-padding;
+  gap: 0;
+}
+.task-detail-parent-task {
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: mixin.$main;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.task-detail-parent-task--unset {
+  color: mixin.$text-muted;
+}
+.task-detail-parent-task:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.detail-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 14px 18px;
+}
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.detail-item--parent {
+  min-width: 0;
+  flex: 1 1 0;
+}
+.detail-item-label {
+  @include mixin.modal-field-label;
+}
+.task-detail-list-btn {
+  @include mixin.modal-list-btn;
+}
+.task-detail-list-btn__name {
+  @include mixin.modal-list-btn-name;
+}
+.task-detail-list-btn__chevron {
+  @include mixin.modal-list-btn-chevron;
+}
+.task-detail-list-btn--placeholder {
+  @include mixin.modal-list-btn-placeholder;
+}
+.task-detail-list-btn--placeholder .task-detail-list-btn__chevron {
+  opacity: 0.55;
+}
+.task-detail-list-btn:hover:not(:disabled):not(.task-detail-list-btn--placeholder) {
+  filter: brightness(1.06);
+}
+.task-detail-list-btn--open.task-detail-list-btn--placeholder {
+  border-color: mixin.$main;
+  color: mixin.$main;
+}
+.task-detail-list-btn:disabled {
+  cursor: default;
+}
+.err {
+  margin: 0;
+  color: mixin.$danger;
+  font-weight: 700;
+  font-size: mixin.$modal-field-font-size;
+}
+button:disabled:not(.parent-task-picker-row):not(.task-detail-parent-task):not(.task-detail-list-btn) {
+  cursor: pointer;
+}

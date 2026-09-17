@@ -1,4 +1,4 @@
-# 業務管理アプリ（work-manager）
+# WorkMana
 
 ## 目次
 
@@ -20,7 +20,7 @@
 
 ## 概要
 
-チームのタスク管理・資料共有を一元化する業務管理アプリです。
+チームのタスク管理・資料共有を一元化する **WorkMana**（ワークマナ）です。ドメインは [workmanager.jp](https://workmanager.jp) です。
 
 組織単位のマルチテナント構成を採用し、ユーザー・権限・スペースを管理できます。
 スペース内では、カンバン、WBS（ガント付き）、タスク管理を利用でき、資料やラベル管理にも対応しています。
@@ -35,7 +35,7 @@ UI／本READMEでは **スペース** と呼びます。設計ドキュメント
 
 - **組織単位のマルチテナント** — 組織・メンバー・招待・設定を組織ごとに分離
 - **カンバンと WBS** — ボード列の並び替えと、ガント付き WBS ビューを同一スペースで利用
-- **資料** — Markdown の編集／プレビュー、ラベル・カテゴリ、関連スペース／関連資料
+- **資料** — スペース配下の Markdown 編集、カテゴリ
 - **セッションベース認証** — Cognito 認可コード（PKCE）。JWT はブラウザに保存せず HttpOnly Cookie のみ
 - **ボード／WBS のリアルタイム同期** — Laravel Reverb でリスト／タスク操作を他クライアントへ反映
 - **添付の私有化** — タスク添付は `local` ディスク＋認証付き download（`/storage` 直リンク不可）
@@ -66,7 +66,7 @@ UI／本READMEでは **スペース** と呼びます。設計ドキュメント
 - アーカイブ済みスペース一覧
 - スペースステータス（組織の既定値を設定可能）
 - スペース間の関連付け
-- スペースと資料の関連付け
+- スペース配下の資料（作成・一覧はスペース詳細サイドバー）
 - スペース用ラベル／ラベルカテゴリ
 - スペース担当者の設定
 
@@ -86,11 +86,10 @@ UI／本READMEでは **スペース** と呼びます。設計ドキュメント
 
 ### 資料
 
-- 組織内資料の作成・編集・削除
-- アーカイブ／復元・アーカイブ済み一覧
-- Markdown の編集（textarea）とプレビュー（`marked` ＋ HTML サニタイズ）
-- 資料ラベル・カテゴリ
-- 関連スペース／関連資料の紐付け
+- スペース配下の資料の作成・編集・削除（スペース詳細サイドバーから作成）
+- アーカイブ／復元・スペース内アーカイブ済み一覧
+- Markdown の編集（textarea）と閲覧時の HTML レンダリング（`marked` ＋ HTML サニタイズ）
+- 資料カテゴリ
 
 ### その他
 
@@ -114,7 +113,7 @@ UI／本READMEでは **スペース** と呼びます。設計ドキュメント
 
 ## 技術詳細・設計
 
-主要な技術選定と実装方針です。補助ライブラリ（`marked` / `lucide-vue-next` / `vuedraggable` / `pusher-js` など）は各サブセクションに記載します。
+主要な技術選定と実装方針です。補助ライブラリは各サブセクションと `_docs/architecture/` に記載します。
 
 ### フロントエンド（`frontend/`）
 
@@ -123,13 +122,22 @@ UI／本READMEでは **スペース** と呼びます。設計ドキュメント
 | フレームワーク | Nuxt `^4` / Vue `^3` |
 | 言語 | TypeScript |
 | スタイル | SCSS（共通 mixin あり） |
-| Markdown | `marked`（プレビュー用） |
+| サーバー状態 | `@tanstack/vue-query` |
+| オーバーレイ | `@floating-ui/dom` / `focus-trap` / `@vueuse/core` |
+| バリデーション | `zod` |
 | DnD | vuedraggable |
 | リアルタイム | laravel-echo + pusher-js |
 | アイコン | lucide-vue-next |
 | Node | `>= 22.12.0`（`.nvmrc` 参照） |
 
 開発時は Vite のプロキシで `/api` → `http://127.0.0.1:8000` に転送します（CORS / WSL のループバック差を回避）。
+
+設計メモ:
+
+- [`_docs/architecture/frontend-server-state.md`](_docs/architecture/frontend-server-state.md)
+- [`_docs/architecture/frontend-overlays.md`](_docs/architecture/frontend-overlays.md)
+- [`_docs/architecture/shared-contracts.md`](_docs/architecture/shared-contracts.md)
+- ADR: [`_docs/decisions/frontend-foundations.md`](_docs/decisions/frontend-foundations.md)
 
 ### バックエンド（`backend/`）
 
@@ -141,8 +149,9 @@ UI／本READMEでは **スペース** と呼びます。設計ドキュメント
 | 認証 | Cognito ID トークン検証（`firebase/php-jwt`） |
 | WebSocket | Laravel Reverb |
 | キュー（ローカル既定） | `database` |
+| 入力検証 | FormRequest（代表エンドポイント）＋ `FieldLengthLimits` |
 
-`predis` は依存関係に含まれます。既定の Reverb（`REVERB_SCALING_ENABLED=false`）では Redis は不要です。
+`predis` は依存関係に含まれます。既定の Reverb（`REVERB_SCALING_ENABLED=false`）では Redis は不要です。色・文字数の正本はリポジトリ直下の `shared/`（[`_docs/architecture/shared-contracts.md`](_docs/architecture/shared-contracts.md)）。
 
 ### 認証
 
@@ -249,7 +258,7 @@ DB には平文トークンを保存せず、SHA-256 ハッシュを `organizati
 
 - 新規のタスク添付は **`/storage/...` 直リンクでは取得できません**
 - 移行前に `public` へ置かれた添付があっても、download API が `local` → `public` の順で解決します
-- 資料／タスク説明の Markdown プレビューは許可リスト型の HTML サニタイズを通します
+- 資料／タスク説明の Markdown 閲覧表示は許可リスト型の HTML サニタイズを通します
 
 ---
 
@@ -278,6 +287,7 @@ DB には平文トークンを保存せず、SHA-256 ハッシュを `organizati
 ```
 work-manager/
 ├── README.md                 # 本ファイル
+├── shared/                   # FE/BE 共有契約（色・文字数・既定マスタ）
 ├── _docs/                    # 設計・要件・意思決定ログ
 │   ├── architecture/
 │   ├── database/
@@ -452,8 +462,8 @@ Organization
   ├── Workspace（スペース。設計書では project、コードでは workspace）
   │     ├── List（ボード列）
   │     ├── Task（コメント・チェックリスト・ラベル・添付ファイル等）
+  │     ├── SharedDocument（資料。スペース配下・アーカイブ）
   │     └── Assignees 等
-  ├── SharedDocument（資料。アーカイブ・関連スペース／関連資料）
   ├── Labels（スペース / タスク / 資料用のカテゴリ＋ラベル）
   └── AppNotification（ユーザー向けアプリ内通知）
 ```
@@ -488,8 +498,9 @@ Organization
 | `/org/[slug]` | 組織ホーム（スペース一覧へリダイレクト） |
 | `/org/[slug]/workspaces` | スペース一覧 |
 | `/org/[slug]/workspaces/[id]` | スペース詳細（ボード／WBS・ガント） |
-| `/org/[slug]/documents` | 資料一覧 |
-| `/org/[slug]/documents/[id]` | 資料詳細 |
+| `/org/[slug]/workspaces/[id]/documents/[documentId]` | 資料詳細 |
+| `/org/[slug]/documents` | スペース一覧へリダイレクト |
+| `/org/[slug]/documents/[id]` | 旧資料 URL（正規パスへリダイレクト） |
 | `/org/[slug]/settings` | 組織設定（`?tab=members` でユーザー招待） |
 
 ### API（抜粋）
@@ -504,9 +515,9 @@ Organization
 - `GET /orgs/{organization}/members` / `PATCH|DELETE …/members/{member}` / `settings`
 - `GET/POST /orgs/{organization}/invites` / `DELETE …/invites/{invite}` … 招待（管理者）
 - `GET /invites/{token}` / `POST /invites/{token}/accept` … 招待確認・受諾（既存 Cognito ユーザーはセッション必須）
-- `CRUD /orgs/{organization}/workspaces`（`archived`・`archive`・`unarchive`・関連付け含む。メンバー一覧 GET は担当者候補用）
-- `CRUD /orgs/{organization}/documents`（`archived`・`archive`・`unarchive`・関連付け含む）
-- ラベル類: `workspace-labels` / `task-labels` / `document-labels`（＋ categories）
+- `CRUD /orgs/{organization}/workspaces`（`archived`・`archive`・`unarchive` 含む。メンバー一覧 GET は担当者候補用）
+- `CRUD /orgs/{organization}/workspaces/{workspace}/documents`（一覧・作成・アーカイブ一覧）＋ `/documents/{id}`（詳細・更新・archive/unarchive・削除）
+- ラベル類: `workspace-labels` / `task-labels`（＋ categories）
 - スペース配下: `lists` / `tasks` / `comments` / `reactions` / `attachments`（download 含む） / `tasks/wbs` など
 
 完全なルート一覧は [`backend/routes/api.php`](backend/routes/api.php) を参照してください。
@@ -532,7 +543,7 @@ php artisan db:seed --class=UserSeeder
 |------|-----|
 | 組織 slug | `abcde` |
 | ユーザー | `a@example.com` …（名前 A〜T）。パスワードはいずれも `password` |
-| スペース例 | 「業務管理アプリ」など |
+| スペース例 | 「WorkMana」など |
 
 ローカルバイパス用ユーザー ID はシード後の実 ID に合わせて `COGNITO_BYPASS_USER_ID` を設定してください（例: ユーザー A の ID）。
 フロントの初期導線は `/org/abcde/workspaces` などシードの slug に合わせると便利です。
@@ -559,7 +570,11 @@ composer test
 | スキーマ（認証・組織） | [`_docs/database/schema-auth.md`](_docs/database/schema-auth.md) |
 | 機能仕様（通知など） | [`_docs/features/notification.md`](_docs/features/notification.md) |
 | リアルタイム構成 | [`_docs/architecture/realtime-sync.md`](_docs/architecture/realtime-sync.md) |
+| サーバー状態キャッシュ | [`_docs/architecture/frontend-server-state.md`](_docs/architecture/frontend-server-state.md) |
+| オーバーレイ UI | [`_docs/architecture/frontend-overlays.md`](_docs/architecture/frontend-overlays.md) |
+| FE/BE 共有契約 | [`_docs/architecture/shared-contracts.md`](_docs/architecture/shared-contracts.md) |
 | ADR（Reverb 採用） | [`_docs/decisions/realtime-sync.md`](_docs/decisions/realtime-sync.md) |
+| ADR（フロント基盤） | [`_docs/decisions/frontend-foundations.md`](_docs/decisions/frontend-foundations.md) |
 
 一部ディレクトリ（`api` / `permissions` / `ui` 等）は索引のみで中身が未整備の場合があります。実装の正はコードとマイグレーションを優先してください。
 

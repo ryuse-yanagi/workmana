@@ -1,89 +1,52 @@
 .popover-scroll {
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   @include mixin.popover-scroller;
-  @include mixin.popover-scroller-overlay-pad(0px);
 }
 .parent-task-loading {
-  margin: mixin.$popover-padding;
+  margin: 0 0 mixin.$popover-padding;
 }
 .parent-task-empty {
-  margin: 0;
-  padding: 28px mixin.$popover-padding;
-  text-align: center;
+  @include mixin.popover-empty-options-message;
 }
 .parent-task-picker-list {
   list-style: none;
   margin: 0;
-  padding: mixin.$popover-padding mixin.$popover-padding 0;
+  padding: 0 0 mixin.$popover-padding;
   display: flex;
   flex-direction: column;
   gap: 2.8px;
-}
-.popover-field-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 0;
-  padding: 4.8px mixin.$popover-padding mixin.$popover-padding;
-}
-.popover-field-clear-btn {
-  min-width: 48px;
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid mixin.$border;
-  border-radius: 6px;
-  background: mixin.$white;
-  color: mixin.$text-sub;
-  font: inherit;
-  font-size: 10.4px;
-  font-weight: mixin.$popover-font-weight;
-  cursor: pointer;
-}
-.popover-field-clear-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
+  flex-shrink: 0;
 }
 .parent-task-picker-row {
   @include mixin.picker-checkbox-row;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
+  height: 36px;
+  min-height: 36px;
   border: none;
   border-radius: 8px;
-  padding: 6.4px 4.8px;
+  padding: 0 4.8px;
   background: transparent;
   text-align: left;
+  transition: background 0.12s ease;
+  @include mixin.member-picker-row-hover;
 }
-.parent-task-picker-row--selected {
-  background: color-mix(in srgb, mixin.$main 8%, mixin.$white);
+.parent-task-picker-row--selected .parent-task-picker-label {
+  color: mixin.$main;
 }
 .parent-task-picker-radio {
-  width: 14px;
-  height: 14px;
-  border: 2px solid mixin.$border;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: mixin.$white;
-}
-.parent-task-picker-radio--checked {
-  border-color: mixin.$main;
-  background: mixin.$main;
-}
-.parent-task-picker-radio--checked::after {
-  content: '✓';
-  font-size: 8px;
-  font-weight: mixin.$popover-font-weight;
-  line-height: 1;
-  color: mixin.$white;
+  @include mixin.picker-native-radio(14px);
 }
 .parent-task-picker-label {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: 16px;
   font-weight: mixin.$popover-font-weight;
   line-height: 1.35;
   color: mixin.$text;
@@ -92,11 +55,12 @@
 }
 .empty-text {
   margin: 0;
-  font-size: 11.2px;
-  color: mixin.$text-placeholder;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  color: mixin.$text-muted;
 }
 .err {
-  margin: mixin.$popover-padding;
+  margin: 0 0 mixin.$popover-padding;
   color: mixin.$danger;
   font-weight: mixin.$popover-font-weight;
   font-size: mixin.$modal-field-font-size;

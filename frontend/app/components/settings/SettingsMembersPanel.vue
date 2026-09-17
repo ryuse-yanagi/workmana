@@ -6,6 +6,7 @@
         class="settings-panel__action-btn"
         @click="inviteModalOpen = true"
       >
+        <UserPlus :size="20" :stroke-width="2.1" aria-hidden="true" />
         ユーザー招待
       </button>
     </template>
@@ -17,71 +18,127 @@
       {{ message }}
     </p>
 
-    <section class="invite-section">
-      <h3 class="invite-section__title">未使用の招待</h3>
+    <section
+      v-if="loadingInvites || pendingInvites.length > 0"
+      class="invite-section"
+    >
+      <h3 class="invite-section__title">招待中のユーザー</h3>
       <p v-if="loadingInvites" class="invite-section__empty">読み込み中…</p>
-      <p v-else-if="!pendingInvites.length" class="invite-section__empty">
-        未使用の招待はありません。
-      </p>
-      <ul v-else class="invite-list">
-        <li v-for="invite in pendingInvites" :key="invite.id" class="invite-list__item">
-          <div class="invite-list__main">
-            <span class="invite-list__email">{{ invite.email }}</span>
-            <span class="invite-list__role">{{ roleLabel(invite.role) }}</span>
-          </div>
-          <div class="invite-list__actions">
-            <span class="invite-list__meta">
-              期限 {{ formatDate(invite.expires_at) }}
-            </span>
-            <button
+      <ul v-else class="member-row-list">
+        <li
+          v-for="invite in pendingInvites"
+          :key="invite.id"
+          class="invite-row"
+        >
+          <div class="member-row">
+            <div class="member-row__leading">
+              <span class="member-row__name">{{ invite.email }}</span>
+            </div>
+            <div
               v-if="canManage"
-              type="button"
-              class="invite-list__btn invite-list__btn--danger"
-              :disabled="pendingInviteActionId === invite.id"
-              @click="openCancelInvite(invite)"
+              class="member-row__actions"
             >
-              取消
-            </button>
+              <button
+                type="button"
+                class="label-action-btn label-action-btn--delete"
+                :disabled="pendingInviteActionId === invite.id"
+                @click="openCancelInvite(invite)"
+              >
+                取消
+              </button>
+            </div>
           </div>
+          <p class="invite-row__expires">
+            期限 {{ formatDate(invite.expires_at) }}
+          </p>
         </li>
       </ul>
     </section>
 
-    <section class="invite-section">
-      <h3 class="invite-section__title">メンバー</h3>
-      <p v-if="loadingMembers" class="invite-section__empty">読み込み中…</p>
-      <p v-else-if="!members.length" class="invite-section__empty">メンバーがいません。</p>
-      <ul v-else class="invite-list">
-        <li v-for="member in members" :key="member.id" class="invite-list__item">
-          <div class="invite-list__main">
-            <MemberAvatar :member="member" size="sm" />
-            <span class="invite-list__email">{{ member.name }}</span>
-            <span class="invite-list__role">{{ roleLabel(member.role) }}</span>
-          </div>
-          <div class="invite-list__actions">
-            <span class="invite-list__meta">{{ member.email }}</span>
-            <button
+    <template v-if="loadingMembers">
+      <section class="invite-section">
+        <p class="invite-section__empty">読み込み中…</p>
+      </section>
+    </template>
+    <template v-else>
+      <section class="invite-section">
+        <h3 class="invite-section__title">管理者</h3>
+        <p v-if="!adminMembers.length" class="invite-section__empty">管理者がいません。</p>
+        <ul v-else class="member-row-list">
+          <li
+            v-for="member in adminMembers"
+            :key="member.id"
+            class="member-row"
+          >
+            <div class="member-row__leading">
+              <MemberAvatar :member="member" size="sm" />
+              <span class="member-row__name">{{ member.name }}</span>
+            </div>
+            <span class="member-row__email">{{ member.email }}</span>
+            <div
               v-if="canManage && member.id !== currentUserId"
-              type="button"
-              class="invite-list__btn invite-list__btn--edit"
-              :disabled="pendingMemberActionId === member.id"
-              @click="openEditMember(member)"
+              class="member-row__actions"
             >
-              編集
-            </button>
-            <button
+              <button
+                type="button"
+                class="label-action-btn label-action-btn--edit"
+                :disabled="pendingMemberActionId === member.id"
+                @click="openEditMember(member)"
+              >
+                編集
+              </button>
+              <button
+                type="button"
+                class="label-action-btn label-action-btn--delete"
+                :disabled="pendingMemberActionId === member.id"
+                @click="openRemoveMember(member)"
+              >
+                削除
+              </button>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <section class="invite-section">
+        <h3 class="invite-section__title">一般ユーザー</h3>
+        <p v-if="!regularMembers.length" class="invite-section__empty">一般ユーザーがいません。</p>
+        <ul v-else class="member-row-list">
+          <li
+            v-for="member in regularMembers"
+            :key="member.id"
+            class="member-row"
+          >
+            <div class="member-row__leading">
+              <MemberAvatar :member="member" size="sm" />
+              <span class="member-row__name">{{ member.name }}</span>
+            </div>
+            <span class="member-row__email">{{ member.email }}</span>
+            <div
               v-if="canManage && member.id !== currentUserId"
-              type="button"
-              class="invite-list__btn invite-list__btn--danger"
-              :disabled="pendingMemberActionId === member.id"
-              @click="openRemoveMember(member)"
+              class="member-row__actions"
             >
-              削除
-            </button>
-          </div>
-        </li>
-      </ul>
-    </section>
+              <button
+                type="button"
+                class="label-action-btn label-action-btn--edit"
+                :disabled="pendingMemberActionId === member.id"
+                @click="openEditMember(member)"
+              >
+                編集
+              </button>
+              <button
+                type="button"
+                class="label-action-btn label-action-btn--delete"
+                :disabled="pendingMemberActionId === member.id"
+                @click="openRemoveMember(member)"
+              >
+                削除
+              </button>
+            </div>
+          </li>
+        </ul>
+      </section>
+    </template>
 
     <UserInviteModal
       ref="inviteModalRef"
@@ -98,9 +155,9 @@
     />
     <ConfirmModal
       v-model="cancelInviteModalOpen"
-      title="招待の取消確認"
+      title="ユーザー招待の取り消し"
       :message="cancelInviteMessage"
-      confirm-text="取消"
+      confirm-text="取り消し"
       cancel-text="キャンセル"
       variant="danger"
       :loading="pendingInviteActionId !== null"
@@ -117,52 +174,51 @@
 </template>
 
 <script setup lang="ts">
+import { UserPlus } from 'lucide-vue-next'
 import SettingsPanel from './SettingsPanel.vue'
 import ConfirmModal from '../modals/ConfirmModal.vue'
 import MemberDeleteModal from '../modals/MemberDeleteModal.vue'
 import MemberEditModal from '../modals/MemberEditModal.vue'
 import UserInviteModal from '../modals/UserInviteModal.vue'
 import MemberAvatar from '../ui/MemberAvatar.vue'
+import { useApi } from '../../composables/useApi'
 import { useCurrentUser } from '../../composables/useCurrentUser'
+import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
 import {
   applyUserProfileToMembers,
   useOnUserProfileUpdated,
 } from '../../composables/userProfileUpdated'
+import type { SettingsOrgMember, SettingsPendingInvite } from './types'
 
 type InviteRole = 'admin' | 'member'
+type PendingInvite = SettingsPendingInvite
+type OrgMember = SettingsOrgMember
 
-type PendingInvite = {
-  id: number
-  email: string
-  role: InviteRole
-  expires_at: string | null
-  created_at: string | null
-}
-
-type OrgMember = {
-  id: number
-  name: string
-  email: string
-  role?: string | null
-  avatar_url?: string | null
-}
-
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   orgSlug: string
   canManage: boolean
-}>()
+  initialMembers?: OrgMember[]
+  initialInvites?: PendingInvite[]
+}>(), {
+  initialMembers: () => [],
+  initialInvites: () => [],
+})
 
 const { api } = useApi()
 const { currentUserId, ensureCurrentUser } = useCurrentUser()
+const { patchMembersCache } = useOrgSettingsPageData()
 
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
 const loadingInvites = ref(false)
 const loadingMembers = ref(false)
-const pendingInvites = ref<PendingInvite[]>([])
-const members = ref<OrgMember[]>([])
+const pendingInvites = ref<PendingInvite[]>([...props.initialInvites])
+const members = ref<OrgMember[]>([...props.initialMembers])
 const pendingInviteActionId = ref<number | null>(null)
 const pendingMemberActionId = ref<number | null>(null)
+
+const adminMembers = computed(() => members.value.filter(member => member.role === 'admin'))
+const regularMembers = computed(() => members.value.filter(member => member.role !== 'admin'))
 
 const inviteModalOpen = ref(false)
 const submittingInvite = ref(false)
@@ -172,9 +228,10 @@ const cancelInviteModalOpen = ref(false)
 const cancelTargetInvite = ref<PendingInvite | null>(null)
 const cancelInviteMessage = computed(() => {
   const email = cancelTargetInvite.value?.email
-  return email
-    ? `「${email}」への招待を取り消しますか？`
-    : 'この招待を取り消しますか？'
+  if (!email) {
+    return 'この招待を取り消します。よろしいですか？'
+  }
+  return `この招待を取り消します。よろしいですか？\n【対象】\n${email}`
 })
 
 const memberEditModalOpen = ref(false)
@@ -184,10 +241,6 @@ const memberEditModalRef = ref<{ setSubmitError: (message: string) => void } | n
 const memberDeleteModalOpen = ref(false)
 const deletingMember = ref<OrgMember | null>(null)
 const memberDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
-
-function roleLabel (value: string | null | undefined): string {
-  return value === 'admin' ? '管理者' : 'メンバー'
-}
 
 function formatDate (value: string | null): string {
   if (!value) return '—'
@@ -202,15 +255,24 @@ function formatDate (value: string | null): string {
   })
 }
 
+function syncMembersCache () {
+  patchMembersCache(props.orgSlug, members.value, pendingInvites.value)
+  if (import.meta.client) {
+    window.dispatchEvent(new CustomEvent('tm:settings-members-updated'))
+  }
+}
+
 async function loadInvites () {
   if (!props.canManage) {
     pendingInvites.value = []
+    syncMembersCache()
     return
   }
   loadingInvites.value = true
   try {
     const res = await api<{ data: PendingInvite[] }>(`/orgs/${props.orgSlug}/invites`)
     pendingInvites.value = res.data ?? []
+    syncMembersCache()
   } catch (error: unknown) {
     pendingInvites.value = []
     messageKind.value = 'err'
@@ -225,6 +287,7 @@ async function loadMembers () {
   try {
     const res = await api<{ data: OrgMember[] }>(`/orgs/${props.orgSlug}/members`)
     members.value = res.data ?? []
+    syncMembersCache()
   } catch (error: unknown) {
     members.value = []
     messageKind.value = 'err'
@@ -343,16 +406,33 @@ async function confirmRemoveMember () {
 }
 
 watch(
-  () => [props.orgSlug, props.canManage] as const,
-  () => {
+  () => props.initialMembers,
+  (value) => {
+    members.value = [...value]
+  },
+)
+
+watch(
+  () => props.initialInvites,
+  (value) => {
+    pendingInvites.value = [...value]
+  },
+)
+
+watch(
+  () => props.orgSlug,
+  (slug, prevSlug) => {
     void ensureCurrentUser()
-    void loadInvites()
-    void loadMembers()
+    if (prevSlug !== undefined && slug !== prevSlug) {
+      void reloadLists()
+    }
   },
   { immediate: true },
 )
+
 useOnUserProfileUpdated((detail) => {
   members.value = applyUserProfileToMembers(members.value, detail)
+  syncMembersCache()
 })
 </script>
 

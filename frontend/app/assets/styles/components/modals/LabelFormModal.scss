@@ -1,0 +1,28 @@
+.label-form-modal-body {
+  padding: 16px 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  @include mixin.modal-field-label;
+}
+.field input {
+  @include mixin.modal-input-single-line;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  font-size: mixin.$modal-field-font-size;
+  &:focus {
+    @include mixin.input-focus-neutral;
+  }
+}
+
+.err {
+  margin: 0;
+  color: mixin.$danger;
+  font-size: 12px;
+  font-weight: 600;
+}

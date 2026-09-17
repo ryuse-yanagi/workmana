@@ -49,7 +49,7 @@ abstract class ApiController extends Controller
     }
 
     /**
-     * アーカイブの復元・完全削除は組織管理者のみ。
+     * アーカイブの復元・削除は組織管理者のみ。
      */
     protected function assertCanRestoreOrPermanentlyDelete(Request $request): void
     {

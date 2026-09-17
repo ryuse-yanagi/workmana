@@ -1,8 +1,7 @@
 .workspace-project-view {
   box-sizing: border-box;
-  height: calc(100dvh - var(--global-header-offset, 56px) - var(--app-shell-page-pad, 3.5px));
-  max-height: calc(100dvh - var(--global-header-offset, 56px) - var(--app-shell-page-pad, 3.5px));
-  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
+  height: calc(100dvh - var(--global-header-offset, 56px));
+  max-height: calc(100dvh - var(--global-header-offset, 56px));
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -21,11 +20,13 @@
   height: 100%;
 }
 .subheader {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 7px;
   height: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 .subheader-title {
   @include mixin.page-header-title;
@@ -33,13 +34,14 @@
 .subheader-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 4.2px;
+  gap: 4px;
   padding: 8px 0;
   margin: -8px 0;
   text-decoration: none;
   color: mixin.$main;
   letter-spacing: 0.05em;
   line-height: 1.1;
+  flex-shrink: 0;
   transition: opacity 0.16s ease;
   &::before {
     content: '';
@@ -59,9 +61,13 @@
   }
 }
 .subheader-workspace-name {
-  margin: 0;
+  box-sizing: border-box;
+  margin: 0 0 0 20px;
+  /* 表示は最大15文字（全角）分。入力上限20はそのまま。letter-spacing 分も確保 */
+  width: calc(15em + 14 * 0.02em);
+  max-width: calc(15em + 14 * 0.02em);
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -69,84 +75,187 @@
   font-weight: 500;
   color: mixin.$text-muted;
   letter-spacing: 0.02em;
-  flex-shrink: 1;
 }
-.subheader-spacer {
-  flex: 1;
+.subheader-start {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  height: 100%;
+  gap: 7px;
+  /* 検索が下限に達したあとだけ縮む（shrink は filters より十分小さく） */
+  flex: 0 1 auto;
   min-width: 0;
+  overflow: hidden;
+  z-index: 1;
+}
+/*
+ * 検索クラスタ:
+ * - flex-shrink を大きくし、先に 600→下限まで縮む
+ * - min-width で検索本体 240px + 件数分を確保
+ * - overflow:hidden で隣のタブ・ボタンへはみ出さない
+ */
+.subheader-filters {
+  --subheader-search-min: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 999 600px;
+  min-width: calc(var(--subheader-search-min) + 6px + 3ch + 1.35em);
+  max-width: 100%;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: auto;
+}
+.header-search-field {
+  position: relative;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 600px;
+}
+.header-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: mixin.$text-muted;
+  pointer-events: none;
+}
+.header-search {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  padding: 0 12px 0 32px;
+  font-size: 14px;
+  color: mixin.$text;
+  box-sizing: border-box;
+  height: 32px;
+  line-height: 32px;
+  @include mixin.popover-input-background;
+}
+.header-search::-webkit-search-decoration,
+.header-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.header-search::placeholder {
+  color: mixin.$text-gray;
+}
+.header-search:focus {
+  @include mixin.input-focus-neutral;
+}
+.header-search:disabled {
+  cursor: pointer;
+}
+.subheader-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  margin: 0;
+  box-sizing: border-box;
+  font-size: 14px;
+  font-weight: 600;
+  color: mixin.$text-muted;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.subheader-count__num {
+  display: inline-block;
+  width: 3ch;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.subheader-count__unit {
+  flex-shrink: 0;
 }
 .subheader-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  flex: 0 0 auto;
+  z-index: 1;
+}
+.subheader-actions .subheader-edit-with-divider {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+.subheader-actions .subheader-secondary-btn--add {
+  margin-right: 12px;
+}
+.subheader-actions__menus {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
-.document-header-action-btn {
+.primary-btn {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 28px;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  box-sizing: border-box;
-  margin: 0;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid mixin.$main;
-  border-radius: 6px;
-  background: mixin.$white;
-  color: mixin.$main;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  line-height: 1;
-  cursor: pointer;
   white-space: nowrap;
-  :deep(svg) {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-  }
-}
-.document-header-action-btn:not(.document-header-action-btn--muted):not(.document-header-action-btn--edit):not(.document-header-action-btn--task-add):not(.document-header-action-btn--display-items) {
-  width: 96px;
-}
-.document-header-action-btn--edit {
-  min-width: 96px;
-  background: mixin.$info-surface;
-  color: mixin.$main;
-  border-color: mixin.$info-border;
-}
-.document-header-action-btn--task-add {
-  min-width: 112px;
-}
-.document-header-action-btn--display-items {
-  min-width: 96px;
-  background: mixin.$white;
-  color: mixin.$main;
-}
-.document-header-action-btn:disabled {
-  opacity: 0.55;
-  cursor: pointer;
-}
-.document-header-action-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
-.document-header-action-btn--muted {
-  border-color: transparent;
-  background: mixin.$border;
-  color: mixin.$text-sub;
-}
-.document-header-action-btn--primary {
+  flex-shrink: 0;
+  gap: 6px;
   background: mixin.$main;
   color: mixin.$white;
-  border-color: mixin.$main;
+}
+.primary-btn:disabled {
+  cursor: pointer;
 }
 .workspace-view-page__body {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 0 10.5px;
+  padding: 0 0 11px;
+}
+.workspace-show-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.workspace-sidebar-slot {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 400px;
+  min-height: 0;
+  overflow: hidden;
+  transition: width 0.28s ease, box-shadow 0.28s ease;
+  @include mixin.detail-sidebar-edge-shadow;
+}
+.workspace-sidebar-slot--closed {
+  width: 0;
+  box-shadow: none;
+}
+.workspace-sidebar-slot :deep(.workspace-sidebar) {
+  flex: 1 1 auto;
+  align-self: stretch;
+  width: 400px;
+  min-height: 0;
+  height: auto;
+  max-height: 100%;
+  max-width: none;
+  transform: translateX(0);
+  transition: transform 0.28s ease;
+}
+.workspace-sidebar-slot--closed :deep(.workspace-sidebar) {
+  transform: translateX(-100%);
 }
 .workspace-view-page--wbs .workspace-view-page__body {
   padding: 0;

@@ -10,19 +10,13 @@ use App\Models\TaskComment;
 use App\Models\TaskCommentReaction;
 use App\Models\TaskHistory;
 use App\Models\User;
-use App\Services\NotificationService;
 use App\Support\FieldLengthLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class TaskCommentController extends ApiController
 {
-    public function __construct(
-        private readonly NotificationService $notifications,
-    ) {}
-
     public function workspaceIndex(Request $request, Organization $organization, Workspace $workspace): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
@@ -65,7 +59,7 @@ class TaskCommentController extends ApiController
     public function store(Request $request, Organization $organization, Workspace $workspace, Task $task): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->assertCanEditWorkspace($request->user(), $workspace);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
         $this->assertTaskInWorkspace($task, $workspace);
 
@@ -84,31 +78,25 @@ class TaskCommentController extends ApiController
 
         $user = $request->user();
 
-        $comment = DB::transaction(function () use ($task, $organization, $workspace, $user, $body) {
-            $comment = TaskComment::query()->create([
-                'task_id' => $task->id,
-                'organization_id' => $organization->id,
-                'workspace_id' => $workspace->id,
-                'author_id' => $user->id,
-                'body' => $body,
-            ]);
+        $comment = TaskComment::query()->create([
+            'task_id' => $task->id,
+            'organization_id' => $organization->id,
+            'workspace_id' => $workspace->id,
+            'author_id' => $user->id,
+            'body' => $body,
+        ]);
 
-            TaskHistory::query()->create([
-                'task_id' => $task->id,
-                'organization_id' => $organization->id,
-                'workspace_id' => $workspace->id,
-                'actor_id' => $user->id,
-                'event_type' => TaskHistoryEventType::CommentAdded->value,
-                'field_name' => null,
-                'before_value' => null,
-                'after_value' => null,
-                'created_at' => now(),
-            ]);
-
-            return $comment;
-        });
-
-        $this->dispatchCommentNotifications($task, $workspace, $organization, $body, $user);
+        TaskHistory::query()->create([
+            'task_id' => $task->id,
+            'organization_id' => $organization->id,
+            'workspace_id' => $workspace->id,
+            'actor_id' => $user->id,
+            'event_type' => TaskHistoryEventType::CommentAdded->value,
+            'field_name' => null,
+            'before_value' => null,
+            'after_value' => null,
+            'created_at' => now(),
+        ]);
 
         $comment->load(['author:id,name,email,avatar_path', 'reactions.user:id,name,email,avatar_path']);
 
@@ -137,36 +125,21 @@ class TaskCommentController extends ApiController
             return response()->json(['message' => 'Body cannot be empty.'], 422);
         }
 
-        $previousBody = (string) $comment->body;
+        $comment->body = $body;
+        $comment->edited_at = now();
+        $comment->save();
 
-        DB::transaction(function () use ($comment, $task, $organization, $workspace, $user, $body) {
-            $comment->body = $body;
-            $comment->edited_at = now();
-            $comment->save();
-
-            TaskHistory::query()->create([
-                'task_id' => $task->id,
-                'organization_id' => $organization->id,
-                'workspace_id' => $workspace->id,
-                'actor_id' => $user->id,
-                'event_type' => TaskHistoryEventType::CommentEdited->value,
-                'field_name' => null,
-                'before_value' => null,
-                'after_value' => null,
-                'created_at' => now(),
-            ]);
-        });
-
-        // 編集で新規に追加されたメンションのみ通知する（担当者への comment 通知は編集時は送らない）
-        $this->dispatchCommentNotifications(
-            $task,
-            $workspace,
-            $organization,
-            $body,
-            $user,
-            previousBody: $previousBody,
-            notifyAssignees: false,
-        );
+        TaskHistory::query()->create([
+            'task_id' => $task->id,
+            'organization_id' => $organization->id,
+            'workspace_id' => $workspace->id,
+            'actor_id' => $user->id,
+            'event_type' => TaskHistoryEventType::CommentEdited->value,
+            'field_name' => null,
+            'before_value' => null,
+            'after_value' => null,
+            'created_at' => now(),
+        ]);
 
         $comment->load(['author:id,name,email,avatar_path', 'reactions.user:id,name,email,avatar_path']);
 
@@ -186,21 +159,19 @@ class TaskCommentController extends ApiController
             abort(403, 'Only the comment author can delete this comment.');
         }
 
-        DB::transaction(function () use ($comment, $task, $organization, $workspace, $user) {
-            $comment->delete();
+        $comment->delete();
 
-            TaskHistory::query()->create([
-                'task_id' => $task->id,
-                'organization_id' => $organization->id,
-                'workspace_id' => $workspace->id,
-                'actor_id' => $user->id,
-                'event_type' => TaskHistoryEventType::CommentDeleted->value,
-                'field_name' => null,
-                'before_value' => null,
-                'after_value' => null,
-                'created_at' => now(),
-            ]);
-        });
+        TaskHistory::query()->create([
+            'task_id' => $task->id,
+            'organization_id' => $organization->id,
+            'workspace_id' => $workspace->id,
+            'actor_id' => $user->id,
+            'event_type' => TaskHistoryEventType::CommentDeleted->value,
+            'field_name' => null,
+            'before_value' => null,
+            'after_value' => null,
+            'created_at' => now(),
+        ]);
 
         return response()->json(['message' => 'Comment deleted.']);
     }
@@ -208,7 +179,7 @@ class TaskCommentController extends ApiController
     public function toggleReaction(Request $request, Organization $organization, Workspace $workspace, Task $task, TaskComment $comment): JsonResponse
     {
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
-        $this->assertCanEditWorkspace($request->user(), $workspace);
+        $this->ensureWorkspaceMember($request->user(), $workspace);
         $this->assertWorkspaceNotArchived($workspace);
         $this->assertTaskInWorkspace($task, $workspace);
         $this->assertCommentInTask($comment, $task);
@@ -310,138 +281,5 @@ class TaskCommentController extends ApiController
             })
             ->values()
             ->all();
-    }
-
-    /**
-     * @return list<int>
-     */
-    private function parseMentionedUserIds(string $body): array
-    {
-        $ids = [];
-
-        // 新形式: @[user:123]
-        if (preg_match_all('/@\[user:(\d+)\]/', $body, $compactMatches)) {
-            foreach ($compactMatches[1] as $id) {
-                $ids[] = (int) $id;
-            }
-        }
-
-        // 旧形式: @[表示名](user:123)
-        if (preg_match_all('/@\[([^\]]+)\]\(user:(\d+)\)/', $body, $legacyMatches, PREG_SET_ORDER)) {
-            foreach ($legacyMatches as $match) {
-                $ids[] = (int) $match[2];
-            }
-        }
-
-        return array_values(array_unique($ids));
-    }
-
-    private function bodyHasAllMention(string $body): bool
-    {
-        return (bool) preg_match('/@\[all\]/', $body);
-    }
-
-    /**
-     * @return list<int>
-     */
-    private function allWorkspaceMemberIds(Workspace $workspace): array
-    {
-        return User::query()
-            ->whereHas(
-                'organizations',
-                fn ($query) => $query->where('organizations.id', $workspace->organization_id),
-            )
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return list<int>
-     */
-    private function resolveMentionedUserIds(Workspace $workspace, string $body): array
-    {
-        $ids = $this->parseMentionedUserIds($body);
-
-        if ($this->bodyHasAllMention($body)) {
-            $ids = array_values(array_unique([
-                ...$ids,
-                ...$this->allWorkspaceMemberIds($workspace),
-            ]));
-        }
-
-        return $ids;
-    }
-
-    /**
-     * @param  list<int>  $userIds
-     * @return list<int>
-     */
-    private function eligibleMentionUserIds(Workspace $workspace, array $userIds): array
-    {
-        if ($userIds === []) {
-            return [];
-        }
-
-        return User::query()
-            ->whereIn('id', $userIds)
-            ->get()
-            ->filter(fn (User $user) => $user->canAccessWorkspace($workspace))
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
-    }
-
-    private function dispatchCommentNotifications(
-        Task $task,
-        Workspace $workspace,
-        Organization $organization,
-        string $body,
-        User $author,
-        ?string $previousBody = null,
-        bool $notifyAssignees = true,
-    ): void {
-        $notificationData = [
-            'task_id' => $task->id,
-            'workspace_id' => $task->workspace_id,
-            'organization_slug' => $organization->slug,
-            'title' => $task->title,
-            'comment_author_id' => $author->id,
-        ];
-
-        $mentionedUserIds = $this->resolveMentionedUserIds($workspace, $body);
-        if ($previousBody !== null) {
-            $previousMentionIds = $this->resolveMentionedUserIds($workspace, $previousBody);
-            $mentionedUserIds = array_values(array_diff($mentionedUserIds, $previousMentionIds));
-        }
-
-        $eligibleMentionIds = $this->eligibleMentionUserIds($workspace, $mentionedUserIds);
-
-        if ($eligibleMentionIds !== []) {
-            $this->notifications->notifyMany(
-                $eligibleMentionIds,
-                'task.mentioned',
-                $notificationData,
-                exceptUserIds: (int) $author->id,
-            );
-        }
-
-        if (! $notifyAssignees) {
-            return;
-        }
-
-        $assigneeIds = $task->assignees()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
-        // メンション済みには task.commented を送らず二重通知を避ける
-        $this->notifications->notifyMany(
-            $assigneeIds,
-            'task.commented',
-            $notificationData,
-            exceptUserIds: array_values(array_unique([
-                (int) $author->id,
-                ...$eligibleMentionIds,
-            ])),
-        );
     }
 }

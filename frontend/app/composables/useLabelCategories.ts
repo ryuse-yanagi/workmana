@@ -42,6 +42,59 @@ export function flattenLabelCategories<TLabel extends LabelCategoryItem> (
   return categories.flatMap(category => category.labels)
 }
 
+/** 組織カタログ（カテゴリ順 → ラベル順）に合わせた選択ラベルの比較 */
+export function compareLabelsByCatalogOrder (
+  a: { id: number },
+  b: { id: number },
+  orderIndex: Map<number, number>,
+): number {
+  const ai = orderIndex.get(a.id)
+  const bi = orderIndex.get(b.id)
+  if (ai !== undefined && bi !== undefined && ai !== bi) {
+    return ai - bi
+  }
+  if (ai !== undefined && bi === undefined) {
+    return -1
+  }
+  if (ai === undefined && bi !== undefined) {
+    return 1
+  }
+  return a.id - b.id
+}
+
+/**
+ * 選択中ラベルを組織カタログ順に揃える。
+ * catalog が空のときは id 昇順で安定化する（シードと詳細取得の順序差を防ぐ）。
+ */
+export function sortLabelsByCatalogOrder<T extends { id: number }> (
+  labels: T[],
+  catalogLabels: Array<{ id: number }> = [],
+): T[] {
+  if (labels.length < 2) {
+    return labels
+  }
+  const orderIndex = new Map(catalogLabels.map((label, index) => [label.id, index]))
+  let ordered = true
+  for (let i = 1; i < labels.length; i += 1) {
+    if (compareLabelsByCatalogOrder(labels[i - 1]!, labels[i]!, orderIndex) > 0) {
+      ordered = false
+      break
+    }
+  }
+  if (ordered) {
+    return labels
+  }
+  return [...labels].sort((a, b) => compareLabelsByCatalogOrder(a, b, orderIndex))
+}
+
+/** 色解決 + カタログ順ソート（タスク／スペースの選択ラベル正規化用） */
+export function resolveAndSortLabels<T extends { id: number; color_index?: number; color?: string }> (
+  labels: T[] | null | undefined,
+  catalogLabels: Array<{ id: number }> = [],
+): Array<T & { color_index: number; color: string }> {
+  return sortLabelsByCatalogOrder(resolveLabelColors(labels ?? []), catalogLabels)
+}
+
 export function filterLabelCategories<TLabel extends LabelCategoryItem> (
   categories: LabelCategoryGroup<TLabel>[],
   query: string,

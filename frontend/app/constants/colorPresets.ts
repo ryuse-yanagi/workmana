@@ -1,87 +1,38 @@
 /**
  * アプリ共通の色プリセット（30色 / 6行×5列）
- * ラベル・リスト列など、UI 全体の色はこのファイルで一元管理する。
+ * 正本は shared/color-presets.json（FE・BE 共通）。
  * UI クローム色は _mixin.scss。ここはユーザー選択パレットのみ。
  */
-export const COLOR_PRESET_GRID_COLUMNS = 5
-export const COLOR_PRESETS = [
-  // 1行目 — 淡色
-  '#baf3db',
-  '#fef3b0',
-  '#fce4a6',
-  '#ffd5d2',
-  '#eed7fc',
-  // 2行目 — 標準
-  '#4bce97',
-  '#f3dd19',
-  '#fea72f',
-  '#ff624d',
-  '#c883e2',
-  // 3行目 — 濃色
-  '#1f845a',
-  '#946f00',
-  '#bd5b00',
-  '#eb1f00',
-  '#9e49c5',
-  // 4行目 — 淡色
-  '#cfe1fd',
-  '#c6edfb',
-  '#d3f1a7',
-  '#f8c2e4',
-  '#dddee1',
-  // 5行目 — 標準
-  '#669df1',
-  '#6cc3e0',
-  '#94c748',
-  '#fe84cf',
-  '#8c8f97',
-  // 6行目 — 濃色
-  '#1868db',
-  '#227d9b',
-  '#5b7f24',
-  '#b8367d',
-  '#6b6e76',
-] as const
-export const DEFAULT_COLOR_PRESET = COLOR_PRESETS[5]
+import colorPresetsJson from '#shared/color-presets.json'
+
+const presets = colorPresetsJson.presets as readonly string[]
+const standardIndices = colorPresetsJson.standardPresetIndices as readonly number[]
+const ganttIndices = colorPresetsJson.ganttBarSequencePresetIndices as readonly number[]
+const surfaceBackgrounds = colorPresetsJson.standardSurfaceBackgrounds as readonly string[]
+
+export const COLOR_PRESET_GRID_COLUMNS = colorPresetsJson.gridColumns
+export const COLOR_PRESETS = presets
+export const DEFAULT_COLOR_PRESET_INDEX = colorPresetsJson.defaultPresetIndex
+export const DEFAULT_COLOR_PRESET = COLOR_PRESETS[DEFAULT_COLOR_PRESET_INDEX]!
 /** 標準色（10色）— COLOR_PRESETS の2行目・5行目 */
-export const STANDARD_COLORS = [
-  COLOR_PRESETS[5],
-  COLOR_PRESETS[6],
-  COLOR_PRESETS[7],
-  COLOR_PRESETS[8],
-  COLOR_PRESETS[9],
-  COLOR_PRESETS[20],
-  COLOR_PRESETS[21],
-  COLOR_PRESETS[22],
-  COLOR_PRESETS[23],
-  COLOR_PRESETS[24],
-] as const
+export const STANDARD_COLORS = standardIndices.map(i => COLOR_PRESETS[i]!) as unknown as readonly [
+  string, string, string, string, string, string, string, string, string, string,
+]
 export const DEFAULT_STANDARD_COLOR = STANDARD_COLORS[0]
 /** 標準色（10色）— COLOR_PRESETS 内のインデックス */
-export const STANDARD_COLOR_PRESET_INDICES = [5, 6, 7, 8, 9, 20, 21, 22, 23, 24] as const
+export const STANDARD_COLOR_PRESET_INDICES = standardIndices
 /**
  * ガントバー自動配色の循環順（赤→オレンジ→黄→青→水色→緑→黄緑→紫→ピンク→灰）
  * 10色のあとは先頭の赤に戻る
  */
-export const GANTT_BAR_COLOR_SEQUENCE = [
-  COLOR_PRESETS[8],  // 赤
-  COLOR_PRESETS[7],  // オレンジ
-  COLOR_PRESETS[6],  // 黄色
-  COLOR_PRESETS[20], // 青
-  COLOR_PRESETS[21], // 水色
-  COLOR_PRESETS[5],  // 緑
-  COLOR_PRESETS[22], // 黄緑
-  COLOR_PRESETS[9],  // 紫
-  COLOR_PRESETS[23], // ピンク
-  COLOR_PRESETS[24], // 灰色
-] as const
-export const DEFAULT_GANTT_BAR_COLOR = GANTT_BAR_COLOR_SEQUENCE[0]
+export const GANTT_BAR_COLOR_SEQUENCE = ganttIndices.map(i => COLOR_PRESETS[i]!) as unknown as readonly [
+  string, string, string, string, string, string, string, string, string, string,
+]
 export function ganttBarColorAtSequenceIndex (sequenceIndex: number): string {
   const len = GANTT_BAR_COLOR_SEQUENCE.length
   const normalized = ((sequenceIndex % len) + len) % len
   return GANTT_BAR_COLOR_SEQUENCE[normalized]!
 }
-export const DEFAULT_COLOR_PRESET_INDEX = 5
 export const DEFAULT_STANDARD_COLOR_INDEX = 0
 export function colorAtPresetIndex (index: number): string {
   return COLOR_PRESETS[index] ?? DEFAULT_COLOR_PRESET
@@ -97,7 +48,7 @@ export function standardColorAtIndex (standardIndex: number): string {
 export function standardColorIndexFromHex (hex: string): number {
   const normalized = hex.toLowerCase()
   const idx = STANDARD_COLOR_PRESET_INDICES.findIndex(
-    presetIndex => COLOR_PRESETS[presetIndex].toLowerCase() === normalized,
+    presetIndex => COLOR_PRESETS[presetIndex]!.toLowerCase() === normalized,
   )
   return idx >= 0 ? idx : DEFAULT_STANDARD_COLOR_INDEX
 }
@@ -129,19 +80,7 @@ export function normalizeStandardColorIndex (value: unknown): number {
  * 標準色に対応する薄い背景色（リスト列など）
  * STANDARD_COLORS と同じ順・同じ列
  */
-export const STANDARD_COLOR_SURFACE_BACKGROUNDS = [
-  '#e7fbf2',
-  '#fffbe3',
-  '#fef6e0',
-  '#fff0ef',
-  '#f9f1fe',
-  '#eef5fd',
-  '#ebf9fe',
-  '#f0fae0',
-  '#fdeaf6',
-  '#f3f3f5',
-] as const
-export const DEFAULT_STANDARD_COLOR_SURFACE = STANDARD_COLOR_SURFACE_BACKGROUNDS[0]
+export const STANDARD_COLOR_SURFACE_BACKGROUNDS = surfaceBackgrounds
 const STANDARD_COLOR_SURFACE_BY_COLOR = Object.fromEntries(
   STANDARD_COLORS.map((color, index) => [
     color.toLowerCase(),
@@ -163,6 +102,11 @@ function parseHexColor (hex: string): [number, number, number] | null {
 const LIGHT_COLOR_PRESET_INDICES = new Set([0, 1, 2, 3, 4, 15, 16, 17, 18, 19])
 /** 標準色スウォッチ（2行目・5行目）のインデックス */
 const STANDARD_COLOR_PRESET_INDEX_SET = new Set<number>(STANDARD_COLOR_PRESET_INDICES)
+/** 濃色スウォッチ（3行目・6行目）のインデックス */
+const DARK_COLOR_PRESET_INDICES = new Set([10, 11, 12, 13, 14, 25, 26, 27, 28, 29])
+/** 選択色を背景にしたときの文字色（淡色・標準 → 黒、濃色 → 白） */
+export const COLOR_PRESET_FILL_TEXT_BLACK = '#000'
+export const COLOR_PRESET_FILL_TEXT_WHITE = '#fff'
 /** 枠線コントラストが弱い色は専用の濃い枠線を使う */
 const COLOR_SWATCH_BORDER_OVERRIDES: Readonly<Record<string, string>> = {
   '#fef3b0': '#946f00',
@@ -186,9 +130,9 @@ export function standardColorEmphasisText (hex: string): string {
   const standardIndex = standardColorIndexFromHex(hex)
   const presetIndex = STANDARD_COLOR_PRESET_INDICES[standardIndex]
   if (presetIndex === undefined) {
-    return COLOR_PRESETS[10]
+    return COLOR_PRESETS[10]!
   }
-  return COLOR_PRESETS[presetIndex + 5] ?? COLOR_PRESETS[10]
+  return COLOR_PRESETS[presetIndex + 5] ?? COLOR_PRESETS[10]!
 }
 /** スウォッチ枠線（淡色・標準色は同列の濃色） */
 export function colorSwatchBorderColor (hex: string): string {
@@ -228,16 +172,25 @@ export function ganttBarSelectionBorderColor (hex: string): string {
   }
   return '#475569' // mixin.$text-sub
 }
-/** 選択チェックマークの色（標準色は白、それ以外は背景輝度で白/黒） */
-export function colorSwatchCheckColor (hex: string): string {
+/**
+ * 選択色を背景にしたときの文字色
+ * 淡色・標準 → 黒、濃色 → 白（プリセット外は輝度で判定）
+ */
+export function colorPresetFillTextColor (hex: string): string {
   const presetIndex = findColorPresetIndex(hex)
-  if (presetIndex >= 0 && STANDARD_COLOR_PRESET_INDEX_SET.has(presetIndex)) {
-    return '#fff'
+  if (presetIndex >= 0) {
+    return DARK_COLOR_PRESET_INDICES.has(presetIndex)
+      ? COLOR_PRESET_FILL_TEXT_WHITE
+      : COLOR_PRESET_FILL_TEXT_BLACK
   }
   const rgb = parseHexColor(hex)
   if (!rgb) {
-    return '#fff'
+    return COLOR_PRESET_FILL_TEXT_BLACK
   }
   const luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
-  return luminance > 0.72 ? '#334155' : '#fff' // $text-strong / $white
+  return luminance > 0.62 ? COLOR_PRESET_FILL_TEXT_BLACK : COLOR_PRESET_FILL_TEXT_WHITE
+}
+/** 選択チェックマークの色（文字色と同じ規則） */
+export function colorSwatchCheckColor (hex: string): string {
+  return colorPresetFillTextColor(hex)
 }

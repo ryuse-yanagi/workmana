@@ -5,7 +5,7 @@
     </p>
     <p v-if="!loading && !categories.length" class="label-category-panel__empty">
       <template v-if="canManage">
-        まだカテゴリがありません。「カテゴリ追加」から作成してください。
+        まだカテゴリがありません。「カテゴリ追加」から追加してください。
       </template>
       <template v-else>
         まだカテゴリがありません。
@@ -26,10 +26,12 @@
         <div class="label-category-block">
           <div class="label-category-row">
             <button
-              v-if="canManage"
               type="button"
               class="label-category-row__drag-handle"
-              aria-label="ドラッグしてカテゴリの並び順を変更"
+              :class="{ 'settings-drag-handle--readonly': !canManage }"
+              :aria-hidden="!canManage"
+              :tabindex="canManage ? 0 : -1"
+              :aria-label="canManage ? 'ドラッグしてカテゴリの並び順を変更' : undefined"
               @click.prevent
             >
               <Equal :size="24" :stroke-width="2.25" aria-hidden="true" />
@@ -42,7 +44,7 @@
               <button type="button" class="label-action-btn label-action-btn--delete" @click="openDeleteCategory(category)">
                 削除
               </button>
-              <button type="button" class="label-action-btn label-action-btn--primary" @click="openCreateLabel(category)">
+              <button type="button" class="label-action-btn label-action-btn--primary" @click="openAddLabel(category)">
                 <TagPlus :size="16" :stroke-width="2.1" aria-hidden="true" />
                 ラベル追加
               </button>
@@ -63,10 +65,12 @@
             <template #item="{ element: label }">
               <div class="label-row">
                 <button
-                  v-if="canManage"
                   type="button"
                   class="label-row__drag-handle"
-                  aria-label="ドラッグしてラベルの並び順を変更"
+                  :class="{ 'settings-drag-handle--readonly': !canManage }"
+                  :aria-hidden="!canManage"
+                  :tabindex="canManage ? 0 : -1"
+                  :aria-label="canManage ? 'ドラッグしてラベルの並び順を変更' : undefined"
                   @click.prevent
                 >
                   <Equal :size="24" :stroke-width="2.25" aria-hidden="true" />
@@ -90,18 +94,18 @@
     <LabelCategoryNameModal
       ref="categoryModalRef"
       v-model="categoryModalOpen"
-      :title="categoryModalMode === 'create' ? 'カテゴリの作成' : 'カテゴリの編集'"
-      :submit-label="categoryModalMode === 'create' ? '作成' : '保存'"
+      :title="categoryModalMode === 'add' ? 'カテゴリの追加' : 'カテゴリの編集'"
+      :submit-label="categoryModalMode === 'add' ? '追加' : '保存'"
       :initial-name="editingCategoryName"
       :loading="loading"
       @submit="submitCategory"
     />
-    <LabelCreateModal
-      ref="labelCreateModalRef"
-      v-model="labelCreateModalOpen"
-      :title="labelCreateTitle"
+    <LabelAddModal
+      ref="labelAddModalRef"
+      v-model="labelAddModalOpen"
+      :title="labelAddTitle"
       :loading="loading"
-      @submit="createLabel"
+      @submit="addLabel"
     />
     <LabelEditModal
       ref="labelEditModalRef"
@@ -134,7 +138,7 @@ import { Equal } from 'lucide-vue-next'
 import { TagPlus } from '../icons/TagPlusIcon'
 import { useApi } from '../../composables/useApi'
 import LabelCategoryNameModal from '../modals/LabelCategoryNameModal.vue'
-import LabelCreateModal from '../modals/LabelCreateModal.vue'
+import LabelAddModal from '../modals/LabelAddModal.vue'
 import LabelEditModal from '../modals/LabelEditModal.vue'
 import LabelDeleteModal from '../modals/LabelDeleteModal.vue'
 import LabelCategoryDeleteModal from '../modals/LabelCategoryDeleteModal.vue'
@@ -142,6 +146,7 @@ import type { SettingsLabelCategory, SettingsLabelItem, SettingsLabelTabKey } fr
 import { normalizeSettingsLabelCategories } from './labelCategoryNormalize'
 import { resolveLabelColors, withResolvedLabelColor } from '../../utils/colorPresetResolution'
 import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
+import { invalidateOrgDerivedCachesForLabelKind } from '../../composables/invalidateOrgDerivedCaches'
 const props = defineProps<{
   orgSlug: string
   labelKind: SettingsLabelTabKey
@@ -149,19 +154,21 @@ const props = defineProps<{
 }>()
 const { api } = useApi()
 const { getCachedLabelCategories, patchLabelCategoriesCache } = useOrgSettingsPageData()
-const categories = ref<SettingsLabelCategory[]>([])
+const categories = ref<SettingsLabelCategory[]>(
+  getCachedLabelCategories(props.orgSlug, props.labelKind) ?? [],
+)
 const loading = ref(false)
 const reordering = ref(false)
 const message = ref('')
 const messageKind = ref<'ok' | 'err'>('ok')
 const categoryModalOpen = ref(false)
 const categoryModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
-const categoryModalMode = ref<'create' | 'edit'>('create')
+const categoryModalMode = ref<'add' | 'edit'>('add')
 const editingCategoryId = ref<number | null>(null)
 const editingCategoryName = ref('')
-const labelCreateModalOpen = ref(false)
-const labelCreateModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
-const labelCreateCategoryId = ref<number | null>(null)
+const labelAddModalOpen = ref(false)
+const labelAddModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const labelAddCategoryId = ref<number | null>(null)
 const labelEditModalOpen = ref(false)
 const labelEditModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const editingLabel = ref<SettingsLabelItem | null>(null)
@@ -174,27 +181,25 @@ const categoryDeleteModalRef = ref<{ setSubmitError: (message: string) => void }
 const categoryDeleteTarget = ref<SettingsLabelCategory | null>(null)
 const categoryDeletePending = ref(false)
 const categoryApiBase = computed(() => {
-  if (props.labelKind === 'workspace') return 'workspace-label-categories'
-  if (props.labelKind === 'task') return 'task-label-categories'
-  return 'document-label-categories'
+  return props.labelKind === 'workspace' ? 'workspace-label-categories' : 'task-label-categories'
 })
 const labelApiBase = computed(() => {
-  if (props.labelKind === 'workspace') return 'workspace-labels'
-  if (props.labelKind === 'task') return 'task-labels'
-  return 'document-labels'
+  return props.labelKind === 'workspace' ? 'workspace-labels' : 'task-labels'
 })
-const labelCreateTitle = computed(() => {
-  if (props.labelKind === 'workspace') return 'ラベル（スペース）の作成'
-  if (props.labelKind === 'task') return 'ラベル（タスク）の作成'
-  return 'ラベル（資料）の作成'
+const labelAddTitle = computed(() => {
+  return props.labelKind === 'workspace' ? 'ラベル（スペース）の追加' : 'ラベル（タスク）の追加'
 })
 function setMessage (msg: string, kind: 'ok' | 'err') {
   message.value = msg
   messageKind.value = kind
 }
-function applyCategories (next: SettingsLabelCategory[]) {
+function applyCategories (next: SettingsLabelCategory[], opts?: { invalidateConsumers?: boolean }) {
   categories.value = next
   patchLabelCategoriesCache(props.orgSlug, props.labelKind, next)
+  if (opts?.invalidateConsumers) {
+    // 設定画面のラベル変更を他画面の派生キャッシュに残さない
+    invalidateOrgDerivedCachesForLabelKind(props.orgSlug, props.labelKind)
+  }
 }
 type LabelDragEndEvent = {
   oldIndex?: number
@@ -221,6 +226,7 @@ async function persistCategoryOrder () {
       body: { category_ids: categories.value.map(category => category.id) },
     })
     patchLabelCategoriesCache(props.orgSlug, props.labelKind, categories.value)
+    invalidateOrgDerivedCachesForLabelKind(props.orgSlug, props.labelKind)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'カテゴリの並び替えに失敗しました'
     setMessage(msg, 'err')
@@ -249,6 +255,7 @@ async function persistLabelOrder (categoryId: number) {
       },
     })
     patchLabelCategoriesCache(props.orgSlug, props.labelKind, categories.value)
+    invalidateOrgDerivedCachesForLabelKind(props.orgSlug, props.labelKind)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'ラベルの並び替えに失敗しました'
     setMessage(msg, 'err')
@@ -284,7 +291,9 @@ async function load (opts?: { refresh?: boolean }) {
   setMessage('', 'ok')
   try {
     const res = await api<{ data: SettingsLabelCategory[] }>(`/orgs/${props.orgSlug}/${categoryApiBase.value}`)
-    applyCategories(normalizeSettingsLabelCategories(res.data))
+    applyCategories(normalizeSettingsLabelCategories(res.data), {
+      invalidateConsumers: Boolean(opts?.refresh),
+    })
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'カテゴリの取得に失敗しました'
     setMessage(msg, 'err')
@@ -292,8 +301,8 @@ async function load (opts?: { refresh?: boolean }) {
     loading.value = false
   }
 }
-function openCreateCategory () {
-  categoryModalMode.value = 'create'
+function openAddCategory () {
+  categoryModalMode.value = 'add'
   editingCategoryId.value = null
   editingCategoryName.value = ''
   categoryModalOpen.value = true
@@ -308,7 +317,7 @@ async function submitCategory (name: string) {
   loading.value = true
   setMessage('', 'ok')
   try {
-    if (categoryModalMode.value === 'create') {
+    if (categoryModalMode.value === 'add') {
       await api(`/orgs/${props.orgSlug}/${categoryApiBase.value}`, {
         method: 'POST',
         body: { name },
@@ -353,29 +362,29 @@ async function confirmDeleteCategory () {
     categoryDeletePending.value = false
   }
 }
-function openCreateLabel (category: SettingsLabelCategory) {
-  labelCreateCategoryId.value = category.id
-  labelCreateModalOpen.value = true
+function openAddLabel (category: SettingsLabelCategory) {
+  labelAddCategoryId.value = category.id
+  labelAddModalOpen.value = true
 }
-async function createLabel (payload: { name: string; color_index: number }) {
-  if (labelCreateCategoryId.value === null) return
+async function addLabel (payload: { name: string; color_index: number }) {
+  if (labelAddCategoryId.value === null) return
   loading.value = true
   setMessage('', 'ok')
   try {
     await api(`/orgs/${props.orgSlug}/${labelApiBase.value}`, {
       method: 'POST',
       body: {
-        category_id: labelCreateCategoryId.value,
+        category_id: labelAddCategoryId.value,
         name: payload.name,
         color_index: payload.color_index,
       },
     })
-    labelCreateModalOpen.value = false
+    labelAddModalOpen.value = false
     await load({ refresh: true })
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'ラベルの作成に失敗しました'
+    const msg = e instanceof Error ? e.message : 'ラベルの追加に失敗しました'
     setMessage(msg, 'err')
-    labelCreateModalRef.value?.setSubmitError(msg)
+    labelAddModalRef.value?.setSubmitError(msg)
   } finally {
     loading.value = false
   }
@@ -432,7 +441,7 @@ async function confirmDeleteLabel () {
 onMounted(() => {
   void load()
 })
-defineExpose({ load, openCreateCategory })
+defineExpose({ load, openAddCategory })
 </script>
 <style lang="scss" src="~/assets/styles/components/settings/SettingsLabelCategoryPanel.global.scss"></style>
 <style lang="scss" scoped src="~/assets/styles/components/settings/SettingsLabelCategoryPanel.scss"></style>

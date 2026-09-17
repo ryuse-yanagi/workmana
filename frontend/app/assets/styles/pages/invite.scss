@@ -49,18 +49,18 @@
   border-radius: 8px;
   padding: 0 12px;
   font-size: 13.3px;
-  color: mixin.$text-emphasis;
+  color: mixin.$text-heading;
   background: mixin.$white;
 }
 
 .input[readonly] {
-  background: mixin.$list-column-bg;
+  background: mixin.$bg-gray;
   color: mixin.$text-sub;
 }
 
 .input:focus {
   outline: none;
-  border-color: mixin.$text-emphasis;
+  border-color: mixin.$text-heading;
   box-shadow: 0 0 0 2px mixin.emphasis-a(0.12);
 }
 

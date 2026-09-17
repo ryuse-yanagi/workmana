@@ -1,5 +1,5 @@
 .named-color-item-edit-modal-body {
-  padding: 14px 18.9px 0;
+  padding: 16px 16px 0;
   display: flex;
   flex-direction: column;
   gap: 11.9px;
@@ -8,24 +8,19 @@
   display: flex;
   flex-direction: column;
   gap: 6.3px;
-  color: mixin.$text;
-  font-weight: 800;
-  font-size: mixin.$modal-field-font-size;
+  @include mixin.modal-field-label;
 }
 .field input,
 .field select {
-  box-sizing: border-box;
+  @include mixin.modal-input-single-line;
   width: 100%;
   border: 1px solid mixin.$border;
-  border-radius: 8px;
-  padding: 8.68px 10.5px;
+  border-radius: mixin.$input-border-radius;
   font-size: mixin.$modal-field-font-size;
   font-weight: 400;
   color: mixin.$text;
-  background: mixin.$white;
-  line-height: 1.35;
   &:focus {
-    @include mixin.input-focus-ring;
+    @include mixin.input-focus-neutral;
   }
 }
 .err {

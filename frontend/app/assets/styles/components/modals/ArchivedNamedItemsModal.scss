@@ -1,7 +1,5 @@
 .archived-items-modal__body {
   padding: 14px;
-  max-height: min(70vh, 504px);
-  overflow-y: auto;
 }
 
 .archived-items-modal__subtitle {
@@ -31,36 +29,78 @@
 .archived-items-modal__list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 18px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .archived-items-modal__item {
-  padding: 12px 14px;
-  border: 1px solid mixin.$border;
-  border-radius: 8px;
-  background: mixin.$white;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
 }
 
-.archived-items-modal__item-content {
-  color: mixin.$text;
-  font-size: 13px;
+.archived-items-modal__card {
+  position: relative;
+  box-sizing: border-box;
+  min-height: 64px;
+  overflow: hidden;
+  border: 1px solid mixin.$border;
+  border-radius: 4px;
+  background: mixin.$white;
+  box-shadow: 0 2px 4px mixin.black-a(0.05);
+}
 
-  p {
-    margin: 4px 0 0;
-    color: mixin.$text-sub;
-    font-size: 12px;
-    line-height: 1.5;
-  }
+.archived-items-modal__card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: 4px;
+  background: mixin.$main;
+}
+
+.archived-items-modal__card-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  min-height: 64px;
+  padding: 12px 16px 12px 18px;
+}
+
+.archived-items-modal__name {
+  margin: 0;
+  overflow: hidden;
+  color: mixin.$text;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archived-items-modal__description {
+  margin: 0;
+  overflow: hidden;
+  color: mixin.$text-sub;
+  font-size: 14px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .archived-items-modal__actions {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 8px;
+  gap: 16px;
+  margin-top: 5px;
+  padding-left: 8px;
 }
 
 .archived-items-modal__action {
@@ -68,22 +108,16 @@
   border: 0;
   background: transparent;
   color: mixin.$text-subtle;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 
   &:disabled {
-    opacity: 0.55;
     cursor: default;
   }
 
   &--danger {
     color: mixin.$danger;
   }
-}
-
-.archived-items-modal__action-sep {
-  color: mixin.$text-placeholder;
-  font-size: 10px;
-  user-select: none;
 }

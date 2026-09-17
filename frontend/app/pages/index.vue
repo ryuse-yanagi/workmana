@@ -41,10 +41,22 @@
       <p class="muted">設計どおり <code>/org/&#123;slug&#125;/workspaces</code> で識別します。</p>
       <label>スラッグ</label>
       <div class="row">
-        <input v-model="slug" type="text" placeholder="acme" />
-        <NuxtLink v-if="slug.trim()" class="btn" :to="`/org/${slug.trim()}/workspaces`">開く</NuxtLink>
-        <span v-else class="muted">スラッグを入力してください</span>
+        <input
+          v-model="slug"
+          type="text"
+          placeholder="acme"
+          @keydown.enter.prevent="openWorkspace"
+        >
+        <NuxtLink
+          class="btn"
+          :to="workspaceHref"
+          :class="{ 'is-disabled': !slug.trim() }"
+          :aria-disabled="!slug.trim() ? 'true' : undefined"
+        >
+          開く
+        </NuxtLink>
       </div>
+      <p v-if="!slug.trim()" class="muted small">スラッグを入力すると「開く」が有効になります。</p>
     </section>
   </main>
 </template>
@@ -52,7 +64,11 @@
 import { useApi } from '../composables/useApi'
 const config = useRuntimeConfig()
 const { api } = useApi()
-const slug = ref('')
+const slug = ref('abcde')
+const workspaceHref = computed(() => {
+  const value = slug.value.trim()
+  return value ? `/org/${value}/workspaces` : '/login'
+})
 const statusMessage = ref('')
 const statusKind = ref<'ok' | 'err'>('ok')
 const avatarPreviewUrl = ref<string | null>(null)
@@ -61,6 +77,13 @@ const avatarUploading = ref(false)
 const avatarMessage = ref('')
 const avatarStatusKind = ref<'ok' | 'err'>('ok')
 const apiBaseDisplay = computed(() => (config.public.apiBaseUrl as string) || '/api')
+function openWorkspace () {
+  const value = slug.value.trim()
+  if (!value) {
+    return
+  }
+  return navigateTo(`/org/${value}/workspaces`)
+}
 function setStatus (msg: string, kind: 'ok' | 'err') {
   statusMessage.value = msg
   statusKind.value = kind

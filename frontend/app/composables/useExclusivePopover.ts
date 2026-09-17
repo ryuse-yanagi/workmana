@@ -9,6 +9,18 @@ type ExclusivePopoverClaim = {
 
 let current: ExclusivePopoverClaim | null = null
 
+export function isExclusivePopoverOpen (): boolean {
+  return current != null
+}
+
+export function closeExclusivePopoverIfOpen (): boolean {
+  if (!current) {
+    return false
+  }
+  current.close()
+  return true
+}
+
 /**
  * 同時に表示できるポップオーバーは1つ。新たに開く側が claim し、
  * 既に開いている側の close を呼ぶ。

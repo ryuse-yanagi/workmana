@@ -1,14 +1,17 @@
 <template>
   <div
     class="workspace-status-select"
+    :class="{ 'workspace-status-select--readonly': readonly }"
     data-workspace-status-select-root
-    @pointerdown.stop
-    @pointerup.stop
+    @pointerdown="onRootPointerDown"
+    @pointerup="onRootPointerUp"
   >
     <button
+      v-if="!readonly"
       ref="triggerRef"
       type="button"
       class="workspace-status-select__trigger"
+      data-popover-trigger
       :aria-expanded="isOpen"
       aria-haspopup="dialog"
       :aria-label="triggerAriaLabel"
@@ -26,8 +29,24 @@
         class="workspace-status-select__empty"
       >未設定</span>
     </button>
+    <div
+      v-else
+      class="workspace-status-select__display"
+      :aria-label="triggerAriaLabel"
+    >
+      <LabelStrip
+        v-if="currentStatus"
+        :label="statusLabel(currentStatus)"
+        :text-color="statusTextColor(currentStatus.color)"
+        size="sm"
+      />
+      <span
+        v-else
+        class="workspace-status-select__empty workspace-status-select__empty--readonly"
+      >未設定</span>
+    </div>
   </div>
-  <Teleport to="body">
+  <Teleport v-if="!readonly" to="body">
     <div
       v-if="isOpen"
       ref="dropdownRef"
@@ -38,6 +57,14 @@
       @click.stop
     >
       <header class="workspace-status-select__header">
+        <button
+          v-if="currentStatus"
+          type="button"
+          class="board-filter-clear"
+          @click.stop="clearStatus"
+        >
+          クリア
+        </button>
         <p class="workspace-status-select__title">ステータス</p>
         <button
           type="button"
@@ -45,7 +72,13 @@
           :disabled="pending"
           aria-label="閉じる"
           @click.stop="closeDropdown"
-        >✕</button>
+        >
+          <X
+            :size="16"
+            :stroke-width="2.25"
+            aria-hidden="true"
+          />
+        </button>
       </header>
       <input
         v-model="searchQuery"
@@ -71,13 +104,13 @@
               :disabled="pending"
               @click.stop="selectStatus(status)"
             >
-              <span
+              <input
+                type="radio"
                 class="workspace-status-select__checkbox"
-                :class="{ 'workspace-status-select__checkbox--checked': isSelected(status) }"
+                :checked="isSelected(status)"
+                tabindex="-1"
                 aria-hidden="true"
               >
-                <span v-if="isSelected(status)">✓</span>
-              </span>
               <span
                 class="workspace-status-select__pill"
                 :style="surfacePillStyle(status.color)"
@@ -91,27 +124,41 @@
           v-if="!statuses.length"
           class="workspace-status-select__empty-text"
         >
-          ステータスは設定画面で作成できます。
+          ステータスは設定画面で作成できます
         </p>
         <p
           v-else-if="!filteredStatuses.length"
           class="workspace-status-select__empty-text"
         >
-          該当するステータスがありません。
+          該当するステータスがありません
         </p>
       </div>
     </div>
   </Teleport>
 </template>
 <script setup lang="ts">
+import { X } from 'lucide-vue-next'
 import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,
 } from '../../constants/colorPresets'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { isScrollInsideRoot } from '../../utils/uiInteraction'
-import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, POPOVER_SCROLLBAR_GUTTER_VAR, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
+import { dismissPopoverFromOutsidePointer, isInsideFloatingPopover, isScrollInsideRoot } from '../../utils/uiInteraction'
+import {
+  POPOVER_PANEL_BASE_WIDTH,
+  POPOVER_VIEWPORT_INSET,
+  clampPopoverBox,
+  measurePopoverNaturalHeight,
+  resolveFlippedPopoverVerticalLayout,
+  popoverMaxHeightStyle,
+  popoverPositionVisibilityStyle,
+  popoverScrollbarLayoutStyle,
+  popoverStablePanelWidthStyle,
+  resolveAnchoredPopoverLayoutWidth,
+  resolvePopoverScrollbarGutter,
+  schedulePopoverOpenLayout,
+} from '../../utils/popoverScrollbar'
 import type { OrgWorkspaceStatus } from '../../composables/useOrgWorkspaceIndexPageData'
 import LabelStrip from '../ui/LabelStrip.vue'
 
@@ -120,33 +167,53 @@ const props = withDefaults(defineProps<{
   statuses: OrgWorkspaceStatus[]
   disabled?: boolean
   pending?: boolean
+  readonly?: boolean
 }>(), {
   status: null,
   disabled: false,
   pending: false,
+  readonly: false,
 })
 
 const emit = defineEmits<{
-  select: [status: OrgWorkspaceStatus]
+  select: [status: OrgWorkspaceStatus | null]
 }>()
 
 const DROPDOWN_GAP = 6
-const VIEWPORT_PAD = 8
 const DROPDOWN_CHROME_HEIGHT = 96
 const triggerRef = ref<HTMLElement | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
 const searchQuery = ref('')
-const dropdownPosition = ref<{ top: number; left: number; scrollbarGutter: number } | null>(null)
+const layoutSettled = ref(false)
+const dropdownPosition = ref<{ top: number; left: number; scrollbarGutter: number; panelWidth: number } | null>(null)
 const listMaxHeight = ref<number | null>(null)
 
 const currentStatus = computed(() => props.status ?? null)
 const triggerAriaLabel = computed(() => {
+  if (props.readonly) {
+    if (currentStatus.value) {
+      return `ステータス ${currentStatus.value.name}`
+    }
+    return 'ステータス未設定'
+  }
   if (currentStatus.value) {
     return `ステータス ${currentStatus.value.name}。クリックして変更`
   }
   return 'ステータス未設定。クリックして選択'
 })
+
+function onRootPointerDown (event: PointerEvent) {
+  if (!props.readonly) {
+    event.stopPropagation()
+  }
+}
+
+function onRootPointerUp (event: PointerEvent) {
+  if (!props.readonly) {
+    event.stopPropagation()
+  }
+}
 
 const filteredStatuses = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
@@ -166,16 +233,15 @@ const listStyle = computed(() => {
 
 const dropdownStyle = computed(() => {
   if (!dropdownPosition.value) {
-    return {
-      visibility: 'hidden',
-    } as Record<string, string>
+    return popoverPositionVisibilityStyle(false)
   }
-  const { top, left, scrollbarGutter } = dropdownPosition.value
+  const { top, left, scrollbarGutter, panelWidth } = dropdownPosition.value
   return {
     top: `${top}px`,
     left: `${left}px`,
-    visibility: 'visible',
-    ...popoverScrollbarGutterStyle(scrollbarGutter),
+    ...popoverPositionVisibilityStyle(layoutSettled.value),
+    ...popoverStablePanelWidthStyle(panelWidth),
+    ...popoverScrollbarLayoutStyle(scrollbarGutter, true),
   }
 })
 
@@ -204,6 +270,7 @@ function isSelected (status: OrgWorkspaceStatus) {
 function closeDropdown () {
   isOpen.value = false
   searchQuery.value = ''
+  layoutSettled.value = false
   dropdownPosition.value = null
   listMaxHeight.value = null
 }
@@ -217,30 +284,42 @@ function positionDropdown () {
   }
   const rect = trigger.getBoundingClientRect()
   const dropdown = dropdownRef.value
-  if (dropdown) {
-    dropdown.style.setProperty(POPOVER_SCROLLBAR_GUTTER_VAR, '0px')
-  }
   const list = dropdown?.querySelector('.workspace-status-select__list')
-  const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PAD
-  const spaceAbove = rect.top - VIEWPORT_PAD
+  const pad = POPOVER_VIEWPORT_INSET
+  const measuredHeight = dropdown ? Math.ceil(measurePopoverNaturalHeight(dropdown) || 0) : 0
+  const preferredTop = rect.bottom + DROPDOWN_GAP
+  const spaceBelow = window.innerHeight - rect.bottom - pad
   let top: number
   if (spaceBelow >= 160) {
-    top = rect.bottom + DROPDOWN_GAP
-    listMaxHeight.value = Math.max(0, spaceBelow - DROPDOWN_GAP - DROPDOWN_CHROME_HEIGHT)
+    const vertical = resolveFlippedPopoverVerticalLayout(preferredTop, {
+      pad,
+      contentHeight: measuredHeight,
+    })
+    top = vertical.top
+    listMaxHeight.value = Math.max(0, vertical.maxHeight - DROPDOWN_CHROME_HEIGHT)
   } else {
-    listMaxHeight.value = Math.max(0, spaceAbove - DROPDOWN_GAP - DROPDOWN_CHROME_HEIGHT)
-    top = Math.max(VIEWPORT_PAD, rect.top - DROPDOWN_GAP - (dropdown?.offsetHeight ?? 240))
+    const vertical = resolveFlippedPopoverVerticalLayout(rect.top - DROPDOWN_GAP, {
+      pad,
+      contentHeight: measuredHeight,
+    })
+    top = vertical.top
+    listMaxHeight.value = Math.max(0, vertical.maxHeight - DROPDOWN_CHROME_HEIGHT)
   }
-  const scrollbarGutter = list instanceof HTMLElement
-    ? resolvePopoverScrollbarGutter(list, listMaxHeight.value)
+  const baseWidth = POPOVER_PANEL_BASE_WIDTH.status
+  const scrollbarGutter = list instanceof HTMLElement && listMaxHeight.value != null
+    ? resolvePopoverScrollbarGutter(list, listMaxHeight.value, baseWidth)
     : 0
-  const dropdownWidth = (dropdown?.offsetWidth ?? 252) + popoverWidthExtraForGutter(scrollbarGutter)
+  const panelWidth = resolveAnchoredPopoverLayoutWidth(baseWidth, scrollbarGutter)
   let left = rect.left
-  if (left + dropdownWidth > window.innerWidth - VIEWPORT_PAD) {
-    left = rect.right - dropdownWidth
+  if (left + panelWidth > window.innerWidth - pad) {
+    left = rect.right - panelWidth
   }
-  left = Math.max(VIEWPORT_PAD, Math.min(left, window.innerWidth - dropdownWidth - VIEWPORT_PAD))
-  dropdownPosition.value = { top, left, scrollbarGutter }
+  left = Math.max(pad, Math.min(left, window.innerWidth - panelWidth - pad))
+  const panelHeight = measuredHeight > 0
+    ? measuredHeight
+    : Math.min(160, (listMaxHeight.value ?? 0) + DROPDOWN_CHROME_HEIGHT)
+  const clamped = clampPopoverBox(top, left, panelWidth, panelHeight, pad)
+  dropdownPosition.value = { top: clamped.top, left: clamped.left, scrollbarGutter, panelWidth }
 }
 
 function openDropdown () {
@@ -248,10 +327,17 @@ function openDropdown () {
     return
   }
   searchQuery.value = ''
+  layoutSettled.value = false
   isOpen.value = true
+  dropdownPosition.value = null
+  listMaxHeight.value = null
   nextTick(() => {
-    positionDropdown()
-    requestAnimationFrame(() => positionDropdown())
+    schedulePopoverOpenLayout(
+      () => positionDropdown(),
+      () => {
+        layoutSettled.value = true
+      },
+    )
   })
 }
 
@@ -267,12 +353,14 @@ function selectStatus (status: OrgWorkspaceStatus) {
   if (props.pending) {
     return
   }
-  if (isSelected(status)) {
-    closeDropdown()
+  emit('select', isSelected(status) ? null : status)
+}
+
+function clearStatus () {
+  if (props.pending || !currentStatus.value) {
     return
   }
-  emit('select', status)
-  closeDropdown()
+  emit('select', null)
 }
 
 function isTriggerVisible (): boolean {
@@ -305,7 +393,10 @@ function onDocumentPointerUp (event: PointerEvent) {
   if (shouldIgnoreOutsidePointer(target)) {
     return
   }
-  closeDropdown()
+  if (isInsideFloatingPopover(target)) {
+    return
+  }
+  dismissPopoverFromOutsidePointer(target, closeDropdown)
 }
 
 function onWindowResize () {
@@ -361,6 +452,15 @@ watch(isOpen, (open) => {
       return
     }
     bindGlobalListeners()
+  })
+})
+
+watch(searchQuery, () => {
+  if (!isOpen.value) {
+    return
+  }
+  nextTick(() => {
+    positionDropdown()
   })
 })
 

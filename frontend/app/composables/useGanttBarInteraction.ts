@@ -12,10 +12,6 @@ export type GanttSelectionPreview = {
   mode: 'create' | 'resize-start' | 'resize-end' | 'move'
 }
 
-export type GanttClickSelection = {
-  taskId: number
-}
-
 type PendingPointer = {
   taskId: number
   dayIso: string
@@ -33,7 +29,7 @@ type PendingPointer = {
 }
 
 /** この距離を超えてポインタが動いたらドラッグ開始 */
-const DRAG_ACTIVATION_PX = 4
+const DRAG_ACTIVATION_PX = 12
 /** 開始／終了マスの端ヒット幅（セル幅に対する比率の下限付き） */
 const EDGE_ZONE_PX = 14
 const EDGE_ZONE_RATIO = 0.45
@@ -103,31 +99,16 @@ export function resolveGanttBarHitZone (
   return 'body'
 }
 
-function isEditableKeyTarget (target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false
-  }
-  const tag = target.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-    return true
-  }
-  if (target.isContentEditable) {
-    return true
-  }
-  return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
-}
-
 export function useGanttBarInteraction (options: {
   isInteractiveTask: (taskId: number) => boolean
   getTask: (taskId: number) => { start_date?: string | null; due_date?: string | null } | null
   onCommitRange: (taskId: number, start: string | null, end: string | null) => void | Promise<void>
-  /** 既存バーをダブルクリックしたとき（色ピッカーを開く等） */
-  onFilledBarDoubleClick?: (taskId: number, clientX: number, clientY: number) => void
+  /** 既存バーをクリックしたとき（色ピッカーなど） */
+  onFilledBarClick?: (taskId: number, clientX: number, clientY: number) => void
   /** カレンダーに表示中の日付（左から順） */
   dayIsoList: () => readonly string[]
   scrollContainer?: Ref<HTMLElement | null> | (() => HTMLElement | null)
 }) {
-  const clickSelection = ref<GanttClickSelection | null>(null)
   const dragPreview = ref<GanttSelectionPreview | null>(null)
   const pointerActive = ref(false)
   const dragging = computed(() => dragPreview.value != null)
@@ -135,9 +116,6 @@ export function useGanttBarInteraction (options: {
   let lockedScrollLeft = 0
   let lockedScrollTop = 0
   let scrollLocked = false
-  let lastFilledClickAt = 0
-  let lastFilledClickTaskId: number | null = null
-  const FILLED_BAR_DBLCLICK_MS = 320
 
   function resolveScrollContainer (): HTMLElement | null {
     if (!options.scrollContainer) {
@@ -181,65 +159,6 @@ export function useGanttBarInteraction (options: {
     scrollLocked = false
   }
 
-  function clearClickSelection () {
-    clickSelection.value = null
-  }
-
-  function isInsideGanttChart (target: EventTarget | null): boolean {
-    if (!(target instanceof Element)) {
-      return false
-    }
-    return Boolean(
-      target.closest('.workspace-wbs__day-cell')
-      || target.closest('.workspace-wbs__day-header')
-      || target.closest('.popover.popover--gantt-color'),
-    )
-  }
-
-  function onDocumentPointerDown (event: PointerEvent) {
-    if (event.button !== 0 || !clickSelection.value || dragging.value || pending) {
-      return
-    }
-    if (isInsideGanttChart(event.target)) {
-      return
-    }
-    clearClickSelection()
-  }
-
-  function clearSelectedBar () {
-    const selected = clickSelection.value
-    if (!selected || dragging.value || pending) {
-      return false
-    }
-    if (!options.isInteractiveTask(selected.taskId)) {
-      return false
-    }
-    const task = options.getTask(selected.taskId)
-    if (!task || !resolveTaskDateRange(task)) {
-      return false
-    }
-    clickSelection.value = null
-    void options.onCommitRange(selected.taskId, null, null)
-    return true
-  }
-
-  function onWindowKeyDown (event: KeyboardEvent) {
-    if (event.key !== 'Delete' && event.key !== 'Backspace') {
-      return
-    }
-    if (event.defaultPrevented || event.isComposing || isEditableKeyTarget(event.target)) {
-      return
-    }
-    if (!clearSelectedBar()) {
-      return
-    }
-    event.preventDefault()
-  }
-
-  function isBarSelected (taskId: number): boolean {
-    return clickSelection.value?.taskId === taskId
-  }
-
   function resolveCreatePreviewRange (
     task: { id: number; start_date?: string | null; due_date?: string | null },
   ): { start: string; end: string } | null {
@@ -274,14 +193,6 @@ export function useGanttBarInteraction (options: {
     dayIso: string,
   ): boolean {
     return resolveCreatePreviewRange(task)?.end === dayIso
-  }
-
-  /** クリック選択中のバー（opacity 表示用） */
-  function isSelectedFilledBarDay (
-    task: { id: number; start_date?: string | null; due_date?: string | null },
-    dayIso: string,
-  ): boolean {
-    return isBarSelected(task.id) && shouldShowFilledBar(task, dayIso)
   }
 
   /** ドラッグ置換プレビュー中は実バーを隠す */
@@ -327,7 +238,6 @@ export function useGanttBarInteraction (options: {
     if (!task) {
       return
     }
-    clearClickSelection()
     if (from.zone === 'start-edge') {
       const range = resolveTaskDateRange(task)
       if (!range) {
@@ -420,9 +330,11 @@ export function useGanttBarInteraction (options: {
         if (nextEnd > last) {
           nextEnd = last
           nextStart = addDaysIso(nextEnd, -span)
-          if (nextStart < first) {
-            nextStart = first
-          }
+        }
+        // 表示期間より長いバーは移動で短縮しない（元の期間を維持）
+        if (nextStart < first || nextEnd > last || daysBetweenIso(nextStart, nextEnd) !== span) {
+          nextStart = originalStart
+          nextEnd = originalEnd
         }
       }
       dragPreview.value = { ...preview, start: nextStart, end: nextEnd }
@@ -457,9 +369,30 @@ export function useGanttBarInteraction (options: {
     unlockScroll()
     unbindWindowListeners()
     if (commit && preview) {
-      clickSelection.value = { taskId: preview.taskId }
       void options.onCommitRange(preview.taskId, preview.start, preview.end)
     }
+  }
+
+  /** 既存バー上のクリック（日付が変わらない微小ドラッグも含む） */
+  function handleFilledBarClick (taskId: number, clientX: number, clientY: number) {
+    if (!options.isInteractiveTask(taskId)) {
+      return
+    }
+    options.onFilledBarClick?.(taskId, clientX, clientY)
+  }
+
+  function isUnchangedDragPreview (
+    preview: GanttSelectionPreview,
+    task: { start_date?: string | null; due_date?: string | null } | null,
+  ): boolean {
+    if (!task || preview.mode === 'create') {
+      return false
+    }
+    const original = resolveTaskDateRange(task)
+    if (!original) {
+      return false
+    }
+    return preview.start === original.start && preview.end === original.end
   }
 
   function onWindowPointerMove (event: PointerEvent) {
@@ -474,6 +407,7 @@ export function useGanttBarInteraction (options: {
     const dx = event.clientX - pending.startX
     const dy = event.clientY - pending.startY
     if (Math.hypot(dx, dy) > DRAG_ACTIVATION_PX) {
+      event.preventDefault()
       try {
         pending.captureEl.setPointerCapture(pending.pointerId)
       } catch {
@@ -489,13 +423,25 @@ export function useGanttBarInteraction (options: {
       return
     }
     if (dragPreview.value) {
+      const preview = dragPreview.value
+      const zone = pending.zone
+      const task = options.getTask(preview.taskId)
+      // 日付が変わらない微小ドラッグはクリック扱い
+      if (zone !== 'empty' && isUnchangedDragPreview(preview, task)) {
+        const { taskId } = pending
+        const { clientX, clientY } = event
+        finishInteraction(false)
+        handleFilledBarClick(taskId, clientX, clientY)
+        return
+      }
       finishInteraction(true)
       return
     }
     // クリック
-    // - 既存バー上: 選択（ダブルクリックで色ピッカー）
+    // - 既存バー上: 色ピッカー
     // - 空マス: その日を単日バーとして塗る
     const { taskId, dayIso, zone } = pending
+    const { clientX, clientY } = event
     pending = null
     pointerActive.value = false
     unlockScroll()
@@ -504,23 +450,9 @@ export function useGanttBarInteraction (options: {
       return
     }
     if (zone !== 'empty') {
-      const now = performance.now()
-      const isDoubleClick = lastFilledClickTaskId === taskId
-        && (now - lastFilledClickAt) <= FILLED_BAR_DBLCLICK_MS
-      clickSelection.value = { taskId }
-      if (isDoubleClick) {
-        lastFilledClickAt = 0
-        lastFilledClickTaskId = null
-        options.onFilledBarDoubleClick?.(taskId, event.clientX, event.clientY)
-      } else {
-        lastFilledClickAt = now
-        lastFilledClickTaskId = taskId
-      }
+      handleFilledBarClick(taskId, clientX, clientY)
       return
     }
-    lastFilledClickAt = 0
-    lastFilledClickTaskId = null
-    clickSelection.value = { taskId }
     void options.onCommitRange(taskId, dayIso, dayIso)
   }
 
@@ -572,8 +504,7 @@ export function useGanttBarInteraction (options: {
     if (!(target instanceof HTMLElement)) {
       return
     }
-    // 日付マス操作中のネイティブ選択・スクロール開始を抑止
-    event.preventDefault()
+    // preventDefault はドラッグ開始時のみ（クリック後続イベントを殺さない）
     const cell = (target.closest('.workspace-wbs__day-cell') as HTMLElement | null) ?? target
     const cellRect = cell.getBoundingClientRect()
     const zone = forcedZone ?? resolveGanttBarHitZone(task, dayIso, event.clientX, cellRect)
@@ -594,31 +525,20 @@ export function useGanttBarInteraction (options: {
     bindWindowListeners()
   }
 
-  onMounted(() => {
-    window.addEventListener('keydown', onWindowKeyDown)
-    document.addEventListener('pointerdown', onDocumentPointerDown, true)
-  })
-
   onBeforeUnmount(() => {
     pending = null
     pointerActive.value = false
     unlockScroll()
     unbindWindowListeners()
-    window.removeEventListener('keydown', onWindowKeyDown)
-    document.removeEventListener('pointerdown', onDocumentPointerDown, true)
   })
 
   return {
-    clickSelection,
     dragPreview,
     dragging,
     pointerActive,
-    clearClickSelection,
-    clearSelectedBar,
     isDaySelectionOutlined,
     isSelectionStartDay,
     isSelectionEndDay,
-    isSelectedFilledBarDay,
     shouldShowFilledBar,
     isBarStartDay,
     isBarEndDay,

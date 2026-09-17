@@ -5,10 +5,120 @@
   height: calc(100dvh - var(--global-header-offset, 56px));
   max-height: calc(100dvh - var(--global-header-offset, 56px));
   padding: 0 14px 0;
-  margin-top: calc(-1 * var(--app-shell-page-pad, 3.5px));
-  padding-top: 0;
   box-sizing: border-box;
   overflow: hidden;
+}
+.document-skeleton-bar {
+  display: block;
+  box-sizing: border-box;
+  border-radius: 4px;
+  background: color-mix(in srgb, mixin.$border 80%, mixin.$white);
+  flex-shrink: 0;
+}
+.document-skeleton-bar--subheader-name {
+  align-self: center;
+  width: calc(9em + 14 * 0.02em);
+  height: 14px;
+  margin: 0 0 0 20px;
+  border: none;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  font-size: 14px;
+  color: transparent;
+}
+.document-skeleton-bar--action-btn {
+  width: 108px;
+  height: 32px;
+  border-radius: 8px;
+}
+.document-skeleton-bar--icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+.document-skeleton-bar--sidebar-title {
+  width: 62%;
+  height: 28px;
+  margin: 8px 12px;
+  border-radius: 6px;
+}
+.document-skeleton-description {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 10px;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  background: mixin.$bg-gray;
+}
+.document-skeleton-bar--desc-line {
+  width: 100%;
+  height: 12px;
+}
+.document-skeleton-bar--desc-line-short {
+  width: 58%;
+}
+.document-skeleton-bar--field-heading {
+  width: 64px;
+  height: 12px;
+}
+.document-skeleton-bar--workspace-name {
+  width: 160px;
+  height: 16px;
+}
+.document-skeleton-bar--category {
+  width: 112px;
+  height: 28px;
+  border-radius: 999px;
+}
+.document-sidebar__document-card--skeleton {
+  pointer-events: none;
+  cursor: default;
+}
+.document-sidebar__document-card--skeleton:hover {
+  border-color: mixin.$border;
+}
+.document-skeleton-bar--doc-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+.document-skeleton-bar--doc-name {
+  width: 68%;
+  height: 12px;
+}
+.document-skeleton-bar--doc-meta {
+  width: 42%;
+  height: 10px;
+}
+.document-skeleton-bar--viewer-title {
+  width: 48%;
+  height: 28px;
+  border-radius: 6px;
+}
+.document-viewer__body-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-height: 220px;
+  padding: 8px 2px 24px;
+  box-sizing: border-box;
+}
+.document-skeleton-bar--body-line {
+  width: 100%;
+  height: 12px;
+}
+.document-skeleton-bar--body-line-mid {
+  width: 78%;
+}
+.document-skeleton-bar--body-line-short {
+  width: 54%;
 }
 .page-header {
   position: relative;
@@ -26,9 +136,19 @@
 .subheader {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 7px;
   height: 100%;
   min-width: 0;
+}
+.subheader-start {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  height: 100%;
+  gap: 7px;
+  min-width: 0;
+  flex-shrink: 1;
+  z-index: 1;
 }
 .subheader-actions {
   display: flex;
@@ -38,64 +158,8 @@
   margin-left: auto;
   flex-shrink: 0;
 }
-.subheader-editing-badge {
-  margin: 0;
-  margin-right: 8px;
-  font-size: 16px;
-  line-height: 1;
-  white-space: nowrap;
-  user-select: none;
-}
-.document-header-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  box-sizing: border-box;
-  margin: 0;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid mixin.$main;
-  border-radius: 6px;
-  background: mixin.$white;
-  color: mixin.$main;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  line-height: 1;
-  cursor: pointer;
-  white-space: nowrap;
-  :deep(svg) {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-  }
-}
-.document-header-action-btn:not(.document-header-action-btn--muted) {
-  width: 96px;
-}
-.document-header-action-btn:disabled {
-  opacity: 0.55;
-  cursor: pointer;
-}
-.document-header-action-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-}
-.document-header-action-btn--muted {
-  border-color: transparent;
-  background: mixin.$border;
-  color: mixin.$text-sub;
-}
-.document-header-action-btn--edit {
-  background: mixin.$info-surface;
-  color: mixin.$main;
-  border-color: mixin.$info-border;
-}
-.document-header-action-btn--primary {
-  background: mixin.$main;
-  color: mixin.$white;
-  border-color: mixin.$main;
+.subheader-actions .subheader-edit-with-divider {
+  margin-right: 12px;
 }
 .document-header-menu {
   position: relative;
@@ -107,11 +171,11 @@
 .subheader-back-link {
   display: inline-flex;
   align-items: center;
-  gap: 4.2px;
+  gap: 4px;
   padding: 8px 0;
   margin: -8px 0;
   text-decoration: none;
-  color: mixin.$green;
+  color: mixin.$main;
   letter-spacing: 0.05em;
   line-height: 1.1;
   transition: opacity 0.16s ease;
@@ -134,8 +198,11 @@
   }
 }
 .subheader-doc-name {
-  margin: 0;
-  min-width: 0;
+  box-sizing: border-box;
+  margin: 0 0 0 20px;
+  /* スペース詳細のスペース名と同じ：表示は最大15文字（全角）分 */
+  width: calc(15em + 14 * 0.02em);
+  flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -154,15 +221,19 @@
   overflow: hidden;
 }
 .document-sidebar-slot {
+  position: relative;
+  z-index: 1;
   flex-shrink: 0;
   align-self: stretch;
   width: 400px;
   min-height: 0;
   overflow: hidden;
-  transition: width 0.28s ease;
+  transition: width 0.28s ease, box-shadow 0.28s ease;
+  @include mixin.detail-sidebar-edge-shadow;
 }
 .document-sidebar-slot--closed {
   width: 0;
+  box-shadow: none;
 }
 .document-sidebar-slot .document-sidebar {
   width: 400px;
@@ -179,32 +250,325 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
   width: 400px;
   flex-shrink: 0;
   box-sizing: border-box;
-  padding: 20px;
+  padding: 0;
   background: mixin.$white;
-  box-shadow: 2px 0 10px mixin.ink-a(0.08);
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: mixin.$scrollbar-thumb transparent;
+  overflow: hidden;
+  @include mixin.scroll-preserve-parent;
 }
-.document-sidebar::-webkit-scrollbar {
-  width: 3px;
+.document-sidebar__scroller {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  @include mixin.scroll-preserve-scroller(start);
 }
-.document-sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.document-sidebar::-webkit-scrollbar-thumb {
-  background: mixin.ink-a(0.08);
-  border-radius: 999px;
+.document-sidebar__body {
+  @include mixin.scroll-preserve-body(
+    calc(100cqw - #{mixin.$scrollbar-lane}),
+    start
+  );
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* 左レーン＋残りパディングで、見た目の左余白は従来どおり 20px */
+  padding-top: 20px;
+  padding-right: 20px;
+  padding-bottom: 20px;
+  padding-left: calc(20px - #{mixin.$scrollbar-lane});
+  min-height: 100%;
 }
 .document-sidebar__category {
   align-self: flex-start;
   max-width: 100%;
   min-width: 0;
+}
+.document-sidebar__category :deep(.document-category-select--readonly .document-category-select__display .label-strip),
+.document-sidebar__category :deep(.document-category-select__trigger .label-strip) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 96px;
+  max-width: 100%;
+  height: auto;
+  min-height: 30px;
+  max-height: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+.document-sidebar__category :deep(.document-category-select--readonly .document-category-select__display .label-strip__text),
+.document-sidebar__category :deep(.document-category-select__trigger .label-strip__text) {
+  width: auto;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  text-align: center;
+}
+.document-sidebar__field-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.document-sidebar__field-heading {
+  margin: 0;
+  font-size: mixin.$popover-section-heading-font-size;
+  font-weight: 700;
+  color: mixin.$text-muted;
+  letter-spacing: 0.04em;
+}
+.document-sidebar__workspace-name {
+  margin: 0;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: mixin.$text;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.document-sidebar__documents-section {
+  gap: 0;
+  flex-shrink: 0;
+}
+$document-card-min-height: 56px;
+$document-documents-list-gap: 12px;
+/* 4件分が border 込み 320px に収まるよう toolbar↔list の gap は 8 */
+$document-documents-panel-gap: 8px;
+.document-sidebar__documents-panel {
+  display: flex;
+  flex-direction: column;
+  gap: $document-documents-panel-gap;
+  box-sizing: border-box;
+  min-height: 320px;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid mixin.ink-a(0.06);
+  border-radius: 6px;
+  background: mixin.$bg-gray;
+}
+.document-sidebar__documents-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+  height: 30px;
+}
+.document-sidebar__documents-heading {
+  margin: 0;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: mixin.$text-muted;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.document-sidebar__documents-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: mixin.$main;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  :deep(svg) {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+}
+.document-sidebar__documents-add-btn:disabled {
+  cursor: pointer;
+}
+.document-sidebar__documents-add-btn:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.document-sidebar__documents-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: $document-documents-list-gap;
+  flex-shrink: 0;
+}
+.document-sidebar__documents-item {
+  min-width: 0;
+}
+.document-sidebar__document-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  min-height: $document-card-min-height;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid mixin.$border;
+  border-radius: 10px;
+  background: mixin.$white;
+  box-shadow: 0 1px 0 mixin.ink-a(0.06);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+.document-sidebar__document-card:hover {
+  border-color: mixin.$main;
+  opacity: 1;
+}
+.document-sidebar__document-card:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-sidebar__document-card .card-menu-wrap {
+  position: absolute;
+  top: 3.5px;
+  right: 3.5px;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.document-sidebar__document-card:hover .card-menu-wrap,
+.document-sidebar__document-card .card-menu-wrap--open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.document-sidebar__document-card .card-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: mixin.$white;
+  color: mixin.$text-muted;
+  line-height: 0;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  :deep(svg) {
+    width: 20px;
+    height: 20px;
+  }
+}
+.document-sidebar__document-card .card-menu-trigger:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.document-sidebar__document-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: mixin.$main-aqua-surface-light;
+  color: mixin.$main;
+}
+.document-sidebar__document-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.document-sidebar__document-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: mixin.$text-heading;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.document-sidebar__document-category {
+  display: flex;
+  align-self: flex-start;
+  max-width: 100%;
+  line-height: 0;
+}
+.document-sidebar__document-category :deep(.label-strip) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  min-width: 56px;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+.document-sidebar__document-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: mixin.$text-muted;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.document-sidebar__documents-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  text-align: center;
+}
+.document-sidebar__documents-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  color: mixin.$text-gray;
+}
+.document-sidebar__documents-empty-text {
+  margin: 0;
+  color: mixin.$text-muted;
+  font-size: 13px;
+  line-height: 1.4;
 }
 .document-sidebar__title-field {
   position: relative;
@@ -223,7 +587,7 @@
   color: mixin.$text;
   padding: 8px 12px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: mixin.$input-border-radius;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -255,54 +619,16 @@
   overflow: hidden;
   white-space: pre-wrap;
 }
-.document-sidebar__title-input:focus {
+/* サイドバーの overflow で外側 shadow が切れるため、inset でタスク名と同じ 2px 相当にする */
+.document-sidebar textarea.document-sidebar__title-input:focus,
+.document-sidebar textarea.document-sidebar__title-input:focus-visible {
   outline: none;
   border-color: mixin.$main;
+  box-shadow: inset 0 0 0 1px mixin.$main;
 }
 .document-sidebar__title-field--editing {
   cursor: auto;
   user-select: text;
-}
-.document-sidebar__labels {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.document-sidebar__field-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-}
-.document-sidebar__section-heading {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
-  color: mixin.$text-muted;
-  letter-spacing: 0.04em;
-}
-.document-sidebar__labels :deep(.label-strip) {
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: auto;
-  max-width: 100%;
-  height: 28px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-}
-.document-sidebar__labels :deep(.label-strip__text) {
-  width: auto;
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal;
 }
 .document-sidebar__related-list {
   margin: 0;
@@ -349,31 +675,6 @@
 .document-sidebar__related-link:hover {
   opacity: 0.8;
 }
-.document-sidebar__related-menu-btn {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: mixin.$text-muted;
-  cursor: pointer;
-}
-.document-sidebar__related-menu-btn:disabled {
-  opacity: 0.55;
-  cursor: pointer;
-}
-.document-sidebar__related-menu-btn:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 1px;
-}
 .document-sidebar__related-edit-btn {
   display: inline-flex;
   align-items: center;
@@ -395,7 +696,6 @@
   cursor: pointer;
 }
 .document-sidebar__related-edit-btn:disabled {
-  opacity: 0.55;
   cursor: pointer;
 }
 .document-sidebar__related-edit-btn:focus-visible {
@@ -415,9 +715,9 @@
   width: 100%;
   box-sizing: border-box;
   padding: 8px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: mixin.$surface-canvas;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  background: mixin.$bg-gray;
   font-size: 16px;
   font-family: inherit;
   font-weight: 400;
@@ -440,7 +740,7 @@
   pointer-events: none;
 }
 .document-sidebar__description--placeholder {
-  color: mixin.$text-placeholder;
+  color: mixin.$text-gray;
 }
 .document-sidebar__description-field--editing .document-sidebar__description {
   pointer-events: none;
@@ -456,14 +756,14 @@
   resize: none;
   overflow: hidden;
   text-decoration: none;
-  border: 1px solid transparent;
+  border: 1px solid mixin.$border;
   box-shadow: none;
   outline: none;
 }
 .document-sidebar textarea.document-sidebar__description-input:focus,
 .document-sidebar textarea.document-sidebar__description-input:focus-visible {
   outline: none;
-  border: 1px solid mixin.$main;
+  border: 1px solid mixin.$border;
   box-shadow: none;
 }
 .document-sidebar__description-field--editing {
@@ -482,13 +782,34 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 20px;
   box-sizing: border-box;
   background: mixin.$surface-canvas;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
+  @include mixin.scroll-preserve-parent(end);
+  transition: background-color 0.18s ease;
+}
+.document-viewer__scroller {
+  flex: 1 1 auto;
+  min-height: 0;
+  @include mixin.scroll-preserve-scroller-expand(end);
   overflow-anchor: none;
+  box-sizing: border-box;
+}
+/**
+ * 内容幅を 100cqw で固定。バーは親の lane 余白上に載り、
+ * 出現前後で本文枠（align 中央）がずれない。
+ */
+.document-viewer__scroller-body {
+  @include mixin.scroll-preserve-body-cqw;
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.document-viewer--editing {
+  background: color-mix(in srgb, mixin.$main 4%, mixin.$surface-canvas);
 }
 .document-viewer__page {
   position: relative;
@@ -496,70 +817,136 @@
   flex-direction: column;
   /* 短い本文でもビューア内いっぱいに伸ばし、はみ出さない（空でもスクロール不可） */
   flex: 1 0 auto;
-  width: min(100%, 1000px);
+  width: 900px;
+  max-width: 100%;
   box-sizing: border-box;
-  padding: 56px 48px 56px;
-  border: 1px solid transparent;
+  /* 本文入力欄の padding 分を見越し、外枠は控えめに */
+  padding: 24px 28px 24px;
+  border: 1px solid mixin.ink-a(0.06);
+  border-radius: 6px;
   background: mixin.$white;
-  box-shadow: 0 2px 12px mixin.ink-a(0.1), 0 1px 3px mixin.ink-a(0.06);
+  box-shadow:
+    0 1px 2px mixin.ink-a(0.04),
+    0 8px 24px mixin.ink-a(0.06);
 }
 .document-viewer__page--editing {
-  border-color: mixin.$border-edit;
+  border-color: color-mix(in srgb, mixin.$main 42%, mixin.$border);
 }
-.document-viewer__mode-tabs {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 1;
+.document-viewer__heading {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  margin: 0 0 14px;
+  padding: 16px 18px 22px;
+  border-bottom: 1px solid mixin.ink-a(0.08);
+}
+.document-viewer__title {
+  margin: 0;
+  color: mixin.$text-heading;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.document-viewer__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  min-height: 0;
+  min-width: 0;
+}
+.document-viewer__page-footer {
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: 30px;
+  margin-top: 12px;
 }
-.document-viewer__mode-tab {
+.document-viewer__char-count {
   margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: mixin.$text-muted;
-  font-size: 16px;
-  font-weight: 700;
-  font-family: inherit;
+  margin-left: auto;
+  color: mixin.$text-gray;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
   line-height: 1.2;
-  cursor: pointer;
+  white-space: nowrap;
 }
-.document-viewer__mode-tab--active {
-  color: mixin.$main;
+.document-viewer__char-count--warn {
+  color: mixin.$danger;
+  font-weight: 700;
 }
-.document-viewer__mode-tab:focus-visible {
-  outline: 2px solid mixin.$main;
-  outline-offset: 2px;
-  border-radius: 2px;
-}
+/* 編集モード textarea と同じ内側余白・1px 枠幅で文字位置を揃える */
 .document-viewer__body {
   margin: 0;
+  flex: 1 0 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 16px 18px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   font-size: 14px;
   line-height: 1.8;
   color: mixin.$text-heading;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
-.document-viewer__body--preview {
-  @include mixin.markdown-preview-content;
+.document-viewer__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 0 auto;
+  gap: 10px;
+  box-sizing: border-box;
+  min-height: 280px;
+  padding: 32px 18px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  text-align: center;
 }
-.document-viewer__body--empty {
-  color: mixin.$text-placeholder;
+.document-viewer__empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  background: mixin.$main-aqua-surface-light;
+  color: mixin.$main;
+  :deep(svg) {
+    width: 28px;
+    height: 28px;
+  }
+}
+.document-viewer__empty-title {
+  margin: 0;
+  color: mixin.$text-heading;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
 }
 .document-viewer textarea.document-viewer__body-input {
   display: block;
   flex: 1 0 auto;
   width: 100%;
+  min-height: 200px;
   box-sizing: border-box;
   margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
+  padding: 16px 18px;
+  border: 1px solid mixin.$border;
+  border-radius: 6px;
+  background: mixin.$bg-gray;
   color: mixin.$text-heading;
+  caret-color: mixin.$main;
   font-size: 14px;
   font-family: inherit;
   font-weight: 400;
@@ -570,15 +957,29 @@
   -webkit-appearance: none;
   box-shadow: none;
   outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.document-viewer textarea.document-viewer__body-input::placeholder {
+  color: mixin.$text-gray;
+  opacity: 1;
 }
 .document-viewer textarea.document-viewer__body-input:focus,
 .document-viewer textarea.document-viewer__body-input:focus-visible {
   outline: none;
-  border: none;
-  box-shadow: none;
+  border-color: mixin.$main;
+  background: mixin.$bg-gray;
+  box-shadow: inset 0 0 0 1px mixin.$main;
+}
+.document-viewer textarea.document-viewer__body-input:disabled {
+  opacity: 0.72;
+  cursor: wait;
 }
 .document-viewer__save-error {
-  margin: 12px 0 0;
+  margin: 0;
+  margin-right: auto;
+  min-width: 0;
   font-size: 13px;
   line-height: 1.4;
   color: mixin.$danger;
@@ -597,9 +998,11 @@
   .document-sidebar-slot {
     width: 100%;
     align-self: auto;
+    @include mixin.detail-sidebar-bottom-shadow;
   }
   .document-sidebar-slot--closed {
     width: 0;
+    box-shadow: none;
   }
   .document-sidebar-slot .document-sidebar {
     width: 100%;
@@ -607,19 +1010,30 @@
   }
   .document-sidebar {
     width: 100%;
-    box-shadow: 0 2px 10px mixin.ink-a(0.08);
   }
   .document-viewer {
     min-height: 50vh;
+    padding: 14px;
   }
   .document-viewer__page {
-    width: 100%;
-    padding: 48px 20px 52px;
+    width: 900px;
+    max-width: 100%;
+    padding: 20px 14px 20px;
   }
-  .document-viewer__mode-tabs {
-    top: 12px;
-    right: 12px;
-    gap: 12px;
+  .document-viewer__heading {
+    margin: 0 0 14px;
+    padding: 16px 18px 18px;
+  }
+  .document-viewer__title {
+    font-size: 24px;
+  }
+  .document-viewer__page-footer {
+    min-height: 28px;
+    margin-top: 10px;
+  }
+  .document-viewer__empty {
+    min-height: 220px;
+    padding: 24px 8px;
   }
 }
 .document-header-share-panel {
@@ -644,7 +1058,7 @@
   margin: 0;
   padding: 8px 10px;
   border: 1px solid mixin.$border;
-  border-radius: 8px;
+  border-radius: mixin.$input-border-radius;
   background: mixin.$list-column-bg;
   color: mixin.$text;
   font: inherit;
@@ -653,7 +1067,5 @@
   cursor: text;
 }
 .document-header-share-panel__input:focus {
-  outline: none;
-  border-color: mixin.$main;
-  box-shadow: 0 0 0 1px mixin.$main;
+  @include mixin.input-focus-neutral;
 }

@@ -6,7 +6,6 @@ use App\Enums\MembershipRole;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Services\OrganizationInviteService;
-use App\Support\FieldLengthLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -45,7 +44,7 @@ class OrganizationInviteController extends ApiController
         $this->assertOrganizationAdmin($request);
 
         $validated = $request->validate([
-            'email' => ['required', 'string', 'email', 'max:'.FieldLengthLimits::EMAIL],
+            'email' => ['required', 'string', 'email', 'max:255'],
             'role' => ['required', 'string', Rule::in(MembershipRole::values())],
         ]);
 
@@ -68,22 +67,5 @@ class OrganizationInviteController extends ApiController
             'expires_at' => $invite->expires_at?->toIso8601String(),
             'resent' => $result['resent'],
         ], $result['resent'] ? 200 : 201);
-    }
-
-    public function destroy(Request $request, Organization $organization, OrganizationInvite $invite): JsonResponse
-    {
-        $this->assertOrganizationAdmin($request);
-
-        if ((int) $invite->organization_id !== (int) $organization->id) {
-            abort(404);
-        }
-
-        if ($invite->used_at !== null) {
-            return response()->json(['message' => 'Used invites cannot be revoked.'], 422);
-        }
-
-        $invite->delete();
-
-        return response()->json(null, 204);
     }
 }

@@ -48,9 +48,11 @@ export function useOrgRole (orgSlug: Ref<string> | ComputedRef<string> | string)
 
   const isOrgAdmin = computed(() => orgRole.value === 'admin')
 
-  watch(() => resolveSlug(), () => {
-    void refresh(true)
-  }, { immediate: true })
+  if (import.meta.client) {
+    watch(() => resolveSlug(), () => {
+      void refresh(true)
+    }, { immediate: true })
+  }
 
   return {
     isOrgAdmin,

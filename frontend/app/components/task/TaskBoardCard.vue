@@ -1,7 +1,16 @@
 <template>
   <article
     class="task-card"
-    :class="{ 'task-card--parent': task.is_parent_task }"
+    :class="{
+      'task-card--parent': task.is_parent_task,
+      'task-card--interactive': interactive,
+    }"
+    :role="interactive ? 'button' : undefined"
+    :tabindex="interactive ? 0 : undefined"
+    :aria-label="ariaLabel"
+    @click="onActivate"
+    @keydown.enter.prevent="onActivate"
+    @keydown.space.prevent="onActivate"
   >
     <div class="task-card-body">
       <TaskCardLabelList
@@ -35,6 +44,13 @@
           <Clock :size="12" :stroke-width="2.25" aria-hidden="true" />
           <span>{{ taskCardEffortText }}</span>
         </p>
+        <p
+          v-if="taskCardProgressRateText"
+          class="task-card-meta__row"
+        >
+          <ChartNoAxesColumnIncreasing :size="12" :stroke-width="2.25" aria-hidden="true" />
+          <span>{{ taskCardProgressRateText }}</span>
+        </p>
       </div>
       <div v-if="visibleAssignees.length" class="task-card-footer">
         <div class="task-card-members" aria-label="担当者">
@@ -51,12 +67,13 @@
   </article>
 </template>
 <script setup lang="ts">
-import { CalendarDays, Clock } from 'lucide-vue-next'
+import { CalendarDays, ChartNoAxesColumnIncreasing, Clock } from 'lucide-vue-next'
 import TaskCardLabelList from './TaskCardLabelList.vue'
 import { memberDisplayName } from '../../composables/useMemberDisplay'
 import {
   formatTaskCardDateRange,
   formatTaskCardEffort,
+  formatTaskCardProgressRate,
   hasTaskCardScheduleMeta,
   resolveParentTaskTitle,
   type TaskCardParentLookup,
@@ -74,25 +91,42 @@ export type TaskBoardCardTask = {
   start_date?: string | null
   due_date?: string | null
   effort_hours?: number | string | null
+  progress_rate?: number | string | null
   labels?: TaskBoardCardLabel[]
   assignees?: TaskBoardCardMember[]
   parent_task_id?: number | null
   parent_task_title?: string | null
   is_parent_task?: boolean
 }
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   task: TaskBoardCardTask
   parentTasks?: TaskCardParentLookup[]
+  interactive?: boolean
+  ariaLabel?: string
+}>(), {
+  parentTasks: () => [],
+  interactive: false,
+  ariaLabel: undefined,
+})
+const emit = defineEmits<{
+  select: []
 }>()
 const parentTaskTitle = computed(() => resolveParentTaskTitle(
   props.task,
-  props.parentTasks ?? [],
+  props.parentTasks,
 ))
 const taskCardDateRange = computed(() => formatTaskCardDateRange(
   props.task.start_date,
   props.task.due_date,
 ))
 const taskCardEffortText = computed(() => formatTaskCardEffort(props.task))
+const taskCardProgressRateText = computed(() => formatTaskCardProgressRate(props.task))
 const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3))
+function onActivate () {
+  if (!props.interactive) {
+    return
+  }
+  emit('select')
+}
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/task/TaskBoardCard.scss"></style>

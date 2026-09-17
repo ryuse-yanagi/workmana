@@ -71,6 +71,10 @@ class OrganizationContextService
 
     public function remember(User $user, Organization $organization): void
     {
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('users', 'last_organization_id')) {
+            return;
+        }
+
         if ((int) $user->last_organization_id === (int) $organization->id) {
             return;
         }

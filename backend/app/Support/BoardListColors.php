@@ -8,10 +8,18 @@ class BoardListColors
 
     public const DEFAULT_INDEX = 0;
 
-    /** @deprecated 既存マイグレーション互換用 */
-    public const DEFAULT = self::LEGACY_STANDARD_HEX[0];
+    /**
+     * @return list<string>
+     */
+    public static function legacyStandardHex(): array
+    {
+        /** @var list<string> $hex */
+        $hex = SharedJson::load('color-presets.json')['legacyStandardHex'];
 
-    /** @var list<string> マイグレーション用: color_index 導入前の標準リスト色 HEX */
+        return $hex;
+    }
+
+    /** @deprecated Use legacyStandardHex() */
     public const LEGACY_STANDARD_HEX = [
         '#4bce97',
         '#ffe600',
@@ -25,6 +33,9 @@ class BoardListColors
         '#8c8f97',
     ];
 
+    /** @deprecated 既存マイグレーション互換用 */
+    public const DEFAULT = self::LEGACY_STANDARD_HEX[0];
+
     public static function isValidIndex(int $index): bool
     {
         return $index >= 0 && $index < self::STANDARD_COUNT;
@@ -34,7 +45,7 @@ class BoardListColors
     {
         $normalized = strtolower(trim($hex));
 
-        foreach (self::LEGACY_STANDARD_HEX as $index => $legacy) {
+        foreach (self::legacyStandardHex() as $index => $legacy) {
             if (strtolower($legacy) === $normalized) {
                 return $index;
             }
@@ -46,5 +57,15 @@ class BoardListColors
     public static function defaultForIndex(int $index): int
     {
         return $index % self::STANDARD_COUNT;
+    }
+
+    public static function assertMatchesSharedJson(): void
+    {
+        if (self::legacyStandardHex() !== self::LEGACY_STANDARD_HEX) {
+            throw new \RuntimeException('BoardListColors::LEGACY_STANDARD_HEX does not match shared/color-presets.json');
+        }
+        if (count(self::legacyStandardHex()) !== self::STANDARD_COUNT) {
+            throw new \RuntimeException('BoardListColors::STANDARD_COUNT does not match shared legacyStandardHex length');
+        }
     }
 }

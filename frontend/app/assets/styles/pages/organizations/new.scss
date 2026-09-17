@@ -1,0 +1,39 @@
+.org-new-form {
+  gap: 16px;
+}
+
+.org-new-form__notes {
+  margin: 0;
+  padding: 12px 14px;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, mixin.main-a(0.06) 0%, rgba(14, 165, 160, 0.05) 100%);
+  border: 1px solid mixin.main-a(0.12);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: mixin.$text-sub;
+}
+
+.org-new-form__notes li {
+  position: relative;
+  padding-left: 18px;
+}
+
+.org-new-form__notes li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: mixin.$main;
+  box-shadow: 0 0 0 3px mixin.main-a(0.18);
+}
+
+.org-new-form__notes strong {
+  color: mixin.$text-emphasis;
+  font-weight: 700;
+}

@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Models\Task;
 use App\Observers\TaskObserver;
+use App\Support\BoardListColors;
+use App\Support\FieldLengthLimits;
+use App\Support\LabelColorPresets;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -26,11 +29,26 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->validateProductionSecurityConfiguration();
+        $this->assertSharedContractsInNonProduction();
         Task::observe(TaskObserver::class);
 
         RateLimiter::for('invites', function (Request $request) {
             return Limit::perMinute(20)->by($request->ip());
         });
+    }
+
+    /**
+     * FE/BE 共有 JSON と PHP 定数の食い違いを非 production で早期検出する。
+     */
+    private function assertSharedContractsInNonProduction(): void
+    {
+        if ($this->app->environment('production')) {
+            return;
+        }
+
+        FieldLengthLimits::assertMatchesSharedJson();
+        LabelColorPresets::assertMatchesSharedJson();
+        BoardListColors::assertMatchesSharedJson();
     }
 
     /**

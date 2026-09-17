@@ -5,14 +5,18 @@
       <span v-if="comments.length" class="chat-header-count">{{ comments.length }}</span>
     </header>
     <div
-      ref="chatMessagesRef"
       class="chat-messages"
       aria-live="polite"
       aria-relevant="additions"
     >
+      <div
+        ref="chatMessagesRef"
+        class="chat-messages__scroller"
+      >
+        <div class="chat-messages__body">
       <p v-if="commentsLoading" class="chat-state">読み込み中...</p>
       <p v-else-if="commentsLoadError" class="chat-state chat-state--error">{{ commentsLoadError }}</p>
-      <template v-else>
+      <template v-else-if="comments.length">
         <article
           v-for="comment in comments"
           :key="comment.id"
@@ -172,6 +176,9 @@
         </div>
       </article>
       </template>
+      <p v-else class="chat-state chat-state--empty">コメントはありません</p>
+        </div>
+      </div>
     </div>
     <footer class="chat-composer">
       <div class="mention-picker-host chat-composer__input-host">
@@ -271,7 +278,9 @@ import { syncAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import { useCurrentUser } from '../../composables/useCurrentUser'
 import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
 import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { memberDisplayName, type MemberLike } from '../../composables/useMemberDisplay'
+import { POPOVER_VIEWPORT_INSET } from '../../utils/popoverScrollbar'
+import { didPointerGestureStartInsideFloatingPopover } from '../../utils/uiInteraction'
+import { memberDisplayName, memberMatchesSearchQuery, type MemberLike } from '../../composables/useMemberDisplay'
 import type { TaskCommentReaction, TaskDetailComment } from './taskCommentTypes'
 type TaskComment = TaskDetailComment
 const props = defineProps<{
@@ -288,7 +297,6 @@ const emit = defineEmits<{
 const { api } = useApi()
 const { currentUserId, ensureCurrentUser } = useCurrentUser()
 const reactionChoices = ['👍', '😄', '🎉', '❤️', '👀', '🚀']
-const DELETE_MENU_VIEWPORT_PAD = 12
 const DELETE_MENU_ANCHOR_GAP = 4
 const DELETE_MENU_DEFAULT_WIDTH_PX = 208
 const comments = ref<TaskComment[]>([])
@@ -349,6 +357,7 @@ watch(
       commentsLoading.value = false
       void ensureCurrentUser()
       nextTick(() => scrollChatToBottom())
+      void refreshCommentsSilently()
       return
     }
     await Promise.all([ensureCurrentUser(), loadComments()])
@@ -387,7 +396,7 @@ function updateDeleteMenuPosition () {
       if (!anchor || !menu) {
         return
       }
-      const pad = DELETE_MENU_VIEWPORT_PAD
+      const pad = POPOVER_VIEWPORT_INSET
       const gap = DELETE_MENU_ANCHOR_GAP
       const anchorRect = anchor.getBoundingClientRect()
       const menuWidth = menu.offsetWidth || menu.getBoundingClientRect().width || DELETE_MENU_DEFAULT_WIDTH_PX
@@ -429,6 +438,9 @@ function unbindDeleteMenuListeners () {
   removeDeleteMenuListeners = null
 }
 function onDocumentClick (event: MouseEvent) {
+  if (didPointerGestureStartInsideFloatingPopover()) {
+    return
+  }
   const target = event.target as HTMLElement
   if (!target.closest('.comment-item__reaction-menu-host')) {
     openReactionMenuCommentId.value = null
@@ -558,15 +570,7 @@ function closeMentionMenu () {
   mentionQuery.value = ''
 }
 const filteredMentionCandidates = computed(() => {
-  const q = mentionQuery.value.trim().toLowerCase()
-  if (!q) {
-    return props.workspaceMembers
-  }
-  return props.workspaceMembers.filter((member) => {
-    const name = memberDisplayName(member).toLowerCase()
-    const email = (member.email || '').toLowerCase()
-    return name.includes(q) || email.includes(q)
-  })
+  return props.workspaceMembers.filter(member => memberMatchesSearchQuery(member, mentionQuery.value))
 })
 const showAllMentionOption = computed(() => {
   const q = mentionQuery.value.trim().toLowerCase()
@@ -836,7 +840,7 @@ function adjustCommentInputHeight () {
     return
   }
   el.style.height = 'auto'
-  el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  el.style.height = `${Math.min(Math.max(el.scrollHeight, 36), 120)}px`
 }
 async function loadComments () {
   if (props.taskId === null) {
@@ -855,6 +859,24 @@ async function loadComments () {
     comments.value = []
   } finally {
     commentsLoading.value = false
+  }
+}
+async function refreshCommentsSilently () {
+  if (props.taskId === null) {
+    return
+  }
+  try {
+    const res = await api<{ data: TaskComment[] }>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${props.taskId}/comments`,
+    )
+    if (props.taskId === null) {
+      return
+    }
+    comments.value = res.data ?? []
+    commentsLoadError.value = null
+    nextTick(() => scrollChatToBottom())
+  } catch {
+    // 初期表示を維持する
   }
 }
 async function sendComment () {

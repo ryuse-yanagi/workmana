@@ -1,0 +1,215 @@
+@use "tokens" as *;
+
+/** 1行省略（descender が切れない line-height 付き） */
+@mixin text-ellipsis-single-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: $text-line-height-safe;
+}
+
+/** ヘッダー内フォント。button 等が UA 既定（Arial 等）に落ちるのを防ぐ */
+@mixin header-font {
+  font-family: $font-family;
+
+  :where(button, input, select, textarea, a) {
+    font-family: inherit;
+  }
+}
+
+/** デフォルトアバターの頭文字 */
+@mixin avatar-initial-text($weight: 700) {
+  font-family: $font-family;
+  font-size: 50cqmin;
+  font-weight: $weight;
+  color: $text;
+  line-height: 1;
+}
+
+@mixin markdown-preview-content {
+  white-space: normal;
+  font-size: 14px;
+  line-height: 1.8;
+  color: $text;
+  word-break: break-word;
+  /* 斜体フォントが無い場合でも browser 合成で italic を表示する */
+  font-synthesis: style weight;
+
+  :deep(> :first-child) {
+    margin-top: 0;
+  }
+  :deep(> :last-child) {
+    margin-bottom: 0;
+  }
+  :deep(h1),
+  :deep(h2),
+  :deep(h3),
+  :deep(h4),
+  :deep(h5),
+  :deep(h6) {
+    margin: 1.2em 0 0.5em;
+    font-weight: 700;
+    line-height: 1.35;
+    color: $text;
+  }
+  :deep(h1) { font-size: 24px; }
+  :deep(h2) { font-size: 22px; }
+  :deep(h3) { font-size: 20px; }
+  :deep(h4) { font-size: 18px; }
+  :deep(h5) { font-size: 16px; }
+  :deep(h6) { font-size: 14px; }
+  :deep(p),
+  :deep(ul),
+  :deep(ol),
+  :deep(li),
+  :deep(blockquote),
+  :deep(td),
+  :deep(th),
+  :deep(a) {
+    font-size: 14px;
+  }
+  :deep(em),
+  :deep(i) {
+    font-style: italic;
+  }
+  :deep(strong),
+  :deep(b) {
+    font-weight: 700;
+  }
+  :deep(em strong),
+  :deep(strong em),
+  :deep(i b),
+  :deep(b i) {
+    font-style: italic;
+    font-weight: 700;
+  }
+  :deep(p) {
+    margin: 0 0 0.9em;
+  }
+  :deep(ul),
+  :deep(ol) {
+    margin: 0 0 0.9em;
+    padding-left: 1.5em;
+  }
+  :deep(li + li) {
+    margin-top: 0.25em;
+  }
+  :deep(ul.contains-task-list) {
+    list-style: none;
+    padding-left: 0;
+  }
+  :deep(li.task-list-item) {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    list-style: none;
+  }
+  :deep(li.task-list-item > p) {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+  }
+  :deep(input.task-list-item-checkbox) {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    margin: 0.35em 0 0;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1.5px solid $border-checkbox;
+    border-radius: 3px;
+    background: $white;
+    color: $white;
+    cursor: default;
+    pointer-events: none;
+    vertical-align: middle;
+  }
+  :deep(input.task-list-item-checkbox:checked) {
+    border-color: $main;
+    background-color: $main;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 12px 12px;
+  }
+  :deep(input.task-list-item-checkbox:disabled) {
+    opacity: 1;
+  }
+  :deep(blockquote) {
+    margin: 0 0 0.9em;
+    padding: 0.2em 0 0.2em 0.9em;
+    border-left: 3px solid $border;
+    color: $text-sub;
+  }
+  :deep(blockquote > :first-child) {
+    margin-top: 0;
+  }
+  :deep(blockquote > :last-child) {
+    margin-bottom: 0;
+  }
+  :deep(blockquote p) {
+    margin: 0;
+  }
+  :deep(pre) {
+    margin: 0 0 0.9em;
+    padding: 12px 14px;
+    overflow-x: auto;
+    border-radius: 8px;
+    background: $bg-muted;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  :deep(code) {
+    font-family: $font-family;
+    font-size: 14px;
+  }
+  :deep(:not(pre) > code) {
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    background: $bg-muted;
+  }
+  :deep(a) {
+    color: $main;
+    text-decoration: underline;
+  }
+  :deep(hr) {
+    margin: 1.4em 0;
+    border: none;
+    border-top: 1px solid $border;
+  }
+  :deep(table) {
+    width: 100%;
+    margin: 0 0 0.9em;
+    border-collapse: collapse;
+  }
+  :deep(th),
+  :deep(td) {
+    padding: 6px 10px;
+    border: 1px solid $border;
+  }
+  :deep(th[align='left']),
+  :deep(td[align='left']) {
+    text-align: left;
+  }
+  :deep(th[align='center']),
+  :deep(td[align='center']) {
+    text-align: center;
+  }
+  :deep(th[align='right']),
+  :deep(td[align='right']) {
+    text-align: right;
+  }
+  :deep(th:not([align])),
+  :deep(td:not([align])) {
+    text-align: left;
+  }
+  :deep(th) {
+    background: $bg-list-column;
+    font-weight: 700;
+  }
+}

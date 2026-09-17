@@ -10,7 +10,6 @@ use App\Support\LabelColorPresets;
 use App\Support\SortOrderReorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class WorkspaceLabelController extends ApiController
 {
@@ -48,14 +47,6 @@ class WorkspaceLabelController extends ApiController
         $name = trim($validated['name']);
         if ($name === '') {
             return response()->json(['message' => 'Workspace label name cannot be empty.'], 422);
-        }
-
-        $exists = WorkspaceLabel::query()
-            ->where('category_id', $category->id)
-            ->where('name', $name)
-            ->exists();
-        if ($exists) {
-            return response()->json(['message' => 'A label with this name already exists in the category.'], 422);
         }
 
         $colorIndex = (int) ($validated['color_index'] ?? LabelColorPresets::DEFAULT_INDEX);
@@ -97,14 +88,6 @@ class WorkspaceLabelController extends ApiController
             $name = trim($validated['name']);
             if ($name === '') {
                 return response()->json(['message' => 'Workspace label name cannot be empty.'], 422);
-            }
-            $exists = WorkspaceLabel::query()
-                ->where('category_id', $workspaceLabel->category_id)
-                ->where('name', $name)
-                ->where('id', '!=', $workspaceLabel->id)
-                ->exists();
-            if ($exists) {
-                return response()->json(['message' => 'A label with this name already exists in the category.'], 422);
             }
             $workspaceLabel->name = $name;
         }

@@ -8,81 +8,82 @@
     </template>
     <template v-else>
       <header class="page-header">
-        <div class="subheader">
-          <NuxtLink
-            :to="`/org/${slug}/workspaces`"
-            class="subheader-title subheader-back-link"
-          >
-            Workspaces
-          </NuxtLink>
-          <p
-            v-if="workspaceMetaName"
-            class="subheader-workspace-name"
-          >{{ workspaceMetaName }}</p>
-          <WorkspaceViewSwitcher :org-slug="slug" :workspace-id="workspaceId" />
-          <div class="subheader-filters">
+        <PageSubheader actions-root-attr>
+          <template #start>
+            <NuxtLink
+              :to="`/org/${slug}/workspaces`"
+              class="subheader-title subheader-back-link"
+              aria-label="スペース一覧に戻る"
+            >
+              スペース一覧
+            </NuxtLink>
             <p
-              v-if="pageReady"
-              class="subheader-count"
-              aria-live="polite"
-            >{{ visibleTaskCount }} 件</p>
-            <input
+              class="subheader-workspace-name"
+              :title="workspaceMetaName || undefined"
+            >{{ workspaceMetaName }}</p>
+            <WorkspaceViewSwitcher :org-slug="slug" :workspace-id="workspaceId" />
+          </template>
+          <template #filters>
+            <HeaderSearchField
               v-model.trim="searchQuery"
-              class="header-search"
-              type="search"
-              placeholder="タスク名を検索..."
-              aria-label="タスク名検索"
+              placeholder="タスクを検索..."
+              aria-label="タスク検索"
               :disabled="!pageReady"
             />
-          </div>
-          <div class="subheader-actions" data-subheader-actions-root>
+            <SubheaderCount
+              :count="visibleTaskCount"
+              :ready="pageReady"
+            />
+          </template>
+          <template #actions>
             <button
               type="button"
-              class="subheader-menu-btn"
-              :aria-expanded="sidebarOpen"
-              :aria-label="sidebarOpen ? 'サイドバーを閉じる' : 'サイドバーを開く'"
-              :disabled="!pageReady"
-              @click="toggleSidebar"
+              class="subheader-secondary-btn subheader-secondary-btn--add"
+              title="タスク追加（N）"
+              :disabled="!canAddTaskFromHeader"
+              @click="openTaskAddFromHeader"
             >
-              <PanelRightClose
-                v-if="sidebarOpen"
+              <FilePlus
                 :size="18"
                 :stroke-width="2.25"
                 aria-hidden="true"
               />
-              <PanelRightOpen
-                v-else
-                :size="18"
-                :stroke-width="2.25"
-                aria-hidden="true"
+              タスク追加
+            </button>
+            <div class="subheader-actions__menus">
+              <SidebarToggleButton
+                :open="sidebarOpen"
+                :disabled="!pageReady"
+                @toggle="toggleSidebar"
               />
-            </button>
-            <button
-              ref="boardFilterTriggerRef"
-              type="button"
-              class="subheader-menu-btn"
-              :aria-expanded="boardFilterOpen"
-              aria-haspopup="dialog"
-              aria-label="絞り込み"
-              :disabled="!pageReady"
-              @click.stop="toggleBoardFilter"
-            >
-              <ListFilter :size="18" :stroke-width="2.25" aria-hidden="true" />
-            </button>
-            <button
-              ref="subheaderMenuTriggerRef"
-              type="button"
-              class="subheader-menu-btn"
-              :aria-expanded="subheaderMenuOpen"
-              aria-haspopup="menu"
-              aria-label="メニュー"
-              :disabled="!pageReady"
-              @click.stop="toggleSubheaderMenu"
-            >
-              <Ellipsis :size="18" :stroke-width="2.25" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+              <FilterTriggerButton
+                :ref="setBoardFilterTriggerRef"
+                :active="hasActiveBoardFilters"
+                data-popover-trigger
+                :aria-expanded="boardFilterOpen"
+                aria-haspopup="dialog"
+                :aria-label="hasActiveBoardFilters ? '絞り込み（適用中）' : '絞り込み'"
+                title="フィルター（F）"
+                :disabled="!pageReady"
+                @click="toggleBoardFilter"
+              />
+              <button
+                ref="subheaderMenuTriggerRef"
+                type="button"
+                class="subheader-menu-btn"
+                data-popover-trigger
+                :aria-expanded="subheaderMenuOpen"
+                aria-haspopup="menu"
+                aria-label="その他"
+                title="その他（M）"
+                :disabled="!pageReady"
+                @click.stop="toggleSubheaderMenu"
+              >
+                <Ellipsis :size="18" :stroke-width="2.25" aria-hidden="true" />
+              </button>
+            </div>
+          </template>
+        </PageSubheader>
       </header>
       <div class="workspace-show-body">
         <div
@@ -92,52 +93,27 @@
           :inert="!sidebarOpen"
         >
           <WorkspaceDetailSidebar
+            ref="workspaceSidebarRef"
             :org-slug="slug"
             :workspace-id="workspaceId"
           />
         </div>
         <div class="page-shell-fade">
           <p v-if="error" class="err">{{ error }}</p>
-          <!-- 初回ロード中は枠組だけ先に出す -->
-          <section
+          <div
             v-if="!pageReady"
-            class="board board--skeleton"
-            aria-hidden="true"
+            class="board board--loading"
+            role="status"
+            aria-busy="true"
+            aria-label="読み込み中"
           >
-            <div class="board-columns">
-              <div class="board-lists-sortable">
-                <article
-                  v-for="(skeleton, skeletonIndex) in loadingSkeletonColumns"
-                  :key="`skeleton-col-${skeletonIndex}`"
-                  class="list-column list-column--skeleton"
-                >
-                  <header
-                    class="list-header list-header--skeleton"
-                    :style="{ backgroundColor: skeleton.headerColor }"
-                  >
-                    <div class="board-skeleton-bar board-skeleton-bar--list-title" />
-                  </header>
-                  <div class="list-drop-zone list-drop-zone--empty list-drop-zone--skeleton">
-                    <div
-                      v-for="cardIndex in skeleton.cardCount"
-                      :key="`skeleton-card-${skeletonIndex}-${cardIndex}`"
-                      class="task-card task-card--skeleton"
-                    >
-                      <div class="board-skeleton-bar board-skeleton-bar--card-title" />
-                      <div class="board-skeleton-bar board-skeleton-bar--card-meta" />
-                    </div>
-                  </div>
-                  <div class="composer composer--skeleton">
-                    <div class="board-skeleton-bar board-skeleton-bar--composer" />
-                  </div>
-                </article>
-              </div>
-            </div>
-          </section>
-          <section
+            <LoadingSpinner />
+          </div>
+            <section
             v-else
             class="board"
             :class="{
+              'board--fade-in': boardShouldFadeIn,
               'board-dragging': boardDragging,
               'board-drag-cross-list': boardDragCrossList,
               'board-dragging--tail-zone': boardDragPreviewMode === 'tail',
@@ -174,228 +150,54 @@
               @end="onListColumnDragEnd"
             >
               <template #item="{ element: list }">
-                <article
-                  :data-list-key="list.key"
-                  :class="[
-                    'list-column',
-                    {
-                      'list-column--empty': isListColumnEmpty(list.key),
-                      'list-column--drag-source':
-                        boardDragging
-                        && boardDragCrossList
-                        && boardDragStartListKey === list.key,
-                      'list-column--tail-target':
-                        boardDragging && boardDragPreviewListKey === list.key,
-                    },
-                  ]"
-                >
-              <header
-                class="list-header"
-                :class="{ 'list-header--editing': editingListKey === list.key }"
-                :style="{ backgroundColor: list.color }"
-              >
-                <div
-                  class="list-title-field"
-                  :class="{ 'list-title-field--editing': editingListKey === list.key }"
-                >
-                  <h2
-                    class="list-title-text list-title-clickable"
-                    :class="{ 'list-title-text--measure': editingListKey === list.key }"
-                    role="button"
-                    :tabindex="editingListKey === list.key ? -1 : 0"
-                    @click="onListTitleClick(list)"
-                    @keydown.enter.prevent="startListEdit(list)"
-                    @keydown.space.prevent="startListEdit(list)"
-                  >
-                    {{ editingListKey === list.key ? (listEditDrafts[list.key] ?? '') : list.title }}
-                  </h2>
-                  <textarea
-                    v-if="editingListKey === list.key"
-                    ref="listTitleInputEl"
-                    v-model="listEditDrafts[list.key]"
-                    :maxlength="LIST_NAME_MAX_LENGTH"
-                    class="list-title-input"
-                    :disabled="listRenamePending"
-                    @input="onListTitleInput"
-                    @blur="confirmListTitle(list)"
-                    @keydown.enter.prevent="confirmListTitle(list)"
-                    @keydown.escape.prevent="cancelListEdit"
-                  />
-                </div>
-                <div class="list-header-right no-list-drag">
-                  <span class="list-count">{{ visibleCount(list.key) }}</span>
-                  <div class="list-header-menu-host">
-                    <button
-                      type="button"
-                      class="list-header-menu-trigger"
-                      aria-label="リストメニュー"
-                      :aria-expanded="openListMenuKey === list.key"
-                      @click.stop="toggleListMenu(list.key, $event)"
-                    >
-                      <Ellipsis :size="18" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-              </header>
-              <draggable
-                :list="tasksByList[list.key]"
-                item-key="id"
-                :class="[
-                  'list-drop-zone',
-                  {
-                    'list-drop-zone--scrollable': scrollableDropZoneListKeys[list.key],
-                    'list-drop-zone--empty': isListColumnEmpty(list.key),
-                  },
-                ]"
-                group="board-cards"
-                draggable=".task-card"
-                ghost-class="drag-ghost"
-                chosen-class="drag-chosen"
-                drag-class="drag-active"
-                fallback-class="sortable-fallback"
-                filter=".no-drag, a, input, textarea, select, button, .card-menu-wrap"
-                :prevent-on-filter="true"
-                direction="vertical"
-                :force-fallback="true"
-                :fallback-on-body="true"
-                :fallback-tolerance="3"
-                :animation="150"
-                :easing="'cubic-bezier(0.25, 0.1, 0.25, 1)'"
-                :swap-threshold="0.65"
-                :empty-insert-threshold="80"
-                :move="onBoardDragMove"
-                @scroll.passive="onDropZoneScroll"
-                @choose="onBoardDragChoose"
-                @start="onBoardDragStart"
-                @end="onBoardDragEnd"
-              >
-                <template #item="{ element: task }">
-                  <article
-                    v-show="visibleTaskIdSet.has(task.id)"
-                    :data-task-id="task.id"
-                    :class="[
-                      'task-card',
-                      {
-                        'task-card--fade-in': isTaskJustCreated(task.id),
-                        'task-card--parent': task.is_parent_task,
-                      },
-                    ]"
-                    :role="editingTaskId === task.id ? undefined : 'button'"
-                    :tabindex="editingTaskId === task.id ? undefined : 0"
-                    @click="openTaskDetail(task)"
-                    @keydown.enter.prevent="openTaskDetail(task)"
-                    @keydown.space.prevent="openTaskDetail(task)"
-                    @contextmenu.prevent="onTaskCardContextMenu(task, $event)"
-                  >
-                    <template v-if="editingTaskId === task.id">
-                      <form class="card-edit-form" novalidate @submit.prevent="saveTaskTitle(task)" @click.stop>
-                        <textarea
-                          ref="cardTitleTextareaEl"
-                          v-model="taskTitleDraft"
-                          :maxlength="TASK_TITLE_MAX_LENGTH"
-                          class="card-title-input"
-                          rows="1"
-                          :disabled="taskRenamePending"
-                          @input="onCardTitleInput"
-                          @keydown.escape.prevent="cancelTaskEdit"
-                          @keydown.enter.prevent="saveTaskTitle(task)"
-                        />
-                        <div class="edit-actions">
-                          <button type="submit" class="ghost-btn small" :disabled="taskRenamePending || !taskTitleDraft">
-                            {{ taskRenamePending ? '保存中...' : '保存' }}
-                          </button>
-                          <button type="button" class="ghost-btn small" :disabled="taskRenamePending" @click="cancelTaskEdit">
-                            キャンセル
-                          </button>
-                        </div>
-                      </form>
-                    </template>
-                    <template v-else>
-                      <div
-                        class="card-menu-wrap no-drag"
-                        :class="{ 'card-menu-wrap--open': openCardMenuTaskId === task.id }"
-                        @click.stop
-                        @pointerdown.stop
-                        @mousedown.stop
-                      >
-                        <button
-                          type="button"
-                          class="card-menu-trigger"
-                          :aria-expanded="openCardMenuTaskId === task.id"
-                          aria-label="カードのメニュー"
-                          @click="toggleCardMenu(task.id, $event)"
-                        >
-                          <Pencil :size="18" :stroke-width="2.25" aria-hidden="true" />
-                        </button>
-                      </div>
-                      <div class="task-card-body">
-                        <TaskCardLabelList
-                          v-if="task.labels?.length"
-                          :labels="task.labels"
-                        />
-                        <p
-                          v-if="parentTaskTitle(task)"
-                          class="task-parent-title"
-                        >
-                          {{ parentTaskTitle(task) }}
-                        </p>
-                        <p class="task-title-row">
-                          <span class="task-title">{{ task.title }}</span>
-                        </p>
-                        <div
-                          v-if="hasTaskCardScheduleMeta(task)"
-                          class="task-card-meta"
-                        >
-                          <p
-                            v-if="taskCardDateRange(task)"
-                            class="task-card-meta__row"
-                          >
-                            <CalendarDays :size="12" :stroke-width="2.25" aria-hidden="true" />
-                            <span>{{ taskCardDateRange(task) }}</span>
-                          </p>
-                          <p
-                            v-if="taskCardEffortText(task)"
-                            class="task-card-meta__row"
-                          >
-                            <Clock :size="12" :stroke-width="2.25" aria-hidden="true" />
-                            <span>{{ taskCardEffortText(task) }}</span>
-                          </p>
-                        </div>
-                        <div v-if="cardAssignees(task).length" class="task-card-footer">
-                          <div class="task-card-members" aria-label="担当者">
-                          <MemberAvatar
-                            v-for="member in cardAssignees(task)"
-                            :key="member.id"
-                            :member="member"
-                            size="xs"
-                            :title="memberDisplayName(member)"
-                          />
-                          </div>
-                        </div>
-                      </div>
-                    </template>
-                  </article>
-                </template>
-                <template #footer>
-                  <div
-                    v-if="boardDragging && boardDragPreviewMode === 'tail' && boardDragPreviewListKey === list.key"
-                    class="drag-ghost drag-ghost--tail-preview no-drag"
-                    aria-hidden="true"
-                  />
-                </template>
-              </draggable>
-              <div class="composer">
-                <button
-                  type="button"
-                  class="primary-btn"
-                  @mousedown.prevent
-                  @click="openTaskCreateModal(list.listId)"
-                >
-                  <FilePlus :size="20" :stroke-width="2.25" aria-hidden="true" />
-                  タスク追加
-                </button>
-              </div>
-                </article>
+                <BoardListColumn
+                  :list="list"
+                  :tasks="tasksByList[list.key]"
+                  :fade-in="isListJustCreated(list.key)"
+                  :empty="isListColumnEmpty(list.key)"
+                  :drag-source="
+                    boardDragging
+                    && boardDragCrossList
+                    && boardDragStartListKey === list.key
+                  "
+                  :tail-target="boardDragging && boardDragPreviewListKey === list.key"
+                  :is-editing-title="editingListKey === list.key"
+                  :title-draft="listEditDrafts[list.key] ?? ''"
+                  :list-rename-pending="listRenamePending"
+                  :list-menu-open="openListMenuKey === list.key"
+                  :visible-count="visibleCount(list.key)"
+                  :scrollable-drop-zone="Boolean(scrollableDropZoneListKeys[list.key])"
+                  :show-tail-preview="
+                    boardDragging
+                    && boardDragPreviewMode === 'tail'
+                    && boardDragPreviewListKey === list.key
+                  "
+                  :editing-task-id="editingTaskId"
+                  :task-title-draft="taskTitleDraft"
+                  :task-rename-pending="taskRenamePending"
+                  :open-card-menu-task-id="openCardMenuTaskId"
+                  :parent-tasks="tasks ?? []"
+                  :is-task-visible="(taskId) => visibleTaskIdSet.has(taskId)"
+                  :is-task-just-created="isTaskJustCreated"
+                  :on-board-drag-move="onBoardDragMove"
+                  :on-board-drag-choose="onBoardDragChoose"
+                  :on-board-drag-start="onBoardDragStart"
+                  :on-board-drag-end="onBoardDragEnd"
+                  @update:title-draft="(value) => { listEditDrafts[list.key] = value }"
+                  @update:task-title-draft="(value) => { taskTitleDraft = value }"
+                  @title-click="onListTitleClick(list)"
+                  @title-edit-start="startListEdit(list)"
+                  @title-confirm="confirmListTitle(list)"
+                  @title-cancel="cancelListEdit"
+                  @toggle-menu="toggleListMenu(list.key, $event)"
+                  @drop-zone-scroll="onDropZoneScroll"
+                  @open-task="openTaskDetail"
+                  @task-contextmenu="onTaskCardContextMenu"
+                  @save-task-title="saveTaskTitle"
+                  @cancel-task-edit="cancelTaskEdit"
+                  @toggle-card-menu="toggleCardMenu"
+                  @add-task="openTaskAddModal"
+                />
               </template>
             </draggable>
             </div>
@@ -410,6 +212,15 @@
           :workspace-id="workspaceId"
           :can-manage-archive="isOrgAdmin"
           @restored="onArchivedTaskRestored"
+        />
+        <ArchivedNamedItemsModal
+          v-model="archivedDocumentsOpen"
+          :org-slug="slug"
+          resource="documents"
+          item-kind="資料"
+          :workspace-id="workspaceId"
+          :can-manage-archive="isOrgAdmin"
+          @restored="onArchivedDocumentRestored"
         />
         <ConfirmModal
           v-model="archiveConfirmTaskOpen"
@@ -428,34 +239,37 @@
           :loading="workspaceArchivePending"
           @confirm="confirmWorkspaceArchive"
         />
-        <ListCreateModal
-          ref="listCreateModalRef"
-          v-model="listCreateOpen"
+        <ListFormModal
+          ref="listFormModalRef"
+          v-model="listFormOpen"
           :mode="listModalMode"
           :initial-values="listModalInitialValues"
-          :loading="listCreateLoading"
-          @submit="onListCreateSubmit"
+          :loading="listFormLoading"
+          @submit="onListFormSubmit"
         />
-        <ListDeleteModal
+        <NamedItemDeleteModal
           ref="listDeleteModalRef"
           v-model="listDeleteOpen"
-          :list-name="listDeleteTarget?.title ?? ''"
+          title="リストの削除"
+          item-kind="リスト"
+          :item-name="listDeleteTarget?.title ?? ''"
           :loading="listDeleteLoading"
           @confirm="confirmListDelete"
         />
-        <TaskCreateModal
-          v-model="taskCreateOpen"
+        <TaskAddModal
+          v-model="taskAddOpen"
           :org-slug="slug"
           :workspace-id="workspaceId"
-          :list-id="taskCreateListId"
+          :list-id="taskAddListId"
+          :initial-parent-task-id="taskAddParentTaskId"
+          :initial-parent-defaults="taskAddParentDefaults"
           :org-labels="orgLabels"
           :label-categories="orgLabelCategories"
           :workspace-members="workspaceMembers"
           :workspace-lists="detailWorkspaceLists"
-          @created="onTaskCreatedFromModal"
+          @added="onTaskAddedFromModal"
         />
         <TaskDetailModal
-          v-if="detailTaskId !== null"
           v-model="taskDetailOpen"
           :org-slug="slug"
           :workspace-id="workspaceId"
@@ -467,121 +281,46 @@
           :initial-task-detail="detailInitialTask"
           :initial-parent-tasks="boardParentTasks"
           :hierarchy-tasks="detailHierarchyTasks"
-          :initial-comments="detailInitialComments"
           :initial-attachments="detailInitialAttachments"
           :remote-update="detailModalRemotePatch"
           :remote-update-rev="detailModalRemoteRev"
           @updated="onTaskDetailUpdated"
-          @comments-updated="onTaskCommentsUpdated"
           @attachments-updated="onTaskAttachmentsUpdated"
           @navigate="onTaskDetailNavigate"
+          @missing="onTaskDetailMissing"
+          @add-child-task="onAddChildTaskFromDetail"
         />
-        <div
-          v-if="undoToastTask"
-          class="undo-toast"
-          role="status"
-        >
-          <span class="undo-toast-message">「{{ undoToastTask.title }}」をアーカイブしました</span>
-          <button type="button" class="undo-toast-close" aria-label="通知を閉じる" @click="clearUndoTimer">✕</button>
-        </div>
       </template>
     </template>
     <Teleport to="body">
-      <div
-        v-if="boardFilterOpen && boardFilterPosition"
-        ref="boardFilterDropdownRef"
-        class="board-filter-dropdown"
-        role="dialog"
-        aria-label="絞り込み"
-        :style="boardFilterStyle"
-        @click.stop
-      >
-        <section class="board-filter-section">
-          <h3 class="board-filter-section-title">担当者</h3>
-          <ul class="board-filter-options">
-            <li>
-              <label class="board-filter-option">
-                <input
-                  type="checkbox"
-                  :checked="isAssigneeFilterSelected('unset')"
-                  @change="setAssigneeFilter('unset', $event)"
-                >
-                <span>未設定</span>
-              </label>
-            </li>
-            <li v-for="member in workspaceMembers" :key="member.id">
-              <label class="board-filter-option">
-                <input
-                  type="checkbox"
-                  :checked="isAssigneeFilterSelected(String(member.id))"
-                  @change="setAssigneeFilter(String(member.id), $event)"
-                >
-                <MemberAvatar
-                  :member="member"
-                  size="xs"
-                  class="board-filter-option-avatar"
-                />
-                <span>{{ memberDisplayName(member) }}</span>
-              </label>
-            </li>
-          </ul>
-        </section>
-        <section class="board-filter-section">
-          <h3 class="board-filter-section-title">ラベル</h3>
-          <ul class="board-filter-options">
-            <li>
-              <label class="board-filter-option">
-                <input
-                  type="checkbox"
-                  :checked="isLabelFilterSelected('unset')"
-                  @change="toggleLabelFilter('unset')"
-                >
-                <span>未設定</span>
-              </label>
-            </li>
-          </ul>
-          <div
-            v-for="category in labelFilterCategories"
-            :key="category.id"
-            class="board-filter-label-group"
-          >
-            <p class="board-filter-category-title">{{ category.name }}</p>
-            <ul class="board-filter-options">
-              <li v-for="label in category.labels" :key="label.id">
-                <label class="board-filter-option">
-                  <input
-                    type="checkbox"
-                    :checked="isLabelFilterSelected(String(label.id))"
-                    @change="toggleLabelFilter(String(label.id))"
-                  >
-                  <span
-                    class="board-filter-label-bar"
-                    :style="{
-                      backgroundColor: label.color,
-                      color: labelBarTextColor(label.color),
-                    }"
-                  >{{ label.name }}</span>
-                </label>
-              </li>
-            </ul>
-          </div>
-        </section>
-        <section class="board-filter-section">
-          <h3 class="board-filter-section-title">日程</h3>
-          <ul class="board-filter-options">
-            <li v-for="option in scheduleFilterOptions" :key="option.key">
-              <label class="board-filter-option">
-                <input
-                  type="checkbox"
-                  :checked="isScheduleFilterSelected(option.key)"
-                  @change="toggleScheduleFilter(option.key)"
-                >
-                <span>{{ option.label }}</span>
-              </label>
-            </li>
-          </ul>
-        </section>
-      </div>
+      <Transition name="popover-fade" @after-leave="onBoardFilterAfterLeave">
+        <BoardFilterPopover
+          v-if="boardFilterOpen"
+          ref="boardFilterDropdownRef"
+          :style="boardFilterStyle"
+          :show-clear="hasActiveBoardFilters"
+          @clear="clearBoardFilters"
+          @close="closeBoardFilter"
+        >
+          <BoardFilterPopoverBody
+            :sections-open="filterSectionsOpen"
+            @update:sections-open="(v) => Object.assign(filterSectionsOpen, v)"
+            v-model:assignee-search="assigneeFilterSearchQuery"
+            v-model:label-search="labelFilterSearchQuery"
+            :members="filteredAssigneeFilterMembers"
+            :label-categories="labelFilterCategories"
+            :is-assignee-selected="isAssigneeFilterSelected"
+            :is-label-selected="isLabelFilterSelected"
+            tertiary="schedule"
+            :schedule-options="scheduleFilterOptions"
+            :is-schedule-selected="isScheduleFilterSelected"
+            @assignee-change="setAssigneeFilter"
+            @label-toggle="toggleLabelFilter"
+            @schedule-toggle="toggleScheduleFilter"
+            @section-toggle="onFilterSectionToggle"
+          />
+        </BoardFilterPopover>
+      </Transition>
       <FloatingMenu
         :open="Boolean(subheaderMenuOpen && subheaderMenuPosition)"
         density="compact"
@@ -594,39 +333,76 @@
       />
       <FloatingMenu
         :open="Boolean(openMenuTask && cardMenuPosition)"
+        :instance-key="openCardMenuTaskId ?? 'card-menu'"
         density="compact"
         :style="cardMenuStyle"
         :items="cardMenuItems"
         @select="onCardMenuSelect"
         @close="closeCardMenu"
+        @after-leave="onCardMenuAfterLeave"
       />
       <FloatingMenu
         :open="Boolean(openListMenuList && listMenuPosition)"
+        :instance-key="openListMenuKey ?? 'list-menu'"
         density="compact"
         :style="listMenuStyle"
         :disabled="pending"
         :items="listMenuItems"
         @select="onListMenuSelect"
         @close="closeListMenu"
+        @after-leave="onListMenuAfterLeave"
+      />
+      <WorkspaceFormModal
+        ref="workspaceDetailsModalRef"
+        v-model="workspaceDetailsModalOpen"
+        mode="details"
+        title="スペース詳細"
+        :initial-values="workspaceDetailsInitialValues"
+        :org-slug="slug"
+        :labels="workspaceDetailsLabels"
+        :label-categories="workspaceDetailsLabelCategories"
+        :org-members="workspaceDetailsOrgMembers"
+        :statuses="workspaceDetailsStatuses"
+        :loading="workspaceDetailsPending"
+        @submit="onWorkspaceDetailsSubmit"
       />
     </Teleport>
   </div>
 </template>
 <script setup lang="ts">
-import { CalendarDays, Clock, Ellipsis, FilePlus, ListFilter, PanelRightClose, PanelRightOpen, Pencil } from 'lucide-vue-next'
+import { Ellipsis, FilePlus } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
-import ArchivedTasksModal from '../modals/ArchivedTasksModal.vue'
-import ListCreateModal from '../modals/ListCreateModal.vue'
-import ListDeleteModal from '../modals/ListDeleteModal.vue'
+import PageSubheader from '../ui/PageSubheader.vue'
+import HeaderSearchField from '../ui/HeaderSearchField.vue'
+import SubheaderCount from '../ui/SubheaderCount.vue'
+import SidebarToggleButton from '../ui/SidebarToggleButton.vue'
+import FilterTriggerButton from '../ui/FilterTriggerButton.vue'
+import BoardFilterPopover from '../ui/BoardFilterPopover.vue'
+import BoardFilterPopoverBody from '../ui/BoardFilterPopoverBody.vue'
+import LoadingSpinner from '../ui/LoadingSpinner.vue'
+import ArchivedTasksModal, { type ArchivedTask } from '../modals/ArchivedTasksModal.vue'
+import ArchivedNamedItemsModal, { type ArchivedNamedItem } from '../modals/ArchivedNamedItemsModal.vue'
+import ListFormModal from '../modals/ListFormModal.vue'
+import NamedItemDeleteModal from '../modals/NamedItemDeleteModal.vue'
+import WorkspaceFormModal from '../modals/WorkspaceFormModal.vue'
+import ConfirmModal from '../modals/ConfirmModal.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../ui/FloatingMenu.vue'
-import { popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
+import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
+import { useWorkspaceTaskFilters } from '../../composables/useWorkspaceTaskFilters'
+import { useAnchoredFilterPopover } from '../../composables/useAnchoredFilterPopover'
+import { useFloatingMenuState } from '../../composables/useFloatingMenuState'
+import { useTransientIdFlash } from '../../composables/useTransientIdFlash'
+import { useStickyHeaderOffsets } from '../../composables/useWorkspaceViewPageRoot'
+import {
+  isViewShortcutModifierBlocked,
+} from '../../composables/useViewKeyboardShortcuts'
 import WorkspaceViewSwitcher from './WorkspaceViewSwitcher.vue'
 import WorkspaceDetailSidebar from './WorkspaceDetailSidebar.vue'
+import BoardListColumn from './BoardListColumn.vue'
 import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../modals/TaskDetailModal.vue'
 import type { WorkspaceListOption } from '../../composables/useTaskPopoverEditor'
 import type { TaskChecklist } from '../task/TaskDetailChecklistBlock.vue'
 import type { TaskAttachmentsByTaskId, TaskAttachmentItem } from '../task/taskAttachmentTypes'
-import type { TaskCommentsByTaskId, TaskDetailComment } from '../task/taskCommentTypes'
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../composables/raceWithTimeout'
 import { syncAppLoadingCursor, withAppLoadingCursor } from '../../composables/useAppLoadingCursor'
 import { useApi } from '../../composables/useApi'
@@ -639,31 +415,39 @@ import {
   type WorkspaceBoardTask,
 } from '../../composables/useWorkspaceBoardPageData'
 import { enrichTaskDetailHierarchy } from '../../composables/useTaskHierarchy'
-import { LIST_NAME_MAX_LENGTH, TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
-import { memberDisplayName } from '../../composables/useMemberDisplay'
+import { sortMembersByDisplayName } from '../../composables/useMemberDisplay'
+import { resolveAndSortLabels } from '../../composables/useLabelCategories'
+import { type TaskFormDefaultsSource } from '../../composables/useTaskFormHelpers'
 import {
-  applyUserProfileToCommentsByTaskId,
-  applyUserProfileToMembers,
   applyUserProfileToTasks,
   useOnUserProfileUpdated,
 } from '../../composables/userProfileUpdated'
-import { labelBarTextColor } from '../../composables/useTaskFormHelpers'
-import { COLOR_PRESETS } from '../../constants/colorPresets'
+import {
+  removeMembersFromTaskAssignees,
+  useOnWorkspaceMembersUpdated,
+  workspaceMembersUpdateMatchesView,
+  dispatchWorkspaceMembersUpdated,
+} from '../../composables/workspaceMembersUpdated'
 import { useUiSidebarPreference } from '../../composables/useUiSidebarPreference'
 import {
-  formatTaskCardDateRange,
-  formatTaskCardEffort,
-  hasTaskCardScheduleMeta,
+  createEmptyWorkspaceTaskFilters,
+  type WorkspaceTaskFilters,
+} from '../../utils/workspaceTaskFilters'
+import {
   resolveParentTaskTitle,
 } from '../../composables/useTaskCardMeta'
-import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
-import { useExclusivePopover } from '../../composables/useExclusivePopover'
 import { useOrgRole } from '../../composables/useOrgRole'
 import { useWorkspaceRealtimeChannel } from '../../composables/useWorkspaceRealtimeChannel'
-import { useWorkspaceDetailMeta, invalidateWorkspaceDetailMeta } from '../../composables/useWorkspaceDetailMeta'
-import { useOrgWorkspaceIndexPageData } from '../../composables/useOrgWorkspaceIndexPageData'
-import { resolveLabelColors, withResolvedListColor } from '../../utils/colorPresetResolution'
+import { useWorkspaceDetailMeta, restoreDocumentToWorkspaceDetailCache } from '../../composables/useWorkspaceDetailMeta'
+import { useWorkspaceTaskMemberCandidates } from '../../composables/useWorkspaceTaskMemberCandidates'
+import { useWorkspaceMutations } from '../../composables/useWorkspaceMutations'
+import { useOrgWorkspaceIndexPageData, useOrgWorkspaceIndexCacheRevision } from '../../composables/useOrgWorkspaceIndexPageData'
+import { useWorkspaceWbsPageData } from '../../composables/useWorkspaceWbsPageData'
+import { withResolvedListColor, resolveStandardColors } from '../../utils/colorPresetResolution'
+import { isAccessDeniedMessage } from '../../utils/resourceAccessError'
+import { DEFAULT_WORKSPACE_STATUS_ITEMS } from '../../components/settings/types'
 import { buildDestructiveConfirmMessage } from '../../utils/destructiveConfirmMessage'
+import { toWorkspaceFormInitialValues } from '../../utils/workspaceFormInitialValues'
 import {
   getTopmostModalOverlay,
   isKeyboardShortcutBlockedTarget,
@@ -675,6 +459,7 @@ const { isOrgAdmin } = useOrgRole(slug)
 const workspaceId = computed(() => route.params.id as string)
 const { workspace: workspaceMeta } = useWorkspaceDetailMeta(slug, workspaceId)
 const workspaceMetaName = computed(() => workspaceMeta.value?.name ?? '')
+const workspaceSidebarRef = ref<InstanceType<typeof WorkspaceDetailSidebar> | null>(null)
 const { api } = useApi()
 const {
   fetchSnapshot: fetchBoardSnapshot,
@@ -684,9 +469,25 @@ const {
   clearCachedStale: clearBoardCacheStale,
   replaceCachedBoardState,
 } = useWorkspaceBoardPageData()
-const { invalidateCached: invalidateOrgWorkspaceIndexCached } = useOrgWorkspaceIndexPageData()
+const { touchCachedWorkspaceUpdatedAt, getCached: getOrgWorkspaceIndexCached, fetchSnapshot: fetchOrgWorkspaceIndexSnapshot } = useOrgWorkspaceIndexPageData()
+const orgWorkspaceIndexRevision = useOrgWorkspaceIndexCacheRevision()
+const workspaceMutations = useWorkspaceMutations(slug)
+const workspaceDetailsModalOpen = ref(false)
+const workspaceDetailsModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const workspaceDetailsPending = ref(false)
+const workspaceIndexSnapshot = computed(() => {
+  void orgWorkspaceIndexRevision.value
+  return getOrgWorkspaceIndexCached(slug.value)
+})
+const workspaceDetailsLabels = computed(() => workspaceIndexSnapshot.value?.orgLabels ?? [])
+const workspaceDetailsLabelCategories = computed(() => workspaceIndexSnapshot.value?.orgLabelCategories ?? [])
+const workspaceDetailsOrgMembers = computed(() => workspaceIndexSnapshot.value?.orgMembers ?? [])
+const workspaceDetailsStatuses = computed(() => (
+  workspaceIndexSnapshot.value?.workspaceStatuses
+  ?? resolveStandardColors(DEFAULT_WORKSPACE_STATUS_ITEMS)
+))
+const workspaceDetailsInitialValues = computed(() => toWorkspaceFormInitialValues(workspaceMeta.value))
 type Label = WorkspaceBoardLabel
-type TaskAssignee = { id: number; name: string | null; email: string | null; avatar_url: string | null }
 type Task = WorkspaceBoardTask
 type ListDef = {
   key: string
@@ -700,53 +501,115 @@ const tasksByList = reactive<Record<string, Task[]>>({})
 const error = ref<string | null>(null)
 const pending = ref(false)
 const pageReady = ref(false)
+const boardShouldFadeIn = ref(false)
 const fatalLoadError = ref<string | null>(null)
-const searchQuery = ref('')
-const subheaderMenuOpen = ref(false)
-const boardFilterOpen = ref(false)
+let boardInitialRevealDone = false
+let boardFadeInTimer: ReturnType<typeof setTimeout> | null = null
+const searchQuery = defineModel<string>('searchQuery', { default: '' })
 const { sidebarOpen, toggleSidebar, hydrateSidebarPreference } = useUiSidebarPreference('workspace')
 const archivedModalOpen = ref(false)
+const archivedDocumentsOpen = ref(false)
 const archivedModalRef = ref<InstanceType<typeof ArchivedTasksModal> | null>(null)
 const subheaderMenuTriggerRef = ref<HTMLElement | null>(null)
 const boardFilterTriggerRef = ref<HTMLElement | null>(null)
-const boardFilterDropdownRef = ref<HTMLElement | null>(null)
-const subheaderMenuPosition = ref<{ top: number; left: number } | null>(null)
-const boardFilterPosition = ref<{ top: number; left: number; scrollbarGutter: number } | null>(null)
+function setBoardFilterTriggerRef (comp: { el?: HTMLElement | null } | null) {
+  boardFilterTriggerRef.value = comp?.el ?? null
+}
+const boardFilterDropdownRef = ref<InstanceType<typeof BoardFilterPopover> | null>(null)
 const SUBHEADER_MENU_MIN_WIDTH = 200
-const BOARD_FILTER_WIDTH = 384
-const BOARD_FILTER_BOTTOM_OFFSET = 12
-type ScheduleFilterKey = 'unset' | 'before_start' | 'in_progress' | 'after_end'
-const scheduleFilterOptions: Array<{ key: ScheduleFilterKey; label: string }> = [
-  { key: 'unset', label: '未設定' },
-  { key: 'before_start', label: '開始予定前' },
-  { key: 'in_progress', label: '進行中' },
-  { key: 'after_end', label: '終了予定後' },
-]
-const assigneeFilterSelected = ref<string[]>([])
-const labelFilterSelected = ref(new Set<string>())
-const scheduleFilterSelected = ref(new Set<ScheduleFilterKey>())
-const listCreateOpen = ref(false)
-const listCreateLoading = ref(false)
-const listModalMode = ref<'create' | 'edit'>('create')
+const taskFilters = defineModel<WorkspaceTaskFilters>('taskFilters', {
+  default: () => createEmptyWorkspaceTaskFilters(),
+})
+const listFormOpen = ref(false)
+const listFormLoading = ref(false)
+const listModalMode = ref<'add' | 'edit'>('add')
 const listEditTarget = ref<ListDef | null>(null)
-const listCreateModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
+const listFormModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const listDeleteOpen = ref(false)
 const listDeleteLoading = ref(false)
 const listDeleteTarget = ref<ListDef | null>(null)
 const listDeleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
-const openListMenuKey = ref<string | null>(null)
-const listMenuPosition = ref<{ top: number; left: number } | null>(null)
 const LIST_HEADER_MENU_MIN_WIDTH = 168
-const taskCreateOpen = ref(false)
-const taskCreateListId = ref<number | null>(null)
-const cardTitleTextareaEl = ref<HTMLTextAreaElement | null>(null)
-const listTitleInputEl = ref<HTMLTextAreaElement | null>(null)
+const listMenu = useFloatingMenuState<string>({
+  menuMinWidth: LIST_HEADER_MENU_MIN_WIDTH,
+  getMenuItemCount: () => listMenuItems.value.length,
+})
+const openListMenuKey = listMenu.openId
+const listMenuPosition = listMenu.position
+const pendingListMenuOpen = listMenu.pendingOpen
+const taskAddOpen = ref(false)
+const taskAddListId = ref<number | null>(null)
+const taskAddParentTaskId = ref<number | null>(null)
+const taskAddParentDefaults = ref<TaskFormDefaultsSource | null>(null)
+/** 詳細→追加のフェードアウト時間（TaskDetailModal.scss の leave と揃える） */
+const MODAL_FADE_OUT_MS = 120
+const addChildTaskTransitionPending = ref(false)
 const lists = ref<ListDef[]>([])
 const orgLabels = ref<Label[]>([])
 const orgLabelCategories = ref<WorkspaceBoardLabelCategory[]>([])
-const workspaceMembers = ref<TaskDetailMember[]>([])
+const workspaceMembersSnapshot = ref<TaskDetailMember[]>([])
+const { workspaceMembers } = useWorkspaceTaskMemberCandidates(
+  slug,
+  workspaceId,
+  workspaceMembersSnapshot,
+)
+const {
+  assigneeFilterSelected,
+  labelFilterSelected,
+  scheduleFilterSelected,
+  scheduleFilterOptions,
+  assigneeFilterSearchQuery,
+  labelFilterSearchQuery,
+  filterSectionsOpen,
+  hasActiveFilters: hasActiveBoardFilters,
+  filteredAssigneeFilterMembers,
+  labelFilterCategories,
+  isAssigneeFilterSelected,
+  setAssigneeFilter,
+  isLabelFilterSelected,
+  toggleLabelFilter,
+  isScheduleFilterSelected,
+  toggleScheduleFilter,
+  clearFilters: clearBoardFilters,
+  clearFilterSearchQueries,
+  matchesFilters,
+} = useWorkspaceTaskFilters(taskFilters, {
+  members: workspaceMembers,
+  labelCategories: orgLabelCategories,
+})
+const subheaderMenu = useFloatingMenuState<'subheader'>({
+  menuMinWidth: SUBHEADER_MENU_MIN_WIDTH,
+  getMenuItemCount: () => subheaderMenuItems.value.length,
+  placement: 'below-end',
+})
+const subheaderMenuOpen = computed({
+  get: () => subheaderMenu.openId.value !== null,
+  set: (open: boolean) => {
+    if (!open) {
+      subheaderMenu.close()
+    }
+  },
+})
+const subheaderMenuPosition = subheaderMenu.position
+const {
+  open: boardFilterOpen,
+  style: boardFilterStyle,
+  close: closeBoardFilter,
+  openPopover: openBoardFilterBase,
+  onAfterLeave: onBoardFilterAfterLeave,
+  onSectionToggle: onFilterSectionToggle,
+  isTriggerAvailable: isBoardFilterTriggerAvailable,
+} = useAnchoredFilterPopover({
+  triggerRef: boardFilterTriggerRef,
+  dropdownRef: boardFilterDropdownRef,
+  useEscapeClose: false,
+  onClose: clearFilterSearchQueries,
+  onBeforeOpen: () => {
+    subheaderMenu.close()
+  },
+  repositionSources: [assigneeFilterSearchQuery, labelFilterSearchQuery],
+})
 const boardParentTasks = ref<Array<{ id: number; title: string }>>([])
-const taskCommentsByTaskId = ref<TaskCommentsByTaskId>({})
 const taskAttachmentsByTaskId = ref<TaskAttachmentsByTaskId>({})
 const editingListKey = ref<string | null>(null)
 const listEditDrafts = reactive<Record<string, string>>({})
@@ -779,7 +642,10 @@ const boardMutationPending = computed(() => (
   || taskRenamePending.value
 ))
 syncAppLoadingCursor(boardMutationPending)
-const justCreatedTaskIds = reactive<Record<number, true>>({})
+const justCreatedTasks = useTransientIdFlash<number>()
+const justCreatedLists = useTransientIdFlash<string>()
+const justCreatedTaskIds = justCreatedTasks.ids
+const justCreatedListKeys = justCreatedLists.ids
 const boardDragging = ref(false)
 const scrollableDropZoneListKeys = reactive<Record<string, boolean>>({})
 let boardDragPointerX = 0
@@ -803,34 +669,20 @@ let boardDragStickyColumnKey: string | null = null
 /** キーボードショートカット用の最新ポインタ位置 */
 let boardPointerX = 0
 let boardPointerY = 0
-const globalHeaderOffsetPx = ref(46)
-const boardPageCssVars = computed(() => {
-  return {
-    '--global-header-offset': `${globalHeaderOffsetPx.value}px`,
-    '--app-shell-page-pad': '3.5px',
-  } as Record<string, string>
-})
-let globalHeaderObserver: ResizeObserver | null = null
-function readGlobalHeaderHeight (): number {
-  if (!import.meta.client) {
-    return 52
-  }
-  const el = document.querySelector('.global-header') as HTMLElement | null
-  if (!el) {
-    return 52
-  }
-  return Math.ceil(el.getBoundingClientRect().height)
-}
-function updateStickyOffsets () {
-  if (!import.meta.client) {
-    return
-  }
-  globalHeaderOffsetPx.value = readGlobalHeaderHeight()
-}
-const openCardMenuTaskId = ref<number | null>(null)
-const cardMenuPosition = ref<{ top: number; left: number } | null>(null)
-/** ビューポートはみ出し時のメニュー幅のおおよその下限（px） */
+const {
+  pageCssVars: boardPageCssVars,
+  updateStickyOffsets,
+  bindStickyOffsets,
+  unbindStickyOffsets,
+} = useStickyHeaderOffsets({ autoBind: false })
 const CARD_MENU_MIN_WIDTH = 168
+const cardMenu = useFloatingMenuState<number>({
+  menuMinWidth: CARD_MENU_MIN_WIDTH,
+  getMenuItemCount: () => cardMenuItems.value.length,
+})
+const openCardMenuTaskId = cardMenu.openId
+const cardMenuPosition = cardMenu.position
+const pendingCardMenuOpen = cardMenu.pendingOpen
 const archiveConfirmTask = ref<Task | null>(null)
 const archiveConfirmTaskOpen = computed({
   get: () => archiveConfirmTask.value !== null,
@@ -841,15 +693,19 @@ const archiveConfirmTaskOpen = computed({
 const archiveConfirmTaskMessage = computed(() => {
   const task = archiveConfirmTask.value
   if (!task) return ''
-  return buildDestructiveConfirmMessage('タスク', 'アーカイブ', task.title)
+  const childCount = (tasks.value ?? []).filter(row => row.parent_task_id === task.id).length
+  return buildDestructiveConfirmMessage(
+    'タスク',
+    'アーカイブ',
+    task.title,
+    childCount > 0 ? `※子タスク ${childCount} 件もアーカイブされます。` : null,
+  )
 })
 const workspaceArchiveConfirmOpen = ref(false)
 const workspaceArchivePending = ref(false)
 const workspaceArchiveConfirmMessage = computed(() =>
   buildDestructiveConfirmMessage('スペース', 'アーカイブ', workspaceMetaName.value),
 )
-const undoToastTask = ref<Task | null>(null)
-let undoTimerId: ReturnType<typeof setTimeout> | null = null
 const detailTaskId = ref<number | null>(null)
 const detailModalRemotePatch = ref<TaskDetail | null>(null)
 const detailModalRemoteRev = ref(0)
@@ -862,7 +718,7 @@ const detailInitialTask = computed((): TaskDetail | null => {
   if (!row) {
     return null
   }
-  const baseDetail: TaskDetail = boardTaskToTaskDetail(row)
+  const baseDetail: TaskDetail = boardTaskToTaskDetail(row, orgLabels.value)
   return enrichTaskDetailHierarchy(
     baseDetail,
     tasks.value,
@@ -878,7 +734,13 @@ const detailHierarchyTasks = computed(() => {
     title: task.title,
     is_parent_task: task.is_parent_task,
     parent_task_id: task.parent_task_id ?? null,
+    parent_task_title: resolveParentTaskTitle(task, tasks.value ?? []),
+    start_date: task.start_date ?? null,
     due_date: task.due_date ?? null,
+    effort_hours: task.effort_hours ?? null,
+    progress_rate: task.progress_rate ?? null,
+    labels: task.labels ?? [],
+    assignees: task.assignees ?? [],
     list_id: task.list_id,
     list_name: lists.value.find(list => list.listId === task.list_id)?.title ?? null,
     list_color: lists.value.find(list => list.listId === task.list_id)?.color ?? null,
@@ -892,13 +754,6 @@ const detailWorkspaceLists = computed((): WorkspaceListOption[] => {
     color: list.color,
     color_index: list.color_index,
   }))
-})
-const detailInitialComments = computed((): TaskDetailComment[] | null => {
-  const id = detailTaskId.value
-  if (id === null) {
-    return null
-  }
-  return taskCommentsByTaskId.value[String(id)] ?? []
 })
 const detailInitialAttachments = computed((): TaskAttachmentItem[] | null => {
   const id = detailTaskId.value
@@ -916,19 +771,7 @@ const taskDetailOpen = computed({
     }
   },
 })
-const cardMenuStyle = computed(() => {
-  if (!cardMenuPosition.value) {
-    return {}
-  }
-  const { top, left } = cardMenuPosition.value
-  return {
-    position: 'fixed' as const,
-    top: `${top}px`,
-    left: `${left}px`,
-    minWidth: `${CARD_MENU_MIN_WIDTH}px`,
-    zIndex: 1000,
-  }
-})
+const cardMenuStyle = cardMenu.style
 const openMenuTask = computed(() => {
   const id = openCardMenuTaskId.value
   if (id == null || !tasks.value) {
@@ -936,34 +779,7 @@ const openMenuTask = computed(() => {
   }
   return tasks.value.find(t => t.id === id) ?? null
 })
-const subheaderMenuStyle = computed(() => {
-  if (!subheaderMenuPosition.value) {
-    return {}
-  }
-  const { top, left } = subheaderMenuPosition.value
-  return {
-    position: 'fixed' as const,
-    top: `${top}px`,
-    left: `${left}px`,
-    minWidth: `${SUBHEADER_MENU_MIN_WIDTH}px`,
-    zIndex: 1000,
-  }
-})
-const boardFilterStyle = computed(() => {
-  if (!boardFilterPosition.value) {
-    return {}
-  }
-  const { top, left, scrollbarGutter } = boardFilterPosition.value
-  return {
-    position: 'fixed' as const,
-    top: `${top}px`,
-    left: `${left}px`,
-    bottom: `${BOARD_FILTER_BOTTOM_OFFSET}px`,
-    width: `${BOARD_FILTER_WIDTH + popoverWidthExtraForGutter(scrollbarGutter)}px`,
-    zIndex: 1000,
-    ...popoverScrollbarGutterStyle(scrollbarGutter),
-  }
-})
+const subheaderMenuStyle = subheaderMenu.style
 const openListMenuList = computed(() => {
   const key = openListMenuKey.value
   if (!key) {
@@ -971,19 +787,7 @@ const openListMenuList = computed(() => {
   }
   return lists.value.find(list => list.key === key) ?? null
 })
-const listMenuStyle = computed(() => {
-  if (!listMenuPosition.value) {
-    return {}
-  }
-  const { top, left } = listMenuPosition.value
-  return {
-    position: 'fixed' as const,
-    top: `${top}px`,
-    left: `${left}px`,
-    minWidth: `${LIST_HEADER_MENU_MIN_WIDTH}px`,
-    zIndex: 1000,
-  }
-})
+const listMenuStyle = listMenu.style
 const listModalInitialValues = computed(() => {
   if (listModalMode.value !== 'edit' || !listEditTarget.value) {
     return null
@@ -1002,144 +806,13 @@ const filteredTaskIds = computed<Set<number> | null>(() => {
   }
   return ids
 })
-function normalizeTaskDate (value: string | null | undefined): string | null {
-  if (!value) {
-    return null
-  }
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (!match) {
-    return null
-  }
-  return `${match[1]}-${match[2]}-${match[3]}`
-}
-function todayIso (): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-function compareIsoDates (left: string, right: string): number {
-  return left.localeCompare(right)
-}
-function getTaskScheduleCategories (task: Task, today: string): ScheduleFilterKey[] {
-  const startIso = normalizeTaskDate(task.start_date)
-  const dueIso = normalizeTaskDate(task.due_date)
-  const categories: ScheduleFilterKey[] = []
-  if (!startIso && !dueIso) {
-    categories.push('unset')
-    return categories
-  }
-  if (startIso && compareIsoDates(today, startIso) < 0) {
-    categories.push('before_start')
-  }
-  if (dueIso && compareIsoDates(today, dueIso) > 0) {
-    categories.push('after_end')
-  }
-  let inProgress = false
-  if (startIso && !dueIso) {
-    inProgress = compareIsoDates(today, startIso) >= 0
-  } else if (!startIso && dueIso) {
-    inProgress = compareIsoDates(today, dueIso) <= 0
-  } else if (startIso && dueIso) {
-    inProgress = compareIsoDates(today, startIso) >= 0 && compareIsoDates(today, dueIso) <= 0
-  }
-  if (inProgress) {
-    categories.push('in_progress')
-  }
-  return categories
-}
-function taskAssigneeUserIds (task: Task): number[] {
-  return (task.assignees ?? [])
-    .map(assignee => assignee.id)
-    .filter(id => Number.isFinite(id))
-}
-function matchesAssigneeFilter (task: Task): boolean {
-  const selected = assigneeFilterSelected.value
-  if (selected.length === 0) {
-    return true
-  }
-  const assigneeIds = taskAssigneeUserIds(task)
-  const selectedMemberIds = selected.filter(key => key !== 'unset')
-  const includesUnset = selected.includes('unset')
-  const matchesUnset = includesUnset && assigneeIds.length === 0
-  const matchesMember = selectedMemberIds.length > 0
-    && assigneeIds.some(id => selectedMemberIds.includes(String(id)))
-  return matchesUnset || matchesMember
-}
-function matchesLabelFilter (task: Task): boolean {
-  if (labelFilterSelected.value.size === 0) {
-    return true
-  }
-  const labels = task.labels ?? []
-  if (labelFilterSelected.value.has('unset') && labels.length === 0) {
-    return true
-  }
-  return labels.some(label => labelFilterSelected.value.has(String(label.id)))
-}
-function matchesScheduleFilter (task: Task): boolean {
-  if (scheduleFilterSelected.value.size === 0) {
-    return true
-  }
-  const categories = getTaskScheduleCategories(task, todayIso())
-  return categories.some(category => scheduleFilterSelected.value.has(category))
-}
-function isAssigneeFilterSelected (key: string): boolean {
-  return assigneeFilterSelected.value.includes(key)
-}
-function setAssigneeFilter (key: string, event: Event) {
-  const input = event.target
-  if (!(input instanceof HTMLInputElement)) {
-    return
-  }
-  const selected = new Set(assigneeFilterSelected.value)
-  if (input.checked) {
-    selected.add(key)
-  } else {
-    selected.delete(key)
-  }
-  assigneeFilterSelected.value = [...selected]
-}
-const labelFilterCategories = computed(() =>
-  orgLabelCategories.value.filter(category => category.labels.length > 0),
-)
-function isLabelFilterSelected (key: string): boolean {
-  return labelFilterSelected.value.has(key)
-}
-function toggleLabelFilter (key: string) {
-  const next = new Set(labelFilterSelected.value)
-  if (next.has(key)) {
-    next.delete(key)
-  } else {
-    next.add(key)
-  }
-  labelFilterSelected.value = next
-}
-function isScheduleFilterSelected (key: ScheduleFilterKey): boolean {
-  return scheduleFilterSelected.value.has(key)
-}
-function toggleScheduleFilter (key: ScheduleFilterKey) {
-  const next = new Set(scheduleFilterSelected.value)
-  if (next.has(key)) {
-    next.delete(key)
-  } else {
-    next.add(key)
-  }
-  scheduleFilterSelected.value = next
-}
 function isTaskVisible (task: Task) {
   const ids = filteredTaskIds.value
   const byQuery = !ids || ids.has(task.id)
   if (!byQuery) {
     return false
   }
-  if (!matchesAssigneeFilter(task)) {
-    return false
-  }
-  if (!matchesLabelFilter(task)) {
-    return false
-  }
-  return matchesScheduleFilter(task)
+  return matchesFilters(task)
 }
 const visibleTaskIdSet = computed(() => {
   const ids = new Set<number>()
@@ -1181,18 +854,6 @@ function isListColumnEmpty (listKey: string): boolean {
   return count === 0
 }
 const visibleTaskCount = computed(() => visibleTaskIdSet.value.size)
-/** 枠組の見た目用。列ヘッダー色とカード枚数のパターン */
-const loadingSkeletonColumns = computed(() => {
-  if (pageReady.value) {
-    return []
-  }
-  return [
-    { headerColor: COLOR_PRESETS[24], cardCount: 3 },
-    { headerColor: COLOR_PRESETS[20], cardCount: 2 },
-    { headerColor: COLOR_PRESETS[5], cardCount: 4 },
-    { headerColor: COLOR_PRESETS[9], cardCount: 2 },
-  ]
-})
 const anyBoardDropdownOpen = computed(() => (
   boardFilterOpen.value
   || subheaderMenuOpen.value
@@ -1225,64 +886,81 @@ function rebuildBoardFromTasks () {
   }
 }
 function isTaskJustCreated (taskId: number): boolean {
-  return !!justCreatedTaskIds[taskId]
+  return justCreatedTasks.has(taskId)
 }
 function markTaskAsJustCreated (taskId: number) {
-  justCreatedTaskIds[taskId] = true
-  setTimeout(() => {
-    delete justCreatedTaskIds[taskId]
-  }, 260)
+  justCreatedTasks.mark(taskId)
 }
-function parentTaskTitle (task: Task): string | null {
-  return resolveParentTaskTitle(task, tasks.value ?? [])
+function isListJustCreated (listKey: string): boolean {
+  return justCreatedLists.has(listKey)
 }
-function cardAssignees (task: Task): TaskAssignee[] {
-  return (task.assignees ?? []).slice(0, 3)
+function markListAsJustCreated (listKey: string) {
+  justCreatedLists.mark(listKey)
 }
-function taskCardDateRange (task: Task): string | null {
-  return formatTaskCardDateRange(task.start_date, task.due_date)
-}
-function taskCardEffortText (task: Task): string | null {
-  return formatTaskCardEffort(task)
-}
-function openListCreateModal () {
+function openListAddModal () {
   closeSubheaderMenu()
+  closeBoardFilter()
   closeListMenu()
-  listModalMode.value = 'create'
+  listModalMode.value = 'add'
   listEditTarget.value = null
-  listCreateOpen.value = true
+  listFormOpen.value = true
 }
 function openListEditModal (list: ListDef) {
   closeListMenu()
   listModalMode.value = 'edit'
   listEditTarget.value = list
-  listCreateOpen.value = true
+  listFormOpen.value = true
 }
 function openListDeleteModal (list: ListDef) {
   closeListMenu()
   listDeleteTarget.value = list
   listDeleteOpen.value = true
 }
-const subheaderMenuItems: FloatingMenuItem[] = [
-  { key: 'add-list', label: 'リストの追加' },
-  { key: 'archived', label: 'アーカイブ済みタスク' },
-  { key: 'archive-workspace', label: 'スペースのアーカイブ', danger: true },
-]
-const cardMenuItems: FloatingMenuItem[] = [
-  { key: 'detail', label: 'タスクの詳細' },
-  { key: 'archive', label: 'タスクのアーカイブ', danger: true },
-]
-const listMenuItems: FloatingMenuItem[] = [
-  { key: 'edit', label: 'リストの編集' },
-  { key: 'delete', label: 'リストの削除', danger: true },
-]
+const subheaderMenuItems = computed<FloatingMenuItem[]>(() => {
+  const items: FloatingMenuItem[] = [
+    { key: 'details-workspace', label: 'スペース詳細' },
+    { key: 'add-list', label: 'リストの追加' },
+    { key: 'archived', label: 'アーカイブ済みタスク' },
+    { key: 'archived-documents', label: 'アーカイブ済み資料' },
+  ]
+  if (isOrgAdmin.value) {
+    items.push({ key: 'archive-workspace', label: 'スペースのアーカイブ', danger: true })
+  }
+  return items
+})
+const cardMenuItems = computed<FloatingMenuItem[]>(() => {
+  const items: FloatingMenuItem[] = [
+    { key: 'detail', label: 'タスク詳細' },
+  ]
+  if (isOrgAdmin.value) {
+    items.push({ key: 'archive', label: 'タスクのアーカイブ', danger: true })
+  }
+  return items
+})
+const listMenuItems = computed<FloatingMenuItem[]>(() => {
+  const items: FloatingMenuItem[] = [
+    { key: 'edit', label: 'リストの編集' },
+  ]
+  if (lists.value.length > 1) {
+    items.push({ key: 'delete', label: 'リストの削除', danger: true })
+  }
+  return items
+})
 function onSubheaderMenuSelect (item: FloatingMenuItem) {
+  if (item.key === 'details-workspace') {
+    void openWorkspaceDetailsModal()
+    return
+  }
   if (item.key === 'add-list') {
-    openListCreateModal()
+    openListAddModal()
     return
   }
   if (item.key === 'archived') {
     openArchivedModal()
+    return
+  }
+  if (item.key === 'archived-documents') {
+    openArchivedDocumentsModal()
     return
   }
   if (item.key === 'archive-workspace') {
@@ -1293,6 +971,45 @@ function openWorkspaceArchiveConfirm () {
   closeSubheaderMenu()
   workspaceArchiveConfirmOpen.value = true
 }
+async function openWorkspaceDetailsModal () {
+  closeSubheaderMenu()
+  if (!getOrgWorkspaceIndexCached(slug.value)) {
+    await fetchOrgWorkspaceIndexSnapshot(slug.value).catch(() => null)
+  }
+  workspaceDetailsModalOpen.value = true
+}
+async function onWorkspaceDetailsSubmit (payload: {
+  name: string
+  description: string | null
+  status: string | null
+  label_ids: number[]
+  assignee_ids: number[]
+}) {
+  const target = workspaceMeta.value
+  if (!target || workspaceDetailsPending.value) {
+    return
+  }
+  workspaceDetailsPending.value = true
+  error.value = null
+  try {
+    await withAppLoadingCursor(async () => {
+      await workspaceMutations.updateWorkspace(target.id, {
+        name: payload.name,
+        description: payload.description,
+        status: payload.status,
+        label_ids: payload.label_ids,
+        assignee_ids: payload.assignee_ids,
+      })
+      workspaceDetailsModalOpen.value = false
+    })
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : '更新に失敗しました'
+    error.value = message
+    workspaceDetailsModalRef.value?.setSubmitError(message)
+  } finally {
+    workspaceDetailsPending.value = false
+  }
+}
 async function confirmWorkspaceArchive () {
   if (workspaceArchivePending.value) {
     return
@@ -1301,13 +1018,8 @@ async function confirmWorkspaceArchive () {
   error.value = null
   try {
     await withAppLoadingCursor(async () => {
-      await api(`/orgs/${slug.value}/workspaces/${workspaceId.value}/archive`, {
-        method: 'POST',
-      })
+      await workspaceMutations.archiveWorkspace(Number(workspaceId.value))
       workspaceArchiveConfirmOpen.value = false
-      invalidateOrgWorkspaceIndexCached(slug.value)
-      invalidateBoardCached(slug.value, workspaceId.value)
-      invalidateWorkspaceDetailMeta(slug.value, workspaceId.value)
       await navigateTo(`/org/${slug.value}/workspaces`)
     })
   } catch (e: unknown) {
@@ -1338,71 +1050,14 @@ function onListMenuSelect (item: FloatingMenuItem) {
     openListDeleteModal(list)
   }
 }
-function closeListMenu () {
-  openListMenuKey.value = null
-  listMenuPosition.value = null
-}
-function positionListMenu (anchor: HTMLElement) {
-  if (!import.meta.client) {
-    listMenuPosition.value = null
-    return
-  }
-  const rect = anchor.getBoundingClientRect()
-  const pad = 8
-  const gap = 4
-  const menuWidth = LIST_HEADER_MENU_MIN_WIDTH
-  let left = rect.left
-  if (left + menuWidth > window.innerWidth - pad) {
-    left = Math.max(pad, window.innerWidth - pad - menuWidth)
-  }
-  listMenuPosition.value = {
-    top: rect.bottom + gap,
-    left,
-  }
-}
+const closeListMenu = listMenu.close
+const onListMenuAfterLeave = listMenu.onAfterLeave
 function toggleListMenu (listKey: string, event: MouseEvent) {
-  if (openListMenuKey.value === listKey) {
-    closeListMenu()
-    return
-  }
-  closeCardMenu()
-  closeSubheaderMenu()
-  closeBoardFilter()
-  const el = event.currentTarget
-  if (!(el instanceof HTMLElement)) {
-    return
-  }
-  positionListMenu(el)
-  openListMenuKey.value = listKey
-}
-function openArchivedModal () {
-  closeSubheaderMenu()
-  archivedModalOpen.value = true
+  event.stopPropagation()
+  listMenu.toggle(listKey, event)
 }
 function closeSubheaderMenu () {
-  subheaderMenuOpen.value = false
-  subheaderMenuPosition.value = null
-}
-function closeBoardFilter () {
-  boardFilterOpen.value = false
-  boardFilterPosition.value = null
-}
-useExclusivePopover(boardFilterOpen, closeBoardFilter)
-function positionSubheaderMenu () {
-  const anchor = subheaderMenuTriggerRef.value
-  if (!anchor || !import.meta.client) {
-    subheaderMenuPosition.value = null
-    return
-  }
-  const rect = anchor.getBoundingClientRect()
-  const pad = 8
-  const gap = 6
-  let left = rect.right - SUBHEADER_MENU_MIN_WIDTH
-  left = Math.max(pad, Math.min(left, window.innerWidth - SUBHEADER_MENU_MIN_WIDTH - pad))
-  subheaderMenuPosition.value = {
-    top: rect.bottom + gap,
-    left,
-  }
+  subheaderMenu.close()
 }
 function toggleSubheaderMenu () {
   if (subheaderMenuOpen.value) {
@@ -1410,43 +1065,14 @@ function toggleSubheaderMenu () {
     return
   }
   closeBoardFilter()
-  subheaderMenuOpen.value = true
-  nextTick(() => positionSubheaderMenu())
-}
-function positionBoardFilter () {
-  const anchor = boardFilterTriggerRef.value
-  if (!anchor || !import.meta.client) {
-    boardFilterPosition.value = null
+  const anchor = subheaderMenuTriggerRef.value
+  if (!anchor) {
     return
   }
-  const rect = anchor.getBoundingClientRect()
-  const pad = 8
-  const gap = 6
-  const top = rect.bottom + gap
-  const maxHeight = Math.max(0, window.innerHeight - top - BOARD_FILTER_BOTTOM_OFFSET)
-  const el = boardFilterDropdownRef.value
-  const scrollbarGutter = el
-    ? resolvePopoverScrollbarGutter(el, maxHeight)
-    : 0
-  const width = BOARD_FILTER_WIDTH + popoverWidthExtraForGutter(scrollbarGutter)
-  let left = rect.right - width
-  left = Math.max(pad, Math.min(left, window.innerWidth - width - pad))
-  boardFilterPosition.value = {
-    top,
-    left,
-    scrollbarGutter,
-  }
+  subheaderMenu.open('subheader', anchor)
 }
 function openBoardFilter () {
-  if (boardFilterOpen.value) {
-    return
-  }
-  closeSubheaderMenu()
-  boardFilterOpen.value = true
-  nextTick(() => {
-    positionBoardFilter()
-    requestAnimationFrame(() => positionBoardFilter())
-  })
+  openBoardFilterBase()
 }
 function toggleBoardFilter () {
   if (boardFilterOpen.value) {
@@ -1455,88 +1081,22 @@ function toggleBoardFilter () {
   }
   openBoardFilter()
 }
-function closeCardMenu () {
-  openCardMenuTaskId.value = null
-  cardMenuPosition.value = null
-}
+const closeCardMenu = cardMenu.close
+const onCardMenuAfterLeave = cardMenu.onAfterLeave
 function onDropZoneScroll () {
   closeCardMenu()
   closeListMenu()
 }
-function positionCardMenu (anchor: HTMLElement) {
-  if (import.meta.client) {
-    const r = anchor.getBoundingClientRect()
-    const margin = 6
-    const pad = 8
-    let left = r.right + margin
-    const maxLeft = window.innerWidth - CARD_MENU_MIN_WIDTH - pad
-    if (left > maxLeft) {
-      left = Math.max(pad, r.left - CARD_MENU_MIN_WIDTH - margin)
-    }
-    cardMenuPosition.value = {
-      top: r.top,
-      left,
-    }
-  } else {
-    cardMenuPosition.value = { top: 0, left: 0 }
-  }
-}
 function openCardMenu (taskId: number, anchor: HTMLElement) {
-  if (openCardMenuTaskId.value === taskId) {
-    closeCardMenu()
-    return
-  }
-  positionCardMenu(anchor)
-  openCardMenuTaskId.value = taskId
+  cardMenu.open(taskId, anchor)
 }
 function toggleCardMenu (taskId: number, ev: MouseEvent) {
   ev.stopPropagation()
-  const el = ev.currentTarget
-  if (!(el instanceof HTMLElement)) return
-  openCardMenu(taskId, el)
+  cardMenu.toggle(taskId, ev)
 }
 function onTaskCardContextMenu (task: Task, ev: MouseEvent) {
   if (editingTaskId.value === task.id) return
-  ev.stopPropagation()
-  const card = ev.currentTarget
-  if (!(card instanceof HTMLElement)) return
-  const trigger = card.querySelector('.card-menu-trigger')
-  if (!(trigger instanceof HTMLElement)) return
-  openCardMenu(task.id, trigger)
-}
-function onGlobalClick (ev: Event) {
-  const t = ev.target
-  if (t instanceof Node) {
-    const el = t instanceof Element ? t : t.parentElement
-    if (el && el.closest('.card-menu-wrap')) {
-      return
-    }
-    if (el && el.closest('[data-floating-menu]')) {
-      return
-    }
-    if (el && el.closest('[data-subheader-actions-root]')) {
-      return
-    }
-    if (el && el.closest('[data-workspace-view-switcher-root]')) {
-      return
-    }
-    if (el && el.closest('.workspace-wbs__cell-btn')) {
-      return
-    }
-    if (el && el.closest('.popover-layer, .popover')) {
-      return
-    }
-    if (el && el.closest('.board-filter-dropdown')) {
-      return
-    }
-    if (el && el.closest('.list-header-menu-host')) {
-      return
-    }
-  }
-  closeCardMenu()
-  closeSubheaderMenu()
-  closeBoardFilter()
-  closeListMenu()
+  cardMenu.openFromContextMenu(task.id, ev)
 }
 function onWindowResize () {
   closeCardMenu()
@@ -1572,21 +1132,6 @@ function updateDropZoneScrollableState () {
       scrollableDropZoneListKeys[key] = scrollable
     }
   })
-}
-function clearUndoTimer () {
-  if (undoTimerId !== null) {
-    clearTimeout(undoTimerId)
-    undoTimerId = null
-  }
-  undoToastTask.value = null
-}
-function scheduleUndoToast (task: Task) {
-  clearUndoTimer()
-  undoToastTask.value = { ...task }
-  undoTimerId = setTimeout(() => {
-    undoToastTask.value = null
-    undoTimerId = null
-  }, 5000)
 }
 function openArchiveConfirm (task: Task) {
   closeCardMenu()
@@ -1634,13 +1179,22 @@ function clearTaskQueryParam () {
 }
 function applyTaskQueryFromRoute () {
   if (!pageReady.value) return
-  const taskId = parseTaskQueryId()
-  if (taskId === null) {
+  const raw = route.query.task
+  if (raw != null && raw !== '') {
+    const taskId = parseTaskQueryId()
+    if (taskId === null) {
+      void navigateTo(`/org/${slug.value}/workspaces`, { replace: true })
+      return
+    }
+    if (detailTaskId.value !== taskId) {
+      detailTaskId.value = taskId
+    }
     return
   }
-  if (detailTaskId.value !== taskId) {
-    detailTaskId.value = taskId
-  }
+}
+function onTaskDetailMissing () {
+  detailTaskId.value = null
+  void navigateTo(`/org/${slug.value}/workspaces`, { replace: true })
 }
 function onTaskDetailNavigate (taskId: number) {
   if (detailTaskId.value === taskId) {
@@ -1654,12 +1208,6 @@ function pushDetailModalRemote (detail: TaskDetail) {
   }
   detailModalRemotePatch.value = detail
   detailModalRemoteRev.value += 1
-}
-function onTaskCommentsUpdated (payload: { taskId: number; comments: TaskDetailComment[] }) {
-  taskCommentsByTaskId.value = {
-    ...taskCommentsByTaskId.value,
-    [String(payload.taskId)]: payload.comments,
-  }
 }
 function onTaskAttachmentsUpdated (payload: { taskId: number; attachments: TaskAttachmentItem[] }) {
   taskAttachmentsByTaskId.value = {
@@ -1682,9 +1230,10 @@ function onTaskDetailUpdated (detail: TaskDetail) {
     start_date: 'start_date' in detail ? detail.start_date : existing.start_date,
     due_date: 'due_date' in detail ? detail.due_date : existing.due_date,
     effort_hours: 'effort_hours' in detail ? detail.effort_hours : existing.effort_hours,
+    progress_rate: 'progress_rate' in detail ? detail.progress_rate : existing.progress_rate,
     labels: detail.labels,
     assignees: detail.assignees,
-    checklists: detail.checklists ?? [],
+    checklists: 'checklists' in detail ? (detail.checklists ?? []) : (existing.checklists ?? []),
     parent_task_id: 'parent_task_id' in detail ? detail.parent_task_id ?? null : existing.parent_task_id,
     is_parent_task: 'is_parent_task' in detail ? detail.is_parent_task ?? false : existing.is_parent_task,
   }
@@ -1696,6 +1245,7 @@ function onTaskDetailUpdated (detail: TaskDetail) {
     || (updated.start_date ?? null) !== (existing.start_date ?? null)
     || (updated.due_date ?? null) !== (existing.due_date ?? null)
     || (updated.effort_hours ?? null) !== (existing.effort_hours ?? null)
+    || (updated.progress_rate ?? null) !== (existing.progress_rate ?? null)
     || (updated.parent_task_id ?? null) !== (existing.parent_task_id ?? null)
     || Boolean(updated.is_parent_task) !== Boolean(existing.is_parent_task)
     || JSON.stringify(updated.labels ?? []) !== JSON.stringify(existing.labels ?? [])
@@ -1707,18 +1257,44 @@ function onTaskDetailUpdated (detail: TaskDetail) {
   }
   syncBoardPageCache()
 }
-function removeTaskFromBoard (taskId: number) {
+function removeTaskFromBoard (taskId: number, options?: { removeChildTasks?: boolean }) {
   if (!tasks.value) return
-  const i = tasks.value.findIndex(t => t.id === taskId)
-  if (i >= 0) {
-    tasks.value.splice(i, 1)
+  const removeChildTasks = options?.removeChildTasks ?? false
+  const removeIds = new Set<number>([taskId])
+  if (removeChildTasks) {
+    for (const task of tasks.value) {
+      if (task.parent_task_id === taskId) {
+        removeIds.add(task.id)
+      }
+    }
   }
+  tasks.value = tasks.value.filter(task => !removeIds.has(task.id))
   rebuildBoardFromTasks()
   syncBoardPageCache()
 }
-function onArchivedTaskRestored (task: Task) {
+function onArchivedTaskRestored (task: Task, cascadedChildren: ArchivedTask[] = []) {
   if (!tasks.value?.some(t => t.id === task.id)) {
     addTaskToBoard(task)
+  }
+  for (const child of cascadedChildren) {
+    if (tasks.value?.some(t => t.id === child.id)) {
+      continue
+    }
+    addTaskToBoard({
+      id: child.id,
+      title: child.title,
+      list_id: child.list_id,
+      sort_order: 0,
+      is_parent_task: false,
+      parent_task_id: task.id,
+      parent_task_title: task.title,
+      start_date: child.start_date ?? null,
+      due_date: child.due_date ?? null,
+      effort_hours: child.effort_hours ?? null,
+      progress_rate: child.progress_rate ?? null,
+      labels: child.labels ?? [],
+      assignees: child.assignees ?? [],
+    } as Task)
   }
 }
 function addTaskToBoard (task: Task) {
@@ -1754,29 +1330,55 @@ async function confirmArchiveFromModal () {
   const task = archiveConfirmTask.value
   if (!task) return
   archiveConfirmTask.value = null
+  const boardTasks = tasks.value ?? []
   const snapshot = { ...task }
-  removeTaskFromBoard(task.id)
+  const parentTaskTitle = snapshot.parent_task_title
+    ?? resolveParentTaskTitle(snapshot, boardTasks)
+  const childSnapshots = boardTasks.filter(row => row.parent_task_id === task.id)
+  removeTaskFromBoard(task.id, { removeChildTasks: true })
   error.value = null
   try {
     await api(`/orgs/${slug.value}/workspaces/${workspaceId.value}/tasks/${task.id}/archive`, {
       method: 'POST',
     })
-    if (archivedModalOpen.value) {
-      archivedModalRef.value?.addTaskFromRealtime({
-        id: snapshot.id,
-        title: snapshot.title,
-        list_id: snapshot.list_id,
+    archivedModalRef.value?.addTaskFromRealtime({
+      id: snapshot.id,
+      title: snapshot.title,
+      list_id: snapshot.list_id,
+      archived_at: new Date().toISOString(),
+      labels: snapshot.labels ?? [],
+      assignees: snapshot.assignees ?? [],
+      start_date: snapshot.start_date ?? null,
+      due_date: snapshot.due_date ?? null,
+      effort_hours: snapshot.effort_hours ?? null,
+      progress_rate: snapshot.progress_rate ?? null,
+      is_parent_task: snapshot.is_parent_task ?? false,
+      parent_task_id: snapshot.parent_task_id ?? null,
+      parent_task_title: parentTaskTitle,
+      archived_child_count: childSnapshots.length,
+      archived_children: childSnapshots.map(child => ({
+        id: child.id,
+        title: child.title,
+        list_id: child.list_id,
         archived_at: new Date().toISOString(),
-        labels: snapshot.labels ?? [],
-        assignees: snapshot.assignees ?? [],
-        start_date: snapshot.start_date ?? null,
-        due_date: snapshot.due_date ?? null,
-        effort_hours: snapshot.effort_hours ?? null,
-      })
-    }
-    scheduleUndoToast(snapshot)
+        labels: child.labels ?? [],
+        assignees: child.assignees ?? [],
+        start_date: child.start_date ?? null,
+        due_date: child.due_date ?? null,
+        effort_hours: child.effort_hours ?? null,
+        progress_rate: child.progress_rate ?? null,
+        is_parent_task: false,
+        parent_task_id: snapshot.id,
+        parent_task_title: snapshot.title,
+        archived_child_count: 0,
+        archived_children: [],
+      })),
+    })
   } catch (e: unknown) {
     addTaskToBoard(snapshot)
+    for (const child of childSnapshots) {
+      addTaskToBoard(child)
+    }
     error.value = e instanceof Error ? e.message : 'アーカイブに失敗しました'
   }
 }
@@ -1906,25 +1508,27 @@ function syncBoardPointer (event: MouseEvent | PointerEvent) {
 function onBoardPointerMove (event: MouseEvent | PointerEvent) {
   syncBoardPointer(event)
 }
+function dismissBoardPopovers () {
+  closeSubheaderMenu()
+  closeBoardFilter()
+  closeCardMenu()
+  closeListMenu()
+}
 function canUseBoardKeyboardShortcut (): boolean {
   if (!pageReady.value || fatalLoadError.value) {
     return false
   }
-  if (getTopmostModalOverlay()) {
-    return false
-  }
   if (
-    taskCreateOpen.value
+    taskAddOpen.value
     || taskDetailOpen.value
+    || addChildTaskTransitionPending.value
     || archivedModalOpen.value
-    ||     listCreateOpen.value
+    || archivedDocumentsOpen.value
+    || workspaceSidebarRef.value?.documentAddModalOpen
+    || listFormOpen.value
     || listDeleteOpen.value
     || archiveConfirmTaskOpen.value
     || workspaceArchiveConfirmOpen.value
-    || subheaderMenuOpen.value
-    || boardFilterOpen.value
-    || openCardMenuTaskId.value !== null
-    || openListMenuKey.value !== null
     || editingListKey.value
     || editingTaskId.value
     || boardDragging.value
@@ -1933,12 +1537,12 @@ function canUseBoardKeyboardShortcut (): boolean {
   ) {
     return false
   }
-  return true
+  return !getTopmostModalOverlay()
 }
 function onBoardKeydown (event: KeyboardEvent) {
   const key = event.key
   if (key === 'Enter') {
-    if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
+    if (isViewShortcutModifierBlocked(event)) {
       return
     }
     if (isKeyboardShortcutBlockedTarget(event.target)) {
@@ -1952,32 +1556,89 @@ function onBoardKeydown (event: KeyboardEvent) {
       return
     }
     event.preventDefault()
+    dismissBoardPopovers()
     openTaskDetail(task)
     return
   }
-  if (key !== 'n' && key !== 'N' && key !== 'f' && key !== 'F') {
+  const isLetterShortcut = (
+    key === 'n' || key === 'N'
+    || key === 'f' || key === 'F'
+    || key === 'm' || key === 'M'
+    || key === 's' || key === 'S'
+    || key === 'd' || key === 'D'
+  )
+  if (!isLetterShortcut) {
     return
   }
-  if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
+  if (isViewShortcutModifierBlocked(event)) {
     return
   }
   if (isKeyboardShortcutBlockedTarget(event.target)) {
     return
   }
-  if (!canUseBoardKeyboardShortcut()) {
+  if (key === 'm' || key === 'M') {
+    if (subheaderMenuOpen.value) {
+      event.preventDefault()
+      closeSubheaderMenu()
+      return
+    }
+    if (!canUseBoardKeyboardShortcut()) {
+      return
+    }
+    event.preventDefault()
+    closeCardMenu()
+    closeListMenu()
+    toggleSubheaderMenu()
+    return
+  }
+  if (key === 's' || key === 'S') {
+    if (!pageReady.value || fatalLoadError.value || getTopmostModalOverlay()) {
+      return
+    }
+    event.preventDefault()
+    toggleSidebar()
+    return
+  }
+  if (key === 'd' || key === 'D') {
+    if (!canUseBoardKeyboardShortcut()) {
+      return
+    }
+    const openAdd = workspaceSidebarRef.value?.openDocumentAddModal
+    if (!openAdd) {
+      return
+    }
+    event.preventDefault()
+    dismissBoardPopovers()
+    void openAdd()
     return
   }
   if (key === 'f' || key === 'F') {
+    if (!isBoardFilterTriggerAvailable()) {
+      return
+    }
+    if (!canUseBoardKeyboardShortcut()) {
+      return
+    }
     event.preventDefault()
+    if (boardFilterOpen.value) {
+      closeBoardFilter()
+      return
+    }
+    dismissBoardPopovers()
     openBoardFilter()
     return
   }
-  const listId = resolvePointerListId()
-  if (listId === null) {
+  if (!canUseBoardKeyboardShortcut()) {
     return
   }
   event.preventDefault()
-  openTaskCreateModal(listId)
+  dismissBoardPopovers()
+  const listId = resolvePointerListId()
+  if (listId !== null) {
+    openTaskAddModal(listId)
+    return
+  }
+  openTaskAddFromHeader()
 }
 /**
  * 隣接列の境界中点で列を決める（nearest / empty-insert による左右のちらつきを防ぐ）。
@@ -2550,15 +2211,16 @@ function applyBoardSnapshot (snapshot: WorkspaceBoardPageSnapshot) {
   for (const list of lists.value) {
     if (!(list.key in tasksByList)) tasksByList[list.key] = []
   }
+  const catalogLabels = resolveAndSortLabels(snapshot.orgLabels, snapshot.orgLabels)
   tasks.value = snapshot.tasks.map(task => ({
     ...task,
-    labels: task.labels ? resolveLabelColors(task.labels) : task.labels,
+    assignees: sortMembersByDisplayName(task.assignees ?? []),
+    labels: task.labels ? resolveAndSortLabels(task.labels, catalogLabels) : task.labels,
   }))
-  orgLabels.value = resolveLabelColors(snapshot.orgLabels)
+  orgLabels.value = catalogLabels
   orgLabelCategories.value = snapshot.orgLabelCategories ?? []
-  workspaceMembers.value = snapshot.workspaceMembers
+  workspaceMembersSnapshot.value = snapshot.workspaceMembers
   boardParentTasks.value = snapshot.parentTasks
-  taskCommentsByTaskId.value = snapshot.taskCommentsByTaskId
   taskAttachmentsByTaskId.value = snapshot.taskAttachmentsByTaskId ?? {}
   rebuildBoardFromTasks()
 }
@@ -2570,12 +2232,43 @@ function syncBoardPageCache () {
     tasks: tasks.value,
     parentTasks: boardParentTasks.value,
   })
+  touchCachedWorkspaceUpdatedAt(slug.value, Number(workspaceId.value))
+  // ボードと WBS のタスク正本は分けているため、ボード側更新後は WBS を破棄して再取得させる
+  const { invalidateCached: invalidateWbs } = useWorkspaceWbsPageData()
+  invalidateWbs(slug.value, workspaceId.value)
 }
 function applyBoardPayload (data: Awaited<ReturnType<typeof fetchBoardPayload>>) {
   applyBoardSnapshot(data)
 }
 function isBoardLocalEditActive (): boolean {
   return editingTaskId.value != null || editingListKey.value != null
+}
+function clearBoardFadeInTimer () {
+  if (boardFadeInTimer === null) return
+  clearTimeout(boardFadeInTimer)
+  boardFadeInTimer = null
+}
+function revealLoadedBoard () {
+  if (boardInitialRevealDone) return
+  boardInitialRevealDone = true
+  clearBoardFadeInTimer()
+  boardShouldFadeIn.value = true
+  boardFadeInTimer = setTimeout(() => {
+    boardShouldFadeIn.value = false
+    boardFadeInTimer = null
+  }, 260)
+}
+function resetBoardReveal () {
+  boardInitialRevealDone = false
+  boardShouldFadeIn.value = false
+  clearBoardFadeInTimer()
+}
+function markBoardReady () {
+  const wasReady = pageReady.value
+  pageReady.value = true
+  if (!wasReady) {
+    revealLoadedBoard()
+  }
 }
 async function load (opts?: { refresh?: boolean; silent?: boolean }) {
   const refresh = opts?.refresh ?? false
@@ -2590,7 +2283,7 @@ async function load (opts?: { refresh?: boolean; silent?: boolean }) {
       return
     }
     applyBoardPayload(data)
-    pageReady.value = true
+    markBoardReady()
     clearBoardCacheStale(slug.value, workspaceId.value)
   }
   try {
@@ -2598,19 +2291,29 @@ async function load (opts?: { refresh?: boolean; silent?: boolean }) {
       const cached = getBoardCached(slug.value, workspaceId.value)
       if (cached) {
         applyBoardSnapshot(cached)
-        pageReady.value = true
+        markBoardReady()
         return
       }
-      await withAppLoadingCursor(async () => {
-        const r = await raceWithTimeout(() => fetchBoardPayload(), TM_PAGE_LOAD_TIMEOUT_MS)
-        if (!r.ok) {
-          fatalLoadError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
+      // 初回は中央スピナーで待つ（AppLoadingCursor は使わない）
+      const r = await raceWithTimeout(() => fetchBoardPayload(), TM_PAGE_LOAD_TIMEOUT_MS)
+      if (!r.ok) {
+        if (r.reason === 'timeout') {
+          fatalLoadError.value = timeoutMessage()
           return
         }
-        applyBoardPayload(r.value)
-        pageReady.value = true
-      })
+        if (isAccessDeniedMessage(r.message)) {
+          await navigateTo(`/org/${slug.value}/workspaces`, { replace: true })
+          return
+        }
+        fatalLoadError.value = r.message
+        return
+      }
+      applyBoardPayload(r.value)
+      markBoardReady()
     } else if (silent && pageReady.value) {
+      await applyFreshPayload()
+    } else if (!pageReady.value) {
+      // pageReady 前の refresh も中央スピナーのまま待つ
       await applyFreshPayload()
     } else {
       await withAppLoadingCursor(applyFreshPayload)
@@ -2618,6 +2321,10 @@ async function load (opts?: { refresh?: boolean; silent?: boolean }) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : '読み込みに失敗しました'
     if (!pageReady.value && !refresh) {
+      if (isAccessDeniedMessage(msg)) {
+        await navigateTo(`/org/${slug.value}/workspaces`, { replace: true })
+        return
+      }
       fatalLoadError.value = msg
     } else {
       error.value = msg
@@ -2646,72 +2353,92 @@ defineExpose({
 function retryBoardLoad () {
   fatalLoadError.value = null
   invalidateBoardCached(slug.value, workspaceId.value)
+  resetBoardReveal()
   pageReady.value = false
   void load()
 }
 function stripManualLineBreaks (value: string) {
   return value.replace(/\r?\n/g, '')
 }
-function adjustTextareaHeight (el: HTMLTextAreaElement | null | undefined) {
-  if (!el) {
+function defaultTaskAddListId (): number | null {
+  return lists.value[0]?.listId ?? null
+}
+const canAddTaskFromHeader = computed(() => pageReady.value && defaultTaskAddListId() !== null)
+function openTaskAddFromHeader () {
+  const listId = defaultTaskAddListId()
+  if (listId === null) {
     return
   }
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight}px`
+  openTaskAddModal(listId)
 }
-function onCardTitleInput () {
-  const cleaned = stripManualLineBreaks(taskTitleDraft.value)
-  if (cleaned !== taskTitleDraft.value) {
-    taskTitleDraft.value = cleaned
-  }
-  adjustTextareaHeight(cardTitleTextareaEl.value)
+function openTaskAddModal (listId: number, parentTaskId: number | null = null) {
+  taskAddListId.value = listId
+  taskAddParentTaskId.value = parentTaskId
+  taskAddParentDefaults.value = null
+  taskAddOpen.value = true
 }
-function onListTitleInput () {
-  const key = editingListKey.value
-  if (!key) {
+async function onAddChildTaskFromDetail (payload: { parentTaskId: number; listId: number | null }) {
+  if (addChildTaskTransitionPending.value) {
     return
   }
-  const cleaned = stripManualLineBreaks(listEditDrafts[key] ?? '')
-  if (cleaned !== listEditDrafts[key]) {
-    listEditDrafts[key] = cleaned
+  const listId = payload.listId ?? defaultTaskAddListId()
+  if (listId === null) {
+    return
   }
+  addChildTaskTransitionPending.value = true
+  taskDetailOpen.value = false
+  const fadeOutDone = new Promise<void>((resolve) => {
+    window.setTimeout(resolve, MODAL_FADE_OUT_MS)
+  })
+  let defaults: TaskFormDefaultsSource | null = null
+  try {
+    const [detail] = await Promise.all([
+      api<TaskFormDefaultsSource>(
+        `/orgs/${slug.value}/workspaces/${workspaceId.value}/tasks/${payload.parentTaskId}`,
+      ),
+      fadeOutDone,
+    ])
+    defaults = detail
+  } catch {
+    await fadeOutDone
+    defaults = null
+  }
+  taskAddListId.value = listId
+  taskAddParentTaskId.value = payload.parentTaskId
+  taskAddParentDefaults.value = defaults
+  taskAddOpen.value = true
+  addChildTaskTransitionPending.value = false
 }
-function adjustCardTitleTextareaHeight () {
-  adjustTextareaHeight(cardTitleTextareaEl.value)
-}
-function openTaskCreateModal (listId: number) {
-  taskCreateListId.value = listId
-  taskCreateOpen.value = true
-}
-function onTaskCreatedFromModal (created: Task) {
+function onTaskAddedFromModal (added: Task) {
   if (!tasks.value) {
     tasks.value = []
   }
-  tasks.value.push(created)
+  tasks.value.push(added)
   rebuildBoardFromTasks()
-  markTaskAsJustCreated(created.id)
+  markTaskAsJustCreated(added.id)
   syncBoardPageCache()
 }
-async function onListCreateSubmit ({
+async function onListFormSubmit ({
   name,
   color_index,
 }: {
   name: string
   color_index: number
 }) {
-  if (listCreateLoading.value) return
-  listCreateLoading.value = true
+  if (listFormLoading.value) return
+  listFormLoading.value = true
   try {
-    if (listModalMode.value === 'create') {
-      await api<{ id: number; name: string; color_index: number; sort_order: number }>(
+    if (listModalMode.value === 'add') {
+      const created = await api<{ id: number; name: string; color_index: number; sort_order: number }>(
         `/orgs/${slug.value}/workspaces/${workspaceId.value}/lists`,
         {
           method: 'POST',
           body: { name, color_index, sort_order: lists.value.length },
         },
       )
-      listCreateOpen.value = false
+      listFormOpen.value = false
       await load({ refresh: true })
+      markListAsJustCreated(`list_${created.id}`)
       return
     }
     const target = listEditTarget.value
@@ -2737,19 +2464,19 @@ async function onListCreateSubmit ({
       row.color = resolved.color
       row.color_index = resolved.color_index
     }
-    listCreateOpen.value = false
+    listFormOpen.value = false
     listEditTarget.value = null
-    listModalMode.value = 'create'
+    listModalMode.value = 'add'
   } catch (e: unknown) {
-    listCreateModalRef.value?.setSubmitError(
+    listFormModalRef.value?.setSubmitError(
       e instanceof Error ? e.message : (
         listModalMode.value === 'edit'
           ? 'リスト更新に失敗しました'
-          : 'リスト作成に失敗しました'
+          : 'リスト追加に失敗しました'
       ),
     )
   } finally {
-    listCreateLoading.value = false
+    listFormLoading.value = false
   }
 }
 async function confirmListDelete () {
@@ -2784,9 +2511,6 @@ async function startListEdit (list: ListDef) {
   editingTaskId.value = null
   editingListKey.value = list.key
   listEditDrafts[list.key] = list.title
-  await nextTick()
-  listTitleInputEl.value?.focus()
-  listTitleInputEl.value?.select()
 }
 function cancelListEdit () {
   editingListKey.value = null
@@ -3050,12 +2774,12 @@ async function saveTaskTitle (task: Task) {
     taskRenamePending.value = false
   }
 }
-watch(listCreateOpen, (open) => {
+watch(listFormOpen, (open) => {
   if (open) {
     return
   }
   if (listModalMode.value === 'edit') {
-    listModalMode.value = 'create'
+    listModalMode.value = 'add'
     listEditTarget.value = null
   }
 })
@@ -3074,8 +2798,11 @@ useWorkspaceRealtimeChannel(workspaceId, {
     onTaskDetailUpdated(detail)
     pushDetailModalRemote(detail)
   },
-  onTaskArchived ({ id, task }) {
-    removeTaskFromBoard(id)
+  onTaskArchived ({ id, task, cascaded_task_ids }) {
+    const removeIds = [id, ...(cascaded_task_ids ?? [])]
+    for (const taskId of removeIds) {
+      removeTaskFromBoard(taskId, { removeChildTasks: false })
+    }
     if (task) {
       archivedModalRef.value?.addTaskFromRealtime(task)
     }
@@ -3117,6 +2844,14 @@ useWorkspaceRealtimeChannel(workspaceId, {
   onListsReordered ({ list_ids }) {
     applyListsReordered(list_ids)
   },
+  onWorkspaceMembersUpdated ({ members, removed_member_ids }) {
+    dispatchWorkspaceMembersUpdated({
+      orgSlug: slug.value,
+      workspaceId: workspaceId.value,
+      members,
+      removedMemberIds: removed_member_ids,
+    })
+  },
 })
 onBeforeMount(() => {
   void hydrateSidebarPreference()
@@ -3126,11 +2861,21 @@ onBeforeMount(() => {
   const cached = getBoardCached(slug.value, workspaceId.value)
   if (cached) {
     applyBoardSnapshot(cached)
-    pageReady.value = true
+    markBoardReady()
   }
 })
 onActivated(() => {
   void hydrateSidebarPreference()
+  if (import.meta.client) {
+    document.addEventListener('keydown', onBoardKeydown)
+  }
+})
+onDeactivated(() => {
+  if (import.meta.client) {
+    document.removeEventListener('keydown', onBoardKeydown)
+  }
+  closeBoardFilter()
+  closeSubheaderMenu()
 })
 useOnUserProfileUpdated((detail) => {
   if (!tasks.value && workspaceMembers.value.length === 0) {
@@ -3143,16 +2888,32 @@ useOnUserProfileUpdated((detail) => {
       rebuildBoardFromTasks()
     }
   }
-  workspaceMembers.value = applyUserProfileToMembers(workspaceMembers.value, detail)
-  taskCommentsByTaskId.value = applyUserProfileToCommentsByTaskId(
-    taskCommentsByTaskId.value,
-    detail,
-  )
   syncBoardPageCache()
   if (detailTaskId.value != null) {
     const row = tasks.value?.find(task => task.id === detailTaskId.value)
     if (row) {
-      pushDetailModalRemote(boardTaskToTaskDetail(row))
+      pushDetailModalRemote(boardTaskToTaskDetail(row, orgLabels.value))
+    }
+  }
+})
+useOnWorkspaceMembersUpdated((detail) => {
+  if (!workspaceMembersUpdateMatchesView(detail, slug.value, workspaceId.value)) {
+    return
+  }
+  if (!tasks.value || detail.removedMemberIds.length === 0) {
+    return
+  }
+  const nextTasks = removeMembersFromTaskAssignees(tasks.value, detail.removedMemberIds)
+  if (nextTasks === tasks.value) {
+    return
+  }
+  tasks.value = nextTasks
+  rebuildBoardFromTasks()
+  syncBoardPageCache()
+  if (detailTaskId.value != null) {
+    const row = tasks.value.find(task => task.id === detailTaskId.value)
+    if (row) {
+      pushDetailModalRemote(boardTaskToTaskDetail(row, orgLabels.value))
     }
   }
 })
@@ -3164,21 +2925,13 @@ onMounted(async () => {
   if (!import.meta.client) {
     return
   }
-  window.addEventListener('click', onGlobalClick)
   window.addEventListener('resize', onWindowResize)
   document.addEventListener('selectstart', onDocumentSelectStart)
   document.addEventListener('pointermove', onBoardPointerMove, { passive: true })
   document.addEventListener('mousemove', onBoardPointerMove, { passive: true })
   document.addEventListener('keydown', onBoardKeydown)
   nextTick(() => {
-    updateStickyOffsets()
-    const globalHeader = document.querySelector('.global-header') as HTMLElement | null
-    if (globalHeader && 'ResizeObserver' in window) {
-      globalHeaderObserver = new ResizeObserver(() => {
-        updateStickyOffsets()
-      })
-      globalHeaderObserver.observe(globalHeader)
-    }
+    bindStickyOffsets()
   })
 })
 watch(
@@ -3190,7 +2943,6 @@ watch(
 onBeforeUnmount(() => {
   syncBoardPageCache()
   if (import.meta.client) {
-    window.removeEventListener('click', onGlobalClick)
     window.removeEventListener('resize', onWindowResize)
     document.removeEventListener('selectstart', onDocumentSelectStart)
     document.removeEventListener('pointermove', onBoardPointerMove)
@@ -3202,9 +2954,8 @@ onBeforeUnmount(() => {
     detachListColumnDragListeners()
     clearListColumnWidthLocks()
   }
-  globalHeaderObserver?.disconnect()
-  globalHeaderObserver = null
-  clearUndoTimer()
+  unbindStickyOffsets()
+  clearBoardFadeInTimer()
 })
 </script>
 <style lang="scss" scoped src="~/assets/styles/components/workspace/WorkspaceBoard.scss"></style>

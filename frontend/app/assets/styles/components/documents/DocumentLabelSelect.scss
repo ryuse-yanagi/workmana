@@ -9,8 +9,8 @@
   border: none;
   border-radius: 6px;
   padding: 0;
-  background: mixin.$text-placeholder;
-  color: mixin.$white;
+  background: #94a3b8;
+  color: #fff;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -18,7 +18,7 @@
 }
 .document-label-select__trigger:disabled {
   opacity: 0.55;
-  cursor: pointer;
+  cursor: not-allowed;
 }
 .document-label-select__trigger:focus-visible {
   outline: 2px solid mixin.$main;
@@ -34,10 +34,10 @@
   z-index: 120;
   box-sizing: border-box;
   @include mixin.popover-panel-width(252px);
-  border: 1px solid mixin.$gray;
+  border: 1px solid #e2e8f0;
   border-radius: mixin.$popover-border-radius;
-  background: mixin.$white;
-  box-shadow: 0 12px 32px mixin.ink-a(0.18);
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -48,7 +48,7 @@
   align-items: center;
   justify-content: center;
   padding: mixin.$popover-padding 28px mixin.$popover-padding;
-  border-bottom: 1px solid mixin.$border;
+  border-bottom: 1px solid #dfe1e6;
 }
 .document-label-select__title {
   @include mixin.popover-title-text;
@@ -60,7 +60,7 @@
   transform: translateY(-50%);
   border: none;
   background: transparent;
-  color: mixin.$text-muted;
+  color: #64748b;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
@@ -75,7 +75,7 @@
   border-radius: 6px;
   padding: 6.3px 7.7px;
   font-size: 12.32px;
-  color: mixin.$text-on-surface;
+  color: #172b4d;
 }
 .document-label-select__search:focus {
   @include mixin.input-focus-ring;
@@ -83,8 +83,6 @@
 .document-label-select__list {
   margin: 0;
   padding: 0;
-  min-height: 0;
-  flex: 1 1 auto;
   @include mixin.popover-scroller;
   @include mixin.popover-scroller-overlay-pad(0px);
 }

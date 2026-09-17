@@ -2,23 +2,32 @@ import type {
   TaskHierarchyChild,
   TaskHierarchyParent,
 } from '../components/task/TaskDetailHierarchyBlock.vue'
+import type { TaskBoardCardLabel, TaskBoardCardMember } from '../components/task/TaskBoardCard.vue'
+
 export type TaskHierarchySource = {
   id: number
   title: string
   is_parent_task?: boolean
   parent_task_id?: number | null
+  parent_task_title?: string | null
+  start_date?: string | null
   due_date?: string | null
+  effort_hours?: number | string | null
+  labels?: TaskBoardCardLabel[]
+  assignees?: TaskBoardCardMember[]
   list_id?: number | null
   list_name?: string | null
   list_color?: string | null
   sort_order?: number
 }
+
 export function isTaskInHierarchy (task: TaskHierarchySource | null | undefined): boolean {
   if (!task) {
     return false
   }
   return Boolean(task.is_parent_task || task.parent_task_id != null)
 }
+
 function compareHierarchyTasks (a: TaskHierarchySource, b: TaskHierarchySource): number {
   const orderDiff = (a.sort_order ?? 0) - (b.sort_order ?? 0)
   if (orderDiff !== 0) {
@@ -26,37 +35,56 @@ function compareHierarchyTasks (a: TaskHierarchySource, b: TaskHierarchySource):
   }
   return a.id - b.id
 }
+
 function resolveHierarchyListName (
   task: TaskHierarchySource,
   resolveListName?: (listId: number | null) => string | null,
 ): string | null {
   return task.list_name ?? resolveListName?.(task.list_id ?? null) ?? null
 }
+
+function toHierarchyCardFields (task: TaskHierarchySource): Omit<
+  TaskHierarchyParent,
+  'list_id' | 'list_name' | 'list_color'
+> {
+  return {
+    id: task.id,
+    title: task.title,
+    start_date: task.start_date ?? null,
+    due_date: task.due_date ?? null,
+    effort_hours: task.effort_hours ?? null,
+    labels: task.labels ?? [],
+    assignees: task.assignees ?? [],
+    parent_task_id: task.parent_task_id ?? null,
+    parent_task_title: task.parent_task_title ?? null,
+    is_parent_task: Boolean(task.is_parent_task),
+  }
+}
+
 function toHierarchyParent (
   task: TaskHierarchySource,
   resolveListName?: (listId: number | null) => string | null,
 ): TaskHierarchyParent {
   return {
-    id: task.id,
-    title: task.title,
+    ...toHierarchyCardFields(task),
     list_id: task.list_id ?? null,
     list_name: resolveHierarchyListName(task, resolveListName),
     list_color: task.list_color ?? null,
   }
 }
+
 function toHierarchyChild (
   task: TaskHierarchySource,
   resolveListName?: (listId: number | null) => string | null,
 ): TaskHierarchyChild {
   return {
-    id: task.id,
-    title: task.title,
-    due_date: task.due_date ?? null,
+    ...toHierarchyCardFields(task),
     list_id: task.list_id ?? null,
     list_name: resolveHierarchyListName(task, resolveListName),
     list_color: task.list_color ?? null,
   }
 }
+
 export function resolveTaskHierarchyFromTasks<T extends TaskHierarchySource> (
   task: T,
   allTasks: T[],
@@ -66,7 +94,10 @@ export function resolveTaskHierarchyFromTasks<T extends TaskHierarchySource> (
     const childTasks = allTasks
       .filter(row => row.parent_task_id === task.id)
       .sort(compareHierarchyTasks)
-      .map(row => toHierarchyChild(row, resolveListName))
+      .map(row => toHierarchyChild({
+        ...row,
+        parent_task_title: row.parent_task_title ?? task.title,
+      }, resolveListName))
     return {
       parent_task: toHierarchyParent(task, resolveListName),
       child_tasks: childTasks,
@@ -74,10 +105,14 @@ export function resolveTaskHierarchyFromTasks<T extends TaskHierarchySource> (
   }
   if (task.parent_task_id != null) {
     const parent = allTasks.find(row => row.id === task.parent_task_id) ?? null
+    const parentTitle = parent?.title ?? task.parent_task_title ?? null
     const childTasks = allTasks
       .filter(row => row.parent_task_id === task.parent_task_id)
       .sort(compareHierarchyTasks)
-      .map(row => toHierarchyChild(row, resolveListName))
+      .map(row => toHierarchyChild({
+        ...row,
+        parent_task_title: row.parent_task_title ?? parentTitle,
+      }, resolveListName))
     return {
       parent_task: parent ? toHierarchyParent(parent, resolveListName) : null,
       child_tasks: childTasks,
@@ -88,6 +123,7 @@ export function resolveTaskHierarchyFromTasks<T extends TaskHierarchySource> (
     child_tasks: [],
   }
 }
+
 export function enrichTaskDetailHierarchy<D extends TaskHierarchySource> (
   detail: D & { parent_task?: TaskHierarchyParent | null; child_tasks?: TaskHierarchyChild[] },
   allTasks: TaskHierarchySource[],

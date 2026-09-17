@@ -1,16 +1,18 @@
 <template>
   <Teleport to="body">
-    <div
-      v-if="modelValue"
-      ref="overlayRef"
-      class="modal-overlay"
-      :class="{ 'modal-overlay--popover-open': !!activePopover }"
-      role="presentation"
-      @mousedown="onOverlayMouseDown"
-    >
+    <Transition name="modal-fade" @after-leave="onModalAfterLeave">
+      <div
+        v-if="modelValue"
+        ref="overlayRef"
+        class="modal-overlay"
+        :class="{ 'modal-overlay--popover-open': !!activePopover }"
+        role="presentation"
+        @mousedown="onOverlayMouseDown"
+      >
         <section
           ref="modalCardRef"
           class="modal-card"
+          :style="modalScrollbarStyle"
           :class="{ 'modal-card--navigating': isNavigatingFade }"
           role="dialog"
           aria-modal="true"
@@ -22,40 +24,54 @@
               type="button"
               class="icon-close"
               :disabled="saving"
+              aria-label="閉じる"
               @click="close"
-            >✕</button>
+            >
+              <X
+                :size="20"
+                :stroke-width="2.25"
+                aria-hidden="true"
+              />
+            </button>
           </header>
           <div v-if="loading" class="modal-body modal-body--state">
             <p class="state-message">読み込み中...</p>
           </div>
           <div v-else-if="loadError" class="modal-body modal-body--state">
             <p class="err">{{ loadError }}</p>
-            <div class="actions">
-              <button type="button" class="ghost-btn" @click="close">閉じる</button>
-              <button type="button" class="primary-btn" @click="reload">再試行</button>
-            </div>
+            <ModalFooterActions
+              cancel-text="閉じる"
+              confirm-text="再試行"
+              @cancel="close"
+              @confirm="reload"
+            />
           </div>
-          <div v-else class="modal-split">
-            <div ref="modalBodyRef" class="modal-pane modal-pane--detail">
+          <div v-else class="modal-pane modal-pane--detail">
+              <div
+                ref="modalBodyRef"
+                class="modal-pane--detail__scroller"
+              >
+                <div class="modal-pane--detail__body">
             <section class="field-block title-block">
-              <div class="title-block-meta">
-                <span
-                  v-if="showParentTaskLabel"
+              <div
+                v-if="showParentTaskLabel"
+                class="title-block-meta"
+              >
+                <button
+                  ref="parentTaskLabelBtnRef"
+                  type="button"
                   class="task-detail-parent-task"
+                  :class="{
+                    'task-detail-parent-task--open': activePopover === 'parent-task',
+                    'task-detail-parent-task--unset': !task?.parent_task_id,
+                  }"
+                  :disabled="saving || parentSaving"
+                  :aria-label="`親タスク: ${parentTaskDisplayLabel}`"
+                  :aria-expanded="activePopover === 'parent-task'"
+                  data-popover-trigger
+                  @click.stop="openParentTaskPicker($event)"
                 >
                   {{ parentTaskDisplayLabel }}
-                </span>
-                <button
-                  v-if="showListBadge"
-                  type="button"
-                  class="task-detail-list-badge"
-                  :class="{ 'task-detail-list-badge--placeholder': !currentListOption }"
-                  :style="listBadgeStyle"
-                  :disabled="saving || listSaving"
-                  :aria-label="`リスト: ${listBadgeLabel}`"
-                  @click="openListPicker($event)"
-                >
-                  {{ listBadgeLabel }}
                 </button>
               </div>
               <div class="title-input-wrap">
@@ -81,156 +97,157 @@
                 >タスク名を入力...</span>
               </div>
             </section>
-            <div ref="actionButtonsRef" class="action-buttons">
-              <button
-                type="button"
-                class="action-btn"
-                :class="{ 'action-btn--active': activePopover === 'start-date' }"
-                :disabled="saving"
-                @click="openDatePicker('start', $event)"
-              >
-                <span class="action-btn-icon" aria-hidden="true">
-                  <CalendarDays :size="16" :stroke-width="2.25" />
-                </span>
-                開始日
-              </button>
-              <button
-                type="button"
-                class="action-btn"
-                :class="{ 'action-btn--active': activePopover === 'due-date' }"
-                :disabled="saving"
-                @click="openDatePicker('due', $event)"
-              >
-                <span class="action-btn-icon" aria-hidden="true">
-                  <CalendarCheck :size="16" :stroke-width="2.25" />
-                </span>
-                終了日
-              </button>
-              <button
-                type="button"
-                class="action-btn"
-                :class="{ 'action-btn--active': activePopover === 'effort' }"
-                :disabled="saving || effortSaving"
-                @click="openEffortPicker($event)"
-              >
-                <span class="action-btn-icon" aria-hidden="true">
-                  <Clock :size="16" :stroke-width="2.25" />
-                </span>
-                工数
-              </button>
-              <button
-                type="button"
-                class="action-btn"
-                :class="{ 'action-btn--active': activePopover === 'members' }"
-                :disabled="saving"
-                @click="openMemberPicker($event)"
-              >
-                <span class="action-btn-icon" aria-hidden="true">
-                  <UserPlus :size="16" :stroke-width="2.25" />
-                </span>
-                担当者
-              </button>
-              <button
-                type="button"
-                class="action-btn"
-                :class="{ 'action-btn--active': activePopover === 'labels' }"
-                :disabled="saving"
-                @click="openLabelPicker($event)"
-              >
-                <span class="action-btn-icon" aria-hidden="true">
-                  <Tags :size="16" :stroke-width="2.25" />
-                </span>
-                ラベル
-              </button>
-              <button
-                type="button"
-                class="action-btn"
-                :class="{ 'action-btn--active': activePopover === 'checklist-create' }"
-                :disabled="saving"
-                @click="openChecklistPicker($event)"
-              >
-                <span class="action-btn-icon" aria-hidden="true">
-                  <ListChecks :size="16" :stroke-width="2.25" />
-                </span>
-                チェックリスト
-              </button>
-              <button
-                v-if="taskId"
-                type="button"
-                class="action-btn"
-                :disabled="saving || attachmentUploading"
-                @click="openAttachmentFilePicker"
-              >
-                <span class="action-btn-icon" aria-hidden="true">
-                  <Paperclip :size="16" :stroke-width="2.25" />
-                </span>
-                添付ファイル
-              </button>
-              <button
-                type="button"
-                class="action-btn"
-                :class="{ 'action-btn--active': activePopover === 'hierarchy' }"
-                :disabled="saving"
-                @click="openHierarchyPopover($event)"
-              >
-                <span class="action-btn-icon" aria-hidden="true">
-                  <Network :size="16" :stroke-width="2.25" />
-                </span>
-                親子関係
-              </button>
-              <input
-                ref="attachmentFileInputRef"
-                type="file"
-                class="attachments-upload__input attachments-upload__input--hidden"
-                :disabled="attachmentUploading || saving"
-                tabindex="-1"
-                aria-hidden="true"
-                @change="onAttachmentFileSelected"
-              >
-            </div>
-            <div
-              v-if="(task?.start_date || task?.due_date) || showEffortDetailSection"
-              class="detail-meta-row detail-meta-row--schedule"
-            >
-              <section v-if="task?.start_date" class="detail-item detail-item--date">
-                <span class="detail-item-label">開始日</span>
+            <div class="action-toolbar">
+              <div ref="actionButtonsRef" class="action-buttons">
                 <button
                   type="button"
-                  class="detail-value-btn"
+                  class="action-btn"
+                  :class="{ 'action-btn--active': activePopover === 'members' }"
                   :disabled="saving"
-                  @click="openDatePicker('start', $event)"
+                  @click="openMemberPicker($event)"
                 >
-                  {{ formatDateDisplay(task.start_date) }}
+                  <span class="action-btn-icon" aria-hidden="true">
+                    <UserPlus :size="18" :stroke-width="2.25" />
+                  </span>
+                  担当者
                 </button>
-              </section>
-              <section v-if="task?.due_date" class="detail-item detail-item--date">
-                <span class="detail-item-label">終了日</span>
                 <button
                   type="button"
-                  class="detail-value-btn"
+                  class="action-btn"
+                  :class="{ 'action-btn--active': activePopover === 'labels' }"
                   :disabled="saving"
-                  @click="openDatePicker('due', $event)"
+                  @click="openLabelPicker($event)"
                 >
-                  {{ formatDateDisplay(task.due_date) }}
+                  <span class="action-btn-icon" aria-hidden="true">
+                    <Tags :size="18" :stroke-width="2.25" />
+                  </span>
+                  ラベル
                 </button>
-              </section>
-              <section
-                v-if="showEffortDetailSection"
-                ref="effortDetailAnchorRef"
-                class="detail-item detail-item--effort"
-              >
-                <span class="detail-item-label">工数</span>
                 <button
                   type="button"
-                  class="detail-value-btn"
-                  :class="{ 'detail-value-btn--editing': activePopover === 'effort' }"
+                  class="action-btn"
+                  :class="{ 'action-btn--active': activePopover === 'period' }"
+                  :disabled="saving"
+                  @click="openDatePicker($event)"
+                >
+                  <span class="action-btn-icon" aria-hidden="true">
+                    <CalendarDays :size="18" :stroke-width="2.25" />
+                  </span>
+                  期間
+                </button>
+                <button
+                  type="button"
+                  class="action-btn"
+                  :class="{ 'action-btn--active': activePopover === 'effort' }"
                   :disabled="saving || effortSaving"
-                  :aria-live="activePopover === 'effort' ? 'polite' : undefined"
                   @click="openEffortPicker($event)"
                 >
-                  {{ effortDetailDisplayText }}
+                  <span class="action-btn-icon" aria-hidden="true">
+                    <Clock :size="18" :stroke-width="2.25" />
+                  </span>
+                  工数
                 </button>
-              </section>
+                <button
+                  type="button"
+                  class="action-btn"
+                  :class="{ 'action-btn--active': activePopover === 'progress-rate' }"
+                  :disabled="saving || progressRateSaving"
+                  @click="openProgressRatePicker($event)"
+                >
+                  <span class="action-btn-icon" aria-hidden="true">
+                    <ChartNoAxesColumnIncreasing :size="18" :stroke-width="2.25" />
+                  </span>
+                  進捗率
+                </button>
+                <button
+                  type="button"
+                  class="action-btn"
+                  :class="{ 'action-btn--active': activePopover === 'checklist-add' }"
+                  :disabled="saving"
+                  @click="openChecklistPicker($event)"
+                >
+                  <span class="action-btn-icon" aria-hidden="true">
+                    <ListChecks :size="18" :stroke-width="2.25" />
+                  </span>
+                  チェックリスト
+                </button>
+                <button
+                  v-if="taskId"
+                  type="button"
+                  class="action-btn"
+                  :disabled="saving || attachmentUploading"
+                  @click="openAttachmentFilePicker"
+                >
+                  <span class="action-btn-icon" aria-hidden="true">
+                    <Paperclip :size="18" :stroke-width="2.25" />
+                  </span>
+                  添付ファイル
+                </button>
+                <button
+                  v-if="showHierarchyButton"
+                  type="button"
+                  class="action-btn"
+                  :class="{ 'action-btn--active': activePopover === 'hierarchy' }"
+                  :disabled="saving"
+                  @click="openHierarchyPopover($event)"
+                >
+                  <span class="action-btn-icon" aria-hidden="true">
+                    <Network :size="18" :stroke-width="2.25" />
+                  </span>
+                  階層
+                </button>
+                <input
+                  ref="attachmentFileInputRef"
+                  type="file"
+                  class="attachments-upload__input attachments-upload__input--hidden"
+                  :disabled="attachmentUploading || saving"
+                  tabindex="-1"
+                  aria-hidden="true"
+                  @change="onAttachmentFileSelected"
+                >
+              </div>
+              <div
+                v-if="showListBadge"
+                class="action-toolbar__aside"
+              >
+                <button
+                  ref="listPickerBtnRef"
+                  type="button"
+                  class="task-detail-list-btn"
+                  data-popover-trigger
+                  :class="{
+                    'task-detail-list-btn--placeholder': !currentListOption,
+                    'task-detail-list-btn--open': activePopover === 'list',
+                  }"
+                  :style="listBadgeStyle"
+                  :disabled="saving || listSaving"
+                  :aria-label="`リスト: ${listBadgeLabel}`"
+                  :aria-expanded="activePopover === 'list'"
+                  @click.stop="openListPicker($event)"
+                >
+                  <span class="task-detail-list-btn__name">{{ listBadgeLabel }}</span>
+                  <ChevronDown
+                    class="task-detail-list-btn__chevron"
+                    :size="14"
+                    :stroke-width="2.5"
+                    aria-hidden="true"
+                  />
+                </button>
+                <button
+                  v-if="showAddChildTaskButton"
+                  type="button"
+                  class="subheader-secondary-btn subheader-secondary-btn--add task-detail-add-child-btn"
+                  :disabled="saving"
+                  @click.stop="onAddChildTask"
+                >
+                  <FilePlus
+                    :size="18"
+                    :stroke-width="2.25"
+                    aria-hidden="true"
+                  />
+                  子タスク追加
+                </button>
+              </div>
             </div>
             <div
               v-if="(task?.assignees ?? []).length || (task?.labels ?? []).length"
@@ -267,7 +284,12 @@
                     aria-label="担当者を追加"
                     @click="openMemberPicker($event)"
                   >
-                    <span class="member-avatar-btn-plus" aria-hidden="true">+</span>
+                    <Plus
+                      :size="16"
+                      :stroke-width="2.25"
+                      class="member-avatar-btn-plus"
+                      aria-hidden="true"
+                    />
                   </button>
                 </div>
               </section>
@@ -299,45 +321,69 @@
                     aria-label="ラベルを追加"
                     @click="openLabelPicker($event)"
                   >
-                    <span class="label-chip-add-plus" aria-hidden="true">+</span>
+                    <Plus
+                      :size="16"
+                      :stroke-width="2.25"
+                      class="label-chip-add-plus"
+                      aria-hidden="true"
+                    />
                   </button>
                 </div>
               </section>
             </div>
-            <section class="field-block description-block">
-              <div class="description-block__header">
-                <span class="field-label">説明</span>
-                <div
-                  class="description-mode-tabs"
-                  role="tablist"
-                  aria-label="説明の表示形式"
+            <div
+              v-if="(task?.start_date || task?.due_date) || showEffortDetailSection || showProgressRateDetailSection"
+              class="detail-meta-row detail-meta-row--schedule"
+            >
+              <section v-if="task?.start_date || task?.due_date" class="detail-item detail-item--date">
+                <span class="detail-item-label">期間</span>
+                <button
+                  type="button"
+                  class="detail-value-btn"
+                  :disabled="saving"
+                  @click="openDatePicker($event)"
                 >
-                  <button
-                    type="button"
-                    class="description-mode-tab"
-                    :class="{ 'description-mode-tab--active': descriptionViewMode === 'preview' }"
-                    role="tab"
-                    :aria-selected="descriptionViewMode === 'preview'"
-                    :disabled="saving || descriptionSaving"
-                    @click="setDescriptionViewMode('preview')"
-                  >
-                    Preview
-                  </button>
-                  <button
-                    type="button"
-                    class="description-mode-tab"
-                    :class="{ 'description-mode-tab--active': descriptionViewMode === 'markdown' }"
-                    role="tab"
-                    :aria-selected="descriptionViewMode === 'markdown'"
-                    :disabled="saving || descriptionSaving"
-                    @click="setDescriptionViewMode('markdown')"
-                  >
-                    Markdown
-                  </button>
-                </div>
-              </div>
+                  {{ formatPeriodDisplay(task.start_date, task.due_date) }}
+                </button>
+              </section>
+              <section
+                v-if="showEffortDetailSection"
+                ref="effortDetailAnchorRef"
+                class="detail-item detail-item--effort"
+              >
+                <span class="detail-item-label">工数</span>
+                <button
+                  type="button"
+                  class="detail-value-btn"
+                  :class="{ 'detail-value-btn--editing': activePopover === 'effort' }"
+                  :disabled="saving || effortSaving"
+                  :aria-live="activePopover === 'effort' ? 'polite' : undefined"
+                  @click="openEffortPicker($event)"
+                >
+                  {{ effortDetailDisplayText }}
+                </button>
+              </section>
+              <section
+                v-if="showProgressRateDetailSection"
+                ref="progressRateDetailAnchorRef"
+                class="detail-item detail-item--progress-rate"
+              >
+                <span class="detail-item-label">進捗率</span>
+                <button
+                  type="button"
+                  class="detail-value-btn"
+                  :class="{ 'detail-value-btn--editing': activePopover === 'progress-rate' }"
+                  :disabled="saving || progressRateSaving"
+                  :aria-live="activePopover === 'progress-rate' ? 'polite' : undefined"
+                  @click="openProgressRatePicker($event)"
+                >
+                  {{ progressRateDetailDisplayText }}
+                </button>
+              </section>
+            </div>
+            <section class="field-block description-block">
+              <span class="field-label">説明</span>
               <textarea
-                v-if="descriptionViewMode === 'markdown'"
                 ref="descriptionTextareaRef"
                 v-model="descriptionDraft"
                 class="description-input"
@@ -349,52 +395,6 @@
                 @input="adjustDescriptionTextareaHeight"
                 @blur="onDescriptionBlur"
               />
-              <div
-                v-else-if="renderedDescriptionHtml"
-                class="description-preview"
-                v-html="renderedDescriptionHtml"
-              />
-              <p
-                v-else
-                class="description-preview-empty"
-              >説明がありません。</p>
-            </section>
-            <section v-if="taskId && showAttachmentsSection" class="field-block attachments-block">
-              <div class="attachments-block__header">
-                <span class="field-label">添付ファイル</span>
-                <button
-                  type="button"
-                  class="attachments-upload"
-                  :disabled="attachmentUploading || saving"
-                  @click="openAttachmentFilePicker"
-                >
-                  追加
-                </button>
-              </div>
-              <p v-if="attachmentsLoading" class="attachments-state">読み込み中…</p>
-              <p v-else-if="attachmentsError" class="attachments-state attachments-state--error">{{ attachmentsError }}</p>
-              <p v-else-if="!attachments.length" class="attachments-state">添付ファイルはありません。</p>
-              <ul v-else class="attachments-list">
-                <li v-for="attachment in attachments" :key="attachment.id" class="attachments-item">
-                  <button
-                    type="button"
-                    class="attachments-item__name"
-                    :disabled="attachmentDownloadingId === attachment.id"
-                    @click="downloadAttachment(attachment)"
-                  >
-                    {{ attachment.original_name }}
-                  </button>
-                  <span class="attachments-item__meta">{{ formatAttachmentSize(attachment.size_bytes) }}</span>
-                  <button
-                    type="button"
-                    class="attachments-item__delete"
-                    :disabled="attachmentDeletingId === attachment.id"
-                    @click="deleteAttachment(attachment.id)"
-                  >
-                    削除
-                  </button>
-                </li>
-              </ul>
             </section>
             <div
               v-if="checklists.length"
@@ -405,323 +405,247 @@
                 v-for="checklist in checklists"
                 :key="checklist.id"
                 :checklist="checklist"
+                :task-id="taskId"
                 :show-add-form="checklistAddFormOpenId === checklist.id"
                 @update="updateChecklist(checklist.id, $event)"
                 @update:show-add-form="setChecklistAddFormOpen(checklist.id, $event)"
                 @delete="deleteChecklist(checklist.id)"
               />
             </div>
+            <section
+              v-if="taskId && showAttachmentsSection"
+              class="field-block attachments-block"
+              :class="{ 'attachments-block--collapsed': attachmentsCollapsed }"
+            >
+              <div class="attachments-block__header">
+                <div class="attachments-block__title-row">
+                  <button
+                    type="button"
+                    class="attachments-block__icon-toggle"
+                    :class="{ 'attachments-block__icon-toggle--collapsed': attachmentsCollapsed }"
+                    :aria-expanded="!attachmentsCollapsed"
+                    :aria-label="attachmentsCollapsed ? '添付ファイルを展開' : '添付ファイルを折りたたむ'"
+                    @click="toggleAttachmentsCollapsed"
+                  >
+                    <span class="attachments-block__icon attachments-block__icon--default" aria-hidden="true">
+                      <Paperclip :size="20" :stroke-width="2.25" />
+                    </span>
+                    <span class="attachments-block__icon attachments-block__icon--hover" aria-hidden="true">
+                      <ChevronDown :size="20" :stroke-width="2.25" />
+                    </span>
+                    <span class="attachments-block__icon attachments-block__icon--collapsed" aria-hidden="true">
+                      <ChevronRight :size="20" :stroke-width="2.25" />
+                    </span>
+                  </button>
+                  <span class="attachments-block__title">添付ファイル</span>
+                </div>
+                <button
+                  type="button"
+                  class="attachments-upload"
+                  :disabled="attachmentUploading || saving"
+                  @click="openAttachmentFilePicker"
+                >
+                  追加
+                </button>
+              </div>
+              <div v-show="!attachmentsCollapsed" class="attachments-block__body">
+                <p v-if="attachmentsLoading" class="attachments-state">読み込み中…</p>
+                <p v-else-if="attachmentsError" class="attachments-state attachments-state--error">{{ attachmentsError }}</p>
+                <p v-else-if="!attachments.length" class="attachments-state attachments-state--empty">
+                  まだ添付ファイルはありません
+                </p>
+                <ul v-else class="attachments-list">
+                  <li
+                    v-for="attachment in attachments"
+                    :key="attachment.id"
+                    class="attachments-item"
+                    :class="{
+                      'attachments-item--busy':
+                        attachmentDownloadingId === attachment.id
+                        || attachmentDeletingId === attachment.id,
+                      'attachments-item--menu-open': openAttachmentMenuId === attachment.id,
+                    }"
+                    @contextmenu="onAttachmentContextMenu(attachment.id, $event)"
+                  >
+                    <button
+                      type="button"
+                      class="attachments-item__main"
+                      :disabled="attachmentDownloadingId === attachment.id || attachmentDeletingId === attachment.id"
+                      :aria-label="`${attachment.original_name}をダウンロード`"
+                      @click="downloadAttachment(attachment)"
+                    >
+                      <span
+                        class="attachments-item__thumb"
+                        :class="`attachments-item__thumb--${attachmentFileKind(attachment)}`"
+                        aria-hidden="true"
+                      >
+                        <component
+                          :is="attachmentFileIcon(attachment)"
+                          :size="18"
+                          :stroke-width="2.1"
+                        />
+                      </span>
+                      <span class="attachments-item__body">
+                        <span class="attachments-item__name">{{ attachment.original_name }}</span>
+                        <span class="attachments-item__meta">
+                          <span>{{ formatAttachmentSize(attachment.size_bytes) }}</span>
+                          <span
+                            v-if="formatAttachmentDate(attachment.created_at)"
+                            class="attachments-item__meta-sep"
+                            aria-hidden="true"
+                          >·</span>
+                          <span v-if="formatAttachmentDate(attachment.created_at)">
+                            {{ formatAttachmentDate(attachment.created_at) }}
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                    <div
+                      class="attachments-item__menu-wrap"
+                      :class="{ 'attachments-item__menu-wrap--open': openAttachmentMenuId === attachment.id }"
+                      @click.stop
+                      @pointerdown.stop
+                      @contextmenu.stop
+                    >
+                      <button
+                        type="button"
+                        class="attachments-item__menu"
+                        data-popover-trigger
+                        :disabled="attachmentDeletingId === attachment.id || attachmentDownloadingId === attachment.id"
+                        :aria-expanded="openAttachmentMenuId === attachment.id"
+                        aria-haspopup="menu"
+                        aria-label="添付ファイルのメニュー"
+                        @click="toggleAttachmentMenu(attachment.id, $event)"
+                      >
+                        <Ellipsis :size="16" :stroke-width="2.25" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </section>
             <p v-if="saveError" class="err">{{ saveError }}</p>
             <Teleport to="body">
-              <Transition name="popover-fade" @after-enter="updatePopoverPosition">
+              <Transition name="popover-fade" @after-enter="onPopoverAfterEnter" @after-leave="notifyPopoverAfterLeave">
                 <div
                   v-if="modelValue && activePopover"
                   :key="activePopover === 'member-detail' ? `member-detail-${selectedMember?.id}` : activePopover"
                   class="popover-layer popover-layer--portal"
                 >
-                <PopoverShell
-                  v-if="activePopover === 'start-date' || activePopover === 'due-date'"
+                <TaskDatePickerPopover
+                  v-if="activePopover === 'period'"
                   ref="popoverElRef"
-                  shell-class="popover popover--date"
                   :style="popoverStyle"
-                  :title="activePopover === 'start-date' ? '開始日' : '終了日'"
-                  :aria-label="activePopover === 'start-date' ? '開始日' : '終了日'"
-                  :close-disabled="saving"
+                  title="期間"
+                  :disabled="saving"
+                  :can-clear="canClearCalendarDate"
+                  :error="popoverError"
+                  :weekday-labels="weekdayLabels"
+                  :calendar-month-label="calendarMonthLabel"
+                  :calendar-cells="calendarCells"
+                  :range-start-iso="periodRangeStartIso"
+                  :range-end-iso="periodRangeEndIso"
                   @close="closePopover"
-                >
-                <div class="calendar">
-                  <div class="calendar-nav">
-                    <button
-                      type="button"
-                      class="calendar-nav-btn"
-                      :disabled="saving"
-                      aria-label="前の月"
-                      @click="shiftCalendarMonth(-1)"
-                    >‹</button>
-                    <span class="calendar-month-label">{{ calendarMonthLabel }}</span>
-                    <button
-                      type="button"
-                      class="calendar-nav-btn"
-                      :disabled="saving"
-                      aria-label="次の月"
-                      @click="shiftCalendarMonth(1)"
-                    >›</button>
-                  </div>
-                  <div class="calendar-weekdays">
-                    <span v-for="day in weekdayLabels" :key="day" class="calendar-weekday">{{ day }}</span>
-                  </div>
-                  <div class="calendar-grid">
-                    <button
-                      v-for="cell in calendarCells"
-                      :key="cell.key"
-                      type="button"
-                      class="calendar-day"
-                      :class="{
-                        'calendar-day--outside': !cell.inMonth,
-                        'calendar-day--selected': cell.iso === pendingDate,
-                        'calendar-day--today': cell.isToday,
-                      }"
-                      @click.stop="pickCalendarDay(cell.iso)"
-                    >
-                      {{ cell.day }}
-                    </button>
-                  </div>
-                </div>
-                <div class="popover-field-actions">
-                  <button
-                    type="button"
-                    class="popover-field-clear-btn"
-                    :disabled="saving || dateSaving || !canClearCalendarDate"
-                    @click.stop="void clearCalendarDate()"
-                  >
-                    削除
-                  </button>
-                </div>
-                <p v-if="popoverError" class="err">{{ popoverError }}</p>
-                </PopoverShell>
-              <PopoverShell
+                  @shift-month="shiftCalendarMonth"
+                  @pick="pickCalendarDay"
+                  @pick-range="pickCalendarRange"
+                  @clear="void clearCalendarDate()"
+                />
+              <TaskEffortPickerPopover
                 v-else-if="activePopover === 'effort'"
                 ref="popoverElRef"
-                shell-class="popover popover--effort"
                 :style="popoverStyle"
-                title="工数"
-                aria-label="工数"
-                :close-disabled="saving || effortSaving"
+                :disabled="saving || effortSaving"
+                :can-clear="canClearEffort"
+                :error="popoverError"
+                :draft="String(effortDraft ?? '')"
+                :unit-label="EFFORT_UNIT_LABEL"
                 @close="void finalizeEffortPopover()"
-              >
-                <div class="effort-input-row">
-                  <input
-                    ref="effortInputRef"
-                    :value="effortDraft"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    class="effort-input"
-                    placeholder="工数を入力..."
-                    aria-label="工数"
-                    :disabled="saving || effortSaving"
-                    @input="updateEffortDraft(($event.target as HTMLInputElement).value)"
-                    @keydown.enter.prevent="void finalizeEffortPopover()"
-                    @keydown.escape.prevent="void finalizeEffortPopover()"
-                    @click.stop
-                  />
-                  <span class="effort-unit-label">{{ EFFORT_UNIT_LABEL }}</span>
-                </div>
-                <div class="popover-field-actions">
-                  <button
-                    type="button"
-                    class="popover-field-clear-btn"
-                    :disabled="saving || effortSaving || !canClearEffort"
-                    @click.stop="void clearEffort()"
-                  >
-                    削除
-                  </button>
-                </div>
-                <p v-if="popoverError" class="err">{{ popoverError }}</p>
-                </PopoverShell>
-              <div
+                @update:draft="updateEffortDraft"
+                @finalize="void finalizeEffortPopover()"
+                @clear="void clearEffort()"
+              />
+              <TaskProgressRatePickerPopover
+                v-else-if="activePopover === 'progress-rate'"
+                ref="popoverElRef"
+                :style="popoverStyle"
+                :disabled="saving || progressRateSaving"
+                :can-clear="canClearProgressRate"
+                :error="popoverError"
+                :draft="String(progressRateDraft ?? '')"
+                :unit-label="PROGRESS_RATE_UNIT_LABEL"
+                @close="void finalizeProgressRatePopover()"
+                @update:draft="updateProgressRateDraft"
+                @finalize="void finalizeProgressRatePopover()"
+                @clear="void clearProgressRate()"
+              />
+              <TaskMemberDetailPopover
                 v-else-if="activePopover === 'member-detail' && selectedMember"
                 ref="popoverElRef"
-                class="popover popover--member-detail"
                 :style="popoverStyle"
-                role="dialog"
-                :aria-label="`${memberDisplayName(selectedMember)}の詳細`"
-                @click.stop
-              >
-                <div class="member-detail-card">
-                  <header class="member-detail-header">
-                    <button
-                      type="button"
-                      class="member-detail-close"
-                      :disabled="saving"
-                      aria-label="閉じる"
-                      @click="closePopover"
-                    >✕</button>
-                    <div class="member-detail-profile">
-                      <img
-                        v-if="selectedMember && memberAvatarSrc(selectedMember)"
-                        :src="memberAvatarSrc(selectedMember)!"
-                        alt=""
-                        class="member-detail-avatar"
-                        @error="onMemberAvatarError(selectedMember.id)"
-                      />
-                      <span v-else class="member-detail-initial">{{ memberInitial(selectedMember) }}</span>
-                      <div class="member-detail-text">
-                        <p class="member-detail-name">{{ memberDisplayName(selectedMember) }}</p>
-                        <p class="member-detail-email">{{ memberEmailLine(selectedMember) }}</p>
-                      </div>
-                    </div>
-                  </header>
-                  <div class="member-detail-body">
-                    <button
-                      type="button"
-                      class="member-detail-remove"
-                      :disabled="saving"
-                      @click.stop="removeMemberFromTask(selectedMember)"
-                    >
-                      タスクから削除
-                    </button>
-                  </div>
-                </div>
-                <p v-if="popoverError" class="err member-detail-error">{{ popoverError }}</p>
-              </div>
-              <PopoverShell
+                :disabled="saving"
+                :error="popoverError"
+                :display-name="memberDisplayName(selectedMember)"
+                :email-line="memberEmailLine(selectedMember)"
+                :initial="memberInitial(selectedMember)"
+                :avatar-src="memberAvatarSrc(selectedMember)"
+                @close="closePopover"
+                @remove="removeMemberFromTask(selectedMember)"
+                @avatar-error="onMemberAvatarError(selectedMember.id)"
+              />
+              <WorkspaceMemberPickerPopover
                 v-else-if="activePopover === 'members'"
                 ref="popoverElRef"
-                shell-class="popover popover--members"
-                header-class="popover-header--labels"
                 :style="popoverStyle"
                 title="担当者"
-                aria-label="担当者"
-                :close-disabled="saving"
+                assigned-section-heading="担当者"
+                unassigned-section-heading="メンバー"
+                v-model:search-query="memberSearchQuery"
+                :assignees="task?.assignees ?? []"
+                :org-members="workspaceMembers"
+                :disabled="saving"
+                :can-clear="canClearAssignees"
+                :error="popoverError"
+                empty-members-message="スペースメンバーがいません"
                 @close="closePopover"
-              >
-                <input
-                  v-model="memberSearchQuery"
-                  type="search"
-                  class="label-search-input"
-                  placeholder="ユーザーを検索..."
-                  :disabled="saving"
-                  @click.stop
-                />
-                <div class="popover-scroll">
-                  <template v-if="filteredAssignedMembers.length">
-                    <p class="label-section-heading">担当者</p>
-                    <ul class="label-picker-list">
-                      <li v-for="member in filteredAssignedMembers" :key="`assigned-${member.id}`">
-                        <button
-                          type="button"
-                          class="label-picker-row member-picker-row--workspace"
-                          @click.stop="toggleMember(member)"
-                        >
-                          <span class="label-picker-bar member-picker-bar">
-                            <MemberAvatar
-                              :member="member"
-                              size="xs"
-                              class="member-picker-avatar"
-                            />
-                            <span
-                              class="member-picker-name"
-                              :title="memberDisplayName(member)"
-                            >{{ memberDisplayName(member) }}</span>
-                          </span>
-                          <Check
-                            :size="16"
-                            :stroke-width="2.75"
-                            class="member-picker-check"
-                            aria-hidden="true"
-                          />
-                        </button>
-                      </li>
-                    </ul>
-                  </template>
-                  <template v-if="filteredUnassignedMembers.length">
-                    <p class="label-section-heading">ユーザー</p>
-                    <ul class="label-picker-list">
-                      <li v-for="member in filteredUnassignedMembers" :key="`member-${member.id}`">
-                        <button
-                          type="button"
-                          class="label-picker-row member-picker-row--workspace"
-                          @click.stop="toggleMember(member)"
-                        >
-                          <span class="label-picker-bar member-picker-bar">
-                            <MemberAvatar
-                              :member="member"
-                              size="xs"
-                              class="member-picker-avatar"
-                            />
-                            <span
-                              class="member-picker-name"
-                              :title="memberDisplayName(member)"
-                            >{{ memberDisplayName(member) }}</span>
-                          </span>
-                        </button>
-                      </li>
-                    </ul>
-                  </template>
-                  <p v-if="!workspaceMembers.length" class="empty-text label-picker-empty">スペースユーザーがいません。</p>
-                  <p
-                    v-else-if="!filteredAssignedMembers.length && !filteredUnassignedMembers.length"
-                    class="empty-text label-picker-empty"
-                  >該当するユーザーがいません。</p>
-                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
-                </div>
-              </PopoverShell>
-              <PopoverShell
+                @toggle-member="toggleMember"
+                @clear="void clearAssignees()"
+              />
+              <TaskListPickerPopover
                 v-else-if="activePopover === 'list'"
                 ref="popoverElRef"
-                shell-class="popover popover--list"
                 :style="popoverStyle"
-                title="リストを選択"
-                aria-label="リストを選択"
-                :close-disabled="listSaving"
+                :disabled="listSaving"
+                :error="popoverError"
+                :lists="workspaceLists"
+                :selected-id="task?.list_id ?? null"
+                variant="bar"
+                :bar-style="listPickerBarStyle"
                 @close="closePopover"
-              >
-                <div class="popover-scroll">
-                  <ul class="list-picker-list">
-                    <li
-                      v-for="list in workspaceLists"
-                      :key="list.id"
-                    >
-                      <button
-                        type="button"
-                        class="list-picker-row"
-                        :class="{ 'list-picker-row--selected': task?.list_id === list.id }"
-                        :disabled="listSaving"
-                        @click.stop="selectList(list.id)"
-                      >
-                        <span
-                          class="list-picker-radio"
-                          :class="{ 'list-picker-radio--checked': task?.list_id === list.id }"
-                          aria-hidden="true"
-                        />
-                        <span class="list-picker-label">{{ list.name }}</span>
-                      </button>
-                    </li>
-                  </ul>
-                  <p v-if="!workspaceLists.length" class="empty-text list-picker-empty">
-                    リストがありません。
-                  </p>
-                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
-                </div>
-              </PopoverShell>
-              <PopoverShell
+                @select="selectList"
+              />
+              <TaskLabelsPickerPopover
                 v-else-if="activePopover === 'labels'"
                 ref="popoverElRef"
-                shell-class="popover popover--labels"
-                header-class="popover-header--labels"
                 :style="popoverStyle"
-                title="ラベル"
-                aria-label="ラベル"
-                :close-disabled="saving"
+                :disabled="saving"
+                :can-clear="canClearLabels"
+                :error="popoverError"
+                v-model:search-query="labelSearchQuery"
+                :categories="filteredLabelCategories"
+                :selected-ids="(task?.labels ?? []).map(label => label.id)"
+                :has-source-labels="orgLabels.length > 0"
                 @close="closePopover"
-              >
-                <input
-                  v-model="labelSearchQuery"
-                  type="search"
-                  class="label-search-input"
-                  placeholder="ラベルを検索..."
-                  :disabled="saving"
-                  @click.stop
-                />
-                <div class="popover-scroll">
-                  <LabelPickerGroupedList
-                    :categories="filteredLabelCategories"
-                    :selected-ids="(task?.labels ?? []).map(label => label.id)"
-                    :has-source-labels="orgLabels.length > 0"
-                    :disabled="saving"
-                    @toggle="toggleLabel"
-                  />
-                  <p v-if="popoverError" class="err">{{ popoverError }}</p>
-                </div>
-              </PopoverShell>
+                @toggle="toggleLabel"
+                @clear="void clearLabels()"
+              />
               <PopoverShell
                 v-else-if="activePopover === 'hierarchy'"
                 ref="popoverElRef"
                 shell-class="popover popover--hierarchy"
                 :style="popoverStyle"
-                title="親子関係"
-                aria-label="親子関係"
+                title="タスク階層"
+                aria-label="タスク階層"
                 @close="closePopover"
               >
                 <div class="popover-scroll">
@@ -735,9 +659,30 @@
                 </div>
               </PopoverShell>
               <PopoverShell
-                v-else-if="activePopover === 'checklist-create'"
+                v-else-if="activePopover === 'parent-task'"
                 ref="popoverElRef"
-                shell-class="popover popover--checklist-create"
+                shell-class="popover popover--parent-task"
+                :style="popoverStyle"
+                title="親タスク"
+                aria-label="親タスク"
+                :close-disabled="parentSaving"
+                :show-clear="task?.parent_task_id != null"
+                @close="closePopover"
+                @clear="void clearParentTask()"
+              >
+                <ParentTaskPickerPanel
+                  :loading="parentTasksLoading"
+                  :parents="selectableParentTasks"
+                  :selected-parent-id="task?.parent_task_id ?? null"
+                  :error="popoverError"
+                  @select="selectParentTask"
+                  @clear="void clearParentTask()"
+                />
+              </PopoverShell>
+              <PopoverShell
+                v-else-if="activePopover === 'checklist-add'"
+                ref="popoverElRef"
+                shell-class="popover popover--checklist-add"
                 :style="popoverStyle"
                 title="チェックリスト"
                 aria-label="チェックリスト"
@@ -747,18 +692,18 @@
                   ref="checklistTitleInputRef"
                   v-model="checklistTitleDraft"
                   type="text"
-                  class="checklist-create-input"
+                  class="checklist-add-input"
                   :maxlength="CHECKLIST_TITLE_MAX_LENGTH"
                   placeholder="タイトルを入力..."
                   aria-label="チェックリストのタイトル"
-                  @keydown.enter.prevent="submitChecklistCreate"
+                  @keydown.enter.prevent="submitChecklistAdd"
                   @click.stop
                 />
-                <div class="checklist-create-actions">
+                <div class="checklist-add-actions">
                   <button
                     type="button"
-                    class="checklist-create-submit"
-                    @click.stop="submitChecklistCreate"
+                    class="checklist-add-submit"
+                    @click.stop="submitChecklistAdd"
                   >
                     追加
                   </button>
@@ -767,49 +712,87 @@
               </div>
               </Transition>
             </Teleport>
+                </div>
+              </div>
             </div>
-            <TaskDetailChatPane
-              :org-slug="orgSlug"
-              :workspace-id="workspaceId"
-              :task-id="taskId"
-              :workspace-members="workspaceMembers"
-              :initial-comments="initialComments"
-              @comments-updated="emit('comments-updated', $event)"
-            />
-          </div>
         </section>
     </div>
+    </Transition>
+    <FloatingMenu
+      :open="openAttachmentMenuId !== null && attachmentMenuPosition !== null"
+      density="compact"
+      :style="attachmentMenuStyle"
+      :disabled="attachmentDeletingId !== null"
+      :items="attachmentMenuItems"
+      @select="onAttachmentMenuSelect"
+      @close="closeAttachmentMenu"
+    />
   </Teleport>
 </template>
 <script setup lang="ts">
 import {
-  CalendarCheck,
   CalendarDays,
-  Check,
+  ChartNoAxesColumnIncreasing,
+  ChevronDown,
+  ChevronRight,
   Clock,
+  Ellipsis,
+  File,
+  FileArchive,
+  FileImage,
+  FilePlus,
+  FileSpreadsheet,
+  FileText,
   ListChecks,
   Network,
   Paperclip,
+  Plus,
   Tags,
   UserPlus,
+  X,
 } from 'lucide-vue-next'
+import type { Component } from 'vue'
+import FloatingMenu, { type FloatingMenuItem } from '../ui/FloatingMenu.vue'
 import TaskDetailChecklistBlock, {
   type TaskChecklist,
 } from '../task/TaskDetailChecklistBlock.vue'
+import { useTaskDetailSectionCollapse } from '../../composables/useTaskDetailSectionCollapse'
 import TaskDetailHierarchyBlock, {
   type TaskHierarchyChild,
   type TaskHierarchyParent,
 } from '../task/TaskDetailHierarchyBlock.vue'
+import ParentTaskPickerPanel from '../task/ParentTaskPickerPanel.vue'
+import TaskDatePickerPopover from '../task/popover/TaskDatePickerPopover.vue'
+import TaskEffortPickerPopover from '../task/popover/TaskEffortPickerPopover.vue'
+import TaskProgressRatePickerPopover from '../task/popover/TaskProgressRatePickerPopover.vue'
+import TaskLabelsPickerPopover from '../task/popover/TaskLabelsPickerPopover.vue'
+import TaskListPickerPopover from '../task/popover/TaskListPickerPopover.vue'
+import TaskMemberDetailPopover from '../task/popover/TaskMemberDetailPopover.vue'
+import type { TaskPopoverListOption } from '../../utils/taskPopoverTypes'
+import { TASK_POPOVER_WEEKDAY_LABELS } from '../../utils/taskPopoverTypes'
+import WorkspaceMemberPickerPopover from '../workspace/WorkspaceMemberPickerPopover.vue'
 import { useApi } from '../../composables/useApi'
 import {
   EFFORT_UNIT_LABEL,
+  PROGRESS_RATE_UNIT_LABEL,
+  buildTaskCalendarCells,
   formatEffortAmount,
   formatEffortDisplay,
+  formatPeriodDisplay,
+  formatProgressRateDisplay,
   labelBarTextColor,
+  listBarSurfaceStyle,
   normalizeEffortHours,
+  normalizeProgressRate,
   parseEffortDraft,
+  parseProgressRateDraft,
+  progressRateValueToDraft,
   resolveStoredEffortValue,
+  resolveStoredProgressRate,
+  resolveTaskDateRangePick,
   sanitizeEffortDraftInput,
+  sanitizeProgressRateDraftInput,
+  toDateInputValue,
 } from '../../composables/useTaskFormHelpers'
 import { memberDisplayName, memberInitial, sortMembersByDisplayName } from '../../composables/useMemberDisplay'
 import {
@@ -819,10 +802,23 @@ import {
   useOnUserProfileUpdated,
 } from '../../composables/userProfileUpdated'
 import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
+import { adjustTextareaHeight } from '../../utils/textareaAutoGrow'
 import type { TaskAttachmentItem } from '../task/taskAttachmentTypes'
-import type { TaskDetailComment } from '../task/taskCommentTypes'
-import { createOverlayBackdropClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay } from '../../utils/uiInteraction'
-import { popoverMaxHeightStyle, popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
+import { createOverlayBackdropClose, dismissExclusivePopoverBeforeModalClose, dismissPopoverFromOutsidePointer, getTopmostModalOverlay, isInsideFloatingPopover, isPopoverTriggerTarget, POPOVER_TRIGGER_SELECTOR } from '../../utils/uiInteraction'
+import { useModalLayer } from '../../composables/useModalLayer'
+import { useModalFocusTrap } from '../../composables/useModalFocusTrap'
+import { useModalScrollbarGutter } from '../../composables/useModalScrollbarGutter'
+import {
+  POPOVER_PANEL_BASE_WIDTH,
+  POPOVER_VIEWPORT_INSET,
+  buildAnchoredPopoverStyle,
+  clampPopoverBox,
+  computeAnchoredPopoverBelowLayout,
+  popoverPositionVisibilityStyle,
+  refineAnchoredPopoverWithFloatingUi,
+  resolveMeasuredFloatingMenuHeight,
+  schedulePopoverOpenLayout,
+} from '../../utils/popoverScrollbar'
 import { useExclusivePopover } from '../../composables/useExclusivePopover'
 import {
   CHECKLIST_TITLE_MAX_LENGTH,
@@ -839,12 +835,17 @@ import {
   resolveListName,
   type WorkspaceListOption,
 } from '../../composables/useTaskPopoverEditor'
-import { resolveLabelColors } from '../../utils/colorPresetResolution'
-import { renderMarkdownToSafeHtml } from '../../utils/renderMarkdown'
-import LabelPickerGroupedList from '../task/LabelPickerGroupedList.vue'
+import { isAccessDeniedMessage } from '../../utils/resourceAccessError'
+import {
+  resolvePopoverExposedInput,
+  resolvePopoverExposedRoot,
+} from '../../utils/popoverComponentRef'
+import { schedulePopoverInputFocus } from '../../utils/schedulePopoverInputFocus'
 import {
   filterLabelCategories,
   labelCategoriesFromFlat,
+  resolveAndSortLabels,
+  sortLabelsByCatalogOrder,
   type LabelCategoryGroup,
 } from '../../composables/useLabelCategories'
 export type TaskDetailLabel = { id: number; name: string; color: string }
@@ -863,6 +864,7 @@ export type TaskDetail = {
   start_date: string | null
   due_date: string | null
   effort_hours: number | string | null
+  progress_rate: number | string | null
   assignees: TaskDetailMember[]
   labels: TaskDetailLabel[]
   checklists?: TaskChecklist[]
@@ -872,15 +874,7 @@ export type TaskDetail = {
   child_tasks?: TaskHierarchyChild[]
 }
 type ParentTaskOption = { id: number; title: string }
-type PopoverType = 'start-date' | 'due-date' | 'effort' | 'members' | 'member-detail' | 'labels' | 'list' | 'checklist-create' | 'hierarchy'
-type DatePickerTarget = 'start' | 'due'
-type CalendarCell = {
-  key: string
-  iso: string
-  day: number
-  inMonth: boolean
-  isToday: boolean
-}
+type PopoverType = 'period' | 'effort' | 'progress-rate' | 'members' | 'member-detail' | 'labels' | 'list' | 'checklist-add' | 'hierarchy' | 'parent-task'
 export type TaskDetailRemotePatch = Pick<TaskDetail, 'id'> & Partial<Omit<TaskDetail, 'id'>>
 const props = withDefaults(defineProps<{
   modelValue: boolean
@@ -895,10 +889,8 @@ const props = withDefaults(defineProps<{
   initialTaskDetail?: TaskDetail | null
   /** ボード画面で取得済みの親タスク一覧 */
   initialParentTasks?: ParentTaskOption[] | null
-  /** 親子関係の即時表示用（ボード上のタスク一覧） */
+  /** タスク階層の即時表示用（ボード上のタスク一覧） */
   hierarchyTasks?: TaskHierarchySource[] | null
-  /** ボード画面で取得済みのコメント */
-  initialComments?: TaskDetailComment[] | null
   /** ボード画面で取得済みの添付ファイル */
   initialAttachments?: TaskAttachmentItem[] | null
   /** 他クライアントからの TaskUpdated など（rev が変わるたびに適用） */
@@ -911,10 +903,12 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [boolean]
   updated: [TaskDetail]
-  'comments-updated': [{ taskId: number; comments: TaskDetailComment[] }]
   'attachments-updated': [{ taskId: number; attachments: TaskAttachmentItem[] }]
   navigate: [taskId: number]
+  missing: []
+  'add-child-task': [{ parentTaskId: number; listId: number | null }]
 }>()
+useModalLayer(() => props.modelValue)
 const { api } = useApi()
 const config = useRuntimeConfig()
 const avatarLoadFailedIds = ref(new Set<number>())
@@ -947,22 +941,37 @@ const selectedMember = ref<TaskDetailMember | null>(null)
 const popoverError = ref<string | null>(null)
 const popoverStyle = ref<Record<string, string>>({})
 const modalCardRef = ref<HTMLElement | null>(null)
+const { scrollbarStyle: modalScrollbarStyle } = useModalScrollbarGutter({
+  cardRef: modalCardRef,
+  open: () => props.modelValue,
+  scrollerSelector: '.modal-pane--detail__scroller, .modal-body',
+})
 const overlayRef = ref<HTMLElement | null>(null)
+const { refreshFocusTrap } = useModalFocusTrap({
+  active: () => props.modelValue,
+  containerRef: modalCardRef,
+})
 const modalBodyRef = ref<HTMLElement | null>(null)
 const popoverElRef = ref<{ rootRef: HTMLElement | null } | HTMLElement | null>(null)
 function resolvePopoverElement (): HTMLElement | null {
-  const target = popoverElRef.value
-  if (!target) {
-    return null
-  }
-  if (target instanceof HTMLElement) {
-    return target
-  }
-  return target.rootRef
+  return resolvePopoverExposedRoot(popoverElRef.value)
+}
+function resolveEffortInputEl (): HTMLInputElement | null {
+  const fromPopover = resolvePopoverExposedInput(popoverElRef.value)
+  if (fromPopover instanceof HTMLInputElement) return fromPopover
+  return effortInputRef.value
+}
+function resolveProgressRateInputEl (): HTMLInputElement | null {
+  const fromPopover = resolvePopoverExposedInput(popoverElRef.value)
+  if (fromPopover instanceof HTMLInputElement) return fromPopover
+  return progressRateInputRef.value
 }
 const actionButtonsRef = ref<HTMLElement | null>(null)
 const effortDetailAnchorRef = ref<HTMLElement | null>(null)
+const progressRateDetailAnchorRef = ref<HTMLElement | null>(null)
 const popoverAnchorEl = ref<HTMLElement | null>(null)
+const listPickerBtnRef = ref<HTMLElement | null>(null)
+const parentTaskLabelBtnRef = ref<HTMLElement | null>(null)
 const calendarCursor = ref(new Date())
 const pendingDate = ref<string | null>(null)
 const titleDraft = ref('')
@@ -976,11 +985,6 @@ const showTitlePlaceholder = computed(() => {
 })
 const descriptionDraft = ref('')
 const descriptionSaving = ref(false)
-type DescriptionViewMode = 'preview' | 'markdown'
-const descriptionViewMode = ref<DescriptionViewMode>('markdown')
-const renderedDescriptionHtml = computed(() => (
-  renderMarkdownToSafeHtml(descriptionDraft.value)
-))
 const labelSearchQuery = ref('')
 const memberSearchQuery = ref('')
 const checklistTitleDraft = ref('')
@@ -993,13 +997,110 @@ const attachments = ref<TaskAttachmentItem[]>([])
 const attachmentsLoading = ref(false)
 const attachmentsError = ref<string | null>(null)
 const attachmentsSectionVisible = ref(false)
+const attachmentsCollapseTarget = computed(() => (
+  props.taskId == null
+    ? null
+    : { type: 'attachments' as const, taskId: props.taskId }
+))
+const {
+  collapsed: attachmentsCollapsed,
+  toggleCollapsed: toggleAttachmentsCollapsed,
+} = useTaskDetailSectionCollapse(attachmentsCollapseTarget)
+watch(attachmentsCollapsed, (collapsed) => {
+  if (collapsed) {
+    closeAttachmentMenu()
+  }
+})
 const attachmentUploading = ref(false)
 const attachmentDeletingId = ref<number | null>(null)
 const attachmentDownloadingId = ref<number | null>(null)
 const attachmentFileInputRef = ref<HTMLInputElement | null>(null)
-const showAttachmentsSection = computed(() => {
-  return attachmentsSectionVisible.value || attachments.value.length > 0
+const openAttachmentMenuId = ref<number | null>(null)
+const attachmentMenuPosition = ref<{ top: number; left: number } | null>(null)
+const ATTACHMENT_MENU_MIN_WIDTH = 168
+const attachmentMenuItems: FloatingMenuItem[] = [
+  { key: 'delete', label: '添付ファイルの削除', danger: true },
+]
+const attachmentMenuStyle = computed(() => {
+  if (!attachmentMenuPosition.value) {
+    return {}
+  }
+  const { top, left } = attachmentMenuPosition.value
+  return {
+    position: 'fixed' as const,
+    top: `${top}px`,
+    left: `${left}px`,
+    minWidth: `${ATTACHMENT_MENU_MIN_WIDTH}px`,
+    zIndex: 1100,
+  }
 })
+const showAttachmentsSection = computed(() => {
+  return attachments.value.length > 0
+    || attachmentUploading.value
+    || Boolean(attachmentsError.value)
+})
+function closeAttachmentMenu () {
+  openAttachmentMenuId.value = null
+  attachmentMenuPosition.value = null
+}
+function positionAttachmentMenu (anchor: HTMLElement) {
+  if (!import.meta.client) {
+    attachmentMenuPosition.value = { top: 0, left: 0 }
+    return
+  }
+  const rect = anchor.getBoundingClientRect()
+  const margin = 6
+  const pad = POPOVER_VIEWPORT_INSET
+  const menuWidth = ATTACHMENT_MENU_MIN_WIDTH
+  const menuHeight = resolveMeasuredFloatingMenuHeight(attachmentMenuItems.length)
+  let left = rect.right + margin
+  const maxLeft = window.innerWidth - menuWidth - pad
+  if (left > maxLeft) {
+    left = Math.max(pad, rect.left - menuWidth - margin)
+  }
+  attachmentMenuPosition.value = clampPopoverBox(rect.top, left, menuWidth, menuHeight, pad)
+}
+function openAttachmentMenu (attachmentId: number, anchor: HTMLElement) {
+  if (openAttachmentMenuId.value === attachmentId) {
+    closeAttachmentMenu()
+    return
+  }
+  positionAttachmentMenu(anchor)
+  openAttachmentMenuId.value = attachmentId
+  nextTick(() => {
+    if (openAttachmentMenuId.value === attachmentId) {
+      positionAttachmentMenu(anchor)
+    }
+  })
+}
+function toggleAttachmentMenu (attachmentId: number, event: MouseEvent) {
+  event.stopPropagation()
+  if (attachmentDeletingId.value !== null || attachmentDownloadingId.value !== null) {
+    return
+  }
+  const el = event.currentTarget
+  if (!(el instanceof HTMLElement)) return
+  openAttachmentMenu(attachmentId, el)
+}
+function onAttachmentContextMenu (attachmentId: number, event: MouseEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+  if (attachmentDeletingId.value !== null || attachmentDownloadingId.value !== null) {
+    return
+  }
+  const item = event.currentTarget
+  if (!(item instanceof HTMLElement)) return
+  const trigger = item.querySelector('.attachments-item__menu')
+  if (!(trigger instanceof HTMLElement)) return
+  openAttachmentMenu(attachmentId, trigger)
+}
+function onAttachmentMenuSelect (item: FloatingMenuItem) {
+  const attachmentId = openAttachmentMenuId.value
+  closeAttachmentMenu()
+  if (item.key === 'delete' && attachmentId !== null) {
+    void deleteAttachment(attachmentId)
+  }
+}
 let checklistSaveTimer: ReturnType<typeof setTimeout> | null = null
 let checklistSaveSeq = 0
 let lastPersistedChecklists: TaskChecklist[] = []
@@ -1009,11 +1110,30 @@ function clearChecklistSaveTimer () {
     checklistSaveTimer = null
   }
 }
+function cancelPendingChecklistSave () {
+  clearChecklistSaveTimer()
+  checklistSaveSeq += 1
+  checklistSaving.value = false
+}
+function isStillShowingTask (requestTaskId: number): boolean {
+  return props.taskId === requestTaskId && task.value?.id === requestTaskId
+}
+function applyUpdatedTaskIfCurrent (requestTaskId: number, updated: TaskDetail): boolean {
+  if (!isStillShowingTask(requestTaskId)) {
+    return false
+  }
+  task.value = normalizeTaskDetail(updated)
+  return true
+}
 const effortDraft = ref<string | number>('')
 const effortSaving = ref(false)
 const effortInputRef = ref<HTMLInputElement | null>(null)
+const progressRateDraft = ref<string | number>('')
+const progressRateSaving = ref(false)
+const progressRateInputRef = ref<HTMLInputElement | null>(null)
 const parentTasks = ref<ParentTaskOption[]>([])
 const parentTasksLoading = ref(false)
+const parentSaving = ref(false)
 const listSaving = ref(false)
 const pickerMutationPending = ref(false)
 const currentListOption = computed((): WorkspaceListOption | null => {
@@ -1023,17 +1143,38 @@ const currentListOption = computed((): WorkspaceListOption | null => {
 })
 const listBadgeLabel = computed(() => currentListOption.value?.name ?? 'リストを選択')
 const showListBadge = computed(() => Boolean(task.value))
+const showAddChildTaskButton = computed(() => Boolean(task.value?.is_parent_task))
+const showHierarchyButton = computed(() => {
+  return Boolean(task.value?.parent_task_id || task.value?.is_parent_task)
+})
+const selectableParentTasks = computed(() => {
+  const currentId = task.value?.id
+  if (currentId == null) return parentTasks.value
+  return parentTasks.value.filter(item => item.id !== currentId)
+})
 const listBadgeStyle = computed(() => {
   const color = resolveListColor(task.value?.list_id, props.workspaceLists)
-  return color ? { color } : undefined
+  if (!color) return undefined
+  return listBarSurfaceStyle(color)
 })
+function listPickerBarStyle (list: TaskPopoverListOption) {
+  return listBarSurfaceStyle(list.color ?? '')
+}
 function toHierarchyTaskRef (detail: TaskDetail): TaskHierarchySource {
   return {
     id: detail.id,
     title: detail.title,
     is_parent_task: detail.is_parent_task,
     parent_task_id: detail.parent_task_id ?? null,
-    due_date: detail.due_date,
+    parent_task_title: detail.parent_task_id != null
+      ? (detail.parent_task?.title ?? null)
+      : null,
+    start_date: detail.start_date ?? null,
+    due_date: detail.due_date ?? null,
+    effort_hours: detail.effort_hours ?? null,
+    progress_rate: detail.progress_rate ?? null,
+    labels: detail.labels ?? [],
+    assignees: detail.assignees ?? [],
     list_id: detail.list_id,
     list_name: resolveListName(detail.list_id, props.workspaceLists),
     list_color: resolveListColor(detail.list_id, props.workspaceLists),
@@ -1050,6 +1191,16 @@ function enrichHierarchyParent (
   return {
     id: parent.id,
     title: parent.title,
+    start_date: source?.start_date ?? null,
+    due_date: source?.due_date ?? null,
+    effort_hours: source?.effort_hours ?? null,
+    progress_rate: source?.progress_rate ?? null,
+    labels: source?.labels ?? [],
+    assignees: source?.assignees ?? [],
+    // 階層ポップオーバーの「親タスク」欄はルート親そのものなので、親紐付け表示は出さない
+    parent_task_id: null,
+    parent_task_title: null,
+    is_parent_task: source?.is_parent_task ?? true,
     list_id: listId,
     list_name: source?.list_name
       ?? resolveListName(listId, props.workspaceLists)
@@ -1063,7 +1214,17 @@ function enrichHierarchyChild (child: TaskHierarchyChild): TaskHierarchyChild {
   const source = hierarchyTaskSources.value.find(row => row.id === child.id)
   const listId = child.list_id ?? source?.list_id ?? null
   return {
-    ...child,
+    id: child.id,
+    title: child.title,
+    start_date: child.start_date ?? source?.start_date ?? null,
+    due_date: child.due_date ?? source?.due_date ?? null,
+    effort_hours: child.effort_hours ?? source?.effort_hours ?? null,
+    progress_rate: child.progress_rate ?? source?.progress_rate ?? null,
+    labels: child.labels?.length ? child.labels : (source?.labels ?? []),
+    assignees: child.assignees?.length ? child.assignees : (source?.assignees ?? []),
+    parent_task_id: child.parent_task_id ?? source?.parent_task_id ?? null,
+    parent_task_title: child.parent_task_title ?? source?.parent_task_title ?? null,
+    is_parent_task: child.is_parent_task ?? source?.is_parent_task ?? false,
     list_id: listId,
     list_name: child.list_name
       ?? source?.list_name
@@ -1154,17 +1315,21 @@ const hierarchyChildTasks = computed((): TaskHierarchyChild[] => {
   return resolvedHierarchy.value.child_tasks
 })
 const parentTaskDisplayLabel = computed(() => {
+  if (!task.value?.parent_task_id) {
+    return '未設定'
+  }
   if (hierarchyParent.value?.title) {
     return hierarchyParent.value.title
   }
-  if (!task.value?.parent_task_id) {
-    return ''
+  if (task.value.parent_task?.title) {
+    return task.value.parent_task.title
   }
   const parent = parentTasks.value.find(item => item.id === task.value!.parent_task_id)
-  return parent?.title ?? ''
+  return parent?.title ?? '未設定'
 })
+/** 親タスクになり得る通常タスクのみ。ルート親（is_parent_task）は階層UI側で扱う */
 const showParentTaskLabel = computed(() => {
-  return Boolean(task.value?.parent_task_id && parentTaskDisplayLabel.value)
+  return Boolean(task.value && !task.value.is_parent_task)
 })
 const showEffortDetailSection = computed(() => {
   if (!task.value) return false
@@ -1187,94 +1352,49 @@ const effortDetailDisplayText = computed(() => {
   }
   return formatEffortDisplayForTask(task.value)
 })
-const canClearCalendarDate = computed(() => !!pendingDate.value)
-const canClearEffort = computed(() => {
-  if (String(effortDraft.value ?? '').trim() !== '') {
-    return true
+const showProgressRateDetailSection = computed(() => {
+  if (!task.value) return false
+  if (activePopover.value === 'progress-rate') {
+    const parsed = parseProgressRateDraft(progressRateDraft.value)
+    return parsed !== null && parsed !== 'invalid'
+  }
+  return resolveStoredProgressRateForTask(task.value) !== null
+})
+const progressRateDetailDisplayText = computed(() => {
+  if (activePopover.value === 'progress-rate') {
+    const parsed = parseProgressRateDraft(progressRateDraft.value)
+    if (parsed === null || parsed === 'invalid') {
+      return ''
+    }
+    return `${parsed} ${PROGRESS_RATE_UNIT_LABEL}`
   }
   if (!task.value) {
-    return false
+    return ''
   }
-  return resolveStoredEffortValueForTask(task.value) !== null
+  return formatProgressRateDisplayForTask(task.value)
 })
+const canClearCalendarDate = computed(() => (
+  !!(toDateInputValue(task.value?.start_date) || toDateInputValue(task.value?.due_date))
+))
+const periodRangeStartIso = computed(() => toDateInputValue(task.value?.start_date) || null)
+const periodRangeEndIso = computed(() => toDateInputValue(task.value?.due_date) || null)
+const canClearEffort = computed(() => String(effortDraft.value ?? '').trim() !== '')
+const canClearProgressRate = computed(() => String(progressRateDraft.value ?? '').trim() !== '')
+const canClearAssignees = computed(() => (task.value?.assignees ?? []).length > 0)
+const canClearLabels = computed(() => (task.value?.labels ?? []).length > 0)
 const filteredLabelCategories = computed(() => {
   return filterLabelCategories(
     labelCategoriesFromFlat(props.labelCategories, props.orgLabels),
     labelSearchQuery.value,
   )
 })
-function memberMatchesSearch (member: TaskDetailMember, query: string): boolean {
-  if (!query) return true
-  const name = memberDisplayName(member).toLowerCase()
-  const email = (member.email ?? '').toLowerCase()
-  return name.includes(query) || email.includes(query)
-}
-const filteredAssignedMembers = computed(() => {
-  const query = memberSearchQuery.value.trim().toLowerCase()
-  return (task.value?.assignees ?? []).filter(member => memberMatchesSearch(member, query))
-})
-const filteredUnassignedMembers = computed(() => {
-  const query = memberSearchQuery.value.trim().toLowerCase()
-  const assignedIds = new Set((task.value?.assignees ?? []).map(member => member.id))
-  return props.workspaceMembers.filter(
-    member => !assignedIds.has(member.id) && memberMatchesSearch(member, query),
-  )
-})
-const weekdayLabels = ['日', '月', '火', '水', '木', '金', '土']
+const weekdayLabels = [...TASK_POPOVER_WEEKDAY_LABELS]
 const calendarMonthLabel = computed(() => {
   const y = calendarCursor.value.getFullYear()
   const m = calendarCursor.value.getMonth() + 1
   return `${y}年${m}月`
 })
-const calendarCells = computed((): CalendarCell[] => {
-  const year = calendarCursor.value.getFullYear()
-  const month = calendarCursor.value.getMonth()
-  const first = new Date(year, month, 1)
-  const startOffset = first.getDay()
-  const todayIso = toDateInputValue(new Date())
-  const cells: CalendarCell[] = []
-  const gridStart = new Date(year, month, 1 - startOffset)
-  for (let i = 0; i < 42; i++) {
-    const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i)
-    const iso = toDateInputValue(date)
-    cells.push({
-      key: `${iso}-${i}`,
-      iso,
-      day: date.getDate(),
-      inMonth: date.getMonth() === month,
-      isToday: iso === todayIso,
-    })
-  }
-  return cells
-})
-function formatLocalDate (date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-function toDateInputValue (value: string | Date | null | undefined): string {
-  if (!value) return ''
-  if (value instanceof Date) {
-    return formatLocalDate(value)
-  }
-  const trimmed = value.trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return trimmed
-  }
-  const parsed = new Date(trimmed)
-  if (!Number.isNaN(parsed.getTime())) {
-    return formatLocalDate(parsed)
-  }
-  return trimmed.slice(0, 10)
-}
-function formatDateDisplay (iso: string | null | undefined): string {
-  const value = toDateInputValue(iso)
-  if (!value) return ''
-  const [y, m, d] = value.split('-')
-  if (!y || !m || !d) return value
-  return `${y}/${m}/${d}`
-}
+const calendarCells = computed(() => buildTaskCalendarCells(calendarCursor.value))
 function memberEmailLine (member: TaskDetailMember): string {
   const email = member.email?.trim()
   if (email) return email
@@ -1283,7 +1403,7 @@ function memberEmailLine (member: TaskDetailMember): string {
 function normalizeTaskDetail (detail: TaskDetail): TaskDetail {
   return {
     ...detail,
-    labels: detail.labels ? resolveLabelColors(detail.labels) : [],
+    labels: resolveAndSortLabels(detail.labels, props.orgLabels),
     assignees: sortMembersByDisplayName(detail.assignees ?? []),
     checklists: detail.checklists ?? [],
     parent_task: detail.parent_task ?? null,
@@ -1291,12 +1411,13 @@ function normalizeTaskDetail (detail: TaskDetail): TaskDetail {
   }
 }
 function resetInteractionState () {
+  cancelPendingChecklistSave()
   saving.value = false
   dateSaving.value = false
   saveError.value = null
   dismissPopover()
   ignoreOverlayCloseUntil.value = 0
-  popoverStyle.value = {}
+  popoverStyle.value = popoverPositionVisibilityStyle(false)
   popoverAnchorEl.value = null
   calendarCursor.value = new Date()
   titleComposing.value = false
@@ -1308,11 +1429,14 @@ function resetInteractionState () {
   effortSaving.value = false
   effortInputRef.value = null
   effortDetailAnchorRef.value = null
+  progressRateDraft.value = ''
+  progressRateSaving.value = false
+  progressRateInputRef.value = null
+  progressRateDetailAnchorRef.value = null
   listSaving.value = false
+  parentSaving.value = false
   pickerMutationPending.value = false
   checklistAddFormOpenId.value = null
-  checklistSaving.value = false
-  descriptionViewMode.value = 'markdown'
 }
 function applyLoadedTask (
   detail: TaskDetail,
@@ -1335,7 +1459,7 @@ function applyLoadedTask (
   })
 }
 function resetState () {
-  clearChecklistSaveTimer()
+  cancelPendingChecklistSave()
   task.value = null
   checklists.value = []
   lastPersistedChecklists = []
@@ -1346,7 +1470,7 @@ function resetState () {
   saveError.value = null
   dismissPopover()
   ignoreOverlayCloseUntil.value = 0
-  popoverStyle.value = {}
+  popoverStyle.value = popoverPositionVisibilityStyle(false)
   popoverAnchorEl.value = null
   calendarCursor.value = new Date()
   titleDraft.value = ''
@@ -1362,14 +1486,16 @@ function resetState () {
   effortSaving.value = false
   effortInputRef.value = null
   effortDetailAnchorRef.value = null
+  progressRateDraft.value = ''
+  progressRateSaving.value = false
+  progressRateInputRef.value = null
+  progressRateDetailAnchorRef.value = null
   parentTasks.value = []
   parentTasksLoading.value = false
   listSaving.value = false
   pickerMutationPending.value = false
   checklistAddFormOpenId.value = null
-  checklistSaving.value = false
   isNavigatingFade.value = false
-  descriptionViewMode.value = 'markdown'
   attachments.value = []
   attachmentsLoading.value = false
   attachmentsError.value = null
@@ -1377,6 +1503,7 @@ function resetState () {
   attachmentUploading.value = false
   attachmentDeletingId.value = null
   attachmentDownloadingId.value = null
+  closeAttachmentMenu()
 }
 function openAttachmentFilePicker () {
   if (saving.value || attachmentUploading.value || props.taskId === null) return
@@ -1386,6 +1513,64 @@ function formatAttachmentSize (bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+type AttachmentFileKind = 'image' | 'pdf' | 'sheet' | 'archive' | 'text' | 'file'
+function attachmentExtension (attachment: TaskAttachmentItem): string {
+  const name = attachment.original_name || ''
+  const idx = name.lastIndexOf('.')
+  if (idx < 0 || idx === name.length - 1) return ''
+  return name.slice(idx + 1).toLowerCase()
+}
+function attachmentFileKind (attachment: TaskAttachmentItem): AttachmentFileKind {
+  const mime = (attachment.mime_type || '').toLowerCase()
+  const ext = attachmentExtension(attachment)
+  if (mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'heic'].includes(ext)) {
+    return 'image'
+  }
+  if (mime === 'application/pdf' || ext === 'pdf') return 'pdf'
+  if (
+    mime.includes('spreadsheet')
+    || mime.includes('excel')
+    || ['xls', 'xlsx', 'csv', 'ods'].includes(ext)
+  ) {
+    return 'sheet'
+  }
+  if (
+    mime.includes('zip')
+    || mime.includes('compressed')
+    || mime.includes('tar')
+    || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)
+  ) {
+    return 'archive'
+  }
+  if (mime.startsWith('text/') || ['txt', 'md', 'json', 'log', 'doc', 'docx', 'rtf', 'odt'].includes(ext)) {
+    return 'text'
+  }
+  return 'file'
+}
+function attachmentFileIcon (attachment: TaskAttachmentItem): Component {
+  switch (attachmentFileKind(attachment)) {
+    case 'image':
+      return FileImage
+    case 'pdf':
+    case 'text':
+      return FileText
+    case 'sheet':
+      return FileSpreadsheet
+    case 'archive':
+      return FileArchive
+    default:
+      return File
+  }
+}
+function formatAttachmentDate (value: string | null | undefined): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}/${m}/${d}`
 }
 async function downloadAttachment (attachment: TaskAttachmentItem) {
   if (props.taskId === null || attachmentDownloadingId.value !== null) {
@@ -1487,6 +1672,10 @@ async function deleteAttachment (attachmentId: number) {
       { method: 'DELETE' },
     )
     attachments.value = attachments.value.filter(item => item.id !== attachmentId)
+    if (attachments.value.length === 0) {
+      attachmentsSectionVisible.value = false
+      attachmentsError.value = null
+    }
     emitAttachmentsUpdated()
   } catch (e: unknown) {
     attachmentsError.value = e instanceof Error ? e.message : '削除に失敗しました'
@@ -1511,6 +1700,21 @@ function formatEffortDisplayForTask (detail: TaskDetail): string {
     effort_hours: detail.effort_hours ?? null,
   })
 }
+function resolveStoredProgressRateForTask (detail: TaskDetail): number | null {
+  return resolveStoredProgressRate({
+    progress_rate: detail.progress_rate ?? null,
+  })
+}
+function progressRateValueToDraftFromTask (detail: TaskDetail): string {
+  return progressRateValueToDraft({
+    progress_rate: detail.progress_rate ?? null,
+  })
+}
+function formatProgressRateDisplayForTask (detail: TaskDetail): string {
+  return formatProgressRateDisplay({
+    progress_rate: detail.progress_rate ?? null,
+  })
+}
 function resolveEffortPopoverAnchor (event?: Event): HTMLElement | null {
   const clicked = event?.currentTarget
   const detailAnchor = effortDetailAnchorRef.value
@@ -1523,68 +1727,118 @@ function resolveEffortPopoverAnchor (event?: Event): HTMLElement | null {
   }
   return capturePopoverAnchor(event)
 }
-function openEffortPicker (event?: Event) {
-  if (!task.value || saving.value || effortSaving.value) return
-  if (activePopover.value === 'effort') {
-    void closePopover()
-    return
+function resolveProgressRatePopoverAnchor (event?: Event): HTMLElement | null {
+  const clicked = event?.currentTarget
+  const detailAnchor = progressRateDetailAnchorRef.value
+  if (
+    detailAnchor
+    && clicked instanceof Node
+    && detailAnchor.contains(clicked)
+  ) {
+    return getProgressRateDisplayButton() ?? detailAnchor
   }
-  popoverAnchorEl.value = resolveEffortPopoverAnchor(event)
-  activePopover.value = 'effort'
-  popoverError.value = null
-  effortDraft.value = effortValueToDraftFromTask(task.value)
-  updatePopoverPosition()
-  nextTick(() => {
-    effortInputRef.value?.focus()
-    effortInputRef.value?.select()
-  })
+  return capturePopoverAnchor(event)
+}
+function openEffortPicker (event?: Event) {
+  void (async () => {
+    if (!task.value || saving.value || effortSaving.value) return
+    const anchor = resolveEffortPopoverAnchor(event)
+    if (!(await beginPopoverOpen('effort'))) return
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'effort'
+    popoverError.value = null
+    effortDraft.value = effortValueToDraftFromTask(task.value)
+    updatePopoverPosition()
+    nextTick(() => {
+      schedulePopoverInputFocus(() => resolveEffortInputEl(), { select: 'all' })
+    })
+  })()
+}
+function openProgressRatePicker (event?: Event) {
+  void (async () => {
+    if (!task.value || saving.value || progressRateSaving.value) return
+    const anchor = resolveProgressRatePopoverAnchor(event)
+    if (!(await beginPopoverOpen('progress-rate'))) return
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'progress-rate'
+    popoverError.value = null
+    progressRateDraft.value = progressRateValueToDraftFromTask(task.value)
+    updatePopoverPosition()
+    nextTick(() => {
+      schedulePopoverInputFocus(() => resolveProgressRateInputEl(), { select: 'all' })
+    })
+  })()
 }
 function updateEffortDraft (raw: string | number) {
   const sanitized = sanitizeEffortDraftInput(String(raw ?? ''))
   effortDraft.value = sanitized
-  const inputEl = effortInputRef.value
+  const inputEl = resolveEffortInputEl()
   if (inputEl && inputEl.value !== sanitized) {
     inputEl.value = sanitized
   }
 }
-/** 入力ありなら保存してから閉じる。未入力なら保存せず閉じる。不正値なら開いたまま。 */
+function updateProgressRateDraft (raw: string | number) {
+  const sanitized = sanitizeProgressRateDraftInput(String(raw ?? ''))
+  progressRateDraft.value = sanitized
+  const inputEl = resolveProgressRateInputEl()
+  if (inputEl && inputEl.value !== sanitized) {
+    inputEl.value = sanitized
+  }
+}
+/** 入力ありなら保存、未入力なら工数を消してから閉じる。不正値なら開いたまま。 */
 async function finalizeEffortPopover () {
-  if (activePopover.value !== 'effort') return
+  const closing = activePopover.value
+  if (closing !== 'effort') return
   const parsed = parseEffortDraft(effortDraft.value)
   if (parsed === 'invalid') {
     popoverError.value = '工数は0以上の数値で入力してください'
     return
   }
   popoverError.value = null
-  if (parsed !== null) {
-    const saved = await saveEffort()
-    if (!saved) {
-      return
-    }
-  }
-  dismissPopover()
-}
-async function clearEffort () {
-  if (activePopover.value !== 'effort' || effortSaving.value || saving.value) {
-    return
-  }
-  effortDraft.value = ''
-  const currentValue = task.value ? resolveStoredEffortValueForTask(task.value) : null
-  if (currentValue === null) {
-    dismissPopover()
-    return
-  }
   const saved = await saveEffort()
   if (!saved) {
     return
   }
+  // 保存中に別ポップオーバーへ切り替わっていたら閉じない
+  if (activePopover.value !== closing) return
+  dismissPopover()
+}
+/** 入力ありなら保存、未入力なら進捗率を消してから閉じる。不正値なら開いたまま。 */
+async function finalizeProgressRatePopover () {
+  const closing = activePopover.value
+  if (closing !== 'progress-rate') return
+  const parsed = parseProgressRateDraft(progressRateDraft.value)
+  if (parsed === 'invalid') {
+    popoverError.value = '進捗率は0〜100の整数で入力してください'
+    return
+  }
+  popoverError.value = null
+  const saved = await saveProgressRate()
+  if (!saved) {
+    return
+  }
+  if (activePopover.value !== closing) return
   dismissPopover()
 }
 function getEffortDisplayButton (): HTMLButtonElement | null {
   const section = effortDetailAnchorRef.value
   return section?.querySelector('.detail-value-btn') ?? null
 }
+function getProgressRateDisplayButton (): HTMLButtonElement | null {
+  const section = progressRateDetailAnchorRef.value
+  return section?.querySelector('.detail-value-btn') ?? null
+}
 function shouldIgnorePopoverOutsideClose (target: Node): boolean {
+  // トリガー再クリック／別ポップオーバー切替は click 側で処理する（mouseup で先行クローズしない）
+  if (isPopoverTriggerTarget(target)) {
+    return true
+  }
+  if (activePopover.value === 'list') {
+    const listBtn = listPickerBtnRef.value
+    if (listBtn?.contains(target)) {
+      return true
+    }
+  }
   const anchor = popoverAnchorEl.value
   if (!anchor?.contains(target)) {
     return false
@@ -1599,12 +1853,23 @@ function shouldIgnorePopoverOutsideClose (target: Node): boolean {
     }
     return true
   }
+  // 進捗率: アンカーボタン（アクションバー or 詳細の値ボタン）再クリックはトグル用。
+  // 詳細セクション内の余白・ラベルは外側クリックとして閉じる。
+  if (activePopover.value === 'progress-rate') {
+    const detailAnchor = progressRateDetailAnchorRef.value
+    if (detailAnchor?.contains(target)) {
+      const displayButton = getProgressRateDisplayButton()
+      return !!displayButton && displayButton.contains(target)
+    }
+    return true
+  }
   return true
 }
 function handlePopoverOutsidePointerUp (event: MouseEvent) {
   if (!activePopover.value || event.button !== 0) return
   const target = event.target
   if (!(target instanceof Node)) return
+  if (isInsideFloatingPopover(target)) return
   if (resolvePopoverElement()?.contains(target)) return
   if (shouldIgnorePopoverOutsideClose(target)) return
   dismissPopoverFromOutsidePointer(target, closePopover)
@@ -1623,6 +1888,7 @@ async function saveEffort (): Promise<boolean> {
     popoverError.value = null
     return true
   }
+  const requestTaskId = task.value.id
   const previousHours = task.value.effort_hours ?? null
   task.value = {
     ...task.value,
@@ -1633,14 +1899,15 @@ async function saveEffort (): Promise<boolean> {
   saveError.value = null
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
       { method: 'PATCH', body: { effort_hours: effortHours } },
     )
-    task.value = normalizeTaskDetail(updated)
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return false
     effortDraft.value = effortValueToDraftFromTask(task.value)
     emit('updated', task.value)
     return true
   } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return false
     task.value = {
       ...task.value,
       effort_hours: previousHours,
@@ -1651,7 +1918,58 @@ async function saveEffort (): Promise<boolean> {
     saveError.value = message
     return false
   } finally {
-    effortSaving.value = false
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      effortSaving.value = false
+    }
+  }
+}
+async function saveProgressRate (): Promise<boolean> {
+  if (!task.value || progressRateSaving.value) return false
+  const parsed = parseProgressRateDraft(progressRateDraft.value)
+  if (parsed === 'invalid') {
+    popoverError.value = '進捗率は0〜100の整数で入力してください'
+    progressRateDraft.value = progressRateValueToDraftFromTask(task.value)
+    return false
+  }
+  const progressRate = parsed === null ? null : normalizeProgressRate(parsed)
+  const currentValue = resolveStoredProgressRateForTask(task.value)
+  if (progressRate === currentValue) {
+    popoverError.value = null
+    return true
+  }
+  const requestTaskId = task.value.id
+  const previousRate = task.value.progress_rate ?? null
+  task.value = {
+    ...task.value,
+    progress_rate: progressRate,
+  }
+  progressRateSaving.value = true
+  popoverError.value = null
+  saveError.value = null
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
+      { method: 'PATCH', body: { progress_rate: progressRate } },
+    )
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return false
+    progressRateDraft.value = progressRateValueToDraftFromTask(task.value)
+    emit('updated', task.value)
+    return true
+  } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return false
+    task.value = {
+      ...task.value,
+      progress_rate: previousRate,
+    }
+    progressRateDraft.value = progressRateValueToDraftFromTask(task.value)
+    const message = e instanceof Error ? e.message : '進捗率の更新に失敗しました'
+    popoverError.value = message
+    saveError.value = message
+    return false
+  } finally {
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      progressRateSaving.value = false
+    }
   }
 }
 async function fetchParentTasks () {
@@ -1674,7 +1992,13 @@ async function loadTask () {
   try {
     await fetchAndApplyTaskDetail()
   } catch (e: unknown) {
-    loadError.value = e instanceof Error ? e.message : '読み込みに失敗しました'
+    const message = e instanceof Error ? e.message : '読み込みに失敗しました'
+    if (isAccessDeniedMessage(message)) {
+      loading.value = false
+      emit('missing')
+      return
+    }
+    loadError.value = message
     loading.value = false
   }
 }
@@ -1704,7 +2028,7 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
   if (!task.value || patch.id !== task.value.id) {
     return
   }
-  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || effortSaving.value || listSaving.value || checklistSaving.value || activePopover.value === 'effort') {
+  if (loading.value || titleSaving.value || descriptionSaving.value || saving.value || dateSaving.value || effortSaving.value || progressRateSaving.value || listSaving.value || parentSaving.value || checklistSaving.value || activePopover.value === 'effort' || activePopover.value === 'progress-rate') {
     return
   }
   const current = task.value
@@ -1722,6 +2046,7 @@ function applyRemoteTaskPatch (patch: TaskDetailRemotePatch) {
     && (merged.start_date ?? null) === (current.start_date ?? null)
     && (merged.due_date ?? null) === (current.due_date ?? null)
     && (merged.effort_hours ?? null) === (current.effort_hours ?? null)
+    && (merged.progress_rate ?? null) === (current.progress_rate ?? null)
     && (merged.parent_task_id ?? null) === (current.parent_task_id ?? null)
     && Boolean(merged.is_parent_task) === Boolean(current.is_parent_task)
     && JSON.stringify(merged.labels) === JSON.stringify(current.labels)
@@ -1764,7 +2089,7 @@ watch(
     const prevOpen = prev?.[0] ?? false
     const prevId = prev?.[1] ?? null
     if (!open) {
-      if (prevOpen) resetState()
+      // 閉じる瞬間に中身を消すと leave フェードが空カードになるため after-leave で reset
       return
     }
     if (id === null) return
@@ -1790,18 +2115,34 @@ watch(
   },
   { immediate: true },
 )
+function onModalAfterLeave () {
+  if (!props.modelValue) {
+    resetState()
+  }
+}
 function armOverlayCloseGuard (ms = 400) {
   ignoreOverlayCloseUntil.value = Date.now() + ms
 }
 function isOverlayCloseBlocked (): boolean {
   return Date.now() < ignoreOverlayCloseUntil.value
 }
-function close () {
-  if (isOverlayCloseBlocked() || saving.value || titleSaving.value || descriptionSaving.value || effortSaving.value) return
+async function close () {
+  if (isOverlayCloseBlocked() || saving.value || titleSaving.value || descriptionSaving.value || effortSaving.value || progressRateSaving.value || checklistSaving.value || dateSaving.value || listSaving.value || parentSaving.value || pickerMutationPending.value) return
   if (activePopover.value) {
     void closePopover()
     return
   }
+  if (dismissExclusivePopoverBeforeModalClose()) {
+    return
+  }
+  // Escape では blur が走らないため、未保存ドラフトを閉じてから閉じる
+  await saveTitle()
+  await saveDescription()
+  clearChecklistSaveTimer()
+  if (task.value && JSON.stringify(checklists.value) !== JSON.stringify(lastPersistedChecklists)) {
+    await persistChecklists(checklists.value)
+  }
+  if (titleSaving.value || descriptionSaving.value || checklistSaving.value) return
   emit('update:modelValue', false)
 }
 function onDocumentEscape (event: KeyboardEvent) {
@@ -1834,21 +2175,86 @@ const {
     && !saving.value
     && !titleSaving.value
     && !descriptionSaving.value
-    && !effortSaving.value,
+    && !effortSaving.value
+    && !progressRateSaving.value
+    && !checklistSaving.value
+    && !dateSaving.value
+    && !listSaving.value
+    && !parentSaving.value
+    && !pickerMutationPending.value,
 })
 function dismissPopover () {
   activePopover.value = null
   selectedMember.value = null
   popoverError.value = null
   pendingDate.value = null
-  popoverStyle.value = {}
+  // popoverStyle は leave 完了後に消す（フェードアウトを維持）
+}
+let popoverLeaveResolve: (() => void) | null = null
+function resolvePopoverLeaveWait () {
+  popoverLeaveResolve?.()
+  popoverLeaveResolve = null
+}
+function notifyPopoverAfterLeave () {
+  // 別ポップオーバーへ切り替えた後に leave が完了しても、新しい側の位置を消さない
+  if (activePopover.value == null) {
+    popoverStyle.value = popoverPositionVisibilityStyle(false)
+  }
+  // leave 待ちは必ず解除する（早期 return だと closePopover が永続待ちになり、
+  // ユーザー情報へ切り替え不能・次の担当者ポップオーバーが未配置のまま左上表示になる）
+  resolvePopoverLeaveWait()
+}
+function armPopoverLeaveWait (): Promise<void> {
+  return new Promise((resolve) => {
+    const previous = popoverLeaveResolve
+    popoverLeaveResolve = resolve
+    // 前の待ちを破棄せず完了扱いにする
+    previous?.()
+  })
 }
 async function closePopover () {
+  if (activePopover.value == null) {
+    return
+  }
+  const leaveDone = armPopoverLeaveWait()
   if (activePopover.value === 'effort') {
     await finalizeEffortPopover()
+    if (activePopover.value != null) {
+      resolvePopoverLeaveWait()
+      return
+    }
+    await leaveDone
+    return
+  }
+  if (activePopover.value === 'progress-rate') {
+    await finalizeProgressRatePopover()
+    if (activePopover.value != null) {
+      resolvePopoverLeaveWait()
+      return
+    }
+    await leaveDone
     return
   }
   dismissPopover()
+  await leaveDone
+}
+/**
+ * 別ポップオーバーへ切り替える前に現在のものを閉じる。
+ * 同種トグルなら閉じただけで false。不正入力で閉じられなかった場合も false。
+ */
+async function beginPopoverOpen (next: PopoverType): Promise<boolean> {
+  const current = activePopover.value
+  if (current === next) {
+    await closePopover()
+    return false
+  }
+  if (current != null) {
+    await closePopover()
+    if (activePopover.value != null) {
+      return false
+    }
+  }
+  return true
 }
 useExclusivePopover(
   () => activePopover.value != null,
@@ -1875,174 +2281,321 @@ async function onHierarchyTaskSelect (taskId: number) {
     })
   })
 }
-const POPOVER_VIEWPORT_PAD = 12
 const POPOVER_ANCHOR_GAP = 6
 const POPOVER_MIN_HEIGHT = 120
-/** レイアウト前の幅推定（312px） */
-const POPOVER_DEFAULT_WIDTH_PX = 312
 let removePopoverResizeListener: (() => void) | null = null
+let removeAttachmentMenuResizeListener: (() => void) | null = null
+
+function resolveTaskDetailPopoverBaseWidth (type: PopoverType | null): number {
+  switch (type) {
+    case 'period':
+      return POPOVER_PANEL_BASE_WIDTH.date
+    case 'effort':
+      return POPOVER_PANEL_BASE_WIDTH.effort
+    case 'progress-rate':
+      return POPOVER_PANEL_BASE_WIDTH.progressRate
+    case 'members':
+    case 'member-detail':
+      return POPOVER_PANEL_BASE_WIDTH.members
+    case 'list':
+      return POPOVER_PANEL_BASE_WIDTH.list
+    case 'labels':
+      return POPOVER_PANEL_BASE_WIDTH.labels
+    case 'hierarchy':
+      return POPOVER_PANEL_BASE_WIDTH.hierarchy
+    case 'parent-task':
+      return POPOVER_PANEL_BASE_WIDTH.list
+    case 'checklist-add':
+      return POPOVER_PANEL_BASE_WIDTH.checklistAdd
+    default:
+      return POPOVER_PANEL_BASE_WIDTH.date
+  }
+}
 /** await 後は event.currentTarget が null になるため、同期的に要素を保持する */
 function capturePopoverAnchor (event?: Event): HTMLElement | null {
   const fromEvent = event?.currentTarget
   if (fromEvent instanceof HTMLElement) {
     return fromEvent
   }
-  return actionButtonsRef.value
+  const fromTarget = event?.target
+  if (fromTarget instanceof Element) {
+    const trigger = fromTarget.closest(
+      `${POPOVER_TRIGGER_SELECTOR}, button, [role="button"]`,
+    )
+    if (trigger instanceof HTMLElement) {
+      return trigger
+    }
+  }
+  return null
 }
 function updatePopoverPosition () {
-  nextTick(() => {
-    requestAnimationFrame(() => {
-      positionPopover()
-      if (!popoverElRef.value) {
-        requestAnimationFrame(() => positionPopover())
-      }
+  const wasVisible = popoverStyle.value.visibility === 'visible'
+  if (!wasVisible) {
+    popoverStyle.value = popoverPositionVisibilityStyle(false)
+    nextTick(() => {
+      schedulePopoverOpenLayout(
+        () => positionPopover(false),
+        () => positionPopover(true),
+      )
     })
+    return
+  }
+  nextTick(() => {
+    requestAnimationFrame(() => positionPopover(true))
   })
 }
-function positionPopover () {
+function onPopoverAfterEnter () {
+  updatePopoverPosition()
+  if (activePopover.value === 'checklist-add') {
+    schedulePopoverInputFocus(() => checklistTitleInputRef.value)
+  }
+}
+async function positionPopover (visible = true) {
   const anchor = popoverAnchorEl.value
   const popover = resolvePopoverElement()
   if (!anchor || !popover) return
-  const pad = POPOVER_VIEWPORT_PAD
-  const gap = POPOVER_ANCHOR_GAP
-  const anchorRect = anchor.getBoundingClientRect()
-  const spaceBelow = window.innerHeight - anchorRect.bottom - pad
-  const spaceAbove = anchorRect.top - pad
-  let top: number
-  let maxHeight: number
-  if (spaceBelow >= POPOVER_MIN_HEIGHT) {
-    top = anchorRect.bottom + gap
-    maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceBelow - gap))
-  } else {
-    maxHeight = Math.max(POPOVER_MIN_HEIGHT, Math.floor(spaceAbove - gap))
-    top = Math.max(pad, anchorRect.top - gap - maxHeight)
+  let layout = computeAnchoredPopoverBelowLayout(
+    anchor.getBoundingClientRect(),
+    resolveTaskDetailPopoverBaseWidth(activePopover.value),
+    popover,
+    {
+      pad: POPOVER_VIEWPORT_INSET,
+      gap: POPOVER_ANCHOR_GAP,
+      minHeight: POPOVER_MIN_HEIGHT,
+    },
+  )
+  if (visible) {
+    layout = await refineAnchoredPopoverWithFloatingUi(anchor, popover, layout, {
+      pad: POPOVER_VIEWPORT_INSET,
+      gap: POPOVER_ANCHOR_GAP,
+    })
   }
-  const scrollbarGutter = resolvePopoverScrollbarGutter(popover, maxHeight)
-  const measuredWidth = popover.offsetWidth || popover.getBoundingClientRect().width
-  const popoverWidth = (measuredWidth > 0 ? measuredWidth : POPOVER_DEFAULT_WIDTH_PX) + popoverWidthExtraForGutter(scrollbarGutter)
-  // ボタン左端に揃え、画面右端にはみ出すときだけ右端揃え（モーダル幅ではクランプしない）
-  let left = anchorRect.left
-  if (left + popoverWidth > window.innerWidth - pad) {
-    left = anchorRect.right - popoverWidth
-  }
-  popoverStyle.value = {
-    position: 'fixed',
-    top: `${Math.round(top)}px`,
-    left: `${Math.round(left)}px`,
-    zIndex: '210',
-    ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
-    ...popoverScrollbarGutterStyle(scrollbarGutter),
-  }
+  popoverStyle.value = buildAnchoredPopoverStyle(layout, { zIndex: 210, visible })
 }
-function openDatePicker (target: DatePickerTarget, event?: Event) {
-  if (!task.value) return
-  const next: PopoverType = target === 'start' ? 'start-date' : 'due-date'
-  if (activePopover.value === next) {
-    closePopover()
-    return
-  }
-  popoverAnchorEl.value = capturePopoverAnchor(event)
-  activePopover.value = next
-  popoverError.value = null
-  const existing = target === 'start' ? task.value.start_date : task.value.due_date
-  pendingDate.value = toDateInputValue(existing) || null
-  const base = pendingDate.value
-    ? new Date(`${pendingDate.value}T12:00:00`)
-    : new Date()
-  calendarCursor.value = new Date(base.getFullYear(), base.getMonth(), 1)
-  updatePopoverPosition()
+function openDatePicker (event?: Event) {
+  void (async () => {
+    if (!task.value) return
+    const anchor = capturePopoverAnchor(event)
+    if (!(await beginPopoverOpen('period'))) return
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'period'
+    popoverError.value = null
+    const startIso = toDateInputValue(task.value.start_date) || null
+    const dueIso = toDateInputValue(task.value.due_date) || null
+    pendingDate.value = startIso || dueIso
+    const baseIso = startIso || dueIso
+    const base = baseIso
+      ? new Date(`${baseIso}T12:00:00`)
+      : new Date()
+    calendarCursor.value = new Date(base.getFullYear(), base.getMonth(), 1)
+    updatePopoverPosition()
+  })()
 }
 function shiftCalendarMonth (delta: number) {
   const next = new Date(calendarCursor.value)
   next.setMonth(next.getMonth() + delta, 1)
   calendarCursor.value = next
+  popoverError.value = null
 }
 async function pickCalendarDay (iso: string) {
-  if (!task.value || !activePopover.value || dateSaving.value) return
-  const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
-  const current = field === 'start_date' ? task.value.start_date : task.value.due_date
-  pendingDate.value = iso
-  if (toDateInputValue(current) === iso) return
-  const previousDate = current
-  patchTaskDateField(field, iso)
+  if (!task.value || activePopover.value !== 'period' || dateSaving.value) return
+  const nextRange = resolveTaskDateRangePick(iso, task.value.start_date, task.value.due_date)
+  if (!nextRange) {
+    popoverError.value = null
+    return
+  }
+  await applyPeriodRange(nextRange)
+}
+async function pickCalendarRange (range: { start_date: string; due_date: string }) {
+  if (!task.value || activePopover.value !== 'period' || dateSaving.value) return
+  await applyPeriodRange(range)
+}
+async function applyPeriodRange (nextRange: { start_date: string; due_date: string }) {
+  if (!task.value) return
+  const requestTaskId = task.value.id
+  const prevStart = task.value.start_date ?? null
+  const prevDue = task.value.due_date ?? null
+  if (
+    toDateInputValue(prevStart) === nextRange.start_date
+    && toDateInputValue(prevDue) === nextRange.due_date
+  ) {
+    popoverError.value = null
+    return
+  }
+  pendingDate.value = nextRange.start_date
+  patchTaskDateRange(nextRange.start_date, nextRange.due_date)
   saveError.value = null
   popoverError.value = null
   dateSaving.value = true
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
-      { method: 'PATCH', body: { [field]: iso } },
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
+      { method: 'PATCH', body: nextRange },
     )
-    task.value = normalizeTaskDetail(updated)
-    const saved = field === 'start_date' ? task.value.start_date : task.value.due_date
-    pendingDate.value = toDateInputValue(saved) || iso
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
+    pendingDate.value = toDateInputValue(task.value.start_date) || nextRange.start_date
     emit('updated', task.value)
   } catch (e: unknown) {
-    patchTaskDateField(field, previousDate)
-    pendingDate.value = toDateInputValue(previousDate) || null
+    if (!isStillShowingTask(requestTaskId)) return
+    patchTaskDateRange(prevStart, prevDue)
+    pendingDate.value = toDateInputValue(prevStart) || toDateInputValue(prevDue) || null
     popoverError.value = e instanceof Error ? e.message : '日付の更新に失敗しました'
   } finally {
-    dateSaving.value = false
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      dateSaving.value = false
+    }
   }
 }
 async function clearCalendarDate () {
-  if (!task.value || !activePopover.value || dateSaving.value || saving.value) return
-  if (activePopover.value !== 'start-date' && activePopover.value !== 'due-date') {
-    return
-  }
-  const field = activePopover.value === 'start-date' ? 'start_date' : 'due_date'
-  const current = field === 'start_date' ? task.value.start_date : task.value.due_date
+  if (!task.value || activePopover.value !== 'period' || dateSaving.value || saving.value) return
+  const requestTaskId = task.value.id
+  const prevStart = task.value.start_date ?? null
+  const prevDue = task.value.due_date ?? null
   pendingDate.value = null
-  if (!current) {
+  if (!prevStart && !prevDue) {
     return
   }
-  const previousDate = current
-  patchTaskDateField(field, null)
+  patchTaskDateRange(null, null)
   saveError.value = null
   popoverError.value = null
   dateSaving.value = true
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
-      { method: 'PATCH', body: { [field]: null } },
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
+      { method: 'PATCH', body: { start_date: null, due_date: null } },
     )
-    task.value = normalizeTaskDetail(updated)
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
     emit('updated', task.value)
   } catch (e: unknown) {
-    patchTaskDateField(field, previousDate)
-    pendingDate.value = toDateInputValue(previousDate) || null
+    if (!isStillShowingTask(requestTaskId)) return
+    patchTaskDateRange(prevStart, prevDue)
+    pendingDate.value = toDateInputValue(prevStart) || toDateInputValue(prevDue) || null
     popoverError.value = e instanceof Error ? e.message : '日付の更新に失敗しました'
   } finally {
-    dateSaving.value = false
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      dateSaving.value = false
+    }
   }
 }
-function patchTaskDateField (field: 'start_date' | 'due_date', value: string | null) {
+async function clearEffort () {
+  if (!task.value || effortSaving.value || saving.value) return
+  effortDraft.value = ''
+  popoverError.value = null
+  const inputEl = resolveEffortInputEl()
+  if (inputEl) {
+    inputEl.value = ''
+  }
+  await saveEffort()
+}
+async function clearProgressRate () {
+  if (!task.value || progressRateSaving.value || saving.value) return
+  progressRateDraft.value = ''
+  popoverError.value = null
+  const inputEl = resolveProgressRateInputEl()
+  if (inputEl) {
+    inputEl.value = ''
+  }
+  await saveProgressRate()
+}
+async function clearAssignees () {
+  if (!task.value || pickerMutationPending.value || saving.value) return
+  const requestTaskId = task.value.id
+  const previousAssignees = [...task.value.assignees]
+  if (!previousAssignees.length) return
+  armOverlayCloseGuard()
+  pickerMutationPending.value = true
+  task.value = {
+    ...task.value,
+    assignees: [],
+  }
+  popoverError.value = null
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
+      { method: 'PATCH', body: { assignee_ids: [] } },
+    )
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
+    emit('updated', task.value)
+  } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return
+    task.value = { ...task.value, assignees: previousAssignees }
+    popoverError.value = e instanceof Error ? e.message : '担当者の更新に失敗しました'
+  } finally {
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      pickerMutationPending.value = false
+    }
+  }
+}
+async function clearLabels () {
+  if (!task.value || pickerMutationPending.value || saving.value) return
+  const requestTaskId = task.value.id
+  const previousLabels = [...task.value.labels]
+  if (!previousLabels.length) return
+  armOverlayCloseGuard()
+  pickerMutationPending.value = true
+  task.value = {
+    ...task.value,
+    labels: [],
+  }
+  popoverError.value = null
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
+      { method: 'PATCH', body: { label_ids: [] } },
+    )
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
+    emit('updated', task.value)
+  } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return
+    task.value = { ...task.value, labels: previousLabels }
+    popoverError.value = e instanceof Error ? e.message : 'ラベルの更新に失敗しました'
+  } finally {
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      pickerMutationPending.value = false
+    }
+  }
+}
+function patchTaskDateRange (startDate: string | null, dueDate: string | null) {
   if (!task.value) return
-  task.value = { ...task.value, [field]: value }
+  task.value = { ...task.value, start_date: startDate, due_date: dueDate }
 }
 function openMemberPicker (event?: Event) {
-  if (!task.value) return
-  if (activePopover.value === 'members') {
-    closePopover()
-    return
-  }
-  selectedMember.value = null
-  popoverAnchorEl.value = capturePopoverAnchor(event)
-  activePopover.value = 'members'
-  popoverError.value = null
-  updatePopoverPosition()
+  void (async () => {
+    if (!task.value) return
+    const anchor = capturePopoverAnchor(event)
+    if (!(await beginPopoverOpen('members'))) return
+    selectedMember.value = null
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'members'
+    popoverError.value = null
+    updatePopoverPosition()
+  })()
 }
 function openMemberDetail (member: TaskDetailMember, event: Event) {
-  if (!task.value) return
-  if (activePopover.value === 'member-detail' && selectedMember.value?.id === member.id) {
-    closePopover()
-    return
-  }
-  selectedMember.value = member
-  popoverAnchorEl.value = event.currentTarget as HTMLElement
-  activePopover.value = 'member-detail'
-  popoverError.value = null
-  updatePopoverPosition()
+  void (async () => {
+    if (!task.value) return
+    // await 後は event.currentTarget が null になるため、先にアンカーを保持する
+    const anchor = event.currentTarget instanceof HTMLElement
+      ? event.currentTarget
+      : capturePopoverAnchor(event)
+    if (!anchor) return
+    if (
+      activePopover.value === 'member-detail'
+      && selectedMember.value?.id === member.id
+    ) {
+      await closePopover()
+      return
+    }
+    if (activePopover.value != null && activePopover.value !== 'member-detail') {
+      await closePopover()
+      if (activePopover.value != null) return
+    }
+    selectedMember.value = member
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'member-detail'
+    popoverError.value = null
+    updatePopoverPosition()
+  })()
 }
 async function removeMemberFromTask (member: TaskDetailMember) {
   if (!task.value || !isMemberAssigned(member.id)) return
@@ -2057,6 +2610,7 @@ function isMemberAssigned (memberId: number): boolean {
 }
 async function toggleMember (member: TaskDetailMember) {
   if (!task.value || pickerMutationPending.value) return
+  const requestTaskId = task.value.id
   armOverlayCloseGuard()
   pickerMutationPending.value = true
   const previousAssignees = [...task.value.assignees]
@@ -2076,39 +2630,70 @@ async function toggleMember (member: TaskDetailMember) {
   popoverError.value = null
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
       { method: 'PATCH', body: { assignee_ids } },
     )
-    task.value = normalizeTaskDetail(updated)
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
     emit('updated', task.value)
   } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return
     task.value = { ...task.value, assignees: previousAssignees }
     popoverError.value = e instanceof Error ? e.message : '担当者の更新に失敗しました'
   } finally {
-    pickerMutationPending.value = false
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      pickerMutationPending.value = false
+    }
   }
 }
 function onPopoverEscape (event: KeyboardEvent) {
-  if (event.key !== 'Escape' || !activePopover.value) return
+  if (event.key !== 'Escape') return
+  if (openAttachmentMenuId.value !== null) {
+    event.stopPropagation()
+    closeAttachmentMenu()
+    return
+  }
+  if (!activePopover.value) return
   event.stopPropagation()
   closePopover()
 }
+watch(
+  () => openAttachmentMenuId.value !== null,
+  (open) => {
+    if (open) {
+      document.addEventListener('keydown', onPopoverEscape)
+      const onResize = () => closeAttachmentMenu()
+      window.addEventListener('resize', onResize)
+      removeAttachmentMenuResizeListener = () => window.removeEventListener('resize', onResize)
+      return
+    }
+    removeAttachmentMenuResizeListener?.()
+    removeAttachmentMenuResizeListener = null
+    if (!activePopover.value) {
+      document.removeEventListener('keydown', onPopoverEscape)
+    }
+  },
+)
 watch(activePopover, (open) => {
-  if (open === 'checklist-create') {
-    nextTick(() => checklistTitleInputRef.value?.focus())
+  if (open === 'checklist-add') {
+    schedulePopoverInputFocus(() => checklistTitleInputRef.value)
   }
   if (open) {
+    closeAttachmentMenu()
     document.addEventListener('keydown', onPopoverEscape)
     document.addEventListener('mouseup', handlePopoverOutsidePointerUp, true)
     const onResize = () => updatePopoverPosition()
     window.addEventListener('resize', onResize)
     removePopoverResizeListener = () => window.removeEventListener('resize', onResize)
     updatePopoverPosition()
+    requestAnimationFrame(() => refreshFocusTrap())
   } else {
-    document.removeEventListener('keydown', onPopoverEscape)
+    if (openAttachmentMenuId.value === null) {
+      document.removeEventListener('keydown', onPopoverEscape)
+    }
     document.removeEventListener('mouseup', handlePopoverOutsidePointerUp, true)
     removePopoverResizeListener?.()
     removePopoverResizeListener = null
+    requestAnimationFrame(() => refreshFocusTrap())
   }
 })
 watch(
@@ -2150,6 +2735,9 @@ onBeforeUnmount(() => {
   document.removeEventListener('mouseup', handlePopoverOutsidePointerUp, true)
   removePopoverResizeListener?.()
   removePopoverResizeListener = null
+  removeAttachmentMenuResizeListener?.()
+  removeAttachmentMenuResizeListener = null
+  closeAttachmentMenu()
 })
 function revertTitleDraft () {
   if (!task.value) return
@@ -2161,36 +2749,17 @@ function onTitleEnter () {
   titleTextareaRef.value?.blur()
 }
 function adjustTitleTextareaHeight () {
-  const el = titleTextareaRef.value
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight}px`
+  adjustTextareaHeight(titleTextareaRef.value)
 }
 function adjustDescriptionTextareaHeight () {
-  const el = descriptionTextareaRef.value
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight}px`
-}
-async function setDescriptionViewMode (mode: DescriptionViewMode) {
-  if (descriptionViewMode.value === mode) {
-    return
-  }
-  if (mode === 'preview' && descriptionViewMode.value === 'markdown') {
-    await saveDescription()
-  }
-  descriptionViewMode.value = mode
-  if (mode === 'markdown') {
-    await nextTick()
-    adjustDescriptionTextareaHeight()
-    descriptionTextareaRef.value?.focus()
-  }
+  adjustTextareaHeight(descriptionTextareaRef.value)
 }
 async function onTitleBlur () {
   await saveTitle()
 }
 async function saveTitle () {
   if (!task.value || titleSaving.value) return
+  const requestTaskId = task.value.id
   const title = titleDraft.value.trim()
   if (!title) {
     titleDraft.value = task.value.title
@@ -2201,33 +2770,48 @@ async function saveTitle () {
   saveError.value = null
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
       { method: 'PATCH', body: { title } },
     )
-    task.value = normalizeTaskDetail(updated)
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
     titleDraft.value = task.value.title
     nextTick(() => adjustTitleTextareaHeight())
     emit('updated', task.value)
   } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return
     saveError.value = e instanceof Error ? e.message : 'タスク名の更新に失敗しました'
   } finally {
-    titleSaving.value = false
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      titleSaving.value = false
+    }
   }
 }
 function openListPicker (event?: Event) {
-  if (!task.value) return
-  if (activePopover.value === 'list') {
-    closePopover()
-    return
-  }
-  popoverAnchorEl.value = capturePopoverAnchor(event)
-  activePopover.value = 'list'
-  popoverError.value = null
-  updatePopoverPosition()
+  void (async () => {
+    if (!task.value) return
+    const fromEvent = event?.currentTarget
+    const anchor = fromEvent instanceof HTMLElement
+      ? fromEvent
+      : listPickerBtnRef.value
+    if (!(await beginPopoverOpen('list'))) return
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'list'
+    popoverError.value = null
+    updatePopoverPosition()
+  })()
+}
+function onAddChildTask () {
+  if (!task.value?.is_parent_task || saving.value) return
+  void closePopover()
+  emit('add-child-task', {
+    parentTaskId: task.value.id,
+    listId: task.value.list_id ?? null,
+  })
 }
 async function selectList (listId: number) {
   if (!task.value || listSaving.value || saving.value) return
   if (task.value.list_id === listId) return
+  const requestTaskId = task.value.id
   armOverlayCloseGuard()
   listSaving.value = true
   popoverError.value = null
@@ -2239,13 +2823,13 @@ async function selectList (listId: number) {
   }
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
       { method: 'PATCH', body: { list_id: listId } },
     )
-    task.value = normalizeTaskDetail(updated)
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
     emit('updated', task.value)
-    closePopover()
   } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return
     task.value = {
       ...task.value,
       list_id: previousListId,
@@ -2253,43 +2837,125 @@ async function selectList (listId: number) {
     }
     popoverError.value = e instanceof Error ? e.message : 'リストの更新に失敗しました'
   } finally {
-    listSaving.value = false
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      listSaving.value = false
+    }
   }
 }
 function openLabelPicker (event?: Event) {
-  if (!task.value) return
-  if (activePopover.value === 'labels') {
-    closePopover()
-    return
-  }
-  labelSearchQuery.value = ''
-  popoverAnchorEl.value = capturePopoverAnchor(event)
-  activePopover.value = 'labels'
-  popoverError.value = null
-  updatePopoverPosition()
+  void (async () => {
+    if (!task.value) return
+    const anchor = capturePopoverAnchor(event)
+    if (!(await beginPopoverOpen('labels'))) return
+    labelSearchQuery.value = ''
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'labels'
+    popoverError.value = null
+    updatePopoverPosition()
+  })()
 }
 function openChecklistPicker (event?: Event) {
-  if (!task.value) return
-  if (activePopover.value === 'checklist-create') {
-    closePopover()
-    return
-  }
-  checklistTitleDraft.value = ''
-  popoverAnchorEl.value = capturePopoverAnchor(event)
-  activePopover.value = 'checklist-create'
-  popoverError.value = null
-  updatePopoverPosition()
+  void (async () => {
+    if (!task.value) return
+    const anchor = capturePopoverAnchor(event)
+    if (!(await beginPopoverOpen('checklist-add'))) return
+    checklistTitleDraft.value = ''
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'checklist-add'
+    popoverError.value = null
+    updatePopoverPosition()
+    schedulePopoverInputFocus(() => checklistTitleInputRef.value)
+  })()
 }
 function openHierarchyPopover (event?: Event) {
-  if (!task.value) return
-  if (activePopover.value === 'hierarchy') {
-    closePopover()
-    return
-  }
-  popoverAnchorEl.value = capturePopoverAnchor(event)
-  activePopover.value = 'hierarchy'
+  void (async () => {
+    if (!task.value) return
+    const anchor = capturePopoverAnchor(event)
+    if (!(await beginPopoverOpen('hierarchy'))) return
+    popoverAnchorEl.value = anchor
+    activePopover.value = 'hierarchy'
+    popoverError.value = null
+    updatePopoverPosition()
+  })()
+}
+async function openParentTaskPicker (event?: Event) {
+  if (!task.value || parentSaving.value) return
+  const fromEvent = event?.currentTarget
+  const anchor = fromEvent instanceof HTMLElement
+    ? fromEvent
+    : null
+  if (!(await beginPopoverOpen('parent-task'))) return
+  popoverAnchorEl.value = anchor
+  activePopover.value = 'parent-task'
   popoverError.value = null
   updatePopoverPosition()
+  if (parentTasks.value.length === 0 && !parentTasksLoading.value) {
+    await fetchParentTasks()
+    if (activePopover.value === 'parent-task') {
+      updatePopoverPosition()
+    }
+  }
+}
+async function persistParentTaskId (parentTaskId: number | null) {
+  if (!task.value || parentSaving.value || saving.value) return
+  if ((task.value.parent_task_id ?? null) === parentTaskId) {
+    return
+  }
+  const requestTaskId = task.value.id
+  armOverlayCloseGuard()
+  parentSaving.value = true
+  popoverError.value = null
+  const previousParentTaskId = task.value.parent_task_id ?? null
+  const previousParentTask = task.value.parent_task ?? null
+  const previousIsParentTask = Boolean(task.value.is_parent_task)
+  const selectedParent = parentTaskId != null
+    ? selectableParentTasks.value.find(item => item.id === parentTaskId) ?? null
+    : null
+  task.value = {
+    ...task.value,
+    parent_task_id: parentTaskId,
+    parent_task: selectedParent
+      ? { id: selectedParent.id, title: selectedParent.title }
+      : null,
+    is_parent_task: false,
+  }
+  await nextTick()
+  if (activePopover.value === 'parent-task') {
+    popoverAnchorEl.value = parentTaskLabelBtnRef.value
+    updatePopoverPosition()
+  }
+  try {
+    const updated = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
+      { method: 'PATCH', body: { parent_task_id: parentTaskId } },
+    )
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
+    emit('updated', task.value)
+    await nextTick()
+    if (activePopover.value === 'parent-task') {
+      popoverAnchorEl.value = parentTaskLabelBtnRef.value
+      updatePopoverPosition()
+    }
+  } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return
+    task.value = {
+      ...task.value,
+      parent_task_id: previousParentTaskId,
+      parent_task: previousParentTask,
+      is_parent_task: previousIsParentTask,
+    }
+    popoverError.value = e instanceof Error ? e.message : '親タスクの更新に失敗しました'
+  } finally {
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      parentSaving.value = false
+    }
+  }
+}
+function selectParentTask (parentTaskId: number) {
+  void persistParentTaskId(parentTaskId)
+}
+function clearParentTask () {
+  void persistParentTaskId(null)
 }
 function createTempChecklistId (): number {
   return -Date.now()
@@ -2305,8 +2971,8 @@ function checklistPayloadForApi (list: TaskChecklist[]): Array<{
       : { title, items }
   ))
 }
-function submitChecklistCreate () {
-  if (!task.value || checklistSaving.value) return
+function submitChecklistAdd () {
+  if (!task.value) return
   const title = checklistTitleDraft.value.trim() || 'チェックリスト'
   const tempId = createTempChecklistId()
   const next = [...checklists.value, { id: tempId, title, items: [] }]
@@ -2323,13 +2989,13 @@ function setChecklistAddFormOpen (checklistId: number, open: boolean) {
   )
 }
 function updateChecklist (checklistId: number, nextChecklist: TaskChecklist) {
-  if (!task.value || checklistSaving.value) return
+  if (!task.value) return
   void saveChecklists(checklists.value.map(item => (
     item.id === checklistId ? { ...nextChecklist, id: checklistId } : item
   )))
 }
 function deleteChecklist (checklistId: number) {
-  if (!task.value || checklistSaving.value) return
+  if (!task.value) return
   if (checklistAddFormOpenId.value === checklistId) {
     checklistAddFormOpenId.value = null
   }
@@ -2346,6 +3012,7 @@ async function saveChecklists (next: TaskChecklist[]) {
 }
 async function persistChecklists (next: TaskChecklist[]) {
   if (!task.value) return
+  const requestTaskId = task.value.id
   const rollback = lastPersistedChecklists
   const openTempId = checklistAddFormOpenId.value
   const seq = ++checklistSaveSeq
@@ -2353,10 +3020,10 @@ async function persistChecklists (next: TaskChecklist[]) {
   saveError.value = null
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
       { method: 'PATCH', body: { checklists: checklistPayloadForApi(next) } },
     )
-    if (seq !== checklistSaveSeq || !task.value) return
+    if (seq !== checklistSaveSeq || !isStillShowingTask(requestTaskId)) return
     checklists.value = updated.checklists ?? []
     lastPersistedChecklists = checklists.value
     if (openTempId != null && openTempId < 0) {
@@ -2364,9 +3031,11 @@ async function persistChecklists (next: TaskChecklist[]) {
       const persisted = checklists.value[openIndex]
       checklistAddFormOpenId.value = persisted?.id ?? null
     }
-    emit('updated', { ...task.value, checklists: checklists.value })
+    if (task.value) {
+      emit('updated', { ...task.value, checklists: checklists.value })
+    }
   } catch (e: unknown) {
-    if (seq !== checklistSaveSeq) return
+    if (seq !== checklistSaveSeq || !isStillShowingTask(requestTaskId)) return
     checklists.value = rollback
     saveError.value = e instanceof Error ? e.message : 'チェックリストの保存に失敗しました'
   } finally {
@@ -2377,6 +3046,7 @@ async function persistChecklists (next: TaskChecklist[]) {
 }
 async function toggleLabel (label: TaskDetailLabel) {
   if (!task.value || pickerMutationPending.value) return
+  const requestTaskId = task.value.id
   armOverlayCloseGuard()
   pickerMutationPending.value = true
   const previousLabels = [...task.value.labels]
@@ -2387,23 +3057,29 @@ async function toggleLabel (label: TaskDetailLabel) {
     : [...currentIds, label.id]
   task.value = {
     ...task.value,
-    labels: isSelected
-      ? previousLabels.filter(item => item.id !== label.id)
-      : [...previousLabels, label],
+    labels: sortLabelsByCatalogOrder(
+      isSelected
+        ? previousLabels.filter(item => item.id !== label.id)
+        : [...previousLabels, label],
+      props.orgLabels,
+    ),
   }
   popoverError.value = null
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
       { method: 'PATCH', body: { label_ids } },
     )
-    task.value = normalizeTaskDetail(updated)
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
     emit('updated', task.value)
   } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return
     task.value = { ...task.value, labels: previousLabels }
     popoverError.value = e instanceof Error ? e.message : 'ラベルの更新に失敗しました'
   } finally {
-    pickerMutationPending.value = false
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      pickerMutationPending.value = false
+    }
   }
 }
 async function onDescriptionBlur () {
@@ -2411,6 +3087,7 @@ async function onDescriptionBlur () {
 }
 async function saveDescription () {
   if (!task.value || descriptionSaving.value) return
+  const requestTaskId = task.value.id
   const description = descriptionDraft.value
   const normalized = description.trim() === '' ? null : description
   if ((normalized ?? '') === (task.value.description ?? '')) return
@@ -2418,17 +3095,20 @@ async function saveDescription () {
   saveError.value = null
   try {
     const updated = await api<TaskDetail>(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.value.id}`,
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${requestTaskId}`,
       { method: 'PATCH', body: { description: normalized } },
     )
-    task.value = normalizeTaskDetail(updated)
+    if (!applyUpdatedTaskIfCurrent(requestTaskId, updated)) return
     descriptionDraft.value = task.value.description ?? ''
     nextTick(() => adjustDescriptionTextareaHeight())
     emit('updated', task.value)
   } catch (e: unknown) {
+    if (!isStillShowingTask(requestTaskId)) return
     saveError.value = e instanceof Error ? e.message : '説明の更新に失敗しました'
   } finally {
-    descriptionSaving.value = false
+    if (isStillShowingTask(requestTaskId) || props.taskId === requestTaskId) {
+      descriptionSaving.value = false
+    }
   }
 }
 </script>

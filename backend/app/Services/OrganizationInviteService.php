@@ -7,7 +7,6 @@ use App\Mail\OrganizationInviteMail;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
-use App\Support\FieldLengthLimits;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use RuntimeException;
@@ -49,30 +48,24 @@ class OrganizationInviteService
         }
 
         // 期限切れの未使用招待があれば置き換える
-        $invite = DB::transaction(function () use ($organization, $email, $role) {
-            OrganizationInvite::query()
-                ->where('organization_id', $organization->id)
-                ->where('email', $email)
-                ->whereNull('used_at')
-                ->delete();
+        OrganizationInvite::query()
+            ->where('organization_id', $organization->id)
+            ->where('email', $email)
+            ->whereNull('used_at')
+            ->delete();
 
-            $plainToken = $this->generatePlainToken();
+        $plainToken = $this->generatePlainToken();
+        $invite = OrganizationInvite::query()->create([
+            'organization_id' => $organization->id,
+            'email' => $email,
+            'role' => $role,
+            'token' => OrganizationInvite::hashToken($plainToken),
+            'expires_at' => now()->addDays((int) config('invites.expires_days', 7)),
+        ]);
 
-            return [
-                'invite' => OrganizationInvite::query()->create([
-                    'organization_id' => $organization->id,
-                    'email' => $email,
-                    'role' => $role,
-                    'token' => OrganizationInvite::hashToken($plainToken),
-                    'expires_at' => now()->addDays((int) config('invites.expires_days', 7)),
-                ]),
-                'plainToken' => $plainToken,
-            ];
-        });
+        $this->sendInviteMail($invite, $organization, $plainToken);
 
-        $this->sendInviteMail($invite['invite'], $organization, $invite['plainToken']);
-
-        return ['invite' => $invite['invite'], 'resent' => false];
+        return ['invite' => $invite, 'resent' => false];
     }
 
     /**
@@ -116,76 +109,6 @@ class OrganizationInviteService
     }
 
     /**
-     * @return array{account_exists: bool, requires_authentication: bool}
-     */
-    public function accountContext(OrganizationInvite $invite): array
-    {
-        $user = User::query()->whereRaw('LOWER(email) = ?', [$invite->email])->first();
-        $accountExists = $user !== null;
-        $requiresAuthentication = $accountExists
-            && $user->cognito_sub !== null
-            && $user->cognito_sub !== '';
-
-        return [
-            'account_exists' => $accountExists,
-            'requires_authentication' => $requiresAuthentication,
-        ];
-    }
-
-    /**
-     * @return array{user: User, organization: Organization, already_member: bool}
-     */
-    public function acceptAuthenticated(string $plainToken, User $user): array
-    {
-        $resolved = $this->resolve($plainToken);
-        if (($resolved['status'] ?? '') !== 'active') {
-            throw new RuntimeException($resolved['message'] ?? '招待を利用できません。');
-        }
-
-        /** @var OrganizationInvite $invite */
-        $invite = $resolved['invite'];
-        /** @var Organization $organization */
-        $organization = $resolved['organization'];
-
-        if (strtolower($user->email) !== $invite->email) {
-            throw new RuntimeException('ログイン中のアカウントと招待メールアドレスが一致しません。');
-        }
-
-        return DB::transaction(function () use ($invite, $organization, $user) {
-            $invite = OrganizationInvite::query()
-                ->whereKey($invite->id)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if ($invite->isUsed()) {
-                throw new RuntimeException('この招待は使用済みです');
-            }
-            if ($invite->isExpired()) {
-                throw new RuntimeException('この招待の有効期限が切れています。');
-            }
-
-            $alreadyMember = $organization->members()
-                ->where('users.id', $user->id)
-                ->exists();
-
-            if (! $alreadyMember) {
-                $organization->members()->attach($user->id, [
-                    'role' => $invite->role,
-                ]);
-            }
-
-            $invite->used_at = now();
-            $invite->save();
-
-            return [
-                'user' => $user,
-                'organization' => $organization,
-                'already_member' => $alreadyMember,
-            ];
-        });
-    }
-
-    /**
      * @return array{user: User, organization: Organization, already_member: bool}
      */
     public function accept(string $plainToken, string $name, string $password): array
@@ -201,11 +124,11 @@ class OrganizationInviteService
         $organization = $resolved['organization'];
 
         $name = trim($name);
-        if (mb_strlen($name) < FieldLengthLimits::REQUIRED_TEXT_MIN || mb_strlen($name) > FieldLengthLimits::USER_NAME) {
-            throw new RuntimeException(FieldLengthLimits::requiredLengthMessage('名前', FieldLengthLimits::USER_NAME));
+        if ($name === '') {
+            throw new RuntimeException('名前を入力してください。');
         }
-        if (mb_strlen($password) < FieldLengthLimits::PASSWORD_MIN || mb_strlen($password) > FieldLengthLimits::PASSWORD) {
-            throw new RuntimeException(FieldLengthLimits::requiredLengthMessage('パスワード', FieldLengthLimits::PASSWORD, FieldLengthLimits::PASSWORD_MIN));
+        if (mb_strlen($password) < 8) {
+            throw new RuntimeException('パスワードは8文字以上にしてください。');
         }
 
         return DB::transaction(function () use ($invite, $organization, $name, $password) {
@@ -226,17 +149,15 @@ class OrganizationInviteService
             $alreadyMember = false;
 
             if ($user !== null) {
-                if ($user->cognito_sub !== null && $user->cognito_sub !== '') {
-                    throw new RuntimeException('この招待はログイン済みアカウントでの受諾が必要です。');
-                }
-
                 $alreadyMember = $organization->members()
                     ->where('users.id', $user->id)
                     ->exists();
 
                 if (! $alreadyMember) {
-                    $sub = $this->cognitoRegistration->register($email, $password, $name);
-                    $user->cognito_sub = $sub;
+                    if ($user->cognito_sub === null || $user->cognito_sub === '') {
+                        $sub = $this->cognitoRegistration->register($email, $password, $name);
+                        $user->cognito_sub = $sub;
+                    }
                     $user->name = $name;
                     if ($user->email_verified_at === null) {
                         $user->email_verified_at = now();
@@ -252,6 +173,7 @@ class OrganizationInviteService
                 $user = User::query()->create([
                     'email' => $email,
                     'name' => $name,
+                    'password' => $password,
                     'cognito_sub' => $sub,
                     'email_verified_at' => now(),
                 ]);

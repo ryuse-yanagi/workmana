@@ -1,0 +1,213 @@
+@use "tokens" as *;
+@use "scroll" as *;
+@use "typography" as *;
+@use "forms" as *;
+
+// ---------------------------------------------------------------------------
+// パネル
+// ---------------------------------------------------------------------------
+
+/** 基準幅 + JS の scrollbar gutter。ビューポート端の余白も考慮 */
+@mixin popover-panel-width($base, $max: calc(100vw - #{$popover-viewport-inset * 2})) {
+  width: min(calc(#{$base} + var(#{$popover-scrollbar-gutter-var}, 0px)), $max);
+}
+
+@mixin popover-elevation {
+  box-shadow: $popover-box-shadow;
+}
+
+// ---------------------------------------------------------------------------
+// スクロール
+// gutter（クラシックバー用・幅を外側へ足す）と overlay-pad（オーバーレイバー用・内側へ退ける）は
+// JS（popoverScrollbar）が CSS 変数へセットする。内容の左右パディング自体は増やさない。
+// ---------------------------------------------------------------------------
+
+/** スクロールを持つポップオーバーの宿主 */
+@mixin popover-scroll-host($content-inline-end: $popover-padding) {
+  box-sizing: border-box;
+  padding-inline-end: $content-inline-end;
+}
+
+/** 内側の縦スクロール領域 */
+@mixin popover-scroller {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  padding-inline-end: var(#{$popover-scrollbar-overlay-pad-var}, 0px);
+  @include thin-scrollbar;
+}
+
+/** パネル自身がスクロールする場合（日付ピッカーなど） */
+@mixin popover-scroller-self($content-inline-end: 0px) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  @include thin-scrollbar;
+  padding-inline-end: calc(
+    #{$content-inline-end} + var(#{$popover-scrollbar-overlay-pad-var}, 0px)
+  );
+}
+
+/** padding ショートハンドの後に overlay-pad を載せるとき用 */
+@mixin popover-scroller-overlay-pad($base-inline-end: 0px) {
+  padding-inline-end: calc(
+    #{$base-inline-end} + var(#{$popover-scrollbar-overlay-pad-var}, 0px)
+  );
+}
+
+/** スクロール外の固定行（検索など）。バー列に文字が被らないよう gutter 分だけ退ける */
+@mixin popover-outside-scroller-end-inset($content-inline-end: 0px) {
+  padding-inline-end: calc(
+    #{$content-inline-end} + var(#{$popover-scrollbar-gutter-var}, 0px)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ヘッダー・タイトル
+// ---------------------------------------------------------------------------
+
+/** シェル内側 padding を打ち消し、見出しを全幅ボーダーにする */
+@mixin popover-header-bar {
+  position: relative;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  width: calc(100% + #{2 * $popover-padding});
+  max-width: none;
+  margin-top: calc(-1 * #{$popover-padding});
+  margin-inline: calc(-1 * #{$popover-padding});
+  margin-bottom: $popover-section-gap;
+  padding: $popover-header-block-padding $popover-padding;
+  border-bottom: 1px solid $border;
+}
+
+@mixin popover-title-text {
+  margin: 0;
+  min-width: 0;
+  font-size: $popover-title-font-size;
+  font-weight: $popover-font-weight;
+  line-height: $popover-title-line-height;
+  color: $text;
+}
+
+/** タイトル行と同じ高さで ✕ を縦中央寄せ */
+@mixin popover-close-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: $popover-title-row-height;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: $text-muted;
+  font-size: $popover-title-font-size;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/** 中央寄せヘッダー用。top: 50% だと下パディング分ずれてしまうため上端基準 */
+@mixin popover-close-absolute-end {
+  position: absolute;
+  right: $popover-padding;
+  top: $popover-header-block-padding;
+  @include popover-close-button;
+}
+
+/** ヘッダー左端のクリア（フィルター／日付など） */
+@mixin popover-header-clear-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: $popover-title-row-height;
+  min-height: $popover-title-row-height;
+  border: $popover-header-clear-border-width solid $border;
+  border-radius: 6px;
+  background: $bg-gray;
+  color: $main;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  padding: $popover-header-clear-padding-y 8px;
+}
+
+// ---------------------------------------------------------------------------
+// 本文・入力
+// ---------------------------------------------------------------------------
+
+@mixin popover-member-name {
+  @include text-ellipsis-single-line;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: $popover-member-name-width;
+  min-width: 0;
+  font-size: $popover-list-font-size;
+  font-weight: $popover-font-weight;
+}
+
+/** 「選択肢なし」の中央メッセージ */
+@mixin popover-empty-options-message {
+  box-sizing: border-box;
+  margin: 0;
+  padding: $popover-padding;
+  flex: 1 1 auto;
+  min-height: 4.5em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: $popover-list-font-size;
+  font-weight: $popover-font-weight;
+  line-height: $text-line-height-safe;
+  color: $text-muted;
+}
+
+@mixin popover-input-background {
+  background: $bg-gray;
+}
+
+@mixin popover-search-input-field {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid $border;
+  border-radius: $input-border-radius;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: $text-heading;
+  @include popover-input-background;
+
+  &:focus {
+    @include input-focus-neutral;
+  }
+
+  &::-webkit-search-decoration,
+  &::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 開閉アニメーション（Transition name="popover-fade"）
+// ---------------------------------------------------------------------------
+
+@mixin popover-fade-transition {
+  .popover-fade-enter-active,
+  .popover-fade-leave-active {
+    transition: opacity $popover-fade-duration ease;
+  }
+  .popover-fade-leave-active {
+    pointer-events: none;
+  }
+  .popover-fade-enter-from,
+  .popover-fade-leave-to {
+    opacity: 0;
+  }
+}

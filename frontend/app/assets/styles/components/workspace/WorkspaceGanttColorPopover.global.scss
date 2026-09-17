@@ -1,3 +1,14 @@
 .popover.popover--gantt-color {
   padding: mixin.$popover-padding;
+
+  .color-preset-picker__list {
+    /* ColorPresetPicker の inline grid を上書き */
+    grid-template-columns: repeat(5, 60px) !important;
+  }
+
+  .color-preset-picker__btn {
+    width: 60px;
+    height: 36px;
+    min-height: 36px;
+  }
 }

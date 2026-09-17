@@ -24,6 +24,7 @@ return new class extends Migration
             $table->timestamp('due_date')->nullable();
             $table->string('gantt_bar_color', 7)->nullable();
             $table->decimal('effort_hours', 12, 6)->nullable();
+            $table->unsignedTinyInteger('progress_rate')->nullable();
             $table->foreignId('reporter_id')->constrained('users')->restrictOnDelete();
             $table->timestamp('archived_at')->nullable();
             $table->timestamp('deleted_at')->nullable();
@@ -41,21 +42,10 @@ return new class extends Migration
         if (Schema::getConnection()->getDriverName() === 'pgsql') {
             DB::statement("ALTER TABLE tasks ADD CONSTRAINT tasks_priority_check CHECK (priority IN ('low','medium','high'))");
         }
-
-        Schema::create('task_assignees', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
-            $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
-            $table->timestamps();
-
-            $table->unique(['task_id', 'user_id']);
-            $table->index(['user_id']);
-        });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('task_assignees');
         Schema::dropIfExists('tasks');
     }
 };

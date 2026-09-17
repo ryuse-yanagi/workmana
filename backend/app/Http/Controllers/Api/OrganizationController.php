@@ -136,6 +136,7 @@ class OrganizationController extends ApiController
             'slug' => $organization->slug,
             'icon_url' => $this->iconUrl($organization->icon_path),
             'role' => $pivot->role ?? null,
+            'created_at' => $organization->created_at?->toIso8601String(),
             'default_board_list_names' => DefaultBoardLists::itemsForOrganization($organization),
             'default_workspace_status_names' => DefaultWorkspaceStatuses::itemsForOrganization($organization),
             'default_document_category_names' => DefaultDocumentCategories::itemsForOrganization($organization),
@@ -186,15 +187,29 @@ class OrganizationController extends ApiController
     {
         $this->assertOrganizationAdmin($request);
 
+        $maxItems = DefaultBoardLists::maxItems();
+
         $validated = $request->validate([
-            'default_board_list_names' => ['sometimes', 'array', 'max:20'],
-            'default_board_list_names.*.name' => ['required', 'string', 'max:'.FieldLengthLimits::DEFAULT_NAMED_ITEM_NAME],
-            'default_workspace_status_names' => ['sometimes', 'array', 'max:20'],
-            'default_workspace_status_names.*.name' => ['required', 'string', 'max:'.FieldLengthLimits::DEFAULT_NAMED_ITEM_NAME],
-            'default_document_category_names' => ['sometimes', 'array', 'max:20'],
-            'default_document_category_names.*.name' => ['required', 'string', 'max:'.FieldLengthLimits::DEFAULT_NAMED_ITEM_NAME],
+            'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::ORGANIZATION_NAME],
+            'default_board_list_names' => ['sometimes', 'array', 'max:'.$maxItems],
+            'default_board_list_names.*.name' => ['required', 'string', 'max:'.FieldLengthLimits::LIST_NAME],
+            'default_workspace_status_names' => ['sometimes', 'array', 'max:'.$maxItems],
+            'default_workspace_status_names.*.name' => ['required', 'string', 'max:'.FieldLengthLimits::WORKSPACE_STATUS_NAME],
+            'default_document_category_names' => ['sometimes', 'array', 'max:'.$maxItems],
+            'default_document_category_names.*.name' => ['required', 'string', 'max:'.FieldLengthLimits::DOCUMENT_CATEGORY_NAME],
         ]);
 
+        if ($request->has('name')) {
+            $name = trim($validated['name']);
+            if ($name === '') {
+                return response()->json([
+                    'message' => FieldLengthLimits::requiredLengthMessage('組織名', FieldLengthLimits::ORGANIZATION_NAME),
+                ], 422);
+            }
+            $organization->name = $name;
+        }
+
+        DB::transaction(function () use ($request, $organization) {
         if ($request->has('default_board_list_names')) {
             $organization->default_board_list_names = DefaultBoardLists::normalizeItems(
                 $request->input('default_board_list_names'),
@@ -202,23 +217,40 @@ class OrganizationController extends ApiController
         }
 
         if ($request->has('default_workspace_status_names')) {
-            $organization->default_workspace_status_names = DefaultWorkspaceStatuses::normalizeItems(
+                $oldStatusItems = DefaultWorkspaceStatuses::itemsForOrganization($organization);
+                $newStatusItems = DefaultWorkspaceStatuses::normalizeItems(
                 $request->input('default_workspace_status_names'),
             );
+                DefaultWorkspaceStatuses::syncWorkspaceStatusNames(
+                    $organization,
+                    $oldStatusItems,
+                    $newStatusItems,
+                );
+                $organization->default_workspace_status_names = $newStatusItems;
         }
 
         if ($request->has('default_document_category_names')) {
-            $organization->default_document_category_names = DefaultDocumentCategories::normalizeItems(
+                $oldCategoryItems = DefaultDocumentCategories::itemsForOrganization($organization);
+                $newCategoryItems = DefaultDocumentCategories::normalizeItems(
                 $request->input('default_document_category_names'),
             );
+                DefaultDocumentCategories::syncDocumentCategoryNames(
+                    $organization,
+                    $oldCategoryItems,
+                    $newCategoryItems,
+                );
+                $organization->default_document_category_names = $newCategoryItems;
         }
 
         $organization->save();
+        });
 
         return response()->json([
             'id' => $organization->id,
+            'name' => $organization->name,
             'slug' => $organization->slug,
             'icon_url' => $this->iconUrl($organization->icon_path),
+            'created_at' => $organization->created_at?->toIso8601String(),
             'default_board_list_names' => DefaultBoardLists::itemsForOrganization($organization),
             'default_workspace_status_names' => DefaultWorkspaceStatuses::itemsForOrganization($organization),
             'default_document_category_names' => DefaultDocumentCategories::itemsForOrganization($organization),

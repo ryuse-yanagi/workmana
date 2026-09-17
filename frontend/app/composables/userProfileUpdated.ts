@@ -1,9 +1,7 @@
-import type { TaskCommentsByTaskId } from '../components/task/taskCommentTypes'
-import { sortMembersByDisplayName } from './useMemberDisplay'
+import { sortMembersByDisplayName, type MemberLike } from './useMemberDisplay'
 import { getWorkspaceBoardCacheMap } from './useWorkspaceBoardPageData'
 import { getWorkspaceWbsCacheMap } from './useWorkspaceWbsPageData'
-import { getOrgWorkspaceIndexCacheMap } from './useOrgWorkspaceIndexPageData'
-import { patchAllWorkspaceDetailMetaUserProfiles } from './useWorkspaceDetailMeta'
+import { getOrgWorkspaceIndexCacheMap, notifyOrgWorkspaceIndexCacheChanged } from './useOrgWorkspaceIndexPageData'
 
 export const USER_PROFILE_UPDATED_EVENT = 'tm:user-profile-updated'
 
@@ -13,11 +11,8 @@ export type UserProfileUpdatedDetail = {
   avatar_url?: string | null
 }
 
-type MemberLike = {
-  id: number
-  name?: string | null
-  avatar_url?: string | null
-}
+/** プロフィール反映対象（表示用に name / avatar が欠けてもよい） */
+type ProfileMemberLike = Pick<MemberLike, 'id'> & Partial<Pick<MemberLike, 'name' | 'avatar_url'>>
 
 /** プロフィール更新後、古い avatar_url が残っていても表示を上書きする */
 const avatarUrlOverrides = shallowRef(new Map<number, string | null>())
@@ -50,7 +45,7 @@ export function resolveDisplayAvatarUrl (
   return member.avatar_url ?? null
 }
 
-export function applyUserProfileToMember<T extends MemberLike> (
+export function applyUserProfileToMember<T extends ProfileMemberLike> (
   member: T,
   detail: UserProfileUpdatedDetail,
 ): T {
@@ -64,7 +59,7 @@ export function applyUserProfileToMember<T extends MemberLike> (
   }
 }
 
-export function applyUserProfileToMembers<T extends MemberLike> (
+export function applyUserProfileToMembers<T extends ProfileMemberLike> (
   members: T[],
   detail: UserProfileUpdatedDetail,
 ): T[] {
@@ -81,12 +76,12 @@ export function applyUserProfileToMembers<T extends MemberLike> (
   }
   // 名前変更で並びが変わるため、表示順を即時に合わせる（詳細モーダルのシードと API 再取得のちらつき防止）
   if (detail.name !== undefined) {
-    return sortMembersByDisplayName(next)
+    return sortMembersByDisplayName(next as Array<T & MemberLike>)
   }
   return next
 }
 
-export function applyUserProfileToTaskAssignees<T extends { assignees?: MemberLike[] }> (
+export function applyUserProfileToTaskAssignees<T extends { assignees?: ProfileMemberLike[] }> (
   task: T,
   detail: UserProfileUpdatedDetail,
 ): T {
@@ -100,7 +95,7 @@ export function applyUserProfileToTaskAssignees<T extends { assignees?: MemberLi
   return { ...task, assignees }
 }
 
-export function applyUserProfileToTasks<T extends { assignees?: MemberLike[] }> (
+export function applyUserProfileToTasks<T extends { assignees?: ProfileMemberLike[] }> (
   tasks: T[],
   detail: UserProfileUpdatedDetail,
 ): T[] {
@@ -115,66 +110,14 @@ export function applyUserProfileToTasks<T extends { assignees?: MemberLike[] }> 
   return changed ? next : tasks
 }
 
-function applyUserProfileToCommentAuthor<T extends MemberLike | null | undefined> (
-  author: T,
-  detail: UserProfileUpdatedDetail,
-): T {
-  if (!author) {
-    return author
-  }
-  return applyUserProfileToMember(author, detail) as T
-}
-
-export function applyUserProfileToCommentsByTaskId (
-  commentsByTaskId: TaskCommentsByTaskId,
-  detail: UserProfileUpdatedDetail,
-): TaskCommentsByTaskId {
-  let rootChanged = false
-  const next: TaskCommentsByTaskId = {}
-  for (const [taskId, comments] of Object.entries(commentsByTaskId)) {
-    let listChanged = false
-    const patchedComments = comments.map((comment) => {
-      const author = applyUserProfileToCommentAuthor(comment.author, detail)
-      let reactionsChanged = false
-      const reactions = comment.reactions.map((reaction) => {
-        const users = applyUserProfileToMembers(reaction.users, detail)
-        if (users === reaction.users) {
-          return reaction
-        }
-        reactionsChanged = true
-        return { ...reaction, users }
-      })
-      if (author === comment.author && !reactionsChanged) {
-        return comment
-      }
-      listChanged = true
-      return {
-        ...comment,
-        author,
-        reactions: reactionsChanged ? reactions : comment.reactions,
-      }
-    })
-    next[taskId] = listChanged ? patchedComments : comments
-    if (listChanged) {
-      rootChanged = true
-    }
-  }
-  return rootChanged ? next : commentsByTaskId
-}
-
 function patchWorkspaceBoardCaches (detail: UserProfileUpdatedDetail): void {
   const cacheByKey = getWorkspaceBoardCacheMap()
   for (const [key, snapshot] of cacheByKey) {
     const tasks = applyUserProfileToTasks(snapshot.tasks, detail)
     const workspaceMembers = applyUserProfileToMembers(snapshot.workspaceMembers, detail)
-    const taskCommentsByTaskId = applyUserProfileToCommentsByTaskId(
-      snapshot.taskCommentsByTaskId,
-      detail,
-    )
     if (
       tasks === snapshot.tasks
       && workspaceMembers === snapshot.workspaceMembers
-      && taskCommentsByTaskId === snapshot.taskCommentsByTaskId
     ) {
       continue
     }
@@ -182,7 +125,6 @@ function patchWorkspaceBoardCaches (detail: UserProfileUpdatedDetail): void {
       ...snapshot,
       tasks,
       workspaceMembers,
-      taskCommentsByTaskId,
     })
   }
 }
@@ -228,13 +170,13 @@ function patchOrgWorkspaceIndexCaches (detail: UserProfileUpdatedDetail): void {
       workspaces: workspacesChanged ? workspaces : snapshot.workspaces,
     })
   }
+  notifyOrgWorkspaceIndexCacheChanged()
 }
 
 export function patchUserProfileInPageCaches (detail: UserProfileUpdatedDetail): void {
   patchWorkspaceBoardCaches(detail)
   patchWorkspaceWbsCaches(detail)
   patchOrgWorkspaceIndexCaches(detail)
-  patchAllWorkspaceDetailMetaUserProfiles(detail)
 }
 
 export function dispatchUserProfileUpdated (detail: UserProfileUpdatedDetail): void {

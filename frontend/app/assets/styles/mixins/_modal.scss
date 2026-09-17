@@ -1,0 +1,188 @@
+@use "tokens" as *;
+@use "scroll" as *;
+@use "forms" as *;
+
+// ---------------------------------------------------------------------------
+// オーバーレイ・開閉
+// ---------------------------------------------------------------------------
+
+@mixin modal-overlay-shell {
+  position: fixed;
+  inset: 0;
+  background: ink-a(0.45);
+  display: flex;
+  justify-content: center;
+  overflow-y: auto;
+  padding: $modal-overlay-padding;
+}
+
+@mixin modal-overlay-top-aligned {
+  align-items: flex-start;
+}
+
+/** Transition name="modal-fade" */
+@mixin modal-fade-transition {
+  .modal-fade-enter-active {
+    transition: opacity 0.18s ease;
+  }
+  .modal-fade-leave-active {
+    transition: opacity 0.12s ease;
+  }
+  .modal-fade-enter-from,
+  .modal-fade-leave-to {
+    opacity: 0;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// カード・ヘッダー
+// gutter は JS が $popover-scrollbar-gutter-var へセット。内容の左右パディングは触らない。
+// ---------------------------------------------------------------------------
+
+@mixin modal-card-container {
+  display: flex;
+  flex-direction: column;
+  max-height: $modal-card-max-height;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-inline-end: var(#{$popover-scrollbar-gutter-var}, 0px);
+}
+
+/** 上寄せと併用し、カード高さをビューポート上限に固定する */
+@mixin modal-card-fixed-max-height {
+  height: $modal-card-max-height;
+  min-height: $modal-card-max-height;
+  max-height: $modal-card-max-height;
+}
+
+@mixin modal-card-width($width) {
+  width: min(calc(#{$width} + var(#{$popover-scrollbar-gutter-var}, 0px)), 100%);
+}
+
+@mixin modal-header-bar {
+  height: $modal-header-height;
+  min-height: $modal-header-height;
+  max-height: $modal-header-height;
+  box-sizing: border-box;
+  padding: 0 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: $bg-header;
+  color: $white;
+  flex-shrink: 0;
+
+  h3 {
+    margin: 0;
+    font-size: $modal-title-font-size;
+    line-height: 1;
+  }
+}
+
+/** ✕ の見た目はそのまま、ヒット領域だけ広げる */
+@mixin modal-close-hit-area {
+  padding: 12px;
+  margin: -12px;
+}
+
+/** 本文スクロール。gutter > 0 のとき右レーンへ広げてバーを載せる */
+@mixin modal-body-scroll-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  width: calc(100% + var(#{$popover-scrollbar-gutter-var}, 0px));
+  max-width: none;
+  margin-inline-end: calc(-1 * var(#{$popover-scrollbar-gutter-var}, 0px));
+  @include thin-scrollbar;
+}
+
+// ---------------------------------------------------------------------------
+// 本文パーツ
+// ---------------------------------------------------------------------------
+
+@mixin modal-field-label {
+  color: $text-heading;
+  font-size: $modal-field-font-size;
+  font-weight: $modal-meta-label-font-weight;
+}
+
+@mixin modal-label-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/** 長いラベル名でも折り返して幅をはみ出さない */
+@mixin modal-label-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 28px;
+  height: auto;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  font-size: $modal-action-btn-font-size;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  cursor: pointer;
+}
+
+@mixin modal-footer-actions {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin: 0;
+  padding: 32px 0;
+}
+
+// ---------------------------------------------------------------------------
+// 入力
+// ---------------------------------------------------------------------------
+
+@mixin modal-input-single-line {
+  box-sizing: border-box;
+  height: $modal-input-height;
+  min-height: $modal-input-height;
+  padding: 7px 11px;
+  line-height: 1.35;
+  background: $bg-gray;
+  border-radius: $input-border-radius;
+}
+
+@mixin modal-input-textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: $modal-input-height;
+  border: 1px solid $border;
+  border-radius: $input-border-radius;
+  padding: 7px 11px;
+  font: inherit;
+  font-size: $modal-field-font-size;
+  line-height: 1.35;
+  color: $text;
+  background: $bg-gray;
+  resize: none;
+  overflow: hidden;
+
+  &:focus {
+    @include input-focus-neutral;
+  }
+
+  &:disabled {
+    cursor: pointer;
+  }
+}

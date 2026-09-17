@@ -1,13 +1,15 @@
-import { useApi } from './useApi'
+import { queryClient } from '../lib/queryClient'
+import { queryKeys } from '../lib/queryKeys'
 import {
   useOrgWorkspaceIndexPageData,
+  useOrgWorkspaceIndexCacheRevision,
   type OrgWorkspaceItem,
   type OrgWorkspaceLabel,
   type OrgWorkspaceStatus,
+  type OrgWorkspaceDocumentCategory,
 } from './useOrgWorkspaceIndexPageData'
-import { resolveLabelColors, resolveStandardColors } from '../utils/colorPresetResolution'
+import { upsertDocumentCached, type OrgDocument } from './useOrgDocumentsPageData'
 import type { LabelCategoryGroup } from './useLabelCategories'
-import { sortMembersByDisplayName } from './useMemberDisplay'
 
 export type WorkspaceDetailMeta = {
   workspace: OrgWorkspaceItem
@@ -16,109 +18,145 @@ export type WorkspaceDetailMeta = {
   workspaceStatuses: OrgWorkspaceStatus[]
 }
 
-type SharedEntry = {
-  workspace: OrgWorkspaceItem | null
-  orgLabels: OrgWorkspaceLabel[]
-  orgLabelCategories: LabelCategoryGroup[]
-  workspaceStatuses: OrgWorkspaceStatus[]
-  loaded: boolean
-  detailFetched: boolean
+export function prefetchWorkspaceDetail (
+  orgSlug: string,
+  workspaceId: string | number,
+  opts?: { force?: boolean },
+): Promise<WorkspaceDetailMeta> {
+  return buildWorkspaceDetailMeta(orgSlug, workspaceId, { force: opts?.force ?? false })
 }
 
-const sharedByKey = reactive<Record<string, SharedEntry>>({})
-const inflightByKey = new Map<string, Promise<WorkspaceDetailMeta>>()
-
-export function clearAllWorkspaceDetailMetaCaches (): void {
-  for (const key of Object.keys(sharedByKey)) {
-    delete sharedByKey[key]
-  }
-  inflightByKey.clear()
-}
-
-/** 自分のプロフィール更新を、保持中のワークスペース担当者表示へ反映する */
-export function patchAllWorkspaceDetailMetaUserProfiles (detail: {
-  id: number
-  name?: string
-  avatar_url?: string | null
-}): void {
-  for (const entry of Object.values(sharedByKey)) {
-    const workspace = entry.workspace
-    if (!workspace?.assignees?.length) {
-      continue
-    }
-    let changed = false
-    const assignees = workspace.assignees.map((member) => {
-      if (member.id !== detail.id) {
-        return member
-      }
-      changed = true
-      return {
-        ...member,
-        ...('avatar_url' in detail ? { avatar_url: detail.avatar_url ?? null } : {}),
-        ...(detail.name !== undefined ? { name: detail.name } : {}),
-      }
-    })
-    if (!changed) {
-      continue
-    }
-    const nextAssignees = detail.name !== undefined
-      ? sortMembersByDisplayName(assignees)
-      : assignees
-    entry.workspace = normalizeWorkspace({ ...workspace, assignees: nextAssignees })
-  }
-}
-
-export function invalidateWorkspaceDetailMeta (
+/** 表示後に裏で最新化（アーカイブ判定・漏れ補正） */
+export function revalidateWorkspaceDetailInBackground (
   orgSlug: string,
   workspaceId: string | number,
 ): void {
-  const key = cacheKey(orgSlug, workspaceId)
-  delete sharedByKey[key]
-  inflightByKey.delete(key)
+  const { revalidateWorkspaceInBackground } = useOrgWorkspaceIndexPageData()
+  revalidateWorkspaceInBackground(orgSlug, workspaceId)
 }
 
-function cacheKey (orgSlug: string, workspaceId: string | number): string {
-  return `${orgSlug.trim()}:${String(workspaceId).trim()}`
+export function getCachedWorkspaceDetailItem (
+  orgSlug: string,
+  workspaceId: string | number,
+): OrgWorkspaceItem | null {
+  const { getWorkspaceFromListCache } = useOrgWorkspaceIndexPageData()
+  return getWorkspaceFromListCache(orgSlug, workspaceId)
 }
 
-function ensureEntry (key: string): SharedEntry {
-  if (!sharedByKey[key]) {
-    sharedByKey[key] = {
-      workspace: null,
-      orgLabels: [],
-      orgLabelCategories: [],
-      workspaceStatuses: [],
-      loaded: false,
-      detailFetched: false,
-    }
+export function warmWorkspaceDetailCache (
+  orgSlug: string,
+  workspaceId: string | number,
+): void {
+  const { warmWorkspaceCache } = useOrgWorkspaceIndexPageData()
+  warmWorkspaceCache(orgSlug, workspaceId)
+}
+
+export function removeDocumentFromWorkspaceDetailCache (
+  orgSlug: string,
+  workspaceId: string | number,
+  documentId: number,
+): void {
+  const { removeDocumentFromWorkspaceCache } = useOrgWorkspaceIndexPageData()
+  removeDocumentFromWorkspaceCache(orgSlug, workspaceId, documentId)
+}
+
+export function addDocumentToWorkspaceDetailCache (
+  orgSlug: string,
+  workspaceId: string | number,
+  document: {
+    id: number
+    name: string
+    description?: string | null
+    category?: OrgWorkspaceDocumentCategory | null
+  },
+): void {
+  const { addDocumentToWorkspaceCache } = useOrgWorkspaceIndexPageData()
+  addDocumentToWorkspaceCache(orgSlug, workspaceId, {
+    id: document.id,
+    name: document.name,
+    description: document.description ?? null,
+    category: document.category ?? null,
+  })
+}
+
+export function updateDocumentInWorkspaceDetailCache (
+  orgSlug: string,
+  workspaceId: string | number,
+  document: {
+    id: number
+    name: string
+    description?: string | null
+    category?: OrgWorkspaceDocumentCategory | null
+  },
+): void {
+  const { updateDocumentInWorkspaceCache } = useOrgWorkspaceIndexPageData()
+  updateDocumentInWorkspaceCache(orgSlug, workspaceId, {
+    id: document.id,
+    name: document.name,
+    description: document.description ?? null,
+    category: document.category ?? null,
+  })
+}
+
+/** アーカイブ復元直後にサイドバーへ反映し、進行中の stale 再取得で消えないようにする */
+export function restoreDocumentToWorkspaceDetailCache (
+  orgSlug: string,
+  workspaceId: string | number,
+  document: {
+    id: number
+    name: string
+    description?: string | null
+    category?: OrgWorkspaceDocumentCategory | null
+    workspace_id?: number
+    workspace_name?: string | null
+    body?: string | null
+    archived_at?: string | null
+    created_at?: string
+    updated_at?: string
+  },
+): void {
+  const slug = orgSlug.trim()
+  const id = String(workspaceId).trim()
+  if (!slug || !id) {
+    return
   }
-  return sharedByKey[key]
-}
 
-function normalizeWorkspace (workspace: OrgWorkspaceItem): OrgWorkspaceItem {
-  return {
-    ...workspace,
-    labels: workspace.labels ? resolveLabelColors(workspace.labels) : workspace.labels,
-    status: workspace.status
-      ? resolveStandardColors([workspace.status])[0] ?? workspace.status
-      : workspace.status,
-    related_workspaces: workspace.related_workspaces ?? [],
-    related_documents: workspace.related_documents ?? [],
+  const itemKey = queryKeys.orgWorkspaceItem(slug, id)
+  void queryClient.cancelQueries({ queryKey: itemKey })
+  queryClient.removeQueries({ queryKey: itemKey, exact: true })
+
+  updateDocumentInWorkspaceDetailCache(slug, workspaceId, {
+    id: document.id,
+    name: document.name,
+    description: document.description ?? null,
+    category: document.category ?? null,
+  })
+
+  const restoredDocument: OrgDocument = {
+    id: document.id,
+    workspace_id: document.workspace_id ?? Number(workspaceId),
+    workspace_name: document.workspace_name ?? null,
+    name: document.name,
+    description: document.description ?? null,
+    body: document.body ?? null,
+    category: document.category ?? null,
+    archived_at: document.archived_at ?? null,
+    created_at: document.created_at,
+    updated_at: document.updated_at,
   }
+  upsertDocumentCached(slug, restoredDocument)
+
+  const { fetchAndUpsertWorkspace } = useOrgWorkspaceIndexPageData()
+  void fetchAndUpsertWorkspace(slug, workspaceId, { force: true }).catch(() => {})
 }
 
-function patchWorkspaceDetailCache (
+function patchWorkspaceRelatedLists (
   orgSlug: string,
   workspaceId: string | number,
   mutate: (workspace: OrgWorkspaceItem) => OrgWorkspaceItem,
 ): void {
-  const k = cacheKey(orgSlug, workspaceId)
-  const entry = sharedByKey[k]
-  if (!entry?.workspace) {
-    return
-  }
-  entry.workspace = normalizeWorkspace(mutate(entry.workspace))
-  entry.loaded = true
+  const { patchCachedWorkspace } = useOrgWorkspaceIndexPageData()
+  patchCachedWorkspace(orgSlug, Number(workspaceId), mutate)
 }
 
 export function removeRelatedDocumentFromWorkspaceDetailCache (
@@ -126,7 +164,7 @@ export function removeRelatedDocumentFromWorkspaceDetailCache (
   workspaceId: string | number,
   documentId: number,
 ): void {
-  patchWorkspaceDetailCache(orgSlug, workspaceId, (workspace) => ({
+  patchWorkspaceRelatedLists(orgSlug, workspaceId, workspace => ({
     ...workspace,
     related_documents: (workspace.related_documents ?? []).filter(item => item.id !== documentId),
   }))
@@ -137,7 +175,7 @@ export function addRelatedDocumentToWorkspaceDetailCache (
   workspaceId: string | number,
   document: { id: number; name: string; description?: string | null },
 ): void {
-  patchWorkspaceDetailCache(orgSlug, workspaceId, (workspace) => {
+  patchWorkspaceRelatedLists(orgSlug, workspaceId, (workspace) => {
     const list = workspace.related_documents ?? []
     if (list.some(item => item.id === document.id)) {
       return workspace
@@ -161,7 +199,7 @@ export function removeRelatedWorkspaceFromWorkspaceDetailCache (
   workspaceId: string | number,
   relatedWorkspaceId: number,
 ): void {
-  patchWorkspaceDetailCache(orgSlug, workspaceId, (workspace) => ({
+  patchWorkspaceRelatedLists(orgSlug, workspaceId, workspace => ({
     ...workspace,
     related_workspaces: (workspace.related_workspaces ?? []).filter(item => item.id !== relatedWorkspaceId),
   }))
@@ -172,7 +210,7 @@ export function addRelatedWorkspaceToWorkspaceDetailCache (
   workspaceId: string | number,
   relatedWorkspace: { id: number; name: string; description?: string | null },
 ): void {
-  patchWorkspaceDetailCache(orgSlug, workspaceId, (workspace) => {
+  patchWorkspaceRelatedLists(orgSlug, workspaceId, (workspace) => {
     const list = workspace.related_workspaces ?? []
     if (list.some(item => item.id === relatedWorkspace.id)) {
       return workspace
@@ -191,127 +229,30 @@ export function addRelatedWorkspaceToWorkspaceDetailCache (
   })
 }
 
-function hydrateFromIndexCache (
-  slug: string,
-  id: string,
-  getCached: ReturnType<typeof useOrgWorkspaceIndexPageData>['getCached'],
-  getWorkspaceFromListCache: ReturnType<typeof useOrgWorkspaceIndexPageData>['getWorkspaceFromListCache'],
-): boolean {
-  const k = cacheKey(slug, id)
-  const entry = ensureEntry(k)
-  if (entry.loaded && entry.workspace) {
-    return true
-  }
-
-  const listItem = getWorkspaceFromListCache(slug, id)
-  const indexCached = getCached(slug)
-  if (!listItem || !indexCached) {
-    return false
-  }
-
-  entry.workspace = normalizeWorkspace(listItem)
-  entry.orgLabels = resolveLabelColors(indexCached.orgLabels)
-  entry.orgLabelCategories = indexCached.orgLabelCategories ?? []
-  entry.workspaceStatuses = resolveStandardColors(indexCached.workspaceStatuses)
-  entry.loaded = true
-  return true
-}
-
-export function prefetchWorkspaceDetail (
+async function buildWorkspaceDetailMeta (
   orgSlug: string,
   workspaceId: string | number,
+  opts?: { force?: boolean },
 ): Promise<WorkspaceDetailMeta> {
-  const { api } = useApi()
-  const { getCached, fetchSnapshot, getWorkspaceFromListCache } = useOrgWorkspaceIndexPageData()
-  return fetchWorkspaceDetailMeta(
-    orgSlug,
-    workspaceId,
-    api,
+  const {
     getCached,
     fetchSnapshot,
-    getWorkspaceFromListCache,
-  )
-}
+    fetchAndUpsertWorkspace,
+  } = useOrgWorkspaceIndexPageData()
 
-export function warmWorkspaceDetailCache (
-  orgSlug: string,
-  workspaceId: string | number,
-): void {
   const slug = orgSlug.trim()
-  const id = String(workspaceId).trim()
-  const k = cacheKey(slug, id)
-  const { getCached, getWorkspaceFromListCache } = useOrgWorkspaceIndexPageData()
-  hydrateFromIndexCache(slug, id, getCached, getWorkspaceFromListCache)
-  const entry = sharedByKey[k]
-  if (entry?.detailFetched && entry.workspace) {
-    return
-  }
-  // 削除済み等で失敗しても warm 用途なので握りつぶす（呼び出し側の gate が正式に扱う）
-  void prefetchWorkspaceDetail(slug, id).catch(() => {})
-}
-
-async function fetchWorkspaceDetailMeta (
-  orgSlug: string,
-  workspaceId: string | number,
-  api: ReturnType<typeof useApi>['api'],
-  getCached: ReturnType<typeof useOrgWorkspaceIndexPageData>['getCached'],
-  fetchSnapshot: ReturnType<typeof useOrgWorkspaceIndexPageData>['fetchSnapshot'],
-  getWorkspaceFromListCache: ReturnType<typeof useOrgWorkspaceIndexPageData>['getWorkspaceFromListCache'],
-  force = false,
-): Promise<WorkspaceDetailMeta> {
-  const slug = orgSlug.trim()
-  const id = String(workspaceId).trim()
-  const k = cacheKey(slug, id)
-
-  hydrateFromIndexCache(slug, id, getCached, getWorkspaceFromListCache)
-
-  const existing = sharedByKey[k]
-  if (!force && existing?.detailFetched && existing.workspace) {
-    return {
-      workspace: existing.workspace,
-      orgLabels: existing.orgLabels,
-      orgLabelCategories: existing.orgLabelCategories,
-      workspaceStatuses: existing.workspaceStatuses,
-    }
+  let indexSnapshot = getCached(slug)
+  if (!indexSnapshot) {
+    indexSnapshot = await fetchSnapshot(slug).catch(() => null)
   }
 
-  const inflight = inflightByKey.get(k)
-  if (inflight) {
-    return inflight
-  }
+  const workspace = await fetchAndUpsertWorkspace(slug, workspaceId, opts)
 
-  const job = (async () => {
-    const indexCached = getCached(slug)
-    const [workspaceRes, indexSnapshot] = await Promise.all([
-      api<OrgWorkspaceItem>(`/orgs/${slug}/workspaces/${id}`),
-      indexCached
-        ? Promise.resolve(indexCached)
-        : fetchSnapshot(slug).catch(() => null),
-    ])
-
-    const meta: WorkspaceDetailMeta = {
-      workspace: normalizeWorkspace(workspaceRes),
-      orgLabels: indexSnapshot?.orgLabels ?? existing?.orgLabels ?? [],
-      orgLabelCategories: indexSnapshot?.orgLabelCategories ?? existing?.orgLabelCategories ?? [],
-      workspaceStatuses: indexSnapshot?.workspaceStatuses ?? existing?.workspaceStatuses ?? [],
-    }
-    const target = ensureEntry(k)
-    target.workspace = meta.workspace
-    target.orgLabels = resolveLabelColors(meta.orgLabels)
-    target.orgLabelCategories = meta.orgLabelCategories
-    target.workspaceStatuses = resolveStandardColors(meta.workspaceStatuses)
-    target.loaded = true
-    target.detailFetched = true
-    return meta
-  })()
-
-  inflightByKey.set(k, job)
-  try {
-    return await job
-  } finally {
-    if (inflightByKey.get(k) === job) {
-      inflightByKey.delete(k)
-    }
+  return {
+    workspace,
+    orgLabels: indexSnapshot?.orgLabels ?? [],
+    orgLabelCategories: indexSnapshot?.orgLabelCategories ?? [],
+    workspaceStatuses: indexSnapshot?.workspaceStatuses ?? [],
   }
 }
 
@@ -319,88 +260,96 @@ export function useWorkspaceDetailMeta (
   orgSlug: MaybeRefOrGetter<string>,
   workspaceId: MaybeRefOrGetter<string | number>,
 ) {
-  const { api } = useApi()
+  const cacheRevision = useOrgWorkspaceIndexCacheRevision()
   const {
     getCached,
     fetchSnapshot,
-    invalidateCached,
     upsertCachedWorkspace,
-    getWorkspaceFromListCache,
+    fetchAndUpsertWorkspace,
+    invalidateCached,
+    revalidateWorkspaceInBackground,
   } = useOrgWorkspaceIndexPageData()
 
-  const key = computed(() => cacheKey(toValue(orgSlug), toValue(workspaceId)))
-  const entry = computed(() => ensureEntry(key.value))
+  const workspace = computed(() => {
+    void cacheRevision.value
+    return getWorkspaceFromListCacheComputed(orgSlug, workspaceId)
+  })
 
-  const workspace = computed(() => entry.value.workspace)
-  const orgLabels = computed(() => entry.value.orgLabels)
-  const orgLabelCategories = computed(() => entry.value.orgLabelCategories ?? [])
-  const workspaceStatuses = computed(() => entry.value.workspaceStatuses)
-  const loaded = computed(() => entry.value.loaded)
-  const detailFetched = computed(() => entry.value.detailFetched)
+  const orgLabels = computed(() => {
+    void cacheRevision.value
+    return getCached(toValue(orgSlug).trim())?.orgLabels ?? []
+  })
 
-  function applyMeta (meta: WorkspaceDetailMeta, targetKey = key.value) {
-    const target = ensureEntry(targetKey)
-    target.workspace = normalizeWorkspace(meta.workspace)
-    target.orgLabels = resolveLabelColors(meta.orgLabels)
-    target.orgLabelCategories = meta.orgLabelCategories ?? []
-    target.workspaceStatuses = resolveStandardColors(meta.workspaceStatuses)
-    target.loaded = true
-    target.detailFetched = true
+  const orgLabelCategories = computed(() => {
+    void cacheRevision.value
+    return getCached(toValue(orgSlug).trim())?.orgLabelCategories ?? []
+  })
+
+  const workspaceStatuses = computed(() => {
+    void cacheRevision.value
+    return getCached(toValue(orgSlug).trim())?.workspaceStatuses ?? []
+  })
+
+  const loaded = computed(() => workspace.value != null)
+  const detailFetched = computed(() => workspace.value != null)
+
+  function getWorkspaceFromListCacheComputed (
+    slugRef: MaybeRefOrGetter<string>,
+    idRef: MaybeRefOrGetter<string | number>,
+  ): OrgWorkspaceItem | null {
+    const slug = toValue(slugRef).trim()
+    const id = toValue(idRef)
+    if (!slug || id === '' || id == null) {
+      return null
+    }
+    const cached = getCached(slug)
+    if (!cached) {
+      return null
+    }
+    const numericId = Number(id)
+    return cached.workspaces.find(item => item.id === numericId) ?? null
   }
 
   function applyWorkspace (value: OrgWorkspaceItem) {
-    const target = ensureEntry(key.value)
-    const normalized = normalizeWorkspace(value)
-    target.workspace = normalized
-    target.loaded = true
-    target.detailFetched = true
-    upsertCachedWorkspace(toValue(orgSlug), normalized)
-  }
-
-  function hydrateFromCaches () {
-    const slug = toValue(orgSlug).trim()
-    const id = String(toValue(workspaceId)).trim()
-    if (!slug || !id) {
-      return
-    }
-    hydrateFromIndexCache(slug, id, getCached, getWorkspaceFromListCache)
+    upsertCachedWorkspace(toValue(orgSlug).trim(), value)
   }
 
   async function fetchMeta (force = false): Promise<WorkspaceDetailMeta> {
-    return fetchWorkspaceDetailMeta(
+    return buildWorkspaceDetailMeta(
       toValue(orgSlug),
       toValue(workspaceId),
-      api,
-      getCached,
-      fetchSnapshot,
-      getWorkspaceFromListCache,
-      force,
+      { force },
     )
   }
 
   async function ensureLoaded (): Promise<void> {
-    hydrateFromCaches()
-    const existing = sharedByKey[key.value]
-    if (existing?.detailFetched && existing.workspace) {
+    const slug = toValue(orgSlug).trim()
+    const id = toValue(workspaceId)
+    if (!slug || id === '' || id == null) {
       return
     }
-    await fetchMeta()
+    if (!getCached(slug)) {
+      await fetchSnapshot(slug).catch(() => null)
+    }
+    const cachedItem = getWorkspaceFromListCacheComputed(orgSlug, workspaceId)
+    if (cachedItem) {
+      revalidateWorkspaceInBackground(slug, id)
+      return
+    }
+    await fetchAndUpsertWorkspace(slug, id)
   }
 
   function invalidate (): void {
-    const slug = toValue(orgSlug).trim()
-    delete sharedByKey[key.value]
-    invalidateCached(slug)
+    invalidateCached(toValue(orgSlug).trim())
   }
 
   watch(
-    key,
-    () => {
-      hydrateFromCaches()
-      const existing = sharedByKey[key.value]
-      if (!existing?.detailFetched) {
-        void fetchMeta()
+    () => [toValue(orgSlug), toValue(workspaceId)] as const,
+    ([slug, id]) => {
+      if (!slug || id === '' || id == null) {
+        return
       }
+      void ensureLoaded()
     },
     { immediate: true },
   )
@@ -416,6 +365,5 @@ export function useWorkspaceDetailMeta (
     fetchMeta,
     applyWorkspace,
     invalidate,
-    hydrateFromCaches,
   }
 }

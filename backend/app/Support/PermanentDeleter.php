@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * 完全削除（物理削除）を関連データごと一括で行う。
+ * 削除（物理削除）を関連データごと一括で行う。
  * 外部キーの ON DELETE 挙動に依存せず、削除順序を明示する。
  */
 final class PermanentDeleter
@@ -32,19 +32,6 @@ final class PermanentDeleter
     public static function deleteDocument(SharedDocument $document): void
     {
         DB::transaction(function () use ($document) {
-            $documentId = (int) $document->id;
-
-            DB::table('document_document_label')
-                ->where('shared_document_id', $documentId)
-                ->delete();
-            DB::table('document_related_document')
-                ->where('document_id', $documentId)
-                ->orWhere('related_document_id', $documentId)
-                ->delete();
-            DB::table('workspace_related_document')
-                ->where('shared_document_id', $documentId)
-                ->delete();
-
             $document->forceDelete();
         });
 
@@ -53,8 +40,18 @@ final class PermanentDeleter
 
     public static function deleteWorkspace(Workspace $workspace): void
     {
-        DB::transaction(function () use ($workspace) {
+        $documentFileTargets = [];
+
+        DB::transaction(function () use ($workspace, &$documentFileTargets) {
             $workspaceId = (int) $workspace->id;
+
+            $documents = SharedDocument::withTrashed()
+                ->where('workspace_id', $workspaceId)
+                ->get();
+            foreach ($documents as $document) {
+                $documentFileTargets[] = $document;
+                $document->forceDelete();
+            }
 
             $taskIds = Task::withTrashed()
                 ->where('workspace_id', $workspaceId)
@@ -73,14 +70,13 @@ final class PermanentDeleter
 
             DB::table('workspace_assignees')->where('workspace_id', $workspaceId)->delete();
             DB::table('workspace_workspace_label')->where('workspace_id', $workspaceId)->delete();
-            DB::table('workspace_related_document')->where('workspace_id', $workspaceId)->delete();
-            DB::table('workspace_related_workspace')
-                ->where('workspace_id', $workspaceId)
-                ->orWhere('related_workspace_id', $workspaceId)
-                ->delete();
 
             $workspace->forceDelete();
         });
+
+        foreach ($documentFileTargets as $document) {
+            self::purgeDocumentFiles($document);
+        }
     }
 
     /**
