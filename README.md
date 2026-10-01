@@ -578,14 +578,21 @@ php artisan db:seed
 php artisan db:seed --class=UserSeeder
 ```
 
-シード後の主なダミーデータ（[`DummySeederData`](backend/database/seeders/DummySeederData.php)）:
+シードが作る主なデータ（定義は [`DummySeederData`](backend/database/seeders/DummySeederData.php)）:
 
 | 項目 | 値 |
 |------|-----|
-| 組織 | 名前 `ABCDE`。slug は未発行のときだけランダムに付く |
+| 組織 | 名前 `ABCDE`。slug は未発行のときだけランダムに付く。A が admin、B〜T が member |
 | ユーザー | `a@example.com` から `t@example.com`（名前 A〜T）。ローカルにパスワード列はない |
-| スペース例 | 「WorkMana」 |
-| 資料例 | 「【WorkMana】要件定義書」 |
+| スペース | 「WorkMana」。説明は設計・開発・テスト・リリースの管理。ステータスは「準備中」。担当者は A〜E。シーダーが作るスペースはこれだけ |
+| ボード列 | 組織の既定（未着手 / 進行中 / 完了）。スペースを新規作成したときだけ入る |
+| タスク | 親「ログイン画面」（未着手）、「タスク一覧画面」（進行中）、「設定画面」（完了）と、それぞれの子タスク。担当者・ラベル・日付は付けない |
+| ラベル | スペース用（優先度、公開範囲、担当部署）とタスク用（担当分野、作業種別） |
+| 資料 | 「【WorkMana】要件定義書」。説明あり。カテゴリは「仕様書」。本文は Markdown |
+
+資料本文の見出しは、概要、対象ユーザー、機能要件（スペース / タスク / 資料）、非機能要件、対象外です。全文は `DummySeederData::DOCUMENT_BODY` です。
+
+スクリーンショットの「案件管理」と「問い合わせ対応」、およびボード上の担当者・ラベルは、シーダーでは作りません。
 
 ローカルバイパスはパスワードではなくユーザー ID です。シード後の実 ID に `COGNITO_BYPASS_USER_ID` を合わせてください（例: ユーザー A）。
 フロントの初期導線はログイン後の組織です。
