@@ -33,9 +33,7 @@ declare module '#shared/field-length-limits.json' {
     TASK_DESCRIPTION: number
     REQUIRED_TEXT_MIN: number
     PASSWORD_MIN: number
-    COMMENT_BODY: number
     DEFAULT_NAMED_ITEM_NAME: number
-    MEMBER_GROUP_NAME: number
   }
   export default value
 }
@@ -43,7 +41,6 @@ declare module '#shared/field-length-limits.json' {
 declare module '#shared/default-named-color-items.json' {
   type NamedColorItem = { name: string, color_index: number }
   const value: {
-    maxItems: number
     boardLists: NamedColorItem[]
     workspaceStatuses: NamedColorItem[]
     documentCategories: NamedColorItem[]

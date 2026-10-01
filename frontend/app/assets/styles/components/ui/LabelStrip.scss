@@ -37,39 +37,30 @@
   color: transparent;
   font-size: 0;
 }
-.label-strip--named.label-strip--sm {
+.label-strip--named.label-strip--sm,
+.label-strip--named.label-strip--md {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  flex-shrink: 1;
   box-sizing: border-box;
-  width: 56px;
-  height: 16px;
+  width: fit-content;
+  height: auto;
   min-width: 56px;
-  max-width: 56px;
+  max-width: 100%;
   min-height: 16px;
-  max-height: 16px;
+  max-height: none;
   padding: 0 4px;
   border-radius: 4px;
   font-size: 12px;
   line-height: 1;
   overflow: hidden;
 }
-.label-strip--named.label-strip--md {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  width: 56px;
-  height: 16px;
-  min-width: 56px;
-  max-width: 56px;
-  min-height: 16px;
-  max-height: 16px;
-  padding: 0 4px;
-  border-radius: 4px;
-  font-size: 12px;
-  line-height: 1;
-  overflow: hidden;
+.label-strip--named .label-strip__text {
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }

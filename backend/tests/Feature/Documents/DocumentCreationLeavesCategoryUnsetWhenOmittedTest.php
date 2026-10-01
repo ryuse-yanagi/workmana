@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Documents;
 
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -13,6 +13,7 @@ class DocumentCreationLeavesCategoryUnsetWhenOmittedTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** カテゴリ未指定の作成は、組織にデフォルトカテゴリがあっても「その他」へ寄せず null のまま */
     public function test_document_creation_leaves_category_unset_when_omitted(): void
     {
         $user = User::factory()->create();
@@ -26,9 +27,11 @@ class DocumentCreationLeavesCategoryUnsetWhenOmittedTest extends TestCase
             ],
         ]);
         $org->members()->attach($user->id, ['role' => 'admin']);
+        $workspaceId = $this->createWorkspaceViaApi($user, 'acme', 'Docs');
 
         $this->actingAsApiUser($user)
             ->postJson('/api/orgs/acme/documents', [
+                'workspace_id' => $workspaceId,
                 'name' => '未設定カテゴリの資料',
             ])
             ->assertCreated()
@@ -36,6 +39,7 @@ class DocumentCreationLeavesCategoryUnsetWhenOmittedTest extends TestCase
 
         $this->assertDatabaseHas('shared_documents', [
             'organization_id' => $org->id,
+            'workspace_id' => $workspaceId,
             'name' => '未設定カテゴリの資料',
             'category' => null,
         ]);

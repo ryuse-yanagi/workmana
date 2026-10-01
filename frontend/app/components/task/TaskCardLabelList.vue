@@ -17,7 +17,7 @@
 </template>
 <script setup lang="ts">
 import LabelStrip, { type LabelStripLabel } from '../ui/LabelStrip.vue'
-import { useBoardCardLabelDisplay } from '../../composables/useBoardCardLabelDisplay'
+import { useBoardCardLabelDisplay } from '../../composables/task/useBoardCardLabelDisplay'
 defineProps<{
   labels: LabelStripLabel[]
 }>()

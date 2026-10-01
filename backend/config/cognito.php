@@ -29,8 +29,9 @@ return [
     | にのみ保持します。ブラウザへ渡るのは HttpOnly のセッション Cookie だけです。
     |
     | domain 例: https://example.auth.ap-northeast-1.amazoncognito.com
-    | redirect_uri はブラウザから見た URL（= フロントのオリジン配下の /api/auth/callback）
-    | を指定し、Cognito アプリクライアントの許可コールバック URL にも登録します。
+    | redirect_uri はブラウザから見た API の URL（APP_URL と同じホストの /api/auth/callback）。
+    | ログイン開始と同じホストでないと、セッション Cookie がコールバックに届かない。
+    | Cognito アプリクライアントの許可コールバック URL にも同じ値を登録する。
     |
     */
 
@@ -84,8 +85,10 @@ return [
     |
     | region 例: ap-northeast-1
     | user_pool_id 例: ap-northeast-1_XXXXXXXXX
-    | AdminCreateUser / AdminSetUserPassword / AdminConfirmSignUp に使用します。
-    | 未設定かつ bypass=false の場合は、アプリクライアント向け SignUp API を使います。
+    | 設定時は AdminCreateUser / AdminSetUserPassword / AdminGetUser を使う。
+    | 認証情報は AWS SDK の既定チェーン（環境変数または ECS タスクロール）で解決する。
+    | 未設定かつ bypass=false の場合は、アプリクライアント向け SignUp API を使う。
+    | 本番では User Pool ID を必須にし、メール未検証のままログインできない SignUp 経路を避ける。
     |
     */
 

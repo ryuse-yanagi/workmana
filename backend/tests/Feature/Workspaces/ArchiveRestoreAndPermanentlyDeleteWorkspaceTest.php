@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Workspaces;
 
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -12,6 +12,7 @@ class ArchiveRestoreAndPermanentlyDeleteWorkspaceTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 管理者はワークスペースをアーカイブ・復元・完全削除できる */
     public function test_workspace_can_be_archived_restored_and_permanently_deleted(): void
     {
         [$user] = $this->createOrgWithAdmin();

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Workspaces;
 
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -13,6 +13,7 @@ class WorkspaceCreationUsesOrganizationDefaultWorkspaceStatusSettingsTest extend
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** ステータス省略時は未設定。指定した名前は組織のデフォルト一覧にあるものだけ使える */
     public function test_workspace_creation_uses_organization_default_workspace_status_settings(): void
     {
         $user = User::factory()->create();

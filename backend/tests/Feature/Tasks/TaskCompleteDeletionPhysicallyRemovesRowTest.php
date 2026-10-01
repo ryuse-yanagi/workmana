@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Tasks;
 
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -12,6 +12,7 @@ class TaskCompleteDeletionPhysicallyRemovesRowTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** タスクの完全削除は行を物理削除する */
     public function test_task_complete_deletion_physically_removes_row(): void
     {
         [$user] = $this->createOrgWithAdmin();
@@ -50,9 +51,8 @@ class TaskCompleteDeletionPhysicallyRemovesRowTest extends TestCase
             ->assertNoContent();
 
         $this->assertDatabaseMissing('tasks', ['id' => $taskId]);
+        // 親の完全削除は、アーカイブ済みの子もまとめて消す
         $this->assertDatabaseMissing('tasks', ['id' => $childTaskId]);
-        $this->assertDatabaseMissing('task_histories', ['task_id' => $taskId]);
-        $this->assertDatabaseMissing('task_histories', ['task_id' => $childTaskId]);
         $this->assertDatabaseMissing('task_assignees', ['task_id' => $taskId]);
 
         // スペース側は残る

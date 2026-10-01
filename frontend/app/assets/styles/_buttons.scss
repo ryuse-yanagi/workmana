@@ -15,8 +15,9 @@ input[type='reset']:disabled {
  * （モーダルの期間など .action-btn は従来どおり背景色変更のため除外）
  * （タスクカード相当の資料カード / 添付ファイル行は border 変化のみとし opacity は変えない）
  * （タスクカード等の ・・・ メニューは表示時の opacity を維持）
+ * （サイドバー説明の開閉は領域全体がボタンのため、hover で薄くしない）
  */
-button:hover:not(:disabled):not(.action-btn):not(.workspace-sidebar__document-card):not(.document-sidebar__document-card):not(.attachments-item__main):not(.card-menu-trigger),
+button:hover:not(:disabled):not(.action-btn):not(.workspace-sidebar__document-card):not(.document-sidebar__document-card):not(.attachments-item__main):not(.card-menu-trigger):not(.sidebar-description__expand):not(.sidebar-description__collapse),
 input[type='button']:hover:not(:disabled),
 input[type='submit']:hover:not(:disabled),
 input[type='reset']:hover:not(:disabled) {

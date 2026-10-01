@@ -1,9 +1,12 @@
 import {
   closeExclusivePopoverIfOpen,
   isExclusivePopoverOpen,
-} from '../composables/useExclusivePopover'
-import { shouldDismissPopoverForPointerTarget } from '../utils/uiInteraction'
+} from '../composables/ui/useExclusivePopover'
+import { shouldDismissPopoverForPointerTarget } from '../utils/ui/uiInteraction'
 
+/**
+ * 排他ポップオーバーを、外側クリックと画面遷移で閉じる。
+ */
 export default defineNuxtPlugin(() => {
   if (!import.meta.client) {
     return

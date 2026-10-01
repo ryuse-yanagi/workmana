@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import PopoverShell from '../../ui/PopoverShell.vue'
-import { schedulePopoverInputFocus } from '../../../utils/schedulePopoverInputFocus'
+import { schedulePopoverInputFocus } from '../../../utils/ui/schedulePopoverInputFocus'
 
 const props = withDefaults(defineProps<{
   style?: Record<string, string>

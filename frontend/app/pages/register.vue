@@ -7,7 +7,7 @@
   >
     <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
 
-    <form v-if="!completed" class="auth-form" novalidate @submit.prevent="submit">
+    <form v-if="!completed" class="auth-form" autocomplete="off" novalidate @submit.prevent="submit">
       <label class="auth-field">
         <span class="auth-label">ユーザー名</span>
         <input
@@ -15,7 +15,8 @@
           type="text"
           class="auth-input"
           :maxlength="USER_NAME_MAX_LENGTH"
-          autocomplete="name"
+          name="register-name"
+          autocomplete="off"
           aria-required="true"
           :disabled="submitting"
         >
@@ -28,7 +29,8 @@
           type="email"
           class="auth-input"
           :maxlength="EMAIL_MAX_LENGTH"
-          autocomplete="email"
+          name="register-email"
+          autocomplete="off"
           aria-required="true"
           :disabled="submitting"
         >
@@ -41,6 +43,7 @@
           type="password"
           class="auth-input"
           :maxlength="PASSWORD_MAX_LENGTH"
+          name="register-password"
           autocomplete="new-password"
           aria-required="true"
           :disabled="submitting"
@@ -70,14 +73,16 @@
 </template>
 
 <script setup lang="ts">
-import { useApi } from '../composables/useApi'
-import { useAuth } from '../composables/useAuth'
+import { useApi } from '../composables/shared/useApi'
+import { useAuth } from '../composables/auth/useAuth'
 import {
   EMAIL_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
   USER_NAME_MAX_LENGTH,
 } from '../constants/fieldLengthLimits'
-import { emailFieldError, passwordFieldError, requiredTextFieldError } from '../utils/formValidation'
+import { emailFieldError, passwordFieldError, requiredTextFieldError } from '../utils/shared/formValidation'
+
+defineOptions({ name: 'register' })
 
 definePageMeta({
   name: 'register',
@@ -131,11 +136,28 @@ async function submit () {
   }
 }
 
+function resetRegisterForm () {
+  name.value = ''
+  email.value = ''
+  password.value = ''
+  submitting.value = false
+  completed.value = false
+  errorMessage.value = ''
+  nameError.value = null
+  emailError.value = null
+  passwordError.value = null
+}
+
 watch(name, () => { if (nameError.value) nameError.value = null })
 watch(email, () => { if (emailError.value) emailError.value = null })
 watch(password, () => { if (passwordError.value) passwordError.value = null })
 
+onActivated(() => {
+  resetRegisterForm()
+})
+
 onMounted(async () => {
+  resetRegisterForm()
   try {
     const session = await fetchSession()
     if (session.authenticated) {

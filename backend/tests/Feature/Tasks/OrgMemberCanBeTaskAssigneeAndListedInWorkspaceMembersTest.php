@@ -4,7 +4,7 @@ namespace Tests\Feature\Tasks;
 
 use App\Enums\MembershipRole;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -14,6 +14,7 @@ class OrgMemberCanBeTaskAssigneeAndListedInWorkspaceMembersTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 組織メンバーを担当者に指定でき、ワークスペースメンバーにも表示される */
     public function test_org_member_can_be_task_assignee_and_listed_in_workspace_members(): void
     {
         [$admin, $organization] = $this->createOrgWithAdmin();
@@ -23,6 +24,7 @@ class OrgMemberCanBeTaskAssigneeAndListedInWorkspaceMembersTest extends TestCase
         $workspaceId = (int) $this->actingAsApiUser($admin)
             ->postJson('/api/orgs/acme/workspaces', [
                 'name' => 'Open space',
+                'assignee_ids' => [$admin->id, $member->id],
             ])
             ->assertCreated()
             ->json('id');

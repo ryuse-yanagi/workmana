@@ -1,4 +1,4 @@
-import type { ArchivedNamedItemsResource } from '../composables/useArchivedNamedItemsCache'
+import type { ArchivedNamedItemsResource } from '../composables/archived/useArchivedNamedItemsCache'
 
 export const queryKeys = {
   orgWorkspaceIndex: (slug: string) => ['orgWorkspaceIndex', slug.trim()] as const,

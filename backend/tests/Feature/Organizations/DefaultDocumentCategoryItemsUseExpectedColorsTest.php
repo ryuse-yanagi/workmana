@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Organizations;
 
-use App\Support\DefaultDocumentCategories;
+use App\Support\Document\DefaultDocumentCategories;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -10,6 +10,7 @@ class DefaultDocumentCategoryItemsUseExpectedColorsTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** デフォルト資料カテゴリの色が期待どおり */
     public function test_default_document_category_items_use_expected_colors(): void
     {
         $this->assertSame([
@@ -17,6 +18,7 @@ class DefaultDocumentCategoryItemsUseExpectedColorsTest extends TestCase
         ], DefaultDocumentCategories::defaultItems());
     }
 
+    /** ダミー資料カテゴリの色が期待どおり */
     public function test_dummy_document_category_items_use_expected_colors(): void
     {
         $this->assertSame([
@@ -27,6 +29,7 @@ class DefaultDocumentCategoryItemsUseExpectedColorsTest extends TestCase
         ], DefaultDocumentCategories::DUMMY_ITEMS);
     }
 
+    /** シードした資料カテゴリで「その他」が末尾になる */
     public function test_seeded_document_category_items_put_other_last(): void
     {
         $this->assertSame([

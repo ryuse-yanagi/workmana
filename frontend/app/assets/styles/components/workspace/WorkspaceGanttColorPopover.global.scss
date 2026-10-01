@@ -1,13 +1,20 @@
 .popover.popover--gantt-color {
   padding: mixin.$popover-padding;
+  @include mixin.popover-panel-width(#{mixin.$popover-gantt-color-panel-width});
+
+  .popover-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    @include mixin.popover-scroller;
+  }
 
   .color-preset-picker__list {
-    /* ColorPresetPicker の inline grid を上書き */
-    grid-template-columns: repeat(5, 60px) !important;
+    width: 100%;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
   }
 
   .color-preset-picker__btn {
-    width: 60px;
+    width: 100%;
     height: 36px;
     min-height: 36px;
   }

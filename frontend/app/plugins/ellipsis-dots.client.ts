@@ -15,7 +15,6 @@ const TRUNCATE_SELECTOR = [
   '.task-detail-list-badge',
   '.subheader-doc-name',
   '.subheader-workspace-name',
-  '.workspace-linked-items-modal__item-name',
   '.name-text',
   '.description-text',
   '.label-strip',

@@ -6,9 +6,14 @@
     :busy-label="message"
   >
     <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
-    <a class="auth-btn auth-btn--block" :href="continueHref">
-      スペース一覧へ進む
-    </a>
+    <button
+      v-if="errorMessage"
+      type="button"
+      class="auth-btn auth-btn--block"
+      @click="retry"
+    >
+      再試行
+    </button>
     <NuxtLink v-if="errorMessage" to="/login" class="auth-btn auth-btn--block auth-btn--secondary" style="margin-top: 12px">
       ログイン画面へ
     </NuxtLink>
@@ -16,16 +21,14 @@
 </template>
 
 <script setup lang="ts">
-import { useAuth } from '../composables/useAuth'
-import { useOrganizationContext } from '../composables/useOrganizationContext'
-import { useCurrentUser } from '../composables/useCurrentUser'
+import { useAuth } from '../composables/auth/useAuth'
+import { useOrganizationContext } from '../composables/org/useOrganizationContext'
+import { useCurrentUser } from '../composables/auth/useCurrentUser'
 
 definePageMeta({
   name: 'post-login',
   keepalive: false,
 })
-
-const DEFAULT_WORKSPACE_PATH = '/org/abcde/workspaces'
 
 const { fetchSession } = useAuth()
 const { resolvePostLoginPath } = useOrganizationContext()
@@ -33,8 +36,7 @@ const { setCurrentUserId } = useCurrentUser()
 
 const message = ref('ログイン後の画面へ移動しています…')
 const errorMessage = ref('')
-const checking = ref(false)
-const continueHref = ref(DEFAULT_WORKSPACE_PATH)
+const checking = ref(true)
 
 async function withTimeout<T> (promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -43,7 +45,7 @@ async function withTimeout<T> (promise: Promise<T>, ms: number, label: string): 
       promise,
       new Promise<T>((_, reject) => {
         timer = setTimeout(() => {
-          reject(new Error(`${label}がタイムアウトしました。API と DB の起動を確認してください。`))
+          reject(new Error(`${label}がタイムアウトしました。しばらくしてからもう一度お試しください。`))
         }, ms)
       }),
     ])
@@ -54,31 +56,37 @@ async function withTimeout<T> (promise: Promise<T>, ms: number, label: string): 
   }
 }
 
-onMounted(() => {
-  const failsafe = window.setTimeout(() => {
-    checking.value = false
-  }, 4000)
-
-  void (async () => {
-    checking.value = true
-    try {
-      const session = await withTimeout(fetchSession(), 8000, 'ログイン状態の確認')
-      setCurrentUserId(session.user?.id ?? null)
-      if (!session.authenticated) {
-        await navigateTo('/login')
-        return
-      }
-      const path = await withTimeout(resolvePostLoginPath(session.user), 8000, '遷移先の取得')
-      continueHref.value = path
-      checking.value = false
-      await navigateTo(path, { replace: true })
-    } catch (error: unknown) {
-      message.value = '遷移に失敗しました。'
-      errorMessage.value = error instanceof Error ? error.message : 'もう一度ログインしてください。'
-    } finally {
-      window.clearTimeout(failsafe)
+async function continueAfterLogin () {
+  checking.value = true
+  errorMessage.value = ''
+  message.value = 'ログイン後の画面へ移動しています…'
+  let stay = false
+  try {
+    const session = await withTimeout(fetchSession({ force: true }), 8000, 'ログイン状態の確認')
+    setCurrentUserId(session.user?.id ?? null)
+    if (!session.authenticated) {
+      stay = true
+      await navigateTo('/login')
+      return
+    }
+    const path = await withTimeout(resolvePostLoginPath(session.user), 8000, '遷移先の取得')
+    await navigateTo(path, { replace: true })
+  } catch (error: unknown) {
+    stay = true
+    message.value = '遷移に失敗しました。'
+    errorMessage.value = error instanceof Error ? error.message : 'もう一度ログインしてください。'
+  } finally {
+    if (stay) {
       checking.value = false
     }
-  })()
+  }
+}
+
+function retry () {
+  void continueAfterLogin()
+}
+
+onMounted(() => {
+  void continueAfterLogin()
 })
 </script>

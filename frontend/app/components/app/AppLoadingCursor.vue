@@ -35,7 +35,7 @@
 import {
   getAppLoadingCursorPointer,
   isAppLoadingCursorActive,
-} from '../../composables/useAppLoadingCursor'
+} from '../../composables/ui/useAppLoadingCursor'
 const BODY_CLASS = 'app-loading-cursor-active'
 const visible = ref(false)
 const pointerX = ref(0)

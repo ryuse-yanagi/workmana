@@ -11,6 +11,7 @@ class ManageBoardListsTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 管理者はボードリストを作成・更新・並び替え・削除できる */
     public function test_board_lists_can_be_created_updated_reordered_and_deleted(): void
     {
         [$admin] = $this->createOrgWithAdminAndMember();

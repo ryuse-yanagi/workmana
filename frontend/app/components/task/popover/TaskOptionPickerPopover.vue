@@ -75,7 +75,7 @@
 <script setup lang="ts">
 import PopoverShell from '../../ui/PopoverShell.vue'
 import { colorPresetFillTextColor } from '../../../constants/colorPresets'
-import type { TaskPopoverOptionItem } from '../../../utils/taskPopoverTypes'
+import type { TaskPopoverOptionItem } from '../../../utils/task/taskPopoverTypes'
 
 const props = withDefaults(defineProps<{
   title: string
@@ -114,6 +114,11 @@ const shellRef = ref<InstanceType<typeof PopoverShell> | null>(null)
 const searchQueryModel = computed({
   get: () => props.searchQuery,
   set: (query: string) => emit('update:searchQuery', query),
+})
+
+onUnmounted(() => {
+  if (!props.searchQuery) return
+  emit('update:searchQuery', '')
 })
 
 defineExpose({

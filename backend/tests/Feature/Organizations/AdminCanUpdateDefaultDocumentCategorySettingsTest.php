@@ -12,26 +12,22 @@ class AdminCanUpdateDefaultDocumentCategorySettingsTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 管理者がデフォルト資料カテゴリ設定を更新できる */
     public function test_admin_can_update_default_document_category_settings(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->getJson('/api/orgs/acme/settings')
+            ->getJson("/api/orgs/{$slug}/settings")
             ->assertOk()
             ->assertJsonPath('default_document_category_names.0.name', 'その他')
             ->assertJsonPath('default_document_category_names.0.color_index', 5)
             ->assertJsonCount(1, 'default_document_category_names');
 
         $this->actingAsApiUser($user)
-            ->patchJson('/api/orgs/acme/settings', [
+            ->patchJson("/api/orgs/{$slug}/settings", [
                 'default_document_category_names' => [
                     ['name' => '仕様書', 'color_index' => 2],
                     ['name' => '議事録', 'color_index' => 5],

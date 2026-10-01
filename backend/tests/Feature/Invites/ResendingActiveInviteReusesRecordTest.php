@@ -3,7 +3,7 @@
 namespace Tests\Feature\Invites;
 
 use App\Mail\OrganizationInviteMail;
-use App\Models\OrganizationInvite;
+use App\Models\Organization\OrganizationInvite;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -20,6 +20,7 @@ class ResendingActiveInviteReusesRecordTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 有効な招待の再送は既存レコードを再利用する */
     public function test_resending_active_invite_reuses_record(): void
     {
         Mail::fake();

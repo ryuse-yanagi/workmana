@@ -2,13 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\User;
-use App\Services\CognitoJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Session\EncryptedStore;
-use Illuminate\Support\Facades\Http;
-use Mockery;
-use RuntimeException;
 use Tests\Feature\Auth\Concerns\InteractsWithCognitoLogin;
 use Tests\TestCase;
 
@@ -23,6 +17,7 @@ class LoginRedirectsToHostedUiWithPkceTest extends TestCase
         $this->configureCognitoForTests();
     }
 
+    /** ログインはPKCE付きHosted UIへリダイレクトする */
     public function test_login_redirects_to_hosted_ui_with_pkce(): void
     {
         $response = $this->get('/api/auth/login?next=/org/acme/workspaces');
@@ -34,6 +29,7 @@ class LoginRedirectsToHostedUiWithPkceTest extends TestCase
 
         $this->assertSame('code', $query['response_type']);
         $this->assertSame('S256', $query['code_challenge_method']);
+        $this->assertSame('login', $query['prompt']);
         $this->assertNotEmpty($query['state']);
         $this->assertNotEmpty($query['code_challenge']);
     }

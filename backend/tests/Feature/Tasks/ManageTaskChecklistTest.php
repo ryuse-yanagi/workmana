@@ -3,7 +3,7 @@
 namespace Tests\Feature\Tasks;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -13,19 +13,15 @@ class ManageTaskChecklistTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** タスクのチェックリストは追加・完了トグル・全削除できる */
     public function test_user_can_manage_task_checklist(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', [
+            ->postJson("/api/orgs/{$slug}/workspaces", [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
@@ -33,18 +29,19 @@ class ManageTaskChecklistTest extends TestCase
         $workspace = Workspace::query()->first();
         $this->assertNotNull($workspace);
 
-        $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
+        $taskId = (int) $this->actingAsApiUser($user)
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Checklist task',
                 'list_id' => $this->defaultListId($workspace),
             ])
-            ->assertCreated();
+            ->assertCreated()
+            ->json('id');
 
         $itemId = '11111111-1111-4111-8111-111111111111';
         $itemId2 = '22222222-2222-4222-8222-222222222222';
 
         $createResponse = $this->actingAsApiUser($user)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
+            ->patchJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/{$taskId}", [
                 'checklists' => [
                     [
                         'title' => 'Release prep',
@@ -68,13 +65,13 @@ class ManageTaskChecklistTest extends TestCase
         $this->assertIsInt($checklistId);
 
         $this->actingAsApiUser($user)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1")
+            ->getJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/{$taskId}")
             ->assertOk()
             ->assertJsonPath('checklists.0.title', 'Release prep')
             ->assertJsonPath('checklists.0.items.0.checked', false);
 
         $this->actingAsApiUser($user)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
+            ->patchJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/{$taskId}", [
                 'checklists' => [
                     [
                         'id' => $checklistId,
@@ -106,7 +103,7 @@ class ManageTaskChecklistTest extends TestCase
             ->assertJsonCount(2, 'checklists');
 
         $this->actingAsApiUser($user)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/1", [
+            ->patchJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/{$taskId}", [
                 'checklists' => [],
             ])
             ->assertOk()

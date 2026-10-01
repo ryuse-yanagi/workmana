@@ -9,8 +9,8 @@
 
 <script setup lang="ts">
 import type { NuxtError } from '#app'
-import { useAuth } from './composables/useAuth'
-import { useOrganizationContext } from './composables/useOrganizationContext'
+import { useAuth } from './composables/auth/useAuth'
+import { useOrganizationContext } from './composables/org/useOrganizationContext'
 
 const props = defineProps<{
   error: NuxtError

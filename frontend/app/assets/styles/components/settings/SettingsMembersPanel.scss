@@ -1,13 +1,11 @@
 @use '~/assets/styles/components/settings/shared';
 
-.invite-readonly {
-  margin: 0 0 14px;
-  color: mixin.$text-muted;
-  font-size: 13.3px;
-}
-
 .invite-section {
   margin-top: 22px;
+}
+
+.invite-section:first-of-type {
+  margin-top: 0;
 }
 
 .invite-section__title {
@@ -23,93 +21,136 @@
   font-size: 12.6px;
 }
 
-.invite-list {
+.member-row-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.invite-list__item {
+.invite-row {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 12px;
-  border: 1px solid mixin.$gray;
-  border-radius: 8px;
-  background: mixin.$white;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
 }
 
-.invite-list__main {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+.invite-row__role {
   min-width: 0;
-}
-
-.invite-list__email {
-  font-size: 13.3px;
+  font-size: 12.25px;
   font-weight: 700;
-  color: mixin.$text-emphasis;
+  color: mixin.$text;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: mixin.$text-line-height-safe;
 }
 
-.invite-list__role {
-  flex-shrink: 0;
-  font-size: 11.2px;
-  font-weight: 700;
-  color: mixin.$text-sub;
-  background: mixin.$surface-muted;
-  border-radius: 999px;
-  padding: 2px 8px;
-}
-
-.invite-list__meta {
-  flex-shrink: 0;
+.invite-row__expires {
+  margin: 0;
+  padding: 0 10.5px;
+  align-self: flex-end;
   font-size: 12px;
+  font-weight: 500;
   color: mixin.$text-muted;
+  line-height: mixin.$text-line-height-safe;
 }
 
-.invite-list__actions {
+.member-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) calc(64px * 2 + 4.9px);
+  align-items: center;
+  column-gap: 7.7px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 54px;
+  height: 54px;
+  padding: 0 10.5px;
+  border-radius: 10px;
+  background: mixin.$bg-gray;
+}
+
+.member-row__leading {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  gap: 8px;
+  min-width: 0;
 }
 
-.invite-list__btn {
-  border: 1px solid mixin.$border;
-  border-radius: 6px;
-  background: mixin.$white;
-  color: mixin.$text-strong;
-  font-size: 12px;
+.member-row__name {
+  min-width: 0;
+  font-size: 12.25px;
   font-weight: 700;
-  padding: 4px 10px;
+  color: mixin.$text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: mixin.$text-line-height-safe;
+}
+
+.member-row__email {
+  min-width: 0;
+  font-size: 12.25px;
+  font-weight: 500;
+  color: mixin.$text-muted;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: mixin.$text-line-height-safe;
+}
+
+.member-row__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4.9px;
+  min-width: 0;
+}
+
+.label-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  padding: 0;
+  font-size: 12.25px;
+  font-weight: 600;
+  background: mixin.$white;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.invite-list__btn--edit {
+.label-action-btn--edit,
+.label-action-btn--delete {
+  width: 64px;
+}
+
+.label-action-btn--edit {
   color: mixin.$main;
-  border-color: color-mix(in srgb, mixin.$main 35%, mixin.$border);
 }
 
-.invite-list__btn--danger {
+.label-action-btn--delete {
   color: mixin.$danger;
-  border-color: color-mix(in srgb, mixin.$danger 35%, mixin.$border);
 }
 
-.invite-list__btn:disabled {
+.label-action-btn:disabled {
   cursor: pointer;
 }
 
 @media (max-width: 720px) {
-  .invite-list__item {
-    flex-direction: column;
-    align-items: flex-start;
+  .member-row {
+    grid-template-columns: minmax(0, 1fr) calc(64px * 2 + 4.9px);
+    height: auto;
+    min-height: 54px;
+    padding: 8px 10.5px;
+  }
+
+  .member-row__email {
+    grid-column: 1 / -1;
   }
 }

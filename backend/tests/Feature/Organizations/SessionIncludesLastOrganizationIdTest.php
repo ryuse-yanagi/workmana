@@ -18,6 +18,7 @@ class SessionIncludesLastOrganizationIdTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** セッションにlast_organization_idが含まれる */
     public function test_session_includes_last_organization_id(): void
     {
         $user = User::factory()->create(['cognito_sub' => 'sub-7']);

@@ -15,9 +15,9 @@
       <input
         ref="inputRef"
         :value="draft"
-        type="number"
-        min="0"
-        step="0.01"
+        type="text"
+        inputmode="decimal"
+        autocomplete="off"
         class="effort-input"
         placeholder="工数を入力..."
         aria-label="工数"
@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import PopoverShell from '../../ui/PopoverShell.vue'
-import { schedulePopoverInputFocus } from '../../../utils/schedulePopoverInputFocus'
+import { schedulePopoverInputFocus } from '../../../utils/ui/schedulePopoverInputFocus'
 
 withDefaults(defineProps<{
   style?: Record<string, string>

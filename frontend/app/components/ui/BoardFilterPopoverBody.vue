@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import BoardFilterSection from './BoardFilterSection.vue'
 import MemberAvatar from './MemberAvatar.vue'
-import { memberDisplayName, type MemberLike } from '../../composables/useMemberDisplay'
-import { labelBarTextColor } from '../../composables/useTaskFormHelpers'
-import type { ScheduleFilterKey } from '../../utils/workspaceTaskFilters'
+import { memberDisplayName, type MemberLike } from '../../composables/member/useMemberDisplay'
+import { labelBarTextColor } from '../../composables/task/useTaskFormHelpers'
+import type { ScheduleFilterKey } from '../../utils/task/workspaceTaskFilters'
 
 export type FilterLabelCategory = {
   id: number | string
@@ -44,7 +44,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   assigneeTitle: '担当者',
   assigneeSearchPlaceholder: '担当者を検索...',
-  assigneeEmptyText: '該当する担当者がありません',
+  assigneeEmptyText: '担当者がありません',
   tertiary: 'schedule',
   scheduleOptions: () => [],
   statuses: () => [],
@@ -210,7 +210,7 @@ function onSectionToggle () {
     <p
       v-if="labelSearch.trim() && !labelCategories.length"
       class="board-filter-empty"
-    >該当するラベルがありません</p>
+    >ラベルがありません</p>
   </BoardFilterSection>
 
   <BoardFilterSection

@@ -3,8 +3,8 @@
 namespace Tests\Feature\Invites;
 
 use App\Enums\MembershipRole;
-use App\Models\Organization;
-use App\Models\OrganizationInvite;
+use App\Models\Organization\Organization;
+use App\Models\Organization\OrganizationInvite;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -15,6 +15,7 @@ class ExistingCognitoUserCannotAcceptInviteWithPasswordOnlyTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 既存Cognitoユーザーはパスワードのみでは招待を承諾できない */
     public function test_existing_cognito_user_cannot_accept_invite_with_password_only(): void
     {
         [$admin] = $this->createOrgWithAdmin();

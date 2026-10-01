@@ -14,13 +14,10 @@
       </h1>
     </div>
     <div class="workspace-sidebar__description-field">
-      <p
-        class="workspace-sidebar__description"
-        :class="{ 'workspace-sidebar__description--placeholder': !workspace.description }"
-        :aria-label="workspace.description ? 'スペース説明' : 'スペース説明なし'"
-      >
-        {{ workspace.description || '説明はありません' }}
-      </p>
+      <SidebarDescription
+        :text="workspace.description"
+        label="スペース説明"
+      />
     </div>
     <section
       v-if="hasWorkspaceStatus"
@@ -238,28 +235,28 @@
 <script setup lang="ts">
 import {
   type OrgWorkspaceLabel,
-} from '../../composables/useOrgWorkspaceIndexPageData'
-import { useWorkspaceDetailMeta } from '../../composables/useWorkspaceDetailMeta'
-import { useWorkspaceDocumentAdd } from '../../composables/useWorkspaceDocumentAdd'
-import { useWorkspaceDocumentCardMenu } from '../../composables/useWorkspaceDocumentCardMenu'
-import { workspaceDocumentPath } from '../../composables/useWorkspaceViewRoutes'
-import { useOrgDocumentsPageData } from '../../composables/useOrgDocumentsPageData'
-import { resolveAndSortLabels } from '../../composables/useLabelCategories'
+} from '../../composables/workspace/useOrgWorkspaceIndexPageData'
+import { useWorkspaceDetailMeta } from '../../composables/workspace/useWorkspaceDetailMeta'
+import { useWorkspaceDocumentAdd } from '../../composables/document/useWorkspaceDocumentAdd'
+import { useWorkspaceDocumentCardMenu } from '../../composables/document/useWorkspaceDocumentCardMenu'
+import { workspaceDocumentPath } from '../../composables/workspace/useWorkspaceViewRoutes'
+import { useOrgDocumentsPageData } from '../../composables/document/useOrgDocumentsPageData'
+import { resolveAndSortLabels } from '../../composables/label/useLabelCategories'
 import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,
 } from '../../constants/colorPresets'
-import { resolveStandardColors } from '../../utils/colorPresetResolution'
-import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
-import { memberEmailLine, type TaskFormMember } from '../../composables/useTaskFormHelpers'
-import { resolveDisplayAvatarUrl } from '../../composables/userProfileUpdated'
-import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
-import { useExclusivePopover } from '../../composables/useExclusivePopover'
+import { resolveStandardColors } from '../../utils/shared/colorPresetResolution'
+import { memberDisplayName, memberInitial } from '../../composables/member/useMemberDisplay'
+import { memberEmailLine, type TaskFormMember } from '../../composables/task/useTaskFormHelpers'
+import { resolveDisplayAvatarUrl } from '../../composables/auth/userProfileUpdated'
+import { resolveAvatarUrl } from '../../utils/member/resolveAvatarUrl'
+import { useExclusivePopover } from '../../composables/ui/useExclusivePopover'
 import {
   dismissPopoverFromOutsidePointer,
   isInsideFloatingPopover,
   isPopoverTriggerTarget,
-} from '../../utils/uiInteraction'
+} from '../../utils/ui/uiInteraction'
 import {
   POPOVER_VIEWPORT_INSET,
   buildAnchoredPopoverStyle,
@@ -267,16 +264,16 @@ import {
   popoverPositionVisibilityStyle,
   refineAnchoredPopoverWithFloatingUi,
   schedulePopoverOpenLayout,
-} from '../../utils/popoverScrollbar'
+} from '../../utils/ui/popoverScrollbar'
 import LabelStrip from '../ui/LabelStrip.vue'
 import MemberAvatar from '../ui/MemberAvatar.vue'
 import TaskMemberDetailPopover from '../task/popover/TaskMemberDetailPopover.vue'
 import WorkspaceStatusSelect from './WorkspaceStatusSelect.vue'
-import DocumentFormModal from '../modals/DocumentFormModal.vue'
-import ConfirmModal from '../modals/ConfirmModal.vue'
+import DocumentFormModal from '../modals/document/DocumentFormModal.vue'
+import ConfirmModal from '../modals/shared/ConfirmModal.vue'
 import FloatingMenu from '../ui/FloatingMenu.vue'
 import { Ellipsis, FileText, NotebookPen, NotebookText } from 'lucide-vue-next'
-import type { OrgWorkspaceDocumentItem } from '../../composables/useOrgWorkspaceIndexPageData'
+import type { OrgWorkspaceDocumentItem } from '../../composables/workspace/useOrgWorkspaceIndexPageData'
 
 const props = defineProps<{
   orgSlug: string
@@ -511,14 +508,16 @@ function prefetchDocumentDetail (documentId: number): void {
   void prefetchDocument(props.orgSlug, documentId).catch(() => {})
 }
 
+/** 遷移前に資料本文とページを先読みする */
 function navigateToDocument (documentId: number): void {
   prefetchDocumentDetail(documentId)
   void router.push(workspaceDocumentPath(props.orgSlug, props.workspaceId, documentId))
 }
 
+/** 説明の先頭行だけをサイドバーに出す */
 function documentDescription (document: OrgWorkspaceDocumentItem): string | null {
-  const text = document.description?.trim()
-  return text || null
+  const firstLine = document.description?.split(/\r?\n/)[0]?.trim()
+  return firstLine || null
 }
 
 function documentCategory (document: OrgWorkspaceDocumentItem) {

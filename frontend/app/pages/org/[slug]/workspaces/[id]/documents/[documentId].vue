@@ -14,7 +14,9 @@
         <PageSubheader>
           <template #start>
             <NuxtLink
-              :to="`/org/${slug}/workspaces/${shellWorkspaceId}`"
+              :to="shellWorkspaceId
+                ? `/org/${slug}/workspaces/${shellWorkspaceId}`
+                : `/org/${slug}/workspaces`"
               class="subheader-title subheader-back-link"
               aria-label="スペース詳細に戻る"
             >
@@ -95,24 +97,16 @@
             />
           </template>
           <template #description>
-            <template v-if="pageReady && currentDocument">
-              <p
-                class="document-sidebar__description"
-                :class="{ 'document-sidebar__description--placeholder': !currentDocument.description }"
-                :aria-label="currentDocument.description ? '資料説明' : '資料説明なし'"
-              >
-                {{ currentDocument.description || '説明はありません' }}
-              </p>
-            </template>
-            <template v-else-if="pendingDocumentMeta">
-              <p
-                class="document-sidebar__description"
-                :class="{ 'document-sidebar__description--placeholder': !shellDocumentDescription }"
-                :aria-label="shellDocumentDescription ? '資料説明' : '資料説明なし'"
-              >
-                {{ shellDocumentDescription || '説明はありません' }}
-              </p>
-            </template>
+            <SidebarDescription
+              v-if="pageReady && currentDocument"
+              :text="currentDocument.description"
+              label="資料説明"
+            />
+            <SidebarDescription
+              v-else-if="pendingDocumentMeta"
+              :text="shellDocumentDescription"
+              label="資料説明"
+            />
             <DocumentSkeleton
               v-else
               variant="description"
@@ -214,13 +208,26 @@
           :class="{ 'document-viewer--editing': bodyEditing }"
         >
           <div
+            v-if="!(pageReady && currentDocument)"
+            class="document-viewer__body-loading"
+            role="status"
+            aria-busy="true"
+            aria-label="本文を読み込み中"
+          >
+            <LoadingSpinner />
+          </div>
+          <div
+            v-else
             ref="bodyScrollerRef"
             class="document-viewer__scroller"
           >
           <div class="document-viewer__scroller-body">
           <div
             class="document-viewer__page"
-            :class="{ 'document-viewer__page--editing': bodyEditing }"
+            :class="{
+              'document-viewer__page--editing': bodyEditing,
+              'document-viewer__page--fade-in': bodyShouldFadeIn,
+            }"
           >
             <header class="document-viewer__heading">
               <h1
@@ -233,43 +240,37 @@
               />
             </header>
             <div class="document-viewer__content">
-              <template v-if="pageReady && currentDocument">
-                <textarea
-                  v-if="bodyEditing"
-                  ref="bodyInputRef"
-                  v-model="bodyDraft"
-                  class="document-viewer__body-input"
-                  :maxlength="DOCUMENT_BODY_MAX_LENGTH"
-                  :disabled="bodySaving"
-                  aria-label="資料本文"
-                  placeholder="本文を入力…"
-                  spellcheck="false"
-                  autocomplete="off"
-                  autocorrect="off"
-                  @input="onBodyInput"
-                  @keydown.escape.prevent.stop="cancelBodyEdit"
-                />
-                <p
-                  v-else-if="hasBodyContent"
-                  class="document-viewer__body"
-                >{{ displayBodyText }}</p>
-                <div
-                  v-else
-                  class="document-viewer__empty"
-                >
-                  <span
-                    class="document-viewer__empty-icon"
-                    aria-hidden="true"
-                  >
-                    <FileText :size="28" :stroke-width="1.75" />
-                  </span>
-                  <p class="document-viewer__empty-title">本文がありません</p>
-                </div>
-              </template>
-              <DocumentSkeleton
-                v-else
-                variant="body"
+              <textarea
+                v-if="bodyEditing"
+                ref="bodyInputRef"
+                v-model="bodyDraft"
+                class="document-viewer__body-input"
+                :maxlength="DOCUMENT_BODY_MAX_LENGTH"
+                :disabled="bodySaving"
+                aria-label="資料本文"
+                placeholder="本文を入力..."
+                spellcheck="false"
+                autocomplete="off"
+                autocorrect="off"
+                @input="onBodyInput"
+                @keydown.escape.prevent.stop="cancelBodyEdit"
               />
+              <p
+                v-else-if="hasBodyContent"
+                class="document-viewer__body"
+              >{{ displayBodyText }}</p>
+              <div
+                v-else
+                class="document-viewer__empty"
+              >
+                <span
+                  class="document-viewer__empty-icon"
+                  aria-hidden="true"
+                >
+                  <FileText :size="28" :stroke-width="1.75" />
+                </span>
+                <p class="document-viewer__empty-title">本文がありません</p>
+              </div>
             </div>
             <footer class="document-viewer__page-footer">
               <p
@@ -326,34 +327,12 @@
       />
       <template v-if="pageReady && currentDocument">
       <FloatingMenu
-        :open="Boolean(documentMenuOpen && documentMenuPosition && documentMenuMode === 'actions')"
+        :open="Boolean(documentMenuOpen && documentMenuPosition)"
         :style="documentMenuStyle"
         :items="documentHeaderMenuItems"
         @select="onDocumentHeaderMenuSelect"
         @close="closeDocumentMenu"
       />
-      <FloatingMenu
-        :open="Boolean(documentMenuOpen && documentMenuPosition && documentMenuMode === 'share')"
-        :style="documentMenuStyle"
-        root-class="document-header-menu--share"
-        @close="closeDocumentMenu"
-      >
-        <li role="none" class="document-header-share-panel-wrap">
-          <div class="document-header-share-panel">
-            <p class="document-header-share-panel__label">共有リンク</p>
-            <input
-              ref="shareUrlInputRef"
-              type="text"
-              class="document-header-share-panel__input"
-              :value="documentShareUrl"
-              readonly
-              aria-label="共有リンク"
-              @click="onShareUrlClick"
-              @focus="onShareUrlFocus"
-            />
-          </div>
-        </li>
-      </FloatingMenu>
       <DocumentFormModal
         ref="documentDetailsModalRef"
         v-model="documentDetailsModalOpen"
@@ -390,24 +369,24 @@
   </main>
 </template>
 <script setup lang="ts">
-import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../../composables/raceWithTimeout'
-import { withAppLoadingCursor } from '../../../../../../composables/useAppLoadingCursor'
+import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../../composables/shared/raceWithTimeout'
+import { withAppLoadingCursor } from '../../../../../../composables/ui/useAppLoadingCursor'
 import {
   useOrgDocumentsPageData,
   type OrgDocument,
   type OrgDocumentCategory,
-} from '../../../../../../composables/useOrgDocumentsPageData'
-import { useApi } from '../../../../../../composables/useApi'
-import type { TaskFormCategory } from '../../../../../../composables/useTaskFormHelpers'
+} from '../../../../../../composables/document/useOrgDocumentsPageData'
+import { useApi } from '../../../../../../composables/shared/useApi'
+import type { TaskFormCategory } from '../../../../../../composables/task/useTaskFormHelpers'
 import { DOCUMENT_BODY_MAX_LENGTH } from '../../../../../../constants/fieldLengthLimits'
 import {
   resolveStandardColors,
-} from '../../../../../../utils/colorPresetResolution'
+} from '../../../../../../utils/shared/colorPresetResolution'
 import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,
 } from '../../../../../../constants/colorPresets'
-import { buildDestructiveConfirmMessage } from '../../../../../../utils/destructiveConfirmMessage'
+import { buildDestructiveConfirmMessage } from '../../../../../../utils/shared/destructiveConfirmMessage'
 import FloatingMenu, { type FloatingMenuItem } from '../../../../../../components/ui/FloatingMenu.vue'
 import PageSubheader from '../../../../../../components/ui/PageSubheader.vue'
 import SubheaderEditActions from '../../../../../../components/ui/SubheaderEditActions.vue'
@@ -415,33 +394,34 @@ import SidebarToggleButton from '../../../../../../components/ui/SidebarToggleBu
 import DetailSidebarShell from '../../../../../../components/ui/DetailSidebarShell.vue'
 import CardMenuTrigger from '../../../../../../components/ui/CardMenuTrigger.vue'
 import SkeletonBar from '../../../../../../components/ui/SkeletonBar.vue'
+import LoadingSpinner from '../../../../../../components/ui/LoadingSpinner.vue'
 import DocumentCard from '../../../../../../components/documents/DocumentCard.vue'
 import DocumentListPanel from '../../../../../../components/documents/DocumentListPanel.vue'
 import DocumentSkeleton from '../../../../../../components/documents/DocumentSkeleton.vue'
-import { POPOVER_VIEWPORT_INSET, clampPopoverBox, resolveMeasuredFloatingMenuHeight } from '../../../../../../utils/popoverScrollbar'
+import { POPOVER_VIEWPORT_INSET, clampPopoverBox, resolveMeasuredFloatingMenuHeight } from '../../../../../../utils/ui/popoverScrollbar'
 import DocumentCategorySelect from '../../../../../../components/documents/DocumentCategorySelect.vue'
 import { FileText, NotebookPen, Ellipsis } from 'lucide-vue-next'
-import DocumentFormModal from '../../../../../../components/modals/DocumentFormModal.vue'
-import ConfirmModal from '../../../../../../components/modals/ConfirmModal.vue'
-import { useDropdownEscapeClose } from '../../../../../../composables/useDropdownEscapeClose'
-import { useUiSidebarPreference } from '../../../../../../composables/useUiSidebarPreference'
-import { useUnsavedChangesGuard } from '../../../../../../composables/useUnsavedChangesGuard'
+import DocumentFormModal from '../../../../../../components/modals/document/DocumentFormModal.vue'
+import ConfirmModal from '../../../../../../components/modals/shared/ConfirmModal.vue'
+import { useDropdownEscapeClose } from '../../../../../../composables/ui/useDropdownEscapeClose'
+import { useUiSidebarPreference } from '../../../../../../composables/ui/useUiSidebarPreference'
+import { useUnsavedChangesGuard } from '../../../../../../composables/shared/useUnsavedChangesGuard'
 import {
-  removeDocumentFromWorkspaceDetailCache,
-  updateDocumentInWorkspaceDetailCache,
   useWorkspaceDetailMeta,
-} from '../../../../../../composables/useWorkspaceDetailMeta'
-import { useArchivedNamedItemsCache } from '../../../../../../composables/useArchivedNamedItemsCache'
-import { useWorkspaceDocumentAdd } from '../../../../../../composables/useWorkspaceDocumentAdd'
-import { useWorkspaceDocumentCardMenu } from '../../../../../../composables/useWorkspaceDocumentCardMenu'
-import { useOrgRole } from '../../../../../../composables/useOrgRole'
-import { useOrgSafeRedirect } from '../../../../../../composables/useOrgSafeRedirect'
-import type { OrgWorkspaceDocumentItem } from '../../../../../../composables/useOrgWorkspaceIndexPageData'
-import { workspaceDocumentPath } from '../../../../../../composables/useWorkspaceViewRoutes'
-import { isAccessDeniedMessage } from '../../../../../../utils/resourceAccessError'
-import { getTopmostModalOverlay, isKeyboardShortcutBlockedTarget } from '../../../../../../utils/uiInteraction'
-import { useStickyHeaderOffsets } from '../../../../../../composables/useWorkspaceViewPageRoot'
-import { isViewShortcutModifierBlocked } from '../../../../../../composables/useViewKeyboardShortcuts'
+} from '../../../../../../composables/workspace/useWorkspaceDetailMeta'
+import {
+  applyDocumentArchived,
+  applyDocumentUpdated,
+} from '../../../../../../composables/document/syncDocumentCaches'
+import { useWorkspaceDocumentAdd } from '../../../../../../composables/document/useWorkspaceDocumentAdd'
+import { useWorkspaceDocumentCardMenu } from '../../../../../../composables/document/useWorkspaceDocumentCardMenu'
+import { useOrgSafeRedirect } from '../../../../../../composables/org/useOrgSafeRedirect'
+import type { OrgWorkspaceDocumentItem } from '../../../../../../composables/workspace/useOrgWorkspaceIndexPageData'
+import { workspaceDocumentPath } from '../../../../../../composables/workspace/useWorkspaceViewRoutes'
+import { isAccessDeniedMessage } from '../../../../../../utils/shared/resourceAccessError'
+import { getTopmostModalOverlay, isKeyboardShortcutBlockedTarget } from '../../../../../../utils/ui/uiInteraction'
+import { useStickyHeaderOffsets } from '../../../../../../composables/workspace/useWorkspaceViewPageRoot'
+import { isViewShortcutModifierBlocked } from '../../../../../../composables/ui/useViewKeyboardShortcuts'
 
 /** 旧・複数ページ保存分を単一本文へ戻すための区切り */
 const LEGACY_DOCUMENT_PAGE_BREAK = '\n\n<!--wm-page-break-->\n\n'
@@ -454,10 +434,15 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const slug = computed(() => route.params.slug as string)
-const workspaceId = computed(() => route.params.id as string)
+const workspaceId = computed(() => {
+  const raw = String(route.params.id ?? '').trim()
+  if (!raw || raw === 'undefined' || !Number.isFinite(Number(raw))) {
+    return ''
+  }
+  return raw
+})
 const documentId = computed(() => route.params.documentId as string)
 const { api } = useApi()
-const { isOrgAdmin } = useOrgRole(slug)
 const { redirectToOrgWorkspaceList } = useOrgSafeRedirect()
 const {
   fetchSnapshot,
@@ -466,14 +451,10 @@ const {
   prefetchDocument,
   getDocumentCached,
   invalidateDocumentCached,
-  removeDocumentCached,
-  upsertDocumentCached,
 } = useOrgDocumentsPageData()
-const {
-  upsertCachedItem: upsertArchivedNamedItem,
-} = useArchivedNamedItemsCache()
 const currentDocument = ref<OrgDocument | null>(null)
-const parentWorkspaceId = computed(() => workspaceId.value || String(currentDocument.value?.workspace_id ?? ''))
+/** スペース文脈は URL の [id] */
+const parentWorkspaceId = computed(() => workspaceId.value)
 const {
   workspace: parentWorkspace,
   ensureLoaded: ensureParentWorkspaceLoaded,
@@ -526,6 +507,34 @@ const {
 const documentCategories = ref<OrgDocumentCategory[]>([])
 const pageReady = ref(false)
 const fatalLoadError = ref<string | null>(null)
+const bodyShouldFadeIn = ref(false)
+let bodyFadeInTimer: ReturnType<typeof setTimeout> | null = null
+/** 本文取得のあと、表示結果を一度だけフェードインする */
+let fadeBodyOnReady = true
+function clearBodyFadeInTimer () {
+  if (bodyFadeInTimer === null) return
+  clearTimeout(bodyFadeInTimer)
+  bodyFadeInTimer = null
+}
+function revealLoadedBody () {
+  if (!fadeBodyOnReady || fatalLoadError.value) return
+  fadeBodyOnReady = false
+  clearBodyFadeInTimer()
+  bodyShouldFadeIn.value = true
+  bodyFadeInTimer = setTimeout(() => {
+    bodyShouldFadeIn.value = false
+    bodyFadeInTimer = null
+  }, 260)
+}
+watch(pageReady, (ready) => {
+  if (!ready) {
+    fadeBodyOnReady = true
+    bodyShouldFadeIn.value = false
+    clearBodyFadeInTimer()
+    return
+  }
+  revealLoadedBody()
+})
 const isDocumentShellLoading = computed(() => !pageReady.value && !fatalLoadError.value)
 const pendingDocumentMeta = computed((): OrgWorkspaceDocumentItem | null => {
   const id = Number(documentId.value)
@@ -534,13 +543,9 @@ const pendingDocumentMeta = computed((): OrgWorkspaceDocumentItem | null => {
   }
   return workspaceDocuments.value.find(item => item.id === id) ?? null
 })
-const shellWorkspaceId = computed(() => (
-  parentWorkspaceId.value
-  || String(currentDocument.value?.workspace_id ?? workspaceId.value)
-))
+const shellWorkspaceId = computed(() => parentWorkspaceId.value)
 const shellWorkspaceName = computed(() => (
   parentWorkspace.value?.name
-  ?? currentDocument.value?.workspace_name
   ?? null
 ))
 const shellDocumentName = computed(() => (
@@ -597,17 +602,14 @@ const bodyCharCountLabel = computed(() => {
 })
 const documentMenuOpen = ref(false)
 const { sidebarOpen, toggleSidebar, hydrateSidebarPreference } = useUiSidebarPreference('document')
-const documentMenuMode = ref<'actions' | 'share'>('actions')
 const documentMenuPosition = ref<{ top: number; left: number } | null>(null)
 const documentMenuTriggerRef = ref<HTMLButtonElement | null>(null)
-const shareUrlInputRef = ref<HTMLInputElement | null>(null)
 const documentDetailsModalOpen = ref(false)
 const documentArchiveConfirmOpen = ref(false)
 const documentMetaPending = ref(false)
 const archivePending = ref(false)
 const documentDetailsModalRef = ref<{ setSubmitError: (message: string) => void } | null>(null)
 const DOCUMENT_MENU_ACTIONS_WIDTH = 160
-const DOCUMENT_MENU_SHARE_WIDTH = 320
 const pageCssVars = computed(() => ({
   '--global-header-offset': `${globalHeaderOffsetPx.value}px`,
 } as Record<string, string>))
@@ -624,29 +626,16 @@ const displayBodyText = computed(() => {
   return normalizeDocumentBodyText(currentDocument.value?.body)
 })
 const hasBodyContent = computed(() => displayBodyText.value.trim() !== '')
-const documentShareUrl = computed(() => {
-  if (!import.meta.client || !currentDocument.value) {
-    return ''
-  }
-  return `${window.location.origin}${workspaceDocumentPath(
-    slug.value,
-    currentDocument.value.workspace_id,
-    currentDocument.value.id,
-  )}`
-})
 const documentMenuStyle = computed(() => {
   if (!documentMenuPosition.value) {
     return undefined
   }
   const { top, left } = documentMenuPosition.value
-  const width = documentMenuMode.value === 'share'
-    ? DOCUMENT_MENU_SHARE_WIDTH
-    : DOCUMENT_MENU_ACTIONS_WIDTH
   return {
     position: 'fixed' as const,
     top: `${top}px`,
     left: `${left}px`,
-    width: `${width}px`,
+    width: `${DOCUMENT_MENU_ACTIONS_WIDTH}px`,
     zIndex: 80,
   }
 })
@@ -685,6 +674,7 @@ function prefetchWorkspaceDocument (targetDocumentId: number): void {
   void preloadRouteComponents(path).catch(() => {})
   void prefetchDocument(slug.value, targetDocumentId).catch(() => {})
 }
+/** 今開いている資料は無視し、別資料は先読みしてから開く */
 function navigateToWorkspaceDocument (targetDocumentId: number): void {
   if (currentDocument.value?.id === targetDocumentId) {
     return
@@ -692,9 +682,10 @@ function navigateToWorkspaceDocument (targetDocumentId: number): void {
   prefetchWorkspaceDocument(targetDocumentId)
   void router.push(workspaceDocumentPath(slug.value, parentWorkspaceId.value, targetDocumentId))
 }
+/** 説明の先頭行だけを出す */
 function documentDescription (document: OrgWorkspaceDocumentItem): string | null {
-  const text = document.description?.trim()
-  return text || null
+  const firstLine = document.description?.split(/\r?\n/)[0]?.trim()
+  return firstLine || null
 }
 function documentCategoryLabel (document: OrgWorkspaceDocumentItem) {
   const category = document.category ?? null
@@ -737,19 +728,16 @@ async function ensureCategoriesLoaded () {
     // カテゴリ取得失敗時はプルダウンを空のままにする
   }
 }
+/** アーカイブ済みなら表示せず、所属スペース（無ければスペース一覧）へ戻す */
 function applyDocument (value: OrgDocument): boolean {
   if (value.archived_at) {
-    removeDocumentCached(slug.value, value.id)
-    removeDocumentFromWorkspaceDetailCache(slug.value, value.workspace_id, value.id)
-    void navigateTo(`/org/${slug.value}/workspaces/${value.workspace_id}`)
-    return false
-  }
-  const routeWorkspaceId = Number(workspaceId.value)
-  if (Number.isFinite(routeWorkspaceId) && value.workspace_id !== routeWorkspaceId) {
-    void navigateTo(
-      workspaceDocumentPath(slug.value, value.workspace_id, value.id),
-      { replace: true },
-    )
+    applyDocumentArchived(slug.value, value)
+    const wsId = parentWorkspaceId.value
+    if (wsId) {
+      void navigateTo(`/org/${slug.value}/workspaces/${wsId}`)
+    } else {
+      void navigateTo(`/org/${slug.value}/workspaces`)
+    }
     return false
   }
   currentDocument.value = value
@@ -758,7 +746,6 @@ function applyDocument (value: OrgDocument): boolean {
 }
 function closeDocumentMenu () {
   documentMenuOpen.value = false
-  documentMenuMode.value = 'actions'
   documentMenuPosition.value = null
 }
 function positionDocumentMenu (anchor: HTMLElement) {
@@ -769,12 +756,8 @@ function positionDocumentMenu (anchor: HTMLElement) {
   const rect = anchor.getBoundingClientRect()
   const pad = POPOVER_VIEWPORT_INSET
   const gap = 4
-  const menuWidth = documentMenuMode.value === 'share'
-    ? DOCUMENT_MENU_SHARE_WIDTH
-    : DOCUMENT_MENU_ACTIONS_WIDTH
-  const menuHeight = resolveMeasuredFloatingMenuHeight(
-    documentMenuMode.value === 'share' ? 2 : documentHeaderMenuItems.value.length,
-  )
+  const menuWidth = DOCUMENT_MENU_ACTIONS_WIDTH
+  const menuHeight = resolveMeasuredFloatingMenuHeight(documentHeaderMenuItems.value.length)
   let left = rect.right - menuWidth
   left = Math.min(left, window.innerWidth - pad - menuWidth)
   left = Math.max(pad, left)
@@ -789,7 +772,6 @@ function toggleDocumentMenu () {
   if (!anchor) {
     return
   }
-  documentMenuMode.value = 'actions'
   positionDocumentMenu(anchor)
   documentMenuOpen.value = true
   nextTick(() => {
@@ -883,60 +865,22 @@ function onDocumentPageKeydown (event: KeyboardEvent) {
   dismissDocumentPopovers()
   void openDocumentAddModal()
 }
-async function switchDocumentMenuToShare () {
-  documentMenuMode.value = 'share'
-  const anchor = documentMenuTriggerRef.value
-  if (anchor) {
-    positionDocumentMenu(anchor)
-  }
-  await nextTick()
-  if (anchor) {
-    positionDocumentMenu(anchor)
-  }
-  const input = shareUrlInputRef.value
-  if (input) {
-    input.focus()
-    input.select()
-  }
-}
-function onShareUrlClick (event: MouseEvent) {
-  const el = event.currentTarget
-  if (el instanceof HTMLInputElement) {
-    el.select()
-  }
-}
-function onShareUrlFocus (event: FocusEvent) {
-  const el = event.currentTarget
-  if (el instanceof HTMLInputElement) {
-    el.select()
-  }
-}
-const documentHeaderMenuItems = computed<FloatingMenuItem[]>(() => {
-  const items: FloatingMenuItem[] = [
-    {
-      key: 'details',
-      label: '資料詳細',
-      disabled: documentMetaPending.value,
-    },
-    { key: 'share', label: '資料の共有' },
-  ]
-  if (isOrgAdmin.value) {
-    items.push({
-      key: 'archive',
-      label: '資料のアーカイブ',
-      danger: true,
-      disabled: documentMetaPending.value || archivePending.value,
-    })
-  }
-  return items
-})
+const documentHeaderMenuItems = computed<FloatingMenuItem[]>(() => [
+  {
+    key: 'details',
+    label: '資料詳細',
+    disabled: documentMetaPending.value,
+  },
+  {
+    key: 'archive',
+    label: '資料のアーカイブ',
+    danger: true,
+    disabled: documentMetaPending.value || archivePending.value,
+  },
+])
 function onDocumentHeaderMenuSelect (item: FloatingMenuItem) {
   if (item.key === 'details') {
     openDocumentDetailsModal()
-    return
-  }
-  if (item.key === 'share') {
-    void switchDocumentMenuToShare()
     return
   }
   if (item.key === 'archive') {
@@ -951,6 +895,7 @@ function openDocumentArchiveConfirm () {
   closeDocumentMenu()
   documentArchiveConfirmOpen.value = true
 }
+/** 本文は保存せず、名前・説明・カテゴリだけ更新して資料キャッシュへ反映する */
 async function onDocumentDetailsSubmit (payload: {
   name: string
   description: string | null
@@ -975,13 +920,7 @@ async function onDocumentDetailsSubmit (payload: {
         },
       )
       applyDocument(updated)
-      upsertDocumentCached(slug.value, updated)
-      updateDocumentInWorkspaceDetailCache(slug.value, updated.workspace_id, {
-        id: updated.id,
-        name: updated.name,
-        description: updated.description ?? null,
-        category: updated.category ?? null,
-      })
+      applyDocumentUpdated(slug.value, updated)
       documentDetailsModalOpen.value = false
     })
   } catch (e: unknown) {
@@ -991,6 +930,7 @@ async function onDocumentDetailsSubmit (payload: {
     documentMetaPending.value = false
   }
 }
+/** 成功すると所属スペースへ戻り、失敗時は確認を開いたままにする */
 async function confirmDocumentArchive () {
   const target = currentDocument.value
   if (!target || archivePending.value) {
@@ -1003,25 +943,15 @@ async function confirmDocumentArchive () {
         method: 'POST',
       })
       documentArchiveConfirmOpen.value = false
-      removeDocumentCached(slug.value, target.id)
-      removeDocumentFromWorkspaceDetailCache(slug.value, target.workspace_id, target.id)
-      upsertArchivedNamedItem(
-        {
-          orgSlug: slug.value,
-          resource: 'documents',
-          workspaceId: target.workspace_id,
-        },
-        {
-          id: target.id,
-          name: target.name,
-          description: target.description ?? null,
-          archived_at: new Date().toISOString(),
-        },
-      )
-      await router.push(`/org/${slug.value}/workspaces/${target.workspace_id}`)
+      applyDocumentArchived(slug.value, target)
+      const wsId = parentWorkspaceId.value
+      if (wsId) {
+        await router.push(`/org/${slug.value}/workspaces/${wsId}`)
+      } else {
+        await router.push(`/org/${slug.value}/workspaces`)
+      }
     })
   } catch {
-    // アーカイブ失敗時は ConfirmModal を開いたままにする
   } finally {
     archivePending.value = false
   }
@@ -1239,6 +1169,7 @@ const bodyHasUnsavedChanges = computed(() => {
   const previousNormalized = previous.trim() === '' ? null : previous
   return (normalized ?? '') !== (previousNormalized ?? '')
 })
+/** 本文だけ保存する。未変更なら API を呼ばず編集を閉じる */
 async function confirmBodyEdit (): Promise<boolean> {
   if (!currentDocument.value || bodySaving.value || !bodyEditing.value) {
     return false
@@ -1258,7 +1189,7 @@ async function confirmBodyEdit (): Promise<boolean> {
       { method: 'PATCH', body: { body: normalized } },
     )
     applyDocument(updated)
-    upsertDocumentCached(slug.value, updated)
+    applyDocumentUpdated(slug.value, updated)
     bodyEditing.value = false
     bodyDraft.value = ''
     return true
@@ -1279,6 +1210,7 @@ const {
     discardBodyEditOnLeave()
   },
 })
+/** 資料が無いときは所属スペース（無ければスペース一覧）へ戻す */
 async function redirectAwayFromMissingDocument (): Promise<void> {
   if (workspaceId.value) {
     await navigateTo(`/org/${slug.value}/workspaces/${workspaceId.value}`, { replace: true })
@@ -1288,6 +1220,7 @@ async function redirectAwayFromMissingDocument (): Promise<void> {
 }
 
 let loadInflight: Promise<void> | null = null
+/** キャッシュがあれば再取得せずそれを出す。権限が無ければ所属スペース（無ければスペース一覧）へ戻す */
 async function load () {
   if (loadInflight) {
     await loadInflight
@@ -1410,6 +1343,7 @@ onMounted(() => {
   })
 })
 onBeforeUnmount(() => {
+  clearBodyFadeInTimer()
   if (!import.meta.client) {
     return
   }
@@ -1418,6 +1352,4 @@ onBeforeUnmount(() => {
   unbindStickyOffsets()
 })
 </script>
-<style lang="scss" scoped src="~/assets/styles/pages/org/slug/documents/id.scss"></style>
-
-<style lang="scss" src="~/assets/styles/pages/org/slug/documents/id.global.scss"></style>
+<style lang="scss" scoped src="~/assets/styles/pages/org/slug/workspaces/id/documents/documentId.scss"></style>

@@ -256,6 +256,7 @@
           :loading="listDeleteLoading"
           @confirm="confirmListDelete"
         />
+        <ModalSwitchBackdrop :active="addChildTaskTransitionPending" />
         <TaskAddModal
           v-model="taskAddOpen"
           :org-slug="slug"
@@ -268,6 +269,7 @@
           :workspace-members="workspaceMembers"
           :workspace-lists="detailWorkspaceLists"
           @added="onTaskAddedFromModal"
+          @after-enter="onTaskAddModalAfterEnter"
         />
         <TaskDetailModal
           v-model="taskDetailOpen"
@@ -278,7 +280,7 @@
           :label-categories="orgLabelCategories"
           :workspace-members="workspaceMembers"
           :workspace-lists="detailWorkspaceLists"
-          :initial-task-detail="detailInitialTask"
+          :initial-task-detail="detailModalInitialTask"
           :initial-parent-tasks="boardParentTasks"
           :hierarchy-tasks="detailHierarchyTasks"
           :initial-attachments="detailInitialAttachments"
@@ -333,7 +335,7 @@
       />
       <FloatingMenu
         :open="Boolean(openMenuTask && cardMenuPosition)"
-        :instance-key="openCardMenuTaskId ?? 'card-menu'"
+        instance-key="card-menu"
         density="compact"
         :style="cardMenuStyle"
         :items="cardMenuItems"
@@ -343,7 +345,7 @@
       />
       <FloatingMenu
         :open="Boolean(openListMenuList && listMenuPosition)"
-        :instance-key="openListMenuKey ?? 'list-menu'"
+        instance-key="list-menu"
         density="compact"
         :style="listMenuStyle"
         :disabled="pending"
@@ -380,32 +382,33 @@ import FilterTriggerButton from '../ui/FilterTriggerButton.vue'
 import BoardFilterPopover from '../ui/BoardFilterPopover.vue'
 import BoardFilterPopoverBody from '../ui/BoardFilterPopoverBody.vue'
 import LoadingSpinner from '../ui/LoadingSpinner.vue'
-import ArchivedTasksModal, { type ArchivedTask } from '../modals/ArchivedTasksModal.vue'
-import ArchivedNamedItemsModal, { type ArchivedNamedItem } from '../modals/ArchivedNamedItemsModal.vue'
-import ListFormModal from '../modals/ListFormModal.vue'
-import NamedItemDeleteModal from '../modals/NamedItemDeleteModal.vue'
-import WorkspaceFormModal from '../modals/WorkspaceFormModal.vue'
-import ConfirmModal from '../modals/ConfirmModal.vue'
+import ArchivedTasksModal, { type ArchivedTask } from '../modals/archived/ArchivedTasksModal.vue'
+import ArchivedNamedItemsModal, { type ArchivedNamedItem } from '../modals/archived/ArchivedNamedItemsModal.vue'
+import ListFormModal from '../modals/workspace/ListFormModal.vue'
+import NamedItemDeleteModal from '../modals/shared/NamedItemDeleteModal.vue'
+import WorkspaceFormModal from '../modals/workspace/WorkspaceFormModal.vue'
+import ConfirmModal from '../modals/shared/ConfirmModal.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../ui/FloatingMenu.vue'
-import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
-import { useWorkspaceTaskFilters } from '../../composables/useWorkspaceTaskFilters'
-import { useAnchoredFilterPopover } from '../../composables/useAnchoredFilterPopover'
-import { useFloatingMenuState } from '../../composables/useFloatingMenuState'
-import { useTransientIdFlash } from '../../composables/useTransientIdFlash'
-import { useStickyHeaderOffsets } from '../../composables/useWorkspaceViewPageRoot'
+import { useDropdownEscapeClose } from '../../composables/ui/useDropdownEscapeClose'
+import { useWorkspaceTaskFilters } from '../../composables/task/useWorkspaceTaskFilters'
+import { useAnchoredFilterPopover } from '../../composables/ui/useAnchoredFilterPopover'
+import { useFloatingMenuState } from '../../composables/ui/useFloatingMenuState'
+import { useTransientIdFlash } from '../../composables/ui/useTransientIdFlash'
+import { useStickyHeaderOffsets } from '../../composables/workspace/useWorkspaceViewPageRoot'
 import {
   isViewShortcutModifierBlocked,
-} from '../../composables/useViewKeyboardShortcuts'
+} from '../../composables/ui/useViewKeyboardShortcuts'
 import WorkspaceViewSwitcher from './WorkspaceViewSwitcher.vue'
 import WorkspaceDetailSidebar from './WorkspaceDetailSidebar.vue'
 import BoardListColumn from './BoardListColumn.vue'
-import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../modals/TaskDetailModal.vue'
-import type { WorkspaceListOption } from '../../composables/useTaskPopoverEditor'
+import TaskDetailModal, { type TaskDetail, type TaskDetailMember } from '../modals/task/TaskDetailModal.vue'
+import ModalSwitchBackdrop from '../modals/shared/ModalSwitchBackdrop.vue'
+import type { WorkspaceListOption } from '../../composables/task/useTaskPopoverEditor'
 import type { TaskChecklist } from '../task/TaskDetailChecklistBlock.vue'
 import type { TaskAttachmentsByTaskId, TaskAttachmentItem } from '../task/taskAttachmentTypes'
-import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../composables/raceWithTimeout'
-import { syncAppLoadingCursor, withAppLoadingCursor } from '../../composables/useAppLoadingCursor'
-import { useApi } from '../../composables/useApi'
+import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../composables/shared/raceWithTimeout'
+import { syncAppLoadingCursor, withAppLoadingCursor } from '../../composables/ui/useAppLoadingCursor'
+import { useApi } from '../../composables/shared/useApi'
 import {
   boardTaskToTaskDetail,
   useWorkspaceBoardPageData,
@@ -413,45 +416,46 @@ import {
   type WorkspaceBoardLabelCategory,
   type WorkspaceBoardPageSnapshot,
   type WorkspaceBoardTask,
-} from '../../composables/useWorkspaceBoardPageData'
-import { enrichTaskDetailHierarchy } from '../../composables/useTaskHierarchy'
-import { sortMembersByDisplayName } from '../../composables/useMemberDisplay'
-import { resolveAndSortLabels } from '../../composables/useLabelCategories'
-import { type TaskFormDefaultsSource } from '../../composables/useTaskFormHelpers'
+} from '../../composables/workspace/useWorkspaceBoardPageData'
+import { enrichTaskDetailHierarchy } from '../../composables/task/useTaskHierarchy'
+import { normalizeProjectViewQuery } from '../../composables/workspace/useWorkspaceViewRoutes'
+import { sortMembersByDisplayName } from '../../composables/member/useMemberDisplay'
+import { resolveAndSortLabels } from '../../composables/label/useLabelCategories'
+import { type TaskFormDefaultsSource } from '../../composables/task/useTaskFormHelpers'
 import {
   applyUserProfileToTasks,
   useOnUserProfileUpdated,
-} from '../../composables/userProfileUpdated'
+} from '../../composables/auth/userProfileUpdated'
 import {
   removeMembersFromTaskAssignees,
   useOnWorkspaceMembersUpdated,
   workspaceMembersUpdateMatchesView,
   dispatchWorkspaceMembersUpdated,
-} from '../../composables/workspaceMembersUpdated'
-import { useUiSidebarPreference } from '../../composables/useUiSidebarPreference'
+} from '../../composables/member/workspaceMembersUpdated'
+import { useUiSidebarPreference } from '../../composables/ui/useUiSidebarPreference'
 import {
   createEmptyWorkspaceTaskFilters,
   type WorkspaceTaskFilters,
-} from '../../utils/workspaceTaskFilters'
+} from '../../utils/task/workspaceTaskFilters'
 import {
   resolveParentTaskTitle,
-} from '../../composables/useTaskCardMeta'
-import { useOrgRole } from '../../composables/useOrgRole'
-import { useWorkspaceRealtimeChannel } from '../../composables/useWorkspaceRealtimeChannel'
-import { useWorkspaceDetailMeta, restoreDocumentToWorkspaceDetailCache } from '../../composables/useWorkspaceDetailMeta'
-import { useWorkspaceTaskMemberCandidates } from '../../composables/useWorkspaceTaskMemberCandidates'
-import { useWorkspaceMutations } from '../../composables/useWorkspaceMutations'
-import { useOrgWorkspaceIndexPageData, useOrgWorkspaceIndexCacheRevision } from '../../composables/useOrgWorkspaceIndexPageData'
-import { useWorkspaceWbsPageData } from '../../composables/useWorkspaceWbsPageData'
-import { withResolvedListColor, resolveStandardColors } from '../../utils/colorPresetResolution'
-import { isAccessDeniedMessage } from '../../utils/resourceAccessError'
+} from '../../composables/task/useTaskCardMeta'
+import { useOrgRole } from '../../composables/org/useOrgRole'
+import { useWorkspaceRealtimeChannel } from '../../composables/workspace/useWorkspaceRealtimeChannel'
+import { useWorkspaceDetailMeta, restoreDocumentToWorkspaceDetailCache } from '../../composables/workspace/useWorkspaceDetailMeta'
+import { useWorkspaceTaskMemberCandidates } from '../../composables/task/useWorkspaceTaskMemberCandidates'
+import { useWorkspaceMutations } from '../../composables/workspace/useWorkspaceMutations'
+import { useOrgWorkspaceIndexPageData, useOrgWorkspaceIndexCacheRevision } from '../../composables/workspace/useOrgWorkspaceIndexPageData'
+import { useWorkspaceWbsPageData } from '../../composables/wbs/useWorkspaceWbsPageData'
+import { withResolvedListColor, resolveStandardColors } from '../../utils/shared/colorPresetResolution'
+import { isAccessDeniedMessage } from '../../utils/shared/resourceAccessError'
 import { DEFAULT_WORKSPACE_STATUS_ITEMS } from '../../components/settings/types'
-import { buildDestructiveConfirmMessage } from '../../utils/destructiveConfirmMessage'
-import { toWorkspaceFormInitialValues } from '../../utils/workspaceFormInitialValues'
+import { buildDestructiveConfirmMessage } from '../../utils/shared/destructiveConfirmMessage'
+import { toWorkspaceFormInitialValues } from '../../utils/workspace/workspaceFormInitialValues'
 import {
   getTopmostModalOverlay,
   isKeyboardShortcutBlockedTarget,
-} from '../../utils/uiInteraction'
+} from '../../utils/ui/uiInteraction'
 const route = useRoute()
 const router = useRouter()
 const slug = computed(() => route.params.slug as string)
@@ -536,7 +540,6 @@ const listMenu = useFloatingMenuState<string>({
 })
 const openListMenuKey = listMenu.openId
 const listMenuPosition = listMenu.position
-const pendingListMenuOpen = listMenu.pendingOpen
 const taskAddOpen = ref(false)
 const taskAddListId = ref<number | null>(null)
 const taskAddParentTaskId = ref<number | null>(null)
@@ -604,9 +607,6 @@ const {
   dropdownRef: boardFilterDropdownRef,
   useEscapeClose: false,
   onClose: clearFilterSearchQueries,
-  onBeforeOpen: () => {
-    subheaderMenu.close()
-  },
   repositionSources: [assigneeFilterSearchQuery, labelFilterSearchQuery],
 })
 const boardParentTasks = ref<Array<{ id: number; title: string }>>([])
@@ -616,7 +616,7 @@ const listEditDrafts = reactive<Record<string, string>>({})
 const listRenamePending = ref(false)
 const listReorderPending = ref(false)
 const listColumnDragging = ref(false)
-/** Sortable DOM と lists のズレ解消用（ドラッグ完了後にインクリメント） */
+/** Sortable DOM とリスト配列のズレ解消用（ドラッグ完了後にインクリメント） */
 const listSortableEpoch = ref(0)
 /** リストヘッダーのドラッグ直後にタイトル click で編集が開くのを防ぐ */
 const suppressListTitleClick = ref(false)
@@ -625,7 +625,6 @@ const suppressTaskCardClick = ref(false)
 let listOrderSnapshot: ListDef[] | null = null
 /** リスト列ドラッグ中のポインタ X（列判定は Y 非依存） */
 let listColumnDragPointerX = 0
-/** ドラッグ中のリスト列 key */
 let listColumnDragSourceKey: string | null = null
 /** ドラッグ中に最後にプレビュー反映した並び */
 let listColumnDragPreviewOrder: ListDef[] | null = null
@@ -656,7 +655,6 @@ let boardDragCardWidthPx = 0
 let boardDragCardHeightPx = 0
 /** Sortable が確定した移動先リスト */
 let boardDragLastToListKey: string | null = null
-/** ドラッグ開始時のリスト key */
 const boardDragStartListKey = ref<string | null>(null)
 /** 他リスト上にホバー中（ソース列のプレースホルダ抑止） */
 const boardDragCrossList = ref(false)
@@ -682,7 +680,6 @@ const cardMenu = useFloatingMenuState<number>({
 })
 const openCardMenuTaskId = cardMenu.openId
 const cardMenuPosition = cardMenu.position
-const pendingCardMenuOpen = cardMenu.pendingOpen
 const archiveConfirmTask = ref<Task | null>(null)
 const archiveConfirmTaskOpen = computed({
   get: () => archiveConfirmTask.value !== null,
@@ -707,8 +704,19 @@ const workspaceArchiveConfirmMessage = computed(() =>
   buildDestructiveConfirmMessage('スペース', 'アーカイブ', workspaceMetaName.value),
 )
 const detailTaskId = ref<number | null>(null)
+/** ボードに無いタスクを通知から開くとき、取得済みの詳細。モーダルはこれがあるまで出さない */
+const detailQueryTask = ref<TaskDetail | null>(null)
+let detailQuerySeq = 0
+let detailQueryInflightId: number | null = null
 const detailModalRemotePatch = ref<TaskDetail | null>(null)
 const detailModalRemoteRev = ref(0)
+const detailModalInitialTask = computed((): TaskDetail | null => {
+  const queried = detailQueryTask.value
+  if (queried && queried.id === detailTaskId.value) {
+    return queried
+  }
+  return detailInitialTask.value
+})
 const detailInitialTask = computed((): TaskDetail | null => {
   const id = detailTaskId.value
   if (id === null || !tasks.value) {
@@ -967,6 +975,16 @@ function onSubheaderMenuSelect (item: FloatingMenuItem) {
     openWorkspaceArchiveConfirm()
   }
 }
+function openArchivedModal () {
+  closeSubheaderMenu()
+  closeBoardFilter()
+  archivedModalOpen.value = true
+}
+function openArchivedDocumentsModal () {
+  closeSubheaderMenu()
+  closeBoardFilter()
+  archivedDocumentsOpen.value = true
+}
 function openWorkspaceArchiveConfirm () {
   closeSubheaderMenu()
   workspaceArchiveConfirmOpen.value = true
@@ -1010,6 +1028,7 @@ async function onWorkspaceDetailsSubmit (payload: {
     workspaceDetailsPending.value = false
   }
 }
+/** 成功するとスペース一覧へ戻る。失敗時は確認を開いたままエラーを出す */
 async function confirmWorkspaceArchive () {
   if (workspaceArchivePending.value) {
     return
@@ -1064,7 +1083,6 @@ function toggleSubheaderMenu () {
     closeSubheaderMenu()
     return
   }
-  closeBoardFilter()
   const anchor = subheaderMenuTriggerRef.value
   if (!anchor) {
     return
@@ -1138,6 +1156,7 @@ function openArchiveConfirm (task: Task) {
   editingTaskId.value = null
   archiveConfirmTask.value = task
 }
+/** タイトル編集中と、ドラッグ直後の click では詳細を開かない */
 function openTaskDetail (task: Task) {
   if (editingTaskId.value === task.id || suppressTaskCardClick.value) return
   closeCardMenu()
@@ -1177,22 +1196,105 @@ function clearTaskQueryParam () {
   delete nextQuery.task
   void router.replace({ query: nextQuery })
 }
+function boardHasTask (taskId: number): boolean {
+  return tasks.value?.some(task => task.id === taskId) ?? false
+}
+function cancelQueryTaskFetch () {
+  detailQuerySeq += 1
+  detailQueryInflightId = null
+}
+/** 不正な task はスペース一覧へ戻し、WBS 表示中はこの画面では開かない */
 function applyTaskQueryFromRoute () {
-  if (!pageReady.value) return
+  if (normalizeProjectViewQuery(route.query.view) === 'wbs') {
+    cancelQueryTaskFetch()
+    detailQueryTask.value = null
+    return
+  }
   const raw = route.query.task
-  if (raw != null && raw !== '') {
-    const taskId = parseTaskQueryId()
-    if (taskId === null) {
+  if (raw == null || raw === '') {
+    cancelQueryTaskFetch()
+    detailQueryTask.value = null
+    return
+  }
+  const taskId = parseTaskQueryId()
+  if (taskId === null) {
+    if (pageReady.value) {
       void navigateTo(`/org/${slug.value}/workspaces`, { replace: true })
-      return
-    }
-    if (detailTaskId.value !== taskId) {
-      detailTaskId.value = taskId
     }
     return
   }
+  if (detailTaskId.value === taskId) {
+    return
+  }
+  if (pageReady.value && boardHasTask(taskId)) {
+    cancelQueryTaskFetch()
+    detailQueryTask.value = null
+    detailTaskId.value = taskId
+    return
+  }
+  if (pageReady.value && detailQueryTask.value?.id === taskId) {
+    detailTaskId.value = taskId
+    return
+  }
+  if (detailQueryInflightId === taskId) {
+    return
+  }
+  void fetchQueryTaskThenOpen(taskId)
 }
+/** 権限が無ければスペース一覧へ戻す。ボードに無いタスクは取得してから詳細を出す */
+async function fetchQueryTaskThenOpen (taskId: number) {
+  const seq = ++detailQuerySeq
+  detailQueryInflightId = taskId
+  try {
+    const detail = await api<TaskDetail>(
+      `/orgs/${slug.value}/workspaces/${workspaceId.value}/tasks/${taskId}`,
+    )
+    if (seq !== detailQuerySeq || parseTaskQueryId() !== taskId || detailTaskId.value === taskId) {
+      return
+    }
+    const enriched = tasks.value
+      ? enrichTaskDetailHierarchy(
+        detail,
+        tasks.value,
+        listId => lists.value.find(list => list.listId === listId)?.title ?? null,
+      )
+      : detail
+    if (!pageReady.value) {
+      detailQueryTask.value = enriched
+      return
+    }
+    if (boardHasTask(taskId)) {
+      detailQueryTask.value = null
+      detailTaskId.value = taskId
+      return
+    }
+    detailQueryTask.value = enriched
+    detailTaskId.value = taskId
+  } catch (e: unknown) {
+    if (seq !== detailQuerySeq || parseTaskQueryId() !== taskId || detailTaskId.value === taskId) {
+      return
+    }
+    const message = e instanceof Error ? e.message : '読み込みに失敗しました'
+    if (isAccessDeniedMessage(message)) {
+      detailTaskId.value = null
+      void navigateTo(`/org/${slug.value}/workspaces`, { replace: true })
+      return
+    }
+    if (!pageReady.value) {
+      return
+    }
+    detailQueryTask.value = null
+    detailTaskId.value = taskId
+  } finally {
+    if (seq === detailQuerySeq) {
+      detailQueryInflightId = null
+    }
+  }
+}
+/** 対象が無い、または見れないときはスペース一覧へ戻す */
 function onTaskDetailMissing () {
+  cancelQueryTaskFetch()
+  detailQueryTask.value = null
   detailTaskId.value = null
   void navigateTo(`/org/${slug.value}/workspaces`, { replace: true })
 }
@@ -1215,6 +1317,7 @@ function onTaskAttachmentsUpdated (payload: { taskId: number; attachments: TaskA
     [String(payload.taskId)]: payload.attachments,
   }
 }
+/** カード表示に効く項目が変わったときだけ組み直し、キャッシュも更新する */
 function onTaskDetailUpdated (detail: TaskDetail) {
   if (!tasks.value) return
   const idx = tasks.value.findIndex(t => t.id === detail.id)
@@ -1272,6 +1375,7 @@ function removeTaskFromBoard (taskId: number, options?: { removeChildTasks?: boo
   rebuildBoardFromTasks()
   syncBoardPageCache()
 }
+/** 復元した親に加え、一緒に戻った子タスクもボードへ足す */
 function onArchivedTaskRestored (task: Task, cascadedChildren: ArchivedTask[] = []) {
   if (!tasks.value?.some(t => t.id === task.id)) {
     addTaskToBoard(task)
@@ -1296,6 +1400,21 @@ function onArchivedTaskRestored (task: Task, cascadedChildren: ArchivedTask[] = 
       assignees: child.assignees ?? [],
     } as Task)
   }
+}
+/** ボードには出さず、スペースの資料キャッシュへ戻す */
+function onArchivedDocumentRestored (item: ArchivedNamedItem) {
+  restoreDocumentToWorkspaceDetailCache(slug.value, workspaceId.value, {
+    id: item.id,
+    name: item.name,
+    description: item.description ?? null,
+    category: item.category ?? null,
+    workspace_id: item.workspace_id,
+    workspace_name: item.workspace_name ?? null,
+    body: item.body ?? null,
+    archived_at: item.archived_at ?? null,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+  })
 }
 function addTaskToBoard (task: Task) {
   if (!tasks.value) {
@@ -1326,6 +1445,7 @@ function applyListsReordered (listIds: number[]) {
     return aOrder - bOrder
   })
 }
+/** 子ごと先に外し、失敗したら戻す。アーカイブ一覧にも足す */
 async function confirmArchiveFromModal () {
   const task = archiveConfirmTask.value
   if (!task) return
@@ -1640,10 +1760,7 @@ function onBoardKeydown (event: KeyboardEvent) {
   }
   openTaskAddFromHeader()
 }
-/**
- * 隣接列の境界中点で列を決める（nearest / empty-insert による左右のちらつきを防ぐ）。
- * 列間ギャップも必ずどちらか一方の列に属する。
- */
+/** 隣接リストの境界中点で所属を一意に決め、ギャップもどちらかに属させて左右のちらつきを防ぐ */
 function getListKeyAtClientX (clientX: number): string | null {
   const columns = getBoardListColumns()
   if (!columns.length) {
@@ -1689,10 +1806,7 @@ function getListColumnHitBounds (
   }
   return { left, right }
 }
-/**
- * リスト列ドラッグ用: ポインタ X が属する画面上の列スロット index。
- * 列の実幅内を優先し、列間ギャップは隣接列の中点で帰属する。
- */
+/** リストドラッグの挿入先は実幅を優先し、ギャップは隣のリストとの中点で帰属する */
 function getListColumnVisualIndexAtClientX (clientX: number): number | null {
   const columns = getBoardListColumns()
   if (!columns.length) {
@@ -1840,9 +1954,27 @@ function onBoardNativeDragOver (event: DragEvent) {
   updateBoardDragPointer(event.clientX, event.clientY)
   event.preventDefault()
 }
+function clearDragTextSelection () {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) {
+    return
+  }
+  selection.removeAllRanges()
+}
+function isTaskCardDragSelectTarget (target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) {
+    return false
+  }
+  return target.closest('.task-card.drag-chosen, .task-card.drag-active, .task-card.sortable-fallback') != null
+}
 function onDocumentSelectStart (event: Event) {
-  if (boardDragging.value || listColumnDragging.value) {
+  if (
+    boardDragging.value
+    || listColumnDragging.value
+    || isTaskCardDragSelectTarget(event.target)
+  ) {
     event.preventDefault()
+    clearDragTextSelection()
   }
 }
 function findUniqueListKeyForTask (taskId: number): string | null {
@@ -1948,9 +2080,7 @@ async function finalizeBoardDrag (
   }
   syncBoardPageCache()
 }
-/**
- * プレビューは常に1つ: 末尾帯はカスタムスロットのみ、それ以外は Sortable に任せる。
- */
+/** プレビューは常に1つで、末尾帯だけカスタムスロット、それ以外は Sortable に任せる */
 function onBoardDragMove (
   evt: { to: HTMLElement, from: HTMLElement },
   originalEvent?: Event,
@@ -2049,6 +2179,7 @@ function syncFallbackFromSource (fallback: HTMLElement) {
     '.label-strip',
     '.task-card-footer',
     '.task-card-members',
+    '.task-card-members__more',
   ] as const
   for (const selector of nestedPairs) {
     const fromEl = source.querySelector<HTMLElement>(selector)
@@ -2124,8 +2255,10 @@ function onBoardDragChoose (evt: { item: HTMLElement }) {
   boardDragCardWidthPx = 0
   boardDragCardHeightPx = 0
   captureBoardDragCardSize(evt.item)
+  clearDragTextSelection()
 }
 function onBoardDragStart (evt: { item: HTMLElement, originalEvent?: Event }) {
+  clearDragTextSelection()
   updateDropZoneScrollableState()
   boardDragTaskId = getTaskIdFromDragEl(evt.item)
   const task = tasks.value?.find(t => t.id === boardDragTaskId)
@@ -2231,6 +2364,13 @@ function syncBoardPageCache () {
   replaceCachedBoardState(slug.value, workspaceId.value, {
     tasks: tasks.value,
     parentTasks: boardParentTasks.value,
+    lists: lists.value.map((list, index) => ({
+      id: list.listId,
+      name: list.title,
+      color: list.color,
+      color_index: list.color_index,
+      sort_order: index,
+    })),
   })
   touchCachedWorkspaceUpdatedAt(slug.value, Number(workspaceId.value))
   // ボードと WBS のタスク正本は分けているため、ボード側更新後は WBS を破棄して再取得させる
@@ -2270,6 +2410,7 @@ function markBoardReady () {
     revealLoadedBoard()
   }
 }
+/** 未表示でキャッシュがあれば再取得せずそれを出す。権限が無ければスペース一覧へ戻す */
 async function load (opts?: { refresh?: boolean; silent?: boolean }) {
   const refresh = opts?.refresh ?? false
   const silent = opts?.silent ?? false
@@ -2407,8 +2548,15 @@ async function onAddChildTaskFromDetail (payload: { parentTaskId: number; listId
   taskAddParentTaskId.value = payload.parentTaskId
   taskAddParentDefaults.value = defaults
   taskAddOpen.value = true
+}
+function onTaskAddModalAfterEnter () {
   addChildTaskTransitionPending.value = false
 }
+watch(taskAddOpen, (open) => {
+  if (!open) {
+    addChildTaskTransitionPending.value = false
+  }
+})
 function onTaskAddedFromModal (added: Task) {
   if (!tasks.value) {
     tasks.value = []
@@ -2418,6 +2566,7 @@ function onTaskAddedFromModal (added: Task) {
   markTaskAsJustCreated(added.id)
   syncBoardPageCache()
 }
+/** 追加はボード全体を取り直し、変更は当該リストの名前と色だけ差し替える */
 async function onListFormSubmit ({
   name,
   color_index,
@@ -2501,6 +2650,7 @@ async function confirmListDelete () {
     listDeleteLoading.value = false
   }
 }
+/** リストのドラッグ直後はタイトル編集を開かない */
 function onListTitleClick (list: ListDef) {
   if (suppressListTitleClick.value) {
     return
@@ -2725,6 +2875,7 @@ async function persistListOrder (rollback: ListDef[], committedOrder: ListDef[])
       { method: 'PATCH', body: { list_ids: listIds } },
     )
     lists.value = committedOrder.map(l => ({ ...l }))
+    syncBoardPageCache()
   } catch (e: unknown) {
     commitListColumnVisualOrder(rollback)
     error.value = e instanceof Error ? e.message : 'リストの並び替えに失敗しました'
@@ -2745,6 +2896,7 @@ async function saveListTitle (list: ListDef) {
     const row = lists.value.find(item => item.key === list.key)
     if (row) row.title = name
     editingListKey.value = null
+    syncBoardPageCache()
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'リスト名の更新に失敗しました'
   } finally {
@@ -2768,6 +2920,7 @@ async function saveTaskTitle (task: Task) {
     task.title = title
     editingTaskId.value = null
     taskTitleDraft.value = ''
+    syncBoardPageCache()
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'タスク名の更新に失敗しました'
   } finally {

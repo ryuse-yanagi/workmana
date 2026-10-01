@@ -32,12 +32,17 @@
                   :org-slug="slug"
                   :initial-name="settingsSnapshot.orgSettings.name"
                   :initial-icon-url="settingsSnapshot.orgSettings.icon_url"
+                  :created-at="settingsSnapshot.orgSettings.created_at"
+                  :member-count="settingsSnapshot.memberCount ?? settingsSnapshot.members?.length"
                   :can-manage="canManageSettings"
                 />
                 <SettingsMembersPanel
                   v-show="activeTab === 'members'"
                   :org-slug="slug"
+                  :active="activeTab === 'members'"
                   :can-manage="canManageSettings"
+                  :initial-members="settingsSnapshot.members ?? []"
+                  :initial-invites="settingsSnapshot.pendingInvites ?? []"
                 />
                 <SettingsLabelsPanel
                   v-show="activeLabelTab !== null"
@@ -73,10 +78,10 @@
 </template>
 
 <script setup lang="ts">
-import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/raceWithTimeout'
-import { withAppLoadingCursor } from '../../../composables/useAppLoadingCursor'
-import { useCurrentUser } from '../../../composables/useCurrentUser'
-import { useOrgSettingsPageData } from '../../../composables/useOrgSettingsPageData'
+import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/shared/raceWithTimeout'
+import { withAppLoadingCursor } from '../../../composables/ui/useAppLoadingCursor'
+import { useCurrentUser } from '../../../composables/auth/useCurrentUser'
+import { useOrgSettingsPageData } from '../../../composables/settings/useOrgSettingsPageData'
 import SettingsDefaultBoardListsPanel from '../../../components/settings/SettingsDefaultBoardListsPanel.vue'
 import SettingsDefaultWorkspaceStatusesPanel from '../../../components/settings/SettingsDefaultWorkspaceStatusesPanel.vue'
 import SettingsDefaultDocumentCategoriesPanel from '../../../components/settings/SettingsDefaultDocumentCategoriesPanel.vue'
@@ -94,7 +99,10 @@ import {
   type SettingsPageSnapshot,
   type SettingsTabKey,
 } from '../../../components/settings/types'
-import { useWorkspaceViewPageRoot } from '../../../composables/useWorkspaceViewPageRoot'
+import { useWorkspaceViewPageRoot } from '../../../composables/workspace/useWorkspaceViewPageRoot'
+import { useOrgRole } from '../../../composables/org/useOrgRole'
+import { useOrgSafeRedirect } from '../../../composables/org/useOrgSafeRedirect'
+import { isAccessDeniedMessage } from '../../../utils/shared/resourceAccessError'
 
 definePageMeta({
   name: 'org-slug-settings',
@@ -103,10 +111,12 @@ definePageMeta({
 })
 
 useWorkspaceViewPageRoot()
+const { redirectToMemberHome } = useOrgSafeRedirect()
 
 const route = useRoute()
 const router = useRouter()
 const slug = computed(() => route.params.slug as string)
+const { orgRole } = useOrgRole(slug)
 const settingsPageRef = ref<HTMLElement | null>(null)
 const {
   fetchSnapshot,
@@ -128,7 +138,7 @@ const menuSections: SettingsMenuSection[] = [
     items: [
       { key: 'workspace_labels', label: 'ラベル設定' },
       { key: 'workspace_statuses', label: 'ステータス設定' },
-      { key: 'default_board_lists', label: 'リスト設定' },
+      { key: 'default_board_lists', label: 'リスト初期設定' },
     ],
   },
   {
@@ -170,9 +180,14 @@ const defaultDocumentCategoryItemsFromSnapshot = computed(() => {
 })
 
 const canManageSettings = computed(() => {
+  // セッションの admin / member を優先し、未取得のあいだだけ設定データのロールで表示する。
+  if (orgRole.value === 'admin' || orgRole.value === 'member') {
+    return orgRole.value === 'admin'
+  }
   return settingsSnapshot.value?.orgSettings.role === 'admin'
 })
 
+/** ロール付きキャッシュがあれば再取得せず出し、権限が無ければ所属組織のスペース一覧へ戻す */
 async function loadInitialData (opts?: { refresh?: boolean }) {
   settingsFatalError.value = null
   const slugValue = slug.value
@@ -196,6 +211,10 @@ async function loadInitialData (opts?: { refresh?: boolean }) {
   ))
 
   if (!r.ok) {
+    if (r.reason !== 'timeout' && isAccessDeniedMessage(r.message)) {
+      await redirectToMemberHome()
+      return
+    }
     settingsFatalError.value = r.reason === 'timeout' ? timeoutMessage() : r.message
     return
   }
@@ -204,6 +223,7 @@ async function loadInitialData (opts?: { refresh?: boolean }) {
   settingsPageReady.value = true
 }
 
+/** 同じユーザーの設定が既にあれば取り直さない */
 async function syncForCurrentUser () {
   const userId = await ensureCurrentUser()
   if (
@@ -294,6 +314,27 @@ function resetSettingsPageScroll () {
   page.scrollTop = 0
 }
 
+function refreshSnapshotFromCache () {
+  const cached = getCached(slug.value)
+  if (!cached) {
+    return
+  }
+  const current = settingsSnapshot.value
+  const currentRole = current?.orgSettings.role
+  if (!cached.orgSettings?.role && currentRole && current) {
+    settingsSnapshot.value = {
+      ...cached,
+      orgSettings: {
+        ...current.orgSettings,
+        ...cached.orgSettings,
+        role: currentRole,
+      },
+    }
+    return
+  }
+  settingsSnapshot.value = cached
+}
+
 onBeforeMount(() => {
   const cached = getCached(slug.value)
   if (cached?.orgSettings?.role) {
@@ -305,6 +346,15 @@ onBeforeMount(() => {
 onMounted(() => {
   applyTabFromRoute()
   void syncForCurrentUser()
+  if (import.meta.client) {
+    window.addEventListener('tm:settings-members-updated', refreshSnapshotFromCache)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (import.meta.client) {
+    window.removeEventListener('tm:settings-members-updated', refreshSnapshotFromCache)
+  }
 })
 
 onActivated(() => {

@@ -3,7 +3,7 @@
 namespace Tests\Feature\Wbs;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -13,19 +13,15 @@ class ChangingTaskListPreservesWbsSortOrderTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** リスト移動は WBS の sort_order を変えない（並び替えはドラッグ専用） */
     public function test_changing_task_list_preserves_wbs_sort_order(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', [
+            ->postJson("/api/orgs/{$slug}/workspaces", [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
@@ -38,39 +34,42 @@ class ChangingTaskListPreservesWbsSortOrderTest extends TestCase
         $firstList = $lists[0];
         $secondList = $lists[1];
 
-        $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
+        $taskA = (int) $this->actingAsApiUser($user)
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Task A',
                 'list_id' => $firstList->id,
             ])
-            ->assertCreated();
+            ->assertCreated()
+            ->json('id');
 
-        $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
+        $taskB = (int) $this->actingAsApiUser($user)
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Task B',
                 'list_id' => $secondList->id,
             ])
-            ->assertCreated();
+            ->assertCreated()
+            ->json('id');
 
-        $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
+        $taskC = (int) $this->actingAsApiUser($user)
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks", [
                 'title' => 'Task C',
                 'list_id' => $firstList->id,
             ])
-            ->assertCreated();
+            ->assertCreated()
+            ->json('id');
 
         $this->actingAsApiUser($user)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs/reorder", [
+            ->patchJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/wbs/reorder", [
                 'tasks' => [
-                    ['id' => 1, 'sort_order' => 0, 'parent_task_id' => null],
-                    ['id' => 2, 'sort_order' => 1, 'parent_task_id' => null],
-                    ['id' => 3, 'sort_order' => 2, 'parent_task_id' => null],
+                    ['id' => $taskA, 'sort_order' => 0, 'parent_task_id' => null],
+                    ['id' => $taskB, 'sort_order' => 1, 'parent_task_id' => null],
+                    ['id' => $taskC, 'sort_order' => 2, 'parent_task_id' => null],
                 ],
             ])
             ->assertOk();
 
         $this->actingAsApiUser($user)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/2", [
+            ->patchJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/{$taskB}", [
                 'list_id' => $firstList->id,
             ])
             ->assertOk()
@@ -78,10 +77,10 @@ class ChangingTaskListPreservesWbsSortOrderTest extends TestCase
             ->assertJsonPath('sort_order', 1);
 
         $this->actingAsApiUser($user)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/wbs")
+            ->getJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/wbs")
             ->assertOk()
-            ->assertJsonPath('data.0.id', 1)
-            ->assertJsonPath('data.1.id', 2)
-            ->assertJsonPath('data.2.id', 3);
+            ->assertJsonPath('data.0.id', $taskA)
+            ->assertJsonPath('data.1.id', $taskB)
+            ->assertJsonPath('data.2.id', $taskC);
     }
 }

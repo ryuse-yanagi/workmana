@@ -14,7 +14,7 @@
       <div class="spinner" />
     </div>
     <KeepAlive v-else :max="2">
-      <WorkspaceProjectView
+      <WorkspaceDetailView
         :key="displayedView"
         ref="viewRef"
         v-model:task-search-query="taskSearchQuery"
@@ -27,21 +27,21 @@
   </div>
 </template>
 <script setup lang="ts">
-import WorkspaceProjectView from '../../../../../components/workspace/WorkspaceProjectView.vue'
+import WorkspaceDetailView from '../../../../../components/workspace/WorkspaceDetailView.vue'
 import {
   getCachedWorkspaceDetailItem,
   prefetchWorkspaceDetail,
   revalidateWorkspaceDetailInBackground,
-} from '../../../../../composables/useWorkspaceDetailMeta'
-import { useOrgWorkspaceIndexPageData } from '../../../../../composables/useOrgWorkspaceIndexPageData'
-import { invalidateWorkspaceViewCaches } from '../../../../../composables/invalidateOrgDerivedCaches'
-import { useWorkspaceViewRoutes, type WorkspaceViewKey } from '../../../../../composables/useWorkspaceViewRoutes'
-import { useWorkspaceViewPageRoot } from '../../../../../composables/useWorkspaceViewPageRoot'
-import { isAccessDeniedMessage } from '../../../../../utils/resourceAccessError'
+} from '../../../../../composables/workspace/useWorkspaceDetailMeta'
+import { useOrgWorkspaceIndexPageData } from '../../../../../composables/workspace/useOrgWorkspaceIndexPageData'
+import { invalidateWorkspaceViewCaches } from '../../../../../composables/settings/invalidateOrgDerivedCaches'
+import { useWorkspaceViewRoutes, type WorkspaceViewKey } from '../../../../../composables/workspace/useWorkspaceViewRoutes'
+import { useWorkspaceViewPageRoot } from '../../../../../composables/workspace/useWorkspaceViewPageRoot'
+import { isAccessDeniedMessage } from '../../../../../utils/shared/resourceAccessError'
 import {
   createEmptyWorkspaceTaskFilters,
   type WorkspaceTaskFilters,
-} from '../../../../../utils/workspaceTaskFilters'
+} from '../../../../../utils/task/workspaceTaskFilters'
 definePageMeta({
   name: 'org-slug-workspaces-id',
   key: route => `${route.params.slug}:${route.params.id}`,
@@ -60,6 +60,7 @@ async function redirectToWorkspaceList (): Promise<void> {
   await navigateTo(`/org/${slug.value}/workspaces`, { replace: true })
 }
 
+/** 一覧とボード／WBS のキャッシュを捨ててスペース一覧へ戻す */
 async function handleArchivedOrMissingWorkspace (): Promise<void> {
   removeCachedWorkspace(slug.value, Number(workspaceId.value))
   invalidateWorkspaceViewCaches(slug.value, workspaceId.value)
@@ -70,6 +71,7 @@ function readCachedWorkspace () {
   return getCachedWorkspaceDetailItem(slug.value, workspaceId.value)
 }
 
+/** アーカイブ済みと権限なしは、キャッシュを捨ててスペース一覧へ戻す */
 async function fetchAndRedirectIfInactive (): Promise<boolean> {
   archiveCheckError.value = null
   try {
@@ -113,6 +115,7 @@ function revalidateWorkspaceAccessInBackground (): void {
   })()
 }
 
+/** キャッシュが有効なら先に表示して裏で確認し、アーカイブ済みならスペース一覧へ戻す */
 async function ensureActiveWorkspaceGate (): Promise<void> {
   archiveCheckError.value = null
   const cached = readCachedWorkspace()
@@ -145,7 +148,7 @@ onBeforeMount(() => {
   void ensureActiveWorkspaceGate()
 })
 const { activeView } = useWorkspaceViewRoutes(() => slug.value, () => workspaceId.value)
-const viewRef = ref<InstanceType<typeof WorkspaceProjectView> | null>(null)
+const viewRef = ref<InstanceType<typeof WorkspaceDetailView> | null>(null)
 /** ボード / WBS 切替でも検索語・フィルターを共有（KeepAlive でインスタンスが分かれるため親で保持） */
 const taskSearchQuery = ref('')
 const taskFilters = ref<WorkspaceTaskFilters>(createEmptyWorkspaceTaskFilters())
@@ -157,9 +160,14 @@ function resolveProjectView (view: string): WorkspaceViewKey {
 }
 const displayedView = ref<WorkspaceViewKey>(resolveProjectView(activeView.value))
 let viewSwitchSeq = 0
+function taskQueryForcesBoard (): boolean {
+  return route.query.task != null
+    && route.query.task !== ''
+    && activeView.value !== 'wbs'
+}
 function syncViewFromRoute () {
-  // タスク deep link がある場合はボードで詳細モーダルを開く
-  if (route.query.task != null && route.query.task !== '') {
+  // タスク deep link はボードで開く。WBS 画面からの通知だけ WBS のまま開く
+  if (taskQueryForcesBoard()) {
     displayedView.value = 'board'
     return
   }
@@ -176,7 +184,7 @@ function refreshActiveViewInBackground () {
   })
 }
 watch(activeView, (view) => {
-  if (route.query.task != null && route.query.task !== '') {
+  if (taskQueryForcesBoard()) {
     displayedView.value = 'board'
     refreshActiveViewInBackground()
     return

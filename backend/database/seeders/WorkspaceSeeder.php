@@ -2,19 +2,19 @@
 
 namespace Database\Seeders;
 
-use App\Models\Organization;
 use App\Models\User;
-use App\Models\Workspace;
-use App\Support\DefaultBoardLists;
+use App\Models\Workspace\Workspace;
+use App\Support\Organization\OrganizationAccess;
+use App\Support\Workspace\DefaultBoardLists;
 use Illuminate\Database\Seeder;
 
 class WorkspaceSeeder extends Seeder
 {
-    public function run (): void
+    public function run(): void
     {
-        $org = Organization::query()->where('slug', DummySeederData::ORG_SLUG)->first();
+        $org = DummySeederData::seededOrganization();
         if ($org === null) {
-            $this->command?->warn('Organization "'.DummySeederData::ORG_SLUG.'" not found. Run OrganizationSeeder first.');
+            $this->command?->warn('Organization "'.DummySeederData::ORG_NAME.'" not found. Run OrganizationSeeder first.');
 
             return;
         }
@@ -52,6 +52,6 @@ class WorkspaceSeeder extends Seeder
             ->orderBy('id')
             ->pluck('id')
             ->all();
-        $workspace->assignees()->sync($assigneeIds);
+        OrganizationAccess::syncWorkspaceAssignees($workspace, $assigneeIds);
     }
 }

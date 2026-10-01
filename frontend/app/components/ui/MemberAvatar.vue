@@ -23,9 +23,9 @@
   </component>
 </template>
 <script setup lang="ts">
-import { memberInitial, type MemberLike } from '../../composables/useMemberDisplay'
-import { resolveDisplayAvatarUrl } from '../../composables/userProfileUpdated'
-import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
+import { memberInitial, type MemberLike } from '../../composables/member/useMemberDisplay'
+import { resolveDisplayAvatarUrl } from '../../composables/auth/userProfileUpdated'
+import { resolveAvatarUrl } from '../../utils/member/resolveAvatarUrl'
 const props = withDefaults(defineProps<{
   member: MemberLike
   size?: 'xs' | 'sm' | 'md'

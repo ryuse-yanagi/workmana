@@ -1,0 +1,112 @@
+$sidebar-description-line-height: 28px;
+$sidebar-description-pad: 8px;
+$sidebar-description-mark-width: 12px;
+$sidebar-description-mark-height: 8px;
+$sidebar-description-mark-gutter: 20px;
+
+@mixin sidebar-description-copy {
+  margin: 0;
+  box-sizing: border-box;
+  font-size: 16px;
+  font-family: inherit;
+  font-weight: 400;
+  line-height: $sidebar-description-line-height;
+  color: mixin.$text-strong;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.sidebar-description {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+.sidebar-description__measure-host {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+.sidebar-description__measure {
+  @include sidebar-description-copy;
+  width: 100%;
+  padding: $sidebar-description-pad;
+  border: 1px solid transparent;
+}
+.sidebar-description__surface {
+  @include sidebar-description-copy;
+  display: block;
+  width: 100%;
+  padding: $sidebar-description-pad;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  background: mixin.$bg-gray;
+  position: relative;
+}
+.sidebar-description__expand {
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.sidebar-description__expand:focus-visible,
+.sidebar-description__collapse:focus-visible {
+  outline: 2px solid mixin.$main;
+  outline-offset: 2px;
+}
+.sidebar-description__text {
+  display: block;
+  margin: 0;
+}
+.sidebar-description__text--clamp {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  max-height: calc(#{$sidebar-description-line-height} * 3);
+  padding-right: $sidebar-description-mark-gutter;
+}
+.sidebar-description__text--with-mark {
+  padding-right: $sidebar-description-mark-gutter;
+}
+.sidebar-description__mark {
+  display: block;
+  width: 0;
+  height: 0;
+  border-left: calc(#{$sidebar-description-mark-width} / 2) solid transparent;
+  border-right: calc(#{$sidebar-description-mark-width} / 2) solid transparent;
+  border-top: $sidebar-description-mark-height solid mixin.$text;
+  pointer-events: none;
+}
+.sidebar-description__expand .sidebar-description__mark,
+.sidebar-description__collapse {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+}
+.sidebar-description__mark--up {
+  border-top: none;
+  border-bottom: $sidebar-description-mark-height solid mixin.$text;
+}
+.sidebar-description__collapse {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 0;
+  line-height: 0;
+  cursor: pointer;
+}
+.sidebar-description__collapse::before {
+  content: '';
+  position: absolute;
+  inset: -10px -8px -8px -10px;
+}
+.sidebar-description--placeholder .sidebar-description__text {
+  color: mixin.$text-gray;
+}

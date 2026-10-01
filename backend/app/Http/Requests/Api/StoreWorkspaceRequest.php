@@ -7,6 +7,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreWorkspaceRequest extends FormRequest
 {
+    /** 認可はコントローラ側で行う。 */
     public function authorize(): bool
     {
         return true;

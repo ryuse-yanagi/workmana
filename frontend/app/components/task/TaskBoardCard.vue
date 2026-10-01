@@ -52,24 +52,16 @@
           <span>{{ taskCardProgressRateText }}</span>
         </p>
       </div>
-      <div v-if="visibleAssignees.length" class="task-card-footer">
-        <div class="task-card-members" aria-label="担当者">
-          <MemberAvatar
-            v-for="member in visibleAssignees"
-            :key="member.id"
-            :member="member"
-            size="xs"
-            :title="memberDisplayName(member)"
-          />
-        </div>
+      <div v-if="task.assignees?.length" class="task-card-footer">
+        <TaskCardAssignees :assignees="task.assignees ?? []" />
       </div>
     </div>
   </article>
 </template>
 <script setup lang="ts">
 import { CalendarDays, ChartNoAxesColumnIncreasing, Clock } from 'lucide-vue-next'
+import TaskCardAssignees from './TaskCardAssignees.vue'
 import TaskCardLabelList from './TaskCardLabelList.vue'
-import { memberDisplayName } from '../../composables/useMemberDisplay'
 import {
   formatTaskCardDateRange,
   formatTaskCardEffort,
@@ -77,7 +69,7 @@ import {
   hasTaskCardScheduleMeta,
   resolveParentTaskTitle,
   type TaskCardParentLookup,
-} from '../../composables/useTaskCardMeta'
+} from '../../composables/task/useTaskCardMeta'
 export type TaskBoardCardLabel = { id: number; name: string; color: string }
 export type TaskBoardCardMember = {
   id: number
@@ -121,7 +113,6 @@ const taskCardDateRange = computed(() => formatTaskCardDateRange(
 ))
 const taskCardEffortText = computed(() => formatTaskCardEffort(props.task))
 const taskCardProgressRateText = computed(() => formatTaskCardProgressRate(props.task))
-const visibleAssignees = computed(() => (props.task.assignees ?? []).slice(0, 3))
 function onActivate () {
   if (!props.interactive) {
     return

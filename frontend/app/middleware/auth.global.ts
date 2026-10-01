@@ -6,27 +6,18 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (!needsAuth) {
     return
   }
-  // 認証は HttpOnly Cookie で行うためクライアントでしか判定できない
+  // セッション Cookie はブラウザにある。SSR では判定せず、クライアントで確認してから通す。
   if (!import.meta.client) {
     return
   }
   const { ensureCurrentUser } = useCurrentUser()
   let userId: number | null = null
   try {
-    userId = await Promise.race([
-      ensureCurrentUser(),
-      new Promise<null>((resolve) => {
-        setTimeout(() => resolve(null), 4_000)
-      }),
-    ])
+    userId = await ensureCurrentUser()
   } catch {
     userId = null
   }
   if (userId !== null) {
-    return
-  }
-  // /org は SSR 済みの一覧を優先。未ログインなら API が 401 になる
-  if (to.path.startsWith('/org/')) {
     return
   }
   return navigateTo({

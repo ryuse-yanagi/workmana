@@ -73,3 +73,21 @@
     cursor: pointer;
   }
 }
+
+/** 変更不可を示す鍵アイコン（プロフィール・表示項目の必須など） */
+@mixin lock-icon {
+  flex-shrink: 0;
+  color: $lock;
+  pointer-events: none;
+
+  // Lucide Lock の本体（下の四角）だけ塗りつぶし。上部の環は線のまま
+  :deep(rect) {
+    fill: currentColor;
+  }
+}
+
+/** 変更不可の入力欄。編集可能な欄の $bg-gray より一段だけ暗い */
+@mixin locked-input {
+  background: $bg-locked;
+  cursor: default;
+}

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Organizations;
 
-use App\Support\DefaultWorkspaceStatuses;
+use App\Support\Workspace\DefaultWorkspaceStatuses;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -10,6 +10,7 @@ class DefaultWorkspaceStatusItemsUseExpectedColorsTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** デフォルトワークスペースステータスの色が期待どおり */
     public function test_default_workspace_status_items_use_expected_colors(): void
     {
         $this->assertSame([

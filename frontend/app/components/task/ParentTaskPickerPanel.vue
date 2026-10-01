@@ -47,7 +47,7 @@
       </li>
     </ul>
     <p v-if="!loading && !parents.length && !showUnsetOption" class="empty-text parent-task-empty">
-      該当する親タスクがありません
+      親タスクがありません
     </p>
     <p v-if="error" class="err">{{ error }}</p>
   </div>

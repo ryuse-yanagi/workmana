@@ -2,8 +2,7 @@
 
 namespace Tests\Feature\Documents;
 
-use App\Models\SharedDocument;
-use App\Models\Workspace;
+use App\Models\Document\Document;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -13,36 +12,23 @@ class ArchiveRestoreAndPermanentlyDeleteDocumentTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 管理者は資料をアーカイブ・復元・完全削除できる。同じスペースの別資料とスペース自体は残る */
     public function test_document_can_be_archived_restored_and_permanently_deleted(): void
     {
         [$user, $organization] = $this->createOrgWithAdmin();
-        $document = SharedDocument::query()->create([
+        $workspaceId = $this->createWorkspaceViaApi($user, 'acme', 'Linked space');
+        $document = Document::query()->create([
             'organization_id' => $organization->id,
+            'workspace_id' => $workspaceId,
             'created_by' => $user->id,
             'name' => 'Design notes',
         ]);
-        $relatedDocument = SharedDocument::query()->create([
+        $sibling = Document::query()->create([
             'organization_id' => $organization->id,
+            'workspace_id' => $workspaceId,
             'created_by' => $user->id,
             'name' => 'Survivor notes',
         ]);
-
-        $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', ['name' => 'Linked space'])
-            ->assertCreated();
-        $workspace = Workspace::query()->firstOrFail();
-
-        $this->actingAsApiUser($user)
-            ->putJson("/api/orgs/acme/documents/{$document->id}/related-documents", [
-                'document_ids' => [$relatedDocument->id],
-            ])
-            ->assertOk();
-
-        $this->actingAsApiUser($user)
-            ->putJson("/api/orgs/acme/documents/{$document->id}/related-workspaces", [
-                'workspace_ids' => [$workspace->id],
-            ])
-            ->assertOk();
 
         $this->actingAsApiUser($user)
             ->deleteJson("/api/orgs/acme/documents/{$document->id}")
@@ -62,6 +48,11 @@ class ArchiveRestoreAndPermanentlyDeleteDocumentTest extends TestCase
             ->assertJsonPath('data.0.id', $document->id);
 
         $this->actingAsApiUser($user)
+            ->getJson("/api/orgs/acme/workspaces/{$workspaceId}/documents/archived")
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $document->id);
+
+        $this->actingAsApiUser($user)
             ->postJson("/api/orgs/acme/documents/{$document->id}/unarchive")
             ->assertOk()
             ->assertJsonPath('archived_at', null);
@@ -75,13 +66,7 @@ class ArchiveRestoreAndPermanentlyDeleteDocumentTest extends TestCase
             ->assertNoContent();
 
         $this->assertDatabaseMissing('shared_documents', ['id' => $document->id]);
-        $this->assertDatabaseMissing('document_document_label', ['shared_document_id' => $document->id]);
-        $this->assertDatabaseMissing('document_related_document', ['document_id' => $document->id]);
-        $this->assertDatabaseMissing('document_related_document', ['related_document_id' => $document->id]);
-        $this->assertDatabaseMissing('workspace_related_document', ['shared_document_id' => $document->id]);
-
-        // 関連先は削除されない
-        $this->assertDatabaseHas('shared_documents', ['id' => $relatedDocument->id]);
-        $this->assertDatabaseHas('workspaces', ['id' => $workspace->id]);
+        $this->assertDatabaseHas('shared_documents', ['id' => $sibling->id]);
+        $this->assertDatabaseHas('workspaces', ['id' => $workspaceId]);
     }
 }

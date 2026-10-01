@@ -1,0 +1,305 @@
+.archived-list-popover {
+  @include mixin.popover-panel-width(280px);
+  /* 下端はスクロール内容の padding で余白を確保し、途中クリップ用の固定余白は作らない */
+  padding: mixin.$popover-padding mixin.$popover-padding 0;
+  gap: 0;
+  background: mixin.$bg-gray;
+}
+
+.archived-list-popover--documents,
+.archived-list-popover--workspaces {
+  @include mixin.popover-panel-width(320px);
+}
+
+.archived-list-popover--children {
+  @include mixin.popover-panel-width(280px);
+}
+
+.archived-list-popover.popover-shell,
+:deep(.archived-list-popover.popover-shell) {
+  background: mixin.$bg-gray;
+}
+
+.archived-list-popover :deep(.popover-shell__header) {
+  background: mixin.$white;
+  /* タイトル下の固定 margin だと、カードがヘッダー白領域より手前で途切れる */
+  margin-bottom: 0;
+}
+
+.archived-list-popover__scroll,
+.archived-list-popover .popover-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  @include mixin.popover-scroller;
+  padding: 0;
+}
+
+.archived-list-popover__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  /* min-height: 0 だと flex 内で縮み、padding-bottom が末尾に残らない */
+  flex-shrink: 0;
+  /* 上下余白はスクロール内容側。上はスクロールで消え、下は末尾だけ残る */
+  padding: mixin.$popover-padding 0 12px;
+}
+
+.archived-list-popover__err {
+  margin: 0;
+  width: 100%;
+  color: mixin.$danger;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.archived-list-popover__loading {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.archived-list-popover__loading p {
+  visibility: hidden;
+}
+
+.archived-list-popover__loading .spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+
+.archived-list-popover__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.archived-list-popover__content--fade-in {
+  animation: archivedListPopoverContentFadeIn 220ms ease-out;
+}
+
+@keyframes archivedListPopoverContentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.archived-list-popover__empty {
+  margin: 0;
+  width: auto;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 16px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: mixin.$popover-list-font-size;
+  color: mixin.$text-gray;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.archived-list-popover__empty p {
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.archived-list-popover__list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.archived-list-popover__item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: var(--task-card-width, 246px);
+  max-width: 100%;
+}
+
+.archived-list-popover--documents .archived-list-popover__item,
+.archived-list-popover--workspaces .archived-list-popover__item {
+  width: 100%;
+}
+
+.archived-list-popover--documents .archived-list-popover__empty,
+.archived-list-popover--workspaces .archived-list-popover__empty {
+  width: 100%;
+  white-space: normal;
+}
+
+.archived-list-popover--documents .archived-list-popover__empty p,
+.archived-list-popover--workspaces .archived-list-popover__empty p {
+  white-space: normal;
+}
+
+.archived-list-popover__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 5px;
+  padding-left: 4px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.archived-list-popover__actions-start {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.archived-list-popover__action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: mixin.$text-subtle;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &--danger {
+    color: mixin.$danger;
+  }
+
+  &--children {
+    margin-left: auto;
+    flex-shrink: 0;
+    color: mixin.$main;
+  }
+}
+
+.archived-list-popover__document-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid mixin.$border;
+  border-radius: 10px;
+  background: mixin.$white;
+  box-shadow: 0 1px 0 mixin.ink-a(0.06);
+  text-align: left;
+  font: inherit;
+  overflow: hidden;
+}
+
+.archived-list-popover__document-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: mixin.$main-aqua-surface-light;
+  color: mixin.$main;
+}
+
+.archived-list-popover__document-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.archived-list-popover__workspace-labels {
+  width: 100%;
+  min-width: 0;
+}
+
+.archived-list-popover__document-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: mixin.$text-heading;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.archived-list-popover__document-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: mixin.$text-muted;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.archived-list-popover__document-category {
+  display: flex;
+  align-self: flex-start;
+  flex-shrink: 0;
+  max-width: 100%;
+  line-height: normal;
+}
+
+.archived-list-popover--workspaces .archived-list-popover__document-card {
+  align-items: center;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.archived-list-popover__document-category :deep(.label-strip) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  min-width: 56px;
+  max-width: 100%;
+  height: auto;
+  min-height: 24px;
+  max-height: none;
+  padding: 6px 10px;
+  overflow: visible;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.archived-list-popover__document-category :deep(.label-strip__text) {
+  width: auto;
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.25;
+  text-align: center;
+}

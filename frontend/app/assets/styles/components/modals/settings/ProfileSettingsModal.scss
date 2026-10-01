@@ -1,0 +1,225 @@
+.profile-settings-modal-body {
+  padding: 0 16.1px 0;
+}
+
+.profile-avatar-section {
+  display: flex;
+  justify-content: center;
+  padding: 28px 0;
+}
+
+.profile-avatar-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.profile-avatar-row {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+}
+
+.profile-avatar-preview {
+  flex-shrink: 0;
+}
+
+.profile-avatar-error {
+  margin: 0;
+  width: 100%;
+  text-align: left;
+  font-size: mixin.$modal-field-font-size;
+  font-weight: 700;
+  color: mixin.$danger;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.avatar-image,
+.avatar-placeholder {
+  box-sizing: border-box;
+  width: 86px;
+  height: 86px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.avatar-image {
+  object-fit: cover;
+  background: mixin.$white;
+  border: 1px solid mixin.$border;
+}
+
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: mixin.$gray;
+  container-type: size;
+}
+
+.avatar-placeholder__initial {
+  @include mixin.avatar-initial-text(700);
+}
+
+.profile-avatar-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profile-avatar-file-input {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.profile-avatar-dropzone {
+  @include mixin.btn-base;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  max-width: 100%;
+  border: 1.5px dashed mixin.$main;
+  border-radius: 10px;
+  padding: 14px 18px;
+  background: mixin.$bg-white;
+  color: mixin.$main;
+  text-align: left;
+}
+
+.profile-avatar-dropzone--active {
+  background: mixin.$main-aqua-surface;
+}
+
+.profile-avatar-dropzone__icon {
+  flex-shrink: 0;
+  color: mixin.$main;
+}
+
+.profile-avatar-dropzone__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profile-avatar-dropzone__title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: mixin.$main;
+}
+
+.profile-avatar-dropzone__hint {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: mixin.$text-gray;
+}
+
+.profile-avatar-reset-btn {
+  @include mixin.btn-base;
+  border: none;
+  background: transparent;
+  padding: 7px 0;
+  font-size: 12.04px;
+  color: mixin.$text-gray;
+}
+
+.profile-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.profile-field {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  column-gap: 32px;
+  align-items: start;
+}
+
+.profile-field__label {
+  display: flex;
+  align-items: center;
+  min-height: mixin.$modal-input-height;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: mixin.$text-emphasis;
+  line-height: 1.35;
+}
+
+.profile-field__value {
+  margin: 0;
+  min-width: 0;
+}
+
+.profile-input {
+  @include mixin.modal-input-single-line;
+  width: 100%;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  font-size: mixin.$modal-field-font-size;
+  &:focus {
+    @include mixin.input-focus-neutral;
+  }
+}
+
+.profile-email {
+  @include mixin.modal-input-single-line;
+  @include mixin.locked-input;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+}
+
+.profile-email__value {
+  flex: 1;
+  min-width: 0;
+  font-size: mixin.$modal-field-font-size;
+  line-height: 1.35;
+  color: mixin.$text;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  user-select: text;
+}
+
+.profile-email__lock {
+  @include mixin.lock-icon;
+}
+
+@media (max-width: 420px) {
+  .profile-field {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .profile-field__label {
+    min-height: 0;
+  }
+}
+
+.err {
+  margin: 0;
+  font-size: mixin.$modal-field-font-size;
+  font-weight: 700;
+  color: mixin.$danger;
+}

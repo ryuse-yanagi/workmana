@@ -2,11 +2,11 @@
 
 namespace Tests\Feature\Tasks;
 
-use App\Events\TasksReordered;
-use App\Models\BoardList;
-use App\Models\Task;
+use App\Events\Task\TasksReordered;
+use App\Models\Task\Task;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\BoardList;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -17,21 +17,17 @@ class ReorderTasksBroadcastsEventTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** タスク並び替え時にイベントがブロードキャストされる */
     public function test_reorder_tasks_broadcasts_event(): void
     {
         Event::fake([TasksReordered::class]);
 
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', [
+            ->postJson("/api/orgs/{$slug}/workspaces", [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
@@ -39,7 +35,7 @@ class ReorderTasksBroadcastsEventTest extends TestCase
         $workspace = Workspace::query()->firstOrFail();
 
         $listRes = $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/lists", [
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/lists", [
                 'name' => 'Todo',
                 'color_index' => 0,
             ])
@@ -50,7 +46,7 @@ class ReorderTasksBroadcastsEventTest extends TestCase
         $taskIds = [];
         foreach (['Alpha', 'Beta', 'Gamma'] as $title) {
             $res = $this->actingAsApiUser($user)
-                ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
+                ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks", [
                     'title' => $title,
                     'list_id' => $list->id,
                 ])
@@ -62,7 +58,7 @@ class ReorderTasksBroadcastsEventTest extends TestCase
         $reorderedIds = array_reverse(array_map(fn (Task $task) => $task->id, $tasks));
 
         $this->actingAsApiUser($user)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/lists/{$list->id}/tasks/reorder", [
+            ->patchJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/lists/{$list->id}/tasks/reorder", [
                 'task_ids' => $reorderedIds,
             ])
             ->assertOk()
@@ -73,5 +69,13 @@ class ReorderTasksBroadcastsEventTest extends TestCase
                 && $event->listId === (int) $list->id
                 && $event->taskIds === $reorderedIds;
         });
+
+        foreach ($reorderedIds as $index => $taskId) {
+            $this->assertDatabaseHas('tasks', [
+                'id' => $taskId,
+                'list_id' => $list->id,
+                'sort_order' => $index,
+            ]);
+        }
     }
 }

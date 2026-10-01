@@ -1,0 +1,33 @@
+<?php
+
+namespace App\Models\Task;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class TaskChecklist extends Model
+{
+    /**
+     * @var list<string>
+     */
+    protected $touches = ['task'];
+
+    protected $fillable = [
+        'task_id',
+        'organization_id',
+        'workspace_id',
+        'title',
+        'sort_order',
+    ];
+
+    public function task(): BelongsTo
+    {
+        return $this->belongsTo(Task::class);
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(TaskChecklistItem::class)->orderBy('sort_order');
+    }
+}

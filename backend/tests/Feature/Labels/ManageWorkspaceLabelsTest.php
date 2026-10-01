@@ -11,7 +11,8 @@ class ManageWorkspaceLabelsTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    public function test_workspace_label_categories_and_labels_can_be_managed(): void
+    /** 管理者だけがワークスペース用ラベルを作成・並び替え・削除できる */
+    public function test_admin_can_manage_workspace_label_categories_and_labels(): void
     {
         [$admin] = $this->createOrgWithAdminAndMember();
 
@@ -44,6 +45,11 @@ class ManageWorkspaceLabelsTest extends TestCase
             ->json('id');
 
         $this->actingAsApiUser($admin)
+            ->patchJson("/api/orgs/acme/workspace-label-categories/{$categoryA}", ['name' => '領域（改）'])
+            ->assertOk()
+            ->assertJsonPath('name', '領域（改）');
+
+        $this->actingAsApiUser($admin)
             ->patchJson('/api/orgs/acme/workspace-label-categories/reorder', [
                 'category_ids' => [$categoryB, $categoryA],
             ])
@@ -65,6 +71,8 @@ class ManageWorkspaceLabelsTest extends TestCase
             ->getJson('/api/orgs/acme/workspace-label-categories')
             ->assertOk()
             ->assertJsonPath('data.0.id', $categoryB)
+            ->assertJsonPath('data.1.id', $categoryA)
+            ->assertJsonPath('data.1.name', '領域（改）')
             ->assertJsonPath('data.1.labels.0.id', $labelB);
 
         $this->actingAsApiUser($admin)
@@ -74,5 +82,15 @@ class ManageWorkspaceLabelsTest extends TestCase
         $this->actingAsApiUser($admin)
             ->deleteJson("/api/orgs/acme/workspace-label-categories/{$categoryB}")
             ->assertNoContent();
+    }
+
+    /** 一般メンバーはワークスペース用ラベルを作成できない */
+    public function test_member_cannot_create_workspace_label_category(): void
+    {
+        [, , $member] = $this->createOrgWithAdminAndMember();
+
+        $this->actingAsApiUser($member)
+            ->postJson('/api/orgs/acme/workspace-label-categories', ['name' => '領域'])
+            ->assertForbidden();
     }
 }

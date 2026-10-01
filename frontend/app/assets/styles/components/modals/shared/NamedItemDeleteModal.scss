@@ -1,0 +1,20 @@
+
+.named-item-delete-modal-body {
+  padding: 16px 16px 0;
+}
+.named-item-delete-modal-message {
+  margin: 0;
+  font-size: 14px;
+  color: mixin.$text;
+  line-height: 1.75;
+}
+.named-item-delete-modal-target {
+  display: block;
+  margin-top: 10px;
+}
+.err {
+  margin: 10.5px 0 0;
+  color: mixin.$danger;
+  font-weight: 700;
+  font-size: mixin.$modal-field-font-size;
+}

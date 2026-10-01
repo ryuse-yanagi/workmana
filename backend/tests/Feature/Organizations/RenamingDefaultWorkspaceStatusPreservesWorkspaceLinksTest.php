@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Organizations;
 
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -14,6 +14,7 @@ class RenamingDefaultWorkspaceStatusPreservesWorkspaceLinksTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** デフォルトステータスの改名後もワークスペースの紐づけが残る */
     public function test_renaming_default_workspace_status_preserves_workspace_links(): void
     {
         $user = User::factory()->create();
@@ -55,6 +56,7 @@ class RenamingDefaultWorkspaceStatusPreservesWorkspaceLinksTest extends TestCase
             ->assertJsonPath('status.color_index', 0);
     }
 
+    /** デフォルトステータスの削除でワークスペースの紐づけが外れる */
     public function test_deleting_default_workspace_status_clears_workspace_links(): void
     {
         $user = User::factory()->create();
@@ -93,4 +95,3 @@ class RenamingDefaultWorkspaceStatusPreservesWorkspaceLinksTest extends TestCase
             ->assertJsonPath('status', null);
     }
 }
-

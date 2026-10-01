@@ -84,7 +84,7 @@
           />
           <input
             v-else
-            :ref="(el) => emit('title-input-ref', row.task.id, el)"
+            :ref="(el) => setTitleInputEl(row.task.id, el)"
             :value="titleDraft"
             type="text"
             class="workspace-wbs__title-input"
@@ -131,13 +131,38 @@
         'workspace-wbs__desc-cell--first': isFirstVisibleColumn('assignees'),
       }"
     >
-      <div
-        class="workspace-wbs__members-cell"
+      <button
+        v-if="editMode"
+        type="button"
+        class="workspace-wbs__cell-btn workspace-wbs__members-cell workspace-wbs__members-cell--edit"
         :class="{
-          'workspace-wbs__members-cell--edit': editMode,
+          'workspace-wbs__cell-btn--popover-open': assigneePickerActive,
           'workspace-wbs__members-cell--popover-open': assigneePickerActive,
         }"
+        aria-label="担当者"
         @click="emit('members-click', row.task, $event)"
+      >
+        <template v-if="row.task.assignees?.length">
+          <span
+            v-for="member in row.task.assignees"
+            :key="member.id"
+            class="workspace-wbs__avatar-btn workspace-wbs__avatar-pill"
+          >
+            <MemberAvatar
+              :member="member"
+              size="xs"
+              decorative
+            />
+          </span>
+        </template>
+        <span
+          v-else
+          class="workspace-wbs__placeholder"
+        />
+      </button>
+      <div
+        v-else
+        class="workspace-wbs__members-cell"
       >
         <template v-if="row.task.assignees?.length">
           <button
@@ -321,7 +346,6 @@
         <span
           v-if="formatWbsDescription(row.task.description)"
           class="workspace-wbs__notes workspace-wbs__ellipsis"
-          :title="formatWbsDescription(row.task.description)"
         >{{ formatWbsDescription(row.task.description) }}</span>
         <span v-else class="workspace-wbs__placeholder" />
         <span
@@ -349,7 +373,7 @@
         'workspace-wbs__day-cell--dragging': ganttDragging,
       }"
       :style="dayCellStyle(row.task, day.iso)"
-      @pointerdown="emit('day-pointerdown', row.task.id, day.iso, $event)"
+      @pointerdown.stop="emit('day-pointerdown', row.task.id, day.iso, $event)"
       @contextmenu.prevent
     >
       <button
@@ -373,9 +397,9 @@
 import { ChevronDown, ChevronRight, Ellipsis, Equal } from 'lucide-vue-next'
 import MemberAvatar from '../ui/MemberAvatar.vue'
 import { TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
-import { memberDisplayName } from '../../composables/useMemberDisplay'
-import type { GanttDay } from '../../composables/useGanttCalendar'
-import type { WbsColumnKey } from '../../composables/useWbsColumnResize'
+import { memberDisplayName } from '../../composables/member/useMemberDisplay'
+import type { GanttDay } from '../../composables/wbs/useGanttCalendar'
+import type { WbsColumnKey } from '../../composables/wbs/useWbsColumnResize'
 import {
   formatWbsPeriod,
   formatWbsDescription,
@@ -384,7 +408,7 @@ import {
   type WbsCodedDisplayRow,
   type WbsTask,
   type WbsTaskMember,
-} from '../../composables/useWbsTaskGroups'
+} from '../../composables/wbs/useWbsTaskGroups'
 
 type WbsPopoverCellField = 'assignees' | 'labels' | 'list' | 'period' | 'effort' | 'progressRate' | 'notes'
 type GanttEdgeMode = 'start-edge' | 'end-edge'
@@ -416,6 +440,7 @@ defineProps<{
   isSelectionStartDay: (task: WbsTask, dayIso: string) => boolean
   isSelectionEndDay: (task: WbsTask, dayIso: string) => boolean
   dayCellStyle: (task: WbsTask, dayIso: string) => Record<string, string>
+  setTitleInputEl: (taskId: number, el: unknown) => void
 }>()
 
 const emit = defineEmits<{
@@ -423,7 +448,6 @@ const emit = defineEmits<{
   'title-activate': [task: WbsTask, event?: Event]
   'title-mousedown': [task: WbsTask, event: MouseEvent]
   'title-confirm': [task: WbsTask]
-  'title-input-ref': [taskId: number, el: unknown]
   'toggle-collapse': [taskId: number]
   'drag-handle-pointerdown': [taskId: number, event: PointerEvent]
   'drag-handle-click': []
@@ -452,3 +476,5 @@ function onTitleDraftInput (event: Event) {
   emit('update:titleDraft', target.value)
 }
 </script>
+
+<style lang="scss" scoped src="~/assets/styles/components/workspace/WbsTaskRow.scss"></style>

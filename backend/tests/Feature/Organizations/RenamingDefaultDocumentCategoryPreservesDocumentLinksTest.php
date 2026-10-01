@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Organizations;
 
-use App\Models\Organization;
-use App\Models\SharedDocument;
+use App\Models\Document\Document;
+use App\Models\Organization\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -14,6 +14,7 @@ class RenamingDefaultDocumentCategoryPreservesDocumentLinksTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** デフォルト資料カテゴリの改名後も資料の紐づけが残る */
     public function test_renaming_default_document_category_preserves_document_links(): void
     {
         $user = User::factory()->create();
@@ -29,7 +30,7 @@ class RenamingDefaultDocumentCategoryPreservesDocumentLinksTest extends TestCase
         $org->members()->attach($user->id, ['role' => 'admin']);
         $workspaceId = $this->createWorkspaceViaApi($user, 'acme', 'Docs space');
 
-        $documentId = (int) SharedDocument::query()->create([
+        $documentId = (int) Document::query()->create([
             'organization_id' => $org->id,
             'workspace_id' => $workspaceId,
             'created_by' => $user->id,
@@ -47,7 +48,7 @@ class RenamingDefaultDocumentCategoryPreservesDocumentLinksTest extends TestCase
             ->assertOk()
             ->assertJsonPath('default_document_category_names.1.name', '仕様書');
 
-        $this->assertSame('仕様書', SharedDocument::query()->findOrFail($documentId)->category);
+        $this->assertSame('仕様書', Document::query()->findOrFail($documentId)->category);
 
         $this->actingAsApiUser($user)
             ->getJson("/api/orgs/acme/workspaces/{$workspaceId}/documents")
@@ -56,6 +57,7 @@ class RenamingDefaultDocumentCategoryPreservesDocumentLinksTest extends TestCase
             ->assertJsonPath('data.0.category.color_index', 1);
     }
 
+    /** デフォルト資料カテゴリの削除で資料の紐づけが外れる */
     public function test_deleting_default_document_category_clears_document_links(): void
     {
         $user = User::factory()->create();
@@ -71,7 +73,7 @@ class RenamingDefaultDocumentCategoryPreservesDocumentLinksTest extends TestCase
         $org->members()->attach($user->id, ['role' => 'admin']);
         $workspaceId = $this->createWorkspaceViaApi($user, 'acme', 'Docs space');
 
-        $documentId = (int) SharedDocument::query()->create([
+        $documentId = (int) Document::query()->create([
             'organization_id' => $org->id,
             'workspace_id' => $workspaceId,
             'created_by' => $user->id,
@@ -87,7 +89,7 @@ class RenamingDefaultDocumentCategoryPreservesDocumentLinksTest extends TestCase
             ])
             ->assertOk();
 
-        $this->assertNull(SharedDocument::query()->findOrFail($documentId)->category);
+        $this->assertNull(Document::query()->findOrFail($documentId)->category);
 
         $this->actingAsApiUser($user)
             ->getJson("/api/orgs/acme/workspaces/{$workspaceId}/documents")
@@ -95,4 +97,3 @@ class RenamingDefaultDocumentCategoryPreservesDocumentLinksTest extends TestCase
             ->assertJsonPath('data.0.category', null);
     }
 }
-

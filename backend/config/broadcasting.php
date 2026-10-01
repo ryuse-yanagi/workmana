@@ -22,12 +22,15 @@ return [
     | Fail Silently
     |--------------------------------------------------------------------------
     |
-    | When true, broadcast delivery errors (e.g. Reverb not running locally)
-    | are logged but do not fail the HTTP request. Defaults to true in local.
+    | When true, broadcast delivery errors (e.g. Reverb not running) are logged
+    | but do not fail the HTTP request. The database write has already
+    | committed, so a Reverb outage must not turn a successful save into 500.
+    | Defaults to true. Set BROADCAST_FAIL_SILENTLY=false only when a failed
+    | broadcast should fail the request.
     |
     */
 
-    'fail_silently' => env('BROADCAST_FAIL_SILENTLY', env('APP_ENV') === 'local'),
+    'fail_silently' => env('BROADCAST_FAIL_SILENTLY', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -48,10 +51,11 @@ return [
             'secret' => env('REVERB_APP_SECRET'),
             'app_id' => env('REVERB_APP_ID'),
             'options' => [
-                'host' => env('REVERB_HOST'),
-                'port' => env('REVERB_PORT', 443),
-                'scheme' => env('REVERB_SCHEME', 'https'),
-                'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
+                // 同一 ECS タスク内の Reverb へ載せるときは REVERB_BROADCAST_* を 127.0.0.1:8080/http にする。
+                'host' => env('REVERB_BROADCAST_HOST', env('REVERB_HOST')),
+                'port' => env('REVERB_BROADCAST_PORT', env('REVERB_PORT', 443)),
+                'scheme' => env('REVERB_BROADCAST_SCHEME', env('REVERB_SCHEME', 'https')),
+                'useTLS' => env('REVERB_BROADCAST_SCHEME', env('REVERB_SCHEME', 'https')) === 'https',
             ],
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html

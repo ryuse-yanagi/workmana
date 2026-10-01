@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Invites;
 
-use App\Models\OrganizationInvite;
+use App\Models\Organization\OrganizationInvite;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -18,6 +18,7 @@ class ExpiredInviteIsRejectedTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 期限切れの招待は拒否される */
     public function test_expired_invite_is_rejected(): void
     {
         [$admin, $org] = $this->createOrgWithAdmin();

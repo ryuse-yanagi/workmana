@@ -3,7 +3,7 @@
 namespace Tests\Feature\Auth\Concerns;
 
 use App\Models\User;
-use App\Services\CognitoJwtService;
+use App\Services\Auth\CognitoJwtService;
 use Illuminate\Support\Facades\Http;
 use Mockery;
 

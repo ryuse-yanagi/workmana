@@ -3,12 +3,13 @@
 namespace App\Http\Requests\Api;
 
 use App\Support\FieldLengthLimits;
-use App\Support\TaskPriority;
+use App\Support\Task\TaskPriority;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreTaskRequest extends FormRequest
 {
+    /** 認可はコントローラ側で行う。 */
     public function authorize(): bool
     {
         return true;

@@ -2,9 +2,15 @@
 
 namespace App\Support;
 
+use App\Support\Workspace\BoardListColors;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+
 class DefaultNamedColorItems
 {
     /**
+     * null は既定値にし、空や長すぎる名前は捨て、色は範囲外なら並び位置の既定にする。
+     *
      * @param  list<array{name: string, color_index: int}>  $defaultItems
      * @param  list<mixed>|null  $raw
      * @return list<array{name: string, color_index: int}>
@@ -86,9 +92,7 @@ class DefaultNamedColorItems
     }
 
     /**
-     * 旧リストと新リストを比較し、名前のリネーム／削除を検出する。
-     * 同じ名前が残っていれば並び替え・色変更のみとみなし紐づけを維持する。
-     * 削除された名前の位置に新しい名前がある場合はリネームとみなす。
+     * 同名は維持し、消えた名前の同じ位置に新しい名前があればリネーム、なければ削除とみなす。
      *
      * @param  list<array{name: string, color_index: int}>  $oldItems
      * @param  list<array{name: string, color_index: int}>  $newItems
@@ -141,10 +145,9 @@ class DefaultNamedColorItems
     }
 
     /**
-     * エンティティに保存された名前文字列へ、リネーム／削除を反映する。
-     * リネームは一時値経由で連鎖衝突を避ける。削除は null にする。
+     * 連鎖して名前が衝突しないようリネームし、消えた名前は null にする。
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>|\Illuminate\Database\Query\Builder  $query
+     * @param  Builder<Model>|\Illuminate\Database\Query\Builder  $query
      * @param  array{
      *     renames: list<array{from: string, to: string}>,
      *     deleted: list<string>
@@ -182,6 +185,7 @@ class DefaultNamedColorItems
         }
     }
 
+    /** 範囲外の色インデックスは、並び位置から決まる既定色にする。 */
     public static function sanitizeColorIndex(int $colorIndex, int $itemIndex): int
     {
         if (BoardListColors::isValidIndex($colorIndex)) {

@@ -9,16 +9,16 @@
     item-kind="ステータス"
     add-button-label="ステータス追加"
     :add-button-icon="BadgePlus"
-    create-modal-title="ステータスの作成"
-    edit-modal-title="ステータスの編集"
-    delete-modal-title="ステータスの削除"
+    :add-modal-title="settingsScopedModalTitle('スペース', 'ステータス', '追加')"
+    :edit-modal-title="settingsScopedModalTitle('スペース', 'ステータス', '編集')"
+    :delete-modal-title="settingsScopedModalTitle('スペース', 'ステータス', '削除')"
     save-error-message="ステータス設定の更新に失敗しました"
   />
 </template>
 <script setup lang="ts">
 import { BadgePlus } from 'lucide-vue-next'
 import SettingsDefaultNamedColorItemsPanel from './SettingsDefaultNamedColorItemsPanel.vue'
-import { DEFAULT_WORKSPACE_STATUS_ITEMS, type DefaultNamedColorItem } from './types'
+import { DEFAULT_WORKSPACE_STATUS_ITEMS, settingsScopedModalTitle, type DefaultNamedColorItem } from './types'
 defineProps<{
   orgSlug: string
   initialItems: DefaultNamedColorItem[]

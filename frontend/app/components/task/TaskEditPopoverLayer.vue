@@ -3,7 +3,6 @@
     <Transition name="popover-fade" @after-enter="onPopoverAfterEnter" @after-leave="notifyPopoverAfterLeave">
       <div
         v-if="activePopover"
-        :key="activePopover === 'member-detail' ? `member-detail-${selectedMember?.id}` : activePopover"
         class="popover-layer popover-layer--portal popover-layer--table"
       >
         <TaskDatePickerPopover
@@ -140,15 +139,15 @@ import {
   type PopoverType,
   type WorkspaceListOption,
   type TaskPopoverEditable,
-} from '../../composables/useTaskPopoverEditor'
-import { listBarSurfaceStyle, type TaskFormLabel, type TaskFormMember } from '../../composables/useTaskFormHelpers'
-import type { TaskPopoverListOption } from '../../utils/taskPopoverTypes'
+} from '../../composables/task/useTaskPopoverEditor'
+import { listBarSurfaceStyle, type TaskFormLabel, type TaskFormMember } from '../../composables/task/useTaskFormHelpers'
+import type { TaskPopoverListOption } from '../../utils/task/taskPopoverTypes'
 import { TASK_DESCRIPTION_MAX_LENGTH } from '../../constants/fieldLengthLimits'
-import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
-import { resolveDisplayAvatarUrl } from '../../composables/userProfileUpdated'
-import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
-import { schedulePopoverInputFocus } from '../../utils/schedulePopoverInputFocus'
-import { resolvePopoverExposedInput } from '../../utils/popoverComponentRef'
+import { memberDisplayName, memberInitial } from '../../composables/member/useMemberDisplay'
+import { resolveDisplayAvatarUrl } from '../../composables/auth/userProfileUpdated'
+import { resolveAvatarUrl } from '../../utils/member/resolveAvatarUrl'
+import { schedulePopoverInputFocus } from '../../utils/ui/schedulePopoverInputFocus'
+import { resolvePopoverExposedInput } from '../../utils/ui/popoverComponentRef'
 import WorkspaceMemberPickerPopover from '../workspace/WorkspaceMemberPickerPopover.vue'
 import TaskDatePickerPopover from './popover/TaskDatePickerPopover.vue'
 import TaskDescriptionPickerPopover from './popover/TaskDescriptionPickerPopover.vue'
@@ -157,7 +156,7 @@ import TaskProgressRatePickerPopover from './popover/TaskProgressRatePickerPopov
 import TaskLabelsPickerPopover from './popover/TaskLabelsPickerPopover.vue'
 import TaskListPickerPopover from './popover/TaskListPickerPopover.vue'
 import TaskMemberDetailPopover from './popover/TaskMemberDetailPopover.vue'
-import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
+import type { LabelCategoryGroup } from '../../composables/label/useLabelCategories'
 const props = withDefaults(defineProps<{
   orgSlug: string
   workspaceId: string

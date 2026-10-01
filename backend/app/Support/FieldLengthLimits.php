@@ -34,7 +34,7 @@ final class FieldLengthLimits
 
     public const CHECKLIST_ITEM_TEXT = 2000;
 
-    /** タスク・スペース・資料の説明で共通 */
+    /** タスク・スペース・資料の説明で共通。 */
     public const TASK_DESCRIPTION = 5000;
 
     public const DOCUMENT_BODY = 50000;
@@ -43,11 +43,7 @@ final class FieldLengthLimits
 
     public const PASSWORD_MIN = 8;
 
-    public const COMMENT_BODY = 100;
-
     public const DEFAULT_NAMED_ITEM_NAME = 20;
-
-    public const MEMBER_GROUP_NAME = 20;
 
     /**
      * @var array<string, int>
@@ -72,9 +68,7 @@ final class FieldLengthLimits
         'TASK_DESCRIPTION' => self::TASK_DESCRIPTION,
         'REQUIRED_TEXT_MIN' => self::REQUIRED_TEXT_MIN,
         'PASSWORD_MIN' => self::PASSWORD_MIN,
-        'COMMENT_BODY' => self::COMMENT_BODY,
         'DEFAULT_NAMED_ITEM_NAME' => self::DEFAULT_NAMED_ITEM_NAME,
-        'MEMBER_GROUP_NAME' => self::MEMBER_GROUP_NAME,
     ];
 
     public static function requiredLengthMessage(string $label, int $max, int $min = self::REQUIRED_TEXT_MIN): string

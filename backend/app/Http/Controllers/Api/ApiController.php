@@ -2,13 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\Organization;
-use App\Models\User;
-use App\Models\Workspace;
 use App\Http\Controllers\Controller;
+use App\Models\Organization\Organization;
+use App\Models\User;
+use App\Models\Workspace\Workspace;
 use App\Support\MediaUrl;
+use App\Support\Organization\OrganizationAccess;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
 
 abstract class ApiController extends Controller
 {
@@ -49,9 +50,9 @@ abstract class ApiController extends Controller
     }
 
     /**
-     * アーカイブの復元・削除は組織管理者のみ。
+     * アーカイブ・復元・完全削除は組織管理者のみ。
      */
-    protected function assertCanRestoreOrPermanentlyDelete(Request $request): void
+    protected function assertCanManageArchive(Request $request): void
     {
         $this->assertOrganizationAdmin($request);
     }
@@ -74,6 +75,8 @@ abstract class ApiController extends Controller
     }
 
     /**
+     * 所属組織とロールを含めて返す。
+     *
      * @return array<string, mixed>
      */
     protected function userPayload(User $user): array
@@ -110,23 +113,15 @@ abstract class ApiController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\Workspace>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Workspace>
+     * 所属が確認できないときは空にし、メンバーならクエリはそのまま返す。
+     *
+     * @param  Builder<Workspace>  $query
+     * @return Builder<Workspace>
      */
     protected function scopeWorkspacesVisibleTo(User $user, $query)
     {
-        // 組織メンバーであれば全スペースが可視（組織所属は呼び出し側で担保）
-        return $query;
-    }
+        $pivot = request()->attributes->get('organization_membership');
 
-    /**
-     * @param  iterable<int, Workspace>  $workspaces
-     * @return Collection<int, Workspace>
-     */
-    protected function filterAccessibleWorkspaces(User $user, iterable $workspaces): Collection
-    {
-        return collect($workspaces)
-            ->filter(fn (Workspace $workspace) => $user->canAccessWorkspace($workspace))
-            ->values();
+        return OrganizationAccess::scopeVisibleWorkspaces($query, $user, $pivot);
     }
 }

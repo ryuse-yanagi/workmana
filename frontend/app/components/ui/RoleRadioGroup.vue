@@ -43,11 +43,6 @@ export type RoleRadioOption = {
   label: string
 }
 
-const DEFAULT_OPTIONS: RoleRadioOption[] = [
-  { value: 'member', label: '一般ユーザー' },
-  { value: 'admin', label: '管理者' },
-]
-
 withDefaults(defineProps<{
   modelValue: OrgMemberRole
   legend?: string
@@ -58,7 +53,10 @@ withDefaults(defineProps<{
   legend: 'ロール',
   name: 'org-member-role',
   disabled: false,
-  options: () => DEFAULT_OPTIONS,
+  options: () => [
+    { value: 'member', label: '一般ユーザー' },
+    { value: 'admin', label: '管理者' },
+  ],
 })
 
 const emit = defineEmits<{

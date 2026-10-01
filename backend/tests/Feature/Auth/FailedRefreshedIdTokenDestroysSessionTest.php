@@ -3,9 +3,8 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
-use App\Services\CognitoJwtService;
+use App\Services\Auth\CognitoJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Session\EncryptedStore;
 use Illuminate\Support\Facades\Http;
 use Mockery;
 use RuntimeException;
@@ -23,6 +22,7 @@ class FailedRefreshedIdTokenDestroysSessionTest extends TestCase
         $this->configureCognitoForTests();
     }
 
+    /** 更新後IDトークンの検証失敗でセッションが破棄される */
     public function test_failed_validation_of_refreshed_id_token_destroys_session(): void
     {
         $user = User::factory()->create(['cognito_sub' => 'cognito-sub']);

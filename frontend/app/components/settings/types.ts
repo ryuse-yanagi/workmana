@@ -6,7 +6,6 @@ export type SettingsTabKey =
   | 'labels'
   | 'workspace_labels'
   | 'task_labels'
-  | 'document_labels'
   | 'members'
 
 export type SettingsMenuItem = {
@@ -19,13 +18,27 @@ export type SettingsMenuSection = {
   items: SettingsMenuItem[]
 }
 
-export type SettingsLabelTabKey = 'workspace' | 'task' | 'document'
+export type SettingsLabelTabKey = 'workspace' | 'task'
+
+export type SettingsItemScope = 'スペース' | 'タスク' | '資料'
+
+/**
+ * 設定画面モーダルのタイトル。
+ * スコープは括弧で前置し、対象は実在する概念だけを置く
+ * （ラベル設定のカテゴリは「カテゴリ」ではなく「ラベルカテゴリ」）。
+ */
+export function settingsScopedModalTitle (
+  scope: SettingsItemScope,
+  itemKind: string,
+  action: '追加' | '編集' | '削除',
+): string {
+  return `（${scope}）${itemKind}の${action}`
+}
 
 export const SETTINGS_LABEL_TAB_BY_KEY: Partial<Record<SettingsTabKey, SettingsLabelTabKey>> = {
   labels: 'workspace',
   workspace_labels: 'workspace',
   task_labels: 'task',
-  document_labels: 'document',
 }
 
 export type SettingsLabelItem = {
@@ -55,6 +68,7 @@ export type OrgSettingsResponse = {
   slug?: string | null
   icon_url?: string | null
   role?: string | null
+  created_at?: string | null
   default_board_list_names?: Array<DefaultNamedColorItem | string> | null
   default_workspace_status_names?: Array<DefaultNamedColorItem | string> | null
   default_document_category_names?: Array<DefaultNamedColorItem | string> | null
@@ -64,7 +78,6 @@ export type SettingsPageSnapshot = {
   orgSettings: OrgSettingsResponse
   workspaceLabelCategories: SettingsLabelCategory[]
   taskLabelCategories: SettingsLabelCategory[]
-  documentLabelCategories?: SettingsLabelCategory[]
   members?: SettingsOrgMember[]
   memberCount?: number
   pendingInvites?: SettingsPendingInvite[]
@@ -81,26 +94,11 @@ export type SettingsOrgMember = {
 export type SettingsPendingInvite = {
   id: number
   email: string
+  role?: string | null
   expires_at: string
 }
 
-export type SettingsMemberGroup = {
-  id: number
-  name: string
-  color_index: number
-  sort_order?: number
-  members?: Array<{
-    id: number
-    name: string | null
-    email?: string | null
-    avatar_url?: string | null
-  }>
-}
-
 import defaultNamedColorItems from '#shared/default-named-color-items.json'
-
-/** 組織設定の既定配列の最大件数。正本は shared/default-named-color-items.json */
-export const DEFAULT_NAMED_COLOR_ITEMS_MAX = defaultNamedColorItems.maxItems
 
 export const DEFAULT_BOARD_LIST_ITEMS: DefaultNamedColorItem[] =
   defaultNamedColorItems.boardLists.map(item => ({ ...item }))

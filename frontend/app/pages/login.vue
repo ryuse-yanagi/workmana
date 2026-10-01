@@ -6,23 +6,27 @@
     busy-label="ログイン状態を確認しています…"
   >
     <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
-    <p v-if="!isConfigured" class="auth-copy">
+    <p v-if="showReauthNote" class="auth-copy">
+      別のタブでログイン状態が変わりました。続けるには、もう一度ログインしてください。
+    </p>
+    <p v-if="showBypassNote" class="auth-copy">
       Cognito は未設定です。この環境ではバイパス認証でスペースへ進めます。
     </p>
-    <a
-      class="auth-btn auth-btn--block"
-      :href="continueHref"
-    >
-      スペース一覧へ進む
-    </a>
     <button
-      v-if="isConfigured"
+      v-if="showCognitoLogin"
       type="button"
-      class="auth-btn auth-btn--block auth-btn--secondary"
-      style="margin-top: 12px"
+      class="auth-btn auth-btn--block"
       @click="startLogin(nextPath)"
     >
       Cognito でログイン
+    </button>
+    <button
+      v-if="showRetry"
+      type="button"
+      class="auth-btn auth-btn--block"
+      @click="retryEnter"
+    >
+      再試行
     </button>
     <template #footer>
       アカウントをお持ちでない方は
@@ -32,17 +36,15 @@
 </template>
 
 <script setup lang="ts">
-import { safeInternalPath } from '../utils/safeInternalPath'
-import { useOrganizationContext } from '../composables/useOrganizationContext'
-import { useCurrentUser } from '../composables/useCurrentUser'
-import type { AuthUser } from '../composables/useAuth'
+import { safeInternalPath } from '../utils/auth/safeInternalPath'
+import { useOrganizationContext } from '../composables/org/useOrganizationContext'
+import { useCurrentUser } from '../composables/auth/useCurrentUser'
+import type { AuthUser } from '../composables/auth/useAuth'
 
 definePageMeta({
   name: 'login',
   keepalive: false,
 })
-
-const DEFAULT_WORKSPACE_PATH = '/org/abcde/workspaces'
 
 const route = useRoute()
 const { startLogin, fetchSession } = useAuth()
@@ -58,9 +60,13 @@ const ERROR_MESSAGES: Record<string, string> = {
 }
 
 const isConfigured = ref(false)
-const checking = ref(false)
+const checking = ref(true)
+const authenticated = ref(false)
 const loadError = ref<string | null>(null)
-const continueHref = ref(DEFAULT_WORKSPACE_PATH)
+const resolveFailed = ref(false)
+const signedInUser = ref<AuthUser | null>(null)
+
+const reauthRequested = computed(() => route.query.reauth === '1')
 
 const nextPath = computed(() => {
   const raw = route.query.next
@@ -73,7 +79,8 @@ const nextPath = computed(() => {
     }
     return '/post-login'
   }
-  return safeInternalPath(raw, '/post-login')
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return safeInternalPath(value, '/post-login')
 })
 
 const errorMessage = computed(() => {
@@ -84,6 +91,19 @@ const errorMessage = computed(() => {
   return code ? (ERROR_MESSAGES[code] ?? 'ログインに失敗しました。') : ''
 })
 
+const showReauthNote = computed(() => (
+  !checking.value && reauthRequested.value && isConfigured.value && authenticated.value
+))
+const showBypassNote = computed(() => (
+  !checking.value && !isConfigured.value && !authenticated.value
+))
+const showCognitoLogin = computed(() => (
+  !checking.value && isConfigured.value && (!authenticated.value || reauthRequested.value)
+))
+const showRetry = computed(() => (
+  !checking.value && resolveFailed.value && authenticated.value && !reauthRequested.value
+))
+
 async function withTimeout<T> (promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -91,7 +111,7 @@ async function withTimeout<T> (promise: Promise<T>, ms: number, label: string): 
       promise,
       new Promise<T>((_, reject) => {
         timer = setTimeout(() => {
-          reject(new Error(`${label}がタイムアウトしました。API（:8000）と DB が起動しているか確認してください。`))
+          reject(new Error(`${label}がタイムアウトしました。しばらくしてからもう一度お試しください。`))
         }, ms)
       }),
     ])
@@ -102,42 +122,68 @@ async function withTimeout<T> (promise: Promise<T>, ms: number, label: string): 
   }
 }
 
+/** 明示された戻り先があればそこへ、無ければ所属組織のスペース一覧へ進む */
 async function enterWorkspace (sessionUser: AuthUser | null | undefined): Promise<string> {
   const requested = nextPath.value
   if (requested !== '/post-login' && requested !== '/') {
     return requested
   }
+  return await withTimeout(resolvePostLoginPath(sessionUser), 8000, 'ログイン後の遷移先の取得')
+}
+
+async function continueSignedIn (sessionUser: AuthUser | null) {
+  resolveFailed.value = false
+  loadError.value = null
+  const target = await enterWorkspace(sessionUser)
+  await navigateTo(target, { replace: true })
+}
+
+async function retryEnter () {
+  if (!authenticated.value) {
+    return
+  }
+  checking.value = true
+  let stayOnLogin = true
   try {
-    return await withTimeout(resolvePostLoginPath(sessionUser), 8000, 'ログイン後の遷移先の取得')
-  } catch {
-    return DEFAULT_WORKSPACE_PATH
+    await continueSignedIn(signedInUser.value)
+    stayOnLogin = false
+  } catch (e: unknown) {
+    resolveFailed.value = true
+    loadError.value = e instanceof Error ? e.message : 'ログイン後の画面へ進めませんでした。'
+  } finally {
+    if (stayOnLogin) {
+      checking.value = false
+    }
   }
 }
 
 onMounted(() => {
-  const failsafe = window.setTimeout(() => {
-    checking.value = false
-  }, 4000)
-
   void (async () => {
     checking.value = true
+    let stayOnLogin = true
     try {
-      const session = await withTimeout(fetchSession(), 8000, 'ログイン状態の確認')
+      const session = await withTimeout(fetchSession({ force: true }), 8000, 'ログイン状態の確認')
       isConfigured.value = session.configured
+      authenticated.value = session.authenticated
+      signedInUser.value = session.user
       setCurrentUserId(session.user?.id ?? null)
       if (!session.authenticated) {
         return
       }
+      // 他タブでユーザーが変わったあとは、黙ってそのユーザーの画面へ進まない。
+      if (reauthRequested.value && session.configured) {
+        return
+      }
       sessionStorage.removeItem('tm:pending_invite')
-      const target = await enterWorkspace(session.user)
-      continueHref.value = target
-      checking.value = false
-      await navigateTo(target, { replace: true })
+      await continueSignedIn(session.user)
+      stayOnLogin = false
     } catch (e: unknown) {
+      resolveFailed.value = authenticated.value
       loadError.value = e instanceof Error ? e.message : 'ログイン状態の確認に失敗しました'
     } finally {
-      window.clearTimeout(failsafe)
-      checking.value = false
+      if (stayOnLogin) {
+        checking.value = false
+      }
     }
   })()
 })

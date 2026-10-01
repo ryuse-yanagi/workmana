@@ -12,26 +12,22 @@ class WorkspaceIndexIncludesStatusTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** ワークスペース一覧にステータスが含まれる */
     public function test_workspace_index_includes_status(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', [
+            ->postJson("/api/orgs/{$slug}/workspaces", [
                 'name' => 'Sprint 1',
                 'status' => '稼働中',
             ])
             ->assertCreated();
 
         $this->actingAsApiUser($user)
-            ->getJson('/api/orgs/acme/workspaces')
+            ->getJson("/api/orgs/{$slug}/workspaces")
             ->assertOk()
             ->assertJsonPath('data.0.status.name', '稼働中')
             ->assertJsonPath('data.0.status.color_index', 0);

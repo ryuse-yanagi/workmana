@@ -10,9 +10,6 @@
         ユーザー招待
       </button>
     </template>
-    <p v-if="!canManage" class="invite-readonly">
-      招待の送信は組織管理者のみ行えます。
-    </p>
 
     <p v-if="message" class="settings-msg">
       {{ message }}
@@ -32,8 +29,9 @@
         >
           <div class="member-row">
             <div class="member-row__leading">
-              <span class="member-row__name">{{ invite.email }}</span>
+              <span class="invite-row__role">{{ inviteRoleLabel(invite.role) }}</span>
             </div>
+            <span class="member-row__email">{{ invite.email }}</span>
             <div
               v-if="canManage"
               class="member-row__actions"
@@ -48,9 +46,7 @@
               </button>
             </div>
           </div>
-          <p class="invite-row__expires">
-            期限 {{ formatDate(invite.expires_at) }}
-          </p>
+          <p class="invite-row__expires">期限 {{ formatDate(invite.expires_at) }}</p>
         </li>
       </ul>
     </section>
@@ -63,7 +59,7 @@
     <template v-else>
       <section class="invite-section">
         <h3 class="invite-section__title">管理者</h3>
-        <p v-if="!adminMembers.length" class="invite-section__empty">管理者がいません。</p>
+        <p v-if="!adminMembers.length" class="invite-section__empty">管理者がいません</p>
         <ul v-else class="member-row-list">
           <li
             v-for="member in adminMembers"
@@ -76,25 +72,27 @@
             </div>
             <span class="member-row__email">{{ member.email }}</span>
             <div
-              v-if="canManage && member.id !== currentUserId"
+              v-if="canManage"
               class="member-row__actions"
             >
-              <button
-                type="button"
-                class="label-action-btn label-action-btn--edit"
-                :disabled="pendingMemberActionId === member.id"
-                @click="openEditMember(member)"
-              >
-                編集
-              </button>
-              <button
-                type="button"
-                class="label-action-btn label-action-btn--delete"
-                :disabled="pendingMemberActionId === member.id"
-                @click="openRemoveMember(member)"
-              >
-                削除
-              </button>
+              <template v-if="member.id !== currentUserId">
+                <button
+                  type="button"
+                  class="label-action-btn label-action-btn--edit"
+                  :disabled="pendingMemberActionId === member.id"
+                  @click="openEditMember(member)"
+                >
+                  編集
+                </button>
+                <button
+                  type="button"
+                  class="label-action-btn label-action-btn--delete"
+                  :disabled="pendingMemberActionId === member.id"
+                  @click="openRemoveMember(member)"
+                >
+                  削除
+                </button>
+              </template>
             </div>
           </li>
         </ul>
@@ -102,7 +100,7 @@
 
       <section class="invite-section">
         <h3 class="invite-section__title">一般ユーザー</h3>
-        <p v-if="!regularMembers.length" class="invite-section__empty">一般ユーザーがいません。</p>
+        <p v-if="!regularMembers.length" class="invite-section__empty">一般ユーザーがいません</p>
         <ul v-else class="member-row-list">
           <li
             v-for="member in regularMembers"
@@ -115,25 +113,27 @@
             </div>
             <span class="member-row__email">{{ member.email }}</span>
             <div
-              v-if="canManage && member.id !== currentUserId"
+              v-if="canManage"
               class="member-row__actions"
             >
-              <button
-                type="button"
-                class="label-action-btn label-action-btn--edit"
-                :disabled="pendingMemberActionId === member.id"
-                @click="openEditMember(member)"
-              >
-                編集
-              </button>
-              <button
-                type="button"
-                class="label-action-btn label-action-btn--delete"
-                :disabled="pendingMemberActionId === member.id"
-                @click="openRemoveMember(member)"
-              >
-                削除
-              </button>
+              <template v-if="member.id !== currentUserId">
+                <button
+                  type="button"
+                  class="label-action-btn label-action-btn--edit"
+                  :disabled="pendingMemberActionId === member.id"
+                  @click="openEditMember(member)"
+                >
+                  編集
+                </button>
+                <button
+                  type="button"
+                  class="label-action-btn label-action-btn--delete"
+                  :disabled="pendingMemberActionId === member.id"
+                  @click="openRemoveMember(member)"
+                >
+                  削除
+                </button>
+              </template>
             </div>
           </li>
         </ul>
@@ -176,18 +176,20 @@
 <script setup lang="ts">
 import { UserPlus } from 'lucide-vue-next'
 import SettingsPanel from './SettingsPanel.vue'
-import ConfirmModal from '../modals/ConfirmModal.vue'
-import MemberDeleteModal from '../modals/MemberDeleteModal.vue'
-import MemberEditModal from '../modals/MemberEditModal.vue'
-import UserInviteModal from '../modals/UserInviteModal.vue'
+import ConfirmModal from '../modals/shared/ConfirmModal.vue'
+import MemberDeleteModal from '../modals/member/MemberDeleteModal.vue'
+import MemberEditModal from '../modals/member/MemberEditModal.vue'
+import UserInviteModal from '../modals/member/UserInviteModal.vue'
 import MemberAvatar from '../ui/MemberAvatar.vue'
-import { useApi } from '../../composables/useApi'
-import { useCurrentUser } from '../../composables/useCurrentUser'
-import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
+import { useApi } from '../../composables/shared/useApi'
+import { useCurrentUser } from '../../composables/auth/useCurrentUser'
+import { useOrgSettingsPageData } from '../../composables/settings/useOrgSettingsPageData'
+import { useOrgWorkspaceIndexPageData } from '../../composables/workspace/useOrgWorkspaceIndexPageData'
+import { dispatchWorkspaceMembersUpdated } from '../../composables/member/workspaceMembersUpdated'
 import {
   applyUserProfileToMembers,
   useOnUserProfileUpdated,
-} from '../../composables/userProfileUpdated'
+} from '../../composables/auth/userProfileUpdated'
 import type { SettingsOrgMember, SettingsPendingInvite } from './types'
 
 type InviteRole = 'admin' | 'member'
@@ -197,9 +199,11 @@ type OrgMember = SettingsOrgMember
 const props = withDefaults(defineProps<{
   orgSlug: string
   canManage: boolean
+  active?: boolean
   initialMembers?: OrgMember[]
   initialInvites?: PendingInvite[]
 }>(), {
+  active: true,
   initialMembers: () => [],
   initialInvites: () => [],
 })
@@ -255,6 +259,10 @@ function formatDate (value: string | null): string {
   })
 }
 
+function inviteRoleLabel (role: string | null | undefined): string {
+  return role === 'admin' ? '管理者' : '一般ユーザー'
+}
+
 function syncMembersCache () {
   patchMembersCache(props.orgSlug, members.value, pendingInvites.value)
   if (import.meta.client) {
@@ -262,43 +270,95 @@ function syncMembersCache () {
   }
 }
 
-async function loadInvites () {
+async function loadInvites (silent = false) {
   if (!props.canManage) {
     pendingInvites.value = []
     syncMembersCache()
     return
   }
-  loadingInvites.value = true
+  if (!silent) loadingInvites.value = true
   try {
     const res = await api<{ data: PendingInvite[] }>(`/orgs/${props.orgSlug}/invites`)
     pendingInvites.value = res.data ?? []
     syncMembersCache()
   } catch (error: unknown) {
-    pendingInvites.value = []
-    messageKind.value = 'err'
-    message.value = error instanceof Error ? error.message : '招待一覧の取得に失敗しました。'
+    if (!silent) {
+      pendingInvites.value = []
+      messageKind.value = 'err'
+      message.value = error instanceof Error ? error.message : '招待一覧の取得に失敗しました。'
+    }
   } finally {
-    loadingInvites.value = false
+    if (!silent) loadingInvites.value = false
   }
 }
 
-async function loadMembers () {
-  loadingMembers.value = true
+async function loadMembers (silent = false) {
+  if (!silent) loadingMembers.value = true
   try {
     const res = await api<{ data: OrgMember[] }>(`/orgs/${props.orgSlug}/members`)
     members.value = res.data ?? []
     syncMembersCache()
   } catch (error: unknown) {
-    members.value = []
-    messageKind.value = 'err'
-    message.value = error instanceof Error ? error.message : 'メンバー一覧の取得に失敗しました。'
+    if (!silent) {
+      members.value = []
+      messageKind.value = 'err'
+      message.value = error instanceof Error ? error.message : 'メンバー一覧の取得に失敗しました。'
+    }
   } finally {
-    loadingMembers.value = false
+    if (!silent) loadingMembers.value = false
   }
 }
 
-async function reloadLists () {
-  await Promise.all([loadInvites(), loadMembers()])
+let reloadInFlight = false
+let reloadAgain = false
+
+async function reloadLists (options?: { silent?: boolean }) {
+  if (reloadInFlight) {
+    reloadAgain = true
+    return
+  }
+  reloadInFlight = true
+  const silent = options?.silent === true
+  try {
+    await Promise.all([loadInvites(silent), loadMembers(silent)])
+  } finally {
+    reloadInFlight = false
+    if (reloadAgain) {
+      reloadAgain = false
+      void reloadLists({ silent: true })
+    }
+  }
+}
+
+function hasDisplayedPeople (): boolean {
+  return members.value.length > 0 || pendingInvites.value.length > 0
+}
+
+function refreshListsQuietly () {
+  void reloadLists({ silent: hasDisplayedPeople() })
+}
+
+function onDocumentVisible () {
+  if (document.visibilityState !== 'visible' || !props.active) return
+  refreshListsQuietly()
+}
+
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+
+function stopMembersRefresh () {
+  if (refreshTimer !== undefined) {
+    clearInterval(refreshTimer)
+    refreshTimer = undefined
+  }
+}
+
+function startMembersRefresh () {
+  stopMembersRefresh()
+  if (!import.meta.client || !props.active) return
+  refreshTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible' || !props.active) return
+    refreshListsQuietly()
+  }, 8000)
 }
 
 async function submitInvite (payload: { email: string; role: InviteRole }) {
@@ -392,6 +452,19 @@ async function confirmRemoveMember () {
   message.value = ''
   try {
     await api(`/orgs/${props.orgSlug}/members/${member.id}`, { method: 'DELETE' })
+    const {
+      removeOrgMemberFromAllCachedWorkspaces,
+      getWorkspaceFromListCache,
+    } = useOrgWorkspaceIndexPageData()
+    const affectedWorkspaceIds = removeOrgMemberFromAllCachedWorkspaces(props.orgSlug, member.id)
+    for (const workspaceId of affectedWorkspaceIds) {
+      dispatchWorkspaceMembersUpdated({
+        orgSlug: props.orgSlug,
+        workspaceId,
+        members: getWorkspaceFromListCache(props.orgSlug, workspaceId)?.assignees ?? [],
+        removedMemberIds: [member.id],
+      })
+    }
     memberDeleteModalOpen.value = false
     deletingMember.value = null
     message.value = ''
@@ -429,6 +502,40 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  () => props.active,
+  (active) => {
+    if (!active) {
+      stopMembersRefresh()
+      return
+    }
+    refreshListsQuietly()
+    startMembersRefresh()
+  },
+  { immediate: true },
+)
+
+onMounted(() => {
+  if (!import.meta.client) return
+  document.addEventListener('visibilitychange', onDocumentVisible)
+  startMembersRefresh()
+})
+
+onBeforeUnmount(() => {
+  stopMembersRefresh()
+  if (!import.meta.client) return
+  document.removeEventListener('visibilitychange', onDocumentVisible)
+})
+
+onActivated(() => {
+  refreshListsQuietly()
+  startMembersRefresh()
+})
+
+onDeactivated(() => {
+  stopMembersRefresh()
+})
 
 useOnUserProfileUpdated((detail) => {
   members.value = applyUserProfileToMembers(members.value, detail)

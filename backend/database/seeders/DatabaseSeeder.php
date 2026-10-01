@@ -18,8 +18,8 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             OrganizationSeeder::class,
             LabelSeeder::class,
-            DocumentSeeder::class,
             WorkspaceSeeder::class,
+            DocumentSeeder::class,
             TaskSeeder::class,
         ]);
     }

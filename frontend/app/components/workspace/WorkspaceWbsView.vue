@@ -10,7 +10,11 @@
     >
       <LoadingSpinner />
     </div>
-    <p v-else-if="!hasDisplayRows" class="workspace-wbs-board__state">
+    <p
+      v-else-if="!hasDisplayRows"
+      class="workspace-wbs-board__state"
+      :class="{ 'workspace-wbs-board__state--fade-in': contentShouldFadeIn }"
+    >
       タスクがありません
     </p>
     <div
@@ -20,6 +24,7 @@
       :class="{
         'workspace-wbs-board__viewport--dragging': dragging,
         'workspace-wbs-board__viewport--gantt-interacting': ganttPointerActive,
+        'workspace-wbs-board__viewport--fade-in': contentShouldFadeIn,
       }"
       @scroll.passive="closeTaskMenu"
     >
@@ -89,6 +94,7 @@
             >
               <span class="workspace-wbs__header-label">{{ column.label }}</span>
               <span
+                v-if="isResizableWbsColumn(column.key)"
                 class="workspace-wbs__resize-handle"
                 aria-hidden="true"
                 @pointerdown="onResizePointerDown($event, column.key, 'right')"
@@ -227,12 +233,9 @@
       :open="colorPopoverOpen"
       :model-value="colorPopoverValue"
       :anchor="colorPopoverAnchor"
-      :saving="colorSaving"
-      :can-clear="canClearGanttColor"
       @close="closeColorPopover"
       @after-leave="onColorPopoverAfterLeave"
       @select="saveGanttBarColor"
-      @clear="void clearGanttBarColor()"
     />
     <TaskEditPopoverLayer
       ref="editLayerRef"
@@ -247,6 +250,7 @@
       @updated="syncTaskUpdate"
       @popover-active-change="onPopoverActiveChange"
     />
+    <ModalSwitchBackdrop :active="addChildTaskTransitionPending" />
     <TaskAddModal
       v-model="taskAddOpen"
       :org-slug="orgSlug"
@@ -259,6 +263,7 @@
       :workspace-members="workspaceMembers"
       :workspace-lists="workspaceLists"
       @added="onTaskAddedFromModal"
+      @after-enter="onTaskAddModalAfterEnter"
     />
     <WbsDisplayItemsModal
       v-model="displayItemsModalOpen"
@@ -305,7 +310,7 @@
     <Teleport to="body">
       <FloatingMenu
         :open="Boolean(openMenuTaskId !== null && taskMenuPosition)"
-        :instance-key="openMenuTaskId ?? 'task-menu'"
+        instance-key="task-menu"
         density="compact"
         :style="taskMenuStyle"
         :items="taskMenuItems"
@@ -356,20 +361,21 @@ import {
   sortWbsTasks,
   type WbsDisplayRow,
   type WbsTask,
-} from '../../composables/useWbsTaskGroups'
+} from '../../composables/wbs/useWbsTaskGroups'
 import {
   useWbsTaskDragReorder,
   WBS_LIST_DRAG_SURFACE,
-} from '../../composables/useWbsTaskDragReorder'
+} from '../../composables/wbs/useWbsTaskDragReorder'
 import {
   WBS_COLUMNS,
   defaultVisibleColumnKeys,
   parseStoredVisibleColumns,
   serializeVisibleColumns,
+  isResizableWbsColumn,
   useWbsColumnResize,
   type WbsColumnKey,
   type WbsDisplayItemKey,
-} from '../../composables/useWbsColumnResize'
+} from '../../composables/wbs/useWbsColumnResize'
 import {
   buildMonthDays,
   currentYearMonth,
@@ -377,81 +383,86 @@ import {
   resolveGanttBarColor,
   resolveTaskDateRange,
   shiftVisibleMonth,
-} from '../../composables/useGanttCalendar'
+} from '../../composables/wbs/useGanttCalendar'
 import { ganttBarColorAtSequenceIndex } from '../../constants/colorPresets'
-import { useGanttBarInteraction } from '../../composables/useGanttBarInteraction'
+import { useGanttBarInteraction } from '../../composables/wbs/useGanttBarInteraction'
 import {
   type WorkspaceListOption,
   type PopoverType,
   type TaskPopoverEditable,
   resolveListColor,
-} from '../../composables/useTaskPopoverEditor'
-import { type TaskFormDefaultsSource, type TaskFormLabel, type TaskFormMember } from '../../composables/useTaskFormHelpers'
+} from '../../composables/task/useTaskPopoverEditor'
+import { type TaskFormDefaultsSource, type TaskFormLabel, type TaskFormMember } from '../../composables/task/useTaskFormHelpers'
 import {
   flattenLabelCategories,
   normalizeLabelCategories,
   resolveAndSortLabels,
   type LabelCategoryGroup,
-} from '../../composables/useLabelCategories'
-import { sortMembersByDisplayName } from '../../composables/useMemberDisplay'
-import { useWorkspaceTaskFilters } from '../../composables/useWorkspaceTaskFilters'
-import { useAnchoredFilterPopover } from '../../composables/useAnchoredFilterPopover'
-import { useFloatingMenuState } from '../../composables/useFloatingMenuState'
+} from '../../composables/label/useLabelCategories'
+import { sortMembersByDisplayName } from '../../composables/member/useMemberDisplay'
+import { useWorkspaceTaskFilters } from '../../composables/task/useWorkspaceTaskFilters'
+import { useAnchoredFilterPopover } from '../../composables/ui/useAnchoredFilterPopover'
+import { useFloatingMenuState } from '../../composables/ui/useFloatingMenuState'
 import {
   applyUserProfileToTasks,
   useOnUserProfileUpdated,
-} from '../../composables/userProfileUpdated'
+} from '../../composables/auth/userProfileUpdated'
 import {
   removeMembersFromTaskAssignees,
   useOnWorkspaceMembersUpdated,
   workspaceMembersUpdateMatchesView,
   dispatchWorkspaceMembersUpdated,
-} from '../../composables/workspaceMembersUpdated'
-import { useApi } from '../../composables/useApi'
-import { useArchivedTasksCache } from '../../composables/useArchivedTasksCache'
+} from '../../composables/member/workspaceMembersUpdated'
+import { useApi } from '../../composables/shared/useApi'
+import { useArchivedTasksCache } from '../../composables/archived/useArchivedTasksCache'
 import {
   useWorkspaceBoardPageData,
   type WorkspaceBoardTask,
-} from '../../composables/useWorkspaceBoardPageData'
-import { useWorkspaceWbsPageData, type WorkspaceWbsPageSnapshot } from '../../composables/useWorkspaceWbsPageData'
-import { useWorkspaceTaskMemberCandidates } from '../../composables/useWorkspaceTaskMemberCandidates'
-import { useOrgWorkspaceIndexPageData } from '../../composables/useOrgWorkspaceIndexPageData'
+} from '../../composables/workspace/useWorkspaceBoardPageData'
+import { useWorkspaceWbsPageData, type WorkspaceWbsPageSnapshot } from '../../composables/wbs/useWorkspaceWbsPageData'
+import { useWorkspaceTaskMemberCandidates } from '../../composables/task/useWorkspaceTaskMemberCandidates'
+import { useOrgWorkspaceIndexPageData } from '../../composables/workspace/useOrgWorkspaceIndexPageData'
 import {
   useWorkspaceRealtimeChannel,
   type RealtimeBoardTask,
   type RealtimeWbsReorderItem,
-} from '../../composables/useWorkspaceRealtimeChannel'
-import { resolveListColors } from '../../utils/colorPresetResolution'
-import { isAccessDeniedMessage } from '../../utils/resourceAccessError'
+} from '../../composables/workspace/useWorkspaceRealtimeChannel'
+import { resolveListColors } from '../../utils/shared/colorPresetResolution'
+import { isAccessDeniedMessage } from '../../utils/shared/resourceAccessError'
 import {
   createEmptyWorkspaceTaskFilters,
   type WorkspaceTaskFilters,
-} from '../../utils/workspaceTaskFilters'
-import { syncAppLoadingCursor, withAppLoadingCursor } from '../../composables/useAppLoadingCursor'
-import { buildDestructiveConfirmMessage } from '../../utils/destructiveConfirmMessage'
-import { useUnsavedChangesGuard } from '../../composables/useUnsavedChangesGuard'
+} from '../../utils/task/workspaceTaskFilters'
+import { syncAppLoadingCursor, withAppLoadingCursor } from '../../composables/ui/useAppLoadingCursor'
+import { buildDestructiveConfirmMessage } from '../../utils/shared/destructiveConfirmMessage'
+import { useUnsavedChangesGuard } from '../../composables/shared/useUnsavedChangesGuard'
 import {
+  computeWbsEffortColumnMinWidth,
   computeWbsListColumnMinWidth,
+  computeWbsPeriodColumnMinWidth,
+  computeWbsProgressRateColumnMinWidth,
   computeWbsTitleColumnMinWidth,
   resetWbsTitleWidthMeasureCache,
-} from '../../utils/wbsTitleColumnWidth'
-import { caretIndexAtClientX } from '../../utils/inputCaretFromPoint'
-import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
-import { enrichTaskDetailHierarchy } from '../../composables/useTaskHierarchy'
-import { resolveParentTaskTitle } from '../../composables/useTaskCardMeta'
+} from '../../utils/wbs/wbsTitleColumnWidth'
+import { caretIndexAtClientX } from '../../utils/wbs/inputCaretFromPoint'
+import { useDropdownEscapeClose } from '../../composables/ui/useDropdownEscapeClose'
+import { enrichTaskDetailHierarchy } from '../../composables/task/useTaskHierarchy'
+import { normalizeProjectViewQuery } from '../../composables/workspace/useWorkspaceViewRoutes'
+import { resolveParentTaskTitle } from '../../composables/task/useTaskCardMeta'
 import WorkspaceGanttColorPopover from './WorkspaceGanttColorPopover.vue'
 import WbsTaskRow from './WbsTaskRow.vue'
 import TaskEditPopoverLayer from '../task/TaskEditPopoverLayer.vue'
-import TaskAddModal, { type AddedTask } from '../modals/TaskAddModal.vue'
-import TaskDetailModal, { type TaskDetail } from '../modals/TaskDetailModal.vue'
-import ConfirmModal from '../modals/ConfirmModal.vue'
-import WbsDisplayItemsModal from '../modals/WbsDisplayItemsModal.vue'
+import TaskAddModal, { type AddedTask } from '../modals/task/TaskAddModal.vue'
+import TaskDetailModal, { type TaskDetail } from '../modals/task/TaskDetailModal.vue'
+import ModalSwitchBackdrop from '../modals/shared/ModalSwitchBackdrop.vue'
+import ConfirmModal from '../modals/shared/ConfirmModal.vue'
+import WbsDisplayItemsModal from '../modals/wbs/WbsDisplayItemsModal.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../ui/FloatingMenu.vue'
 import BoardFilterPopover from '../ui/BoardFilterPopover.vue'
 import BoardFilterPopoverBody from '../ui/BoardFilterPopoverBody.vue'
 import BoardFilterSection from '../ui/BoardFilterSection.vue'
 import LoadingSpinner from '../ui/LoadingSpinner.vue'
-import { useOrgRole } from '../../composables/useOrgRole'
+import { useOrgRole } from '../../composables/org/useOrgRole'
 
 const GANTT_DAY_COL_WIDTH = 40
 /** 月の日数差は枠外右余白で吸収するため、常に 31 日分を基準にする */
@@ -471,6 +482,8 @@ const emit = defineEmits<{
 }>()
 /** 親ヘッダーと双方向同期。ボタン操作は親が直接 true/false にする */
 const editMode = defineModel<boolean>('editMode', { default: false })
+const route = useRoute()
+const router = useRouter()
 const { api } = useApi()
 const { isOrgAdmin } = useOrgRole(toRef(props, 'orgSlug'))
 const { upsertCachedTask: upsertArchivedTask } = useArchivedTasksCache()
@@ -484,6 +497,10 @@ const { getCached: getWbsCached, setCached: setWbsCached } = useWorkspaceWbsPage
 const { touchCachedWorkspaceUpdatedAt } = useOrgWorkspaceIndexPageData()
 const loading = ref(true)
 const error = ref<string | null>(null)
+const contentShouldFadeIn = ref(false)
+let contentFadeInTimer: ReturnType<typeof setTimeout> | null = null
+/** ロード表示のあと、取得結果を一度だけフェードインする */
+let fadeOnReady = true
 const tasks = ref<WbsTask[]>([])
 const orgLabels = ref<TaskFormLabel[]>([])
 const orgLabelCategories = ref<LabelCategoryGroup[]>([])
@@ -528,10 +545,6 @@ const TASK_MENU_MIN_WIDTH = 168
 const taskMenu = useFloatingMenuState<number>({
   menuMinWidth: TASK_MENU_MIN_WIDTH,
   getMenuItemCount: () => taskMenuItems.value.length,
-  onBeforeOpen: () => {
-    editLayerRef.value?.dismissPopover()
-    closeColorPopover()
-  },
 })
 const {
   open: wbsFilterOpen,
@@ -545,9 +558,6 @@ const {
   triggerRef: wbsFilterTriggerEl,
   dropdownRef: wbsFilterDropdownRef,
   onClose: clearFilterSearchQueries,
-  onBeforeOpen: () => {
-    taskMenu.close()
-  },
   repositionSources: [assigneeFilterSearchQuery, labelFilterSearchQuery],
 })
 const searchQuery = defineModel<string>('searchQuery', { default: '' })
@@ -568,19 +578,16 @@ const colorPopoverOpen = ref(false)
 const colorPopoverAnchor = ref<{ top: number; left: number; right: number } | null>(null)
 const colorPopoverValue = ref('')
 const colorPopoverTaskId = ref<number | null>(null)
-const pendingGanttColorOpen = ref<{ taskId: number; clientX: number; clientY: number } | null>(null)
 const colorSaving = ref(false)
-const canClearGanttColor = computed(() => {
-  const taskId = colorPopoverTaskId.value
-  if (taskId == null) return false
-  const task = tasks.value.find(row => row.id === taskId)
-  return Boolean(task?.gantt_bar_color?.trim())
-})
+let ganttColorSaveSeq = 0
 const ganttDateSaving = ref(false)
 const openMenuTaskId = taskMenu.openId
 const taskMenuPosition = taskMenu.position
-const pendingTaskMenuOpen = taskMenu.pendingOpen
 const detailTaskId = ref<number | null>(null)
+/** 一覧に無いタスクを通知から開くとき、取得済みの詳細。モーダルはこれがあるまで出さない */
+const detailQueryTask = ref<TaskDetail | null>(null)
+let detailQuerySeq = 0
+let detailQueryInflightId: number | null = null
 const archiveConfirmTask = ref<WbsTask | null>(null)
 const archivePending = ref(false)
 const taskDetailOpen = computed({
@@ -588,6 +595,7 @@ const taskDetailOpen = computed({
   set: (open: boolean) => {
     if (!open) {
       detailTaskId.value = null
+      clearWbsTaskQueryParam()
     }
   },
 })
@@ -645,6 +653,10 @@ function wbsTaskToTaskDetail (task: WbsTask): TaskDetail {
   }
 }
 const detailInitialTask = computed((): TaskDetail | null => {
+  const queried = detailQueryTask.value
+  if (queried && queried.id === detailTaskId.value) {
+    return queried
+  }
   const id = detailTaskId.value
   if (id === null) {
     return null
@@ -778,39 +790,43 @@ const {
   columnWidths,
   isResizing,
   loadWidths,
-  applyTitleColumnContentMinWidth,
-  applyListColumnContentMinWidth,
+  applyFixedColumnWidth,
   onResizePointerDown,
   onResizePointerMove,
   onResizePointerUp,
   onResizePointerCancel,
 } = useWbsColumnResize(columnStorageKey, { leadingColWidth: 0 })
+let columnContentMinWidthSyncGeneration = 0
 async function syncColumnContentMinWidths () {
   if (!import.meta.client) {
     return
   }
+  const generation = ++columnContentMinWidthSyncGeneration
   if (document.fonts?.ready) {
     await document.fonts.ready
   }
   await nextTick()
+  if (generation !== columnContentMinWidthSyncGeneration) {
+    return
+  }
   resetWbsTitleWidthMeasureCache()
+  // たたんだ子タスクは画面に無いので、最低幅の対象にしない
   const rows = [
-    ...buildFullWbsDisplayRows(tasks.value),
-    ...buildStandaloneWbsDisplayRows(tasks.value),
+    ...buildWbsDisplayRows(filteredTasks.value, effectiveCollapsedParentIds.value),
+    ...buildStandaloneWbsDisplayRows(filteredTasks.value),
   ]
-  applyTitleColumnContentMinWidth(computeWbsTitleColumnMinWidth(rows))
+  applyFixedColumnWidth('title', computeWbsTitleColumnMinWidth(rows))
   const listNames = new Set<string>()
-  for (const list of workspaceLists.value) {
-    if (list.name?.trim()) {
-      listNames.add(list.name.trim())
+  for (const row of rows) {
+    const name = row.task.list_name?.trim()
+    if (name) {
+      listNames.add(name)
     }
   }
-  for (const task of tasks.value) {
-    if (task.list_name?.trim()) {
-      listNames.add(task.list_name.trim())
-    }
-  }
-  applyListColumnContentMinWidth(computeWbsListColumnMinWidth([...listNames]))
+  applyFixedColumnWidth('list', computeWbsListColumnMinWidth([...listNames]))
+  applyFixedColumnWidth('period', computeWbsPeriodColumnMinWidth())
+  applyFixedColumnWidth('effort', computeWbsEffortColumnMinWidth())
+  applyFixedColumnWidth('progressRate', computeWbsProgressRateColumnMinWidth())
 }
 const visibleColumnKeys = ref<WbsDisplayItemKey[]>(defaultVisibleColumnKeys())
 const displayItemsModalOpen = ref(false)
@@ -1025,6 +1041,7 @@ function registerSectionBody (key: WbsSectionKey, el: unknown) {
 function shouldSuppressClick (): boolean {
   return groupedDrag.shouldSuppressClick() || standaloneDrag.shouldSuppressClick()
 }
+/** 絞り込み中は並び替えを始めない */
 function onDragHandlePointerDownInner (
   sectionKey: WbsSectionKey,
   taskId: number,
@@ -1036,10 +1053,7 @@ function onDragHandlePointerDownInner (
   const drag = sectionKey === 'grouped' ? groupedDrag : standaloneDrag
   drag.onDragHandlePointerDown(taskId, event)
 }
-/**
- * 色未保存の既存バー向け表示色。
- * 他バーの増減で再計算されないよう、タスク単位で一度決めた色を固定する。
- */
+/** 色未保存バーの表示色をタスク単位で固定し、他バーの増減では変えない */
 const unsavedGanttBarColorByTaskId = new Map<number, string>()
 
 function countSavedGanttBarColors (excludeTaskId?: number): number {
@@ -1235,6 +1249,7 @@ function onDragHandlePointerDown (
   }
   onDragHandlePointerDownInner(sectionKey, taskId, event)
 }
+/** ドラッグ直後の click は無視する */
 function onDragHandleClick () {
   if (shouldSuppressClick()) {
     return
@@ -1246,6 +1261,7 @@ async function commitWbsOrderFromDrag (updatedTasks: WbsTask[]) {
   }
   // 編集中の並び替えはローカル反映のみ。差分はスナップショット比較で判定する。
 }
+/** 失敗すると WBS を取り直す。成功時はボード側タスクの並びキャッシュも更新する */
 async function saveWbsOrder (updatedTasks: WbsTask[]): Promise<boolean> {
   try {
     await api<{ data: { ok: boolean } }>(
@@ -1325,8 +1341,15 @@ async function onAddChildTaskFromDetail (payload: { parentTaskId: number; listId
   taskAddParentTaskId.value = payload.parentTaskId
   taskAddParentDefaults.value = defaults
   taskAddOpen.value = true
+}
+function onTaskAddModalAfterEnter () {
   addChildTaskTransitionPending.value = false
 }
+watch(taskAddOpen, (open) => {
+  if (!open) {
+    addChildTaskTransitionPending.value = false
+  }
+})
 function addedTaskToWbsTask (added: AddedTask): WbsTask {
   const listId = added.list_id ?? null
   return {
@@ -1402,6 +1425,7 @@ async function persistAndDismissEditInteractions () {
   await editLayerRef.value?.closePopover()
   closeColorPopover()
 }
+/** 編集に入るとき折りたたみをすべて開き、開始時の並びを基準に取る */
 function beginEditSession () {
   dismissEditInteractions()
   if (!reorderSnapshot.value) {
@@ -1660,10 +1684,7 @@ function isTitleDraftDirty (): boolean {
   }
   return titleDraft.value.trim() !== task.title
 }
-/**
- * 編集開始時スナップショットと実データが違うときだけ未保存。
- * 一度変えても元に戻せば false（確認モーダルなし）。
- */
+/** 開始時との差分があるときだけ未保存で、元に戻せば確認を出さない */
 const hasUnsavedChanges = computed(() => {
   if (!editMode.value) {
     return false
@@ -1699,6 +1720,7 @@ onDeactivated(() => {
   // ガード通過後の安全策（未保存なら破棄）
   void cancelEdit()
 })
+/** 編集中は折りたたみを変えない */
 function toggleParentCollapse (parentId: number) {
   if (editMode.value) {
     return
@@ -1744,7 +1766,121 @@ function onTaskMenuSelect (item: FloatingMenuItem) {
 }
 function openTaskDetail (task: WbsTask) {
   closeTaskMenu()
+  cancelQueryTaskFetch()
+  detailQueryTask.value = null
   detailTaskId.value = task.id
+}
+function parseWbsTaskQueryId (): number | null {
+  const raw = route.query.task
+  const value = Array.isArray(raw) ? raw[0] : raw
+  if (typeof value !== 'string' || value.trim() === '') {
+    return null
+  }
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null
+  }
+  return parsed
+}
+function clearWbsTaskQueryParam () {
+  if (!import.meta.client) return
+  if (parseWbsTaskQueryId() === null) return
+  const nextQuery = { ...route.query }
+  delete nextQuery.task
+  void router.replace({ query: nextQuery })
+}
+function wbsHasTask (taskId: number): boolean {
+  return tasks.value.some(task => task.id === taskId)
+}
+function cancelQueryTaskFetch () {
+  detailQuerySeq += 1
+  detailQueryInflightId = null
+}
+/** 不正な task はスペース一覧へ戻し、ボード表示中はこの画面では開かない */
+function applyWbsTaskQueryFromRoute () {
+  if (normalizeProjectViewQuery(route.query.view) !== 'wbs') {
+    cancelQueryTaskFetch()
+    detailQueryTask.value = null
+    return
+  }
+  const raw = route.query.task
+  if (raw == null || raw === '') {
+    cancelQueryTaskFetch()
+    detailQueryTask.value = null
+    return
+  }
+  const taskId = parseWbsTaskQueryId()
+  if (taskId === null) {
+    if (!loading.value) {
+      void navigateTo(`/org/${props.orgSlug}/workspaces`, { replace: true })
+    }
+    return
+  }
+  if (detailTaskId.value === taskId) {
+    return
+  }
+  if (!loading.value && wbsHasTask(taskId)) {
+    cancelQueryTaskFetch()
+    detailQueryTask.value = null
+    detailTaskId.value = taskId
+    return
+  }
+  if (!loading.value && detailQueryTask.value?.id === taskId) {
+    detailTaskId.value = taskId
+    return
+  }
+  if (detailQueryInflightId === taskId) {
+    return
+  }
+  void fetchWbsQueryTaskThenOpen(taskId)
+}
+/** 権限が無ければスペース一覧へ戻す。WBS に無いタスクは取得してから詳細を出す */
+async function fetchWbsQueryTaskThenOpen (taskId: number) {
+  const seq = ++detailQuerySeq
+  detailQueryInflightId = taskId
+  try {
+    const detail = await api<TaskDetail>(
+      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${taskId}`,
+    )
+    if (seq !== detailQuerySeq || parseWbsTaskQueryId() !== taskId || detailTaskId.value === taskId) {
+      return
+    }
+    const enriched = enrichTaskDetailHierarchy(
+      detail,
+      tasks.value,
+      listId => workspaceLists.value.find(list => list.id === listId)?.name ?? null,
+    )
+    if (loading.value) {
+      detailQueryTask.value = enriched
+      return
+    }
+    if (wbsHasTask(taskId)) {
+      detailQueryTask.value = null
+      detailTaskId.value = taskId
+      return
+    }
+    detailQueryTask.value = enriched
+    detailTaskId.value = taskId
+  } catch (e: unknown) {
+    if (seq !== detailQuerySeq || parseWbsTaskQueryId() !== taskId || detailTaskId.value === taskId) {
+      return
+    }
+    const message = e instanceof Error ? e.message : '読み込みに失敗しました'
+    if (isAccessDeniedMessage(message)) {
+      detailTaskId.value = null
+      void navigateTo(`/org/${props.orgSlug}/workspaces`, { replace: true })
+      return
+    }
+    if (loading.value) {
+      return
+    }
+    detailQueryTask.value = null
+    detailTaskId.value = taskId
+  } finally {
+    if (seq === detailQuerySeq) {
+      detailQueryInflightId = null
+    }
+  }
 }
 function onTaskDetailNavigate (taskId: number) {
   if (detailTaskId.value === taskId) {
@@ -1752,7 +1888,10 @@ function onTaskDetailNavigate (taskId: number) {
   }
   detailTaskId.value = taskId
 }
+/** 対象が無い、または見れないときはスペース一覧へ戻す */
 function onTaskDetailMissing () {
+  cancelQueryTaskFetch()
+  detailQueryTask.value = null
   detailTaskId.value = null
   void navigateTo(`/org/${props.orgSlug}/workspaces`, { replace: true })
 }
@@ -1790,6 +1929,7 @@ function openArchiveConfirm (task: WbsTask) {
   closeTaskMenu()
   archiveConfirmTask.value = task
 }
+/** 子タスクごと外し、アーカイブ一覧とボードのキャッシュも更新する */
 async function confirmArchiveTask () {
   const task = archiveConfirmTask.value
   if (!task || archivePending.value) {
@@ -1852,6 +1992,7 @@ async function confirmArchiveTask () {
           tasks: boardCached.tasks.filter(row => !removeIds.has(row.id)),
         })
       }
+      persistWbsCache()
     })
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'アーカイブに失敗しました'
@@ -1948,19 +2089,14 @@ function goCurrentMonth () {
   const now = currentYearMonth()
   void applyVisibleMonth(now.year, now.month)
 }
+/** 期間が無いバーは色を開かない。同じバーの再クリックは閉じる */
 function openGanttColorPopover (taskId: number, clientX: number, clientY: number) {
   const task = tasks.value.find(row => row.id === taskId)
   if (!task || !resolveTaskDateRange(task)) {
     return
   }
   if (colorPopoverOpen.value && colorPopoverTaskId.value === taskId) {
-    pendingGanttColorOpen.value = null
     closeColorPopover()
-    return
-  }
-  if (colorPopoverOpen.value) {
-    pendingGanttColorOpen.value = { taskId, clientX, clientY }
-    colorPopoverOpen.value = false
     return
   }
   applyGanttColorPopoverOpen(taskId, clientX, clientY)
@@ -1980,7 +2116,6 @@ function applyGanttColorPopoverOpen (taskId: number, clientX: number, clientY: n
   colorPopoverOpen.value = true
 }
 function closeColorPopover () {
-  pendingGanttColorOpen.value = null
   colorPopoverOpen.value = false
 }
 function onColorPopoverAfterLeave () {
@@ -1988,12 +2123,6 @@ function onColorPopoverAfterLeave () {
     colorPopoverAnchor.value = null
     colorPopoverTaskId.value = null
   }
-  const pending = pendingGanttColorOpen.value
-  if (!pending) {
-    return
-  }
-  pendingGanttColorOpen.value = null
-  applyGanttColorPopoverOpen(pending.taskId, pending.clientX, pending.clientY)
 }
 function syncTaskGanttColor (taskId: number, color: string) {
   const idx = tasks.value.findIndex(task => task.id === taskId)
@@ -2014,10 +2143,12 @@ function syncTaskGanttColor (taskId: number, color: string) {
 }
 async function saveGanttBarColor (color: string) {
   const taskId = colorPopoverTaskId.value
-  if (taskId == null || colorSaving.value) {
+  if (taskId == null || colorPopoverValue.value === color) {
     return
   }
   colorPopoverValue.value = color
+  syncTaskGanttColor(taskId, color)
+  const seq = ++ganttColorSaveSeq
   colorSaving.value = true
   error.value = null
   try {
@@ -2025,48 +2156,15 @@ async function saveGanttBarColor (color: string) {
       `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${taskId}`,
       { method: 'PATCH', body: { gantt_bar_color: color } },
     )
-    syncTaskGanttColor(taskId, color)
-    closeColorPopover()
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'ガントバーの色の更新に失敗しました'
-  } finally {
-    colorSaving.value = false
-  }
-}
-async function clearGanttBarColor () {
-  const taskId = colorPopoverTaskId.value
-  if (taskId == null || colorSaving.value) {
-    return
-  }
-  const task = tasks.value.find(row => row.id === taskId)
-  if (!task?.gantt_bar_color?.trim()) {
-    return
-  }
-  colorSaving.value = true
-  error.value = null
-  try {
-    await api(
-      `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${taskId}`,
-      { method: 'PATCH', body: { gantt_bar_color: null } },
-    )
-    clearUnsavedGanttBarColor(taskId)
-    const idx = tasks.value.findIndex(row => row.id === taskId)
-    if (idx >= 0) {
-      tasks.value[idx] = {
-        ...tasks.value[idx]!,
-        gantt_bar_color: null,
-      }
-      patchCachedTasks(props.orgSlug, props.workspaceId, [{
-        id: taskId,
-        gantt_bar_color: null,
-      }])
-      persistWbsCache()
-      colorPopoverValue.value = resolveTaskGanttBarColor(tasks.value[idx]!)
+    if (seq !== ganttColorSaveSeq) {
+      return
     }
-  } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'ガントバーの色の更新に失敗しました'
   } finally {
-    colorSaving.value = false
+    if (seq === ganttColorSaveSeq) {
+      colorSaving.value = false
+    }
   }
 }
 function applyWbsSnapshot (snapshot: WorkspaceWbsPageSnapshot) {
@@ -2149,8 +2247,11 @@ async function startTitleEdit (task: WbsTask, opts?: { clientX?: number }) {
   editingTitleTaskId.value = task.id
   titleDraft.value = task.title
   await nextTick()
-  const el = titleInputEls.get(task.id)
-  if (el) {
+  const placeCaret = () => {
+    const el = titleInputEls.get(task.id)
+    if (!el || editingTitleTaskId.value !== task.id) {
+      return
+    }
     el.focus({ preventScroll: true })
     if (opts?.clientX != null) {
       const index = caretIndexAtClientX(el, opts.clientX)
@@ -2160,7 +2261,9 @@ async function startTitleEdit (task: WbsTask, opts?: { clientX?: number }) {
       el.setSelectionRange(len, len)
     }
   }
+  placeCaret()
   requestAnimationFrame(() => {
+    placeCaret()
     titleEditOpening = false
   })
 }
@@ -2212,6 +2315,7 @@ async function confirmTitleEdit (task: WbsTask) {
     titleSaving.value = false
   }
 }
+/** 権限が無ければスペース一覧へ戻す。編集中のサイレント再取得は並びを上書きしない */
 async function loadWbsTasks (opts?: { silent?: boolean }) {
   const generation = ++wbsLoadGeneration
   const showLoading = !opts?.silent
@@ -2236,7 +2340,6 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
     if (generation !== wbsLoadGeneration) {
       return
     }
-    // サイレント再取得中に編集が始まった場合はタスク並びを上書きしない
     if (opts?.silent && editMode.value) {
       orgLabels.value = flattenLabelCategories(orgLabelCategoriesNext)
       orgLabelCategories.value = orgLabelCategoriesNext
@@ -2284,6 +2387,25 @@ async function loadWbsTasks (opts?: { silent?: boolean }) {
     }
   }
 }
+function clearContentFadeInTimer () {
+  if (contentFadeInTimer === null) return
+  clearTimeout(contentFadeInTimer)
+  contentFadeInTimer = null
+}
+function revealLoadedWbs () {
+  if (!fadeOnReady || error.value) return
+  fadeOnReady = false
+  clearContentFadeInTimer()
+  contentShouldFadeIn.value = true
+  contentFadeInTimer = setTimeout(() => {
+    contentShouldFadeIn.value = false
+    contentFadeInTimer = null
+  }, 260)
+}
+watch(loading, (isLoading) => {
+  if (isLoading) return
+  revealLoadedWbs()
+})
 watch(
   () => [props.orgSlug, props.workspaceId] as const,
   () => {
@@ -2292,12 +2414,17 @@ watch(
     reorderSnapshot.value = null
     collapsedParentIds.value = new Set()
     dismissEditInteractions()
+    fadeOnReady = true
+    contentShouldFadeIn.value = false
+    clearContentFadeInTimer()
     // ボード切替時に枠組待ちを短くするため、裏でボードキャッシュを温める
     void warmWorkspaceBoardCache(props.orgSlug, props.workspaceId)
     const cached = getWbsCached(props.orgSlug, props.workspaceId)
     if (cached) {
       applyWbsSnapshot(cached)
+      const wasLoading = loading.value
       loading.value = false
+      if (!wasLoading) revealLoadedWbs()
       void loadWbsTasks({ silent: true })
       return
     }
@@ -2305,6 +2432,16 @@ watch(
   },
   { immediate: true },
 )
+watch(
+  () => [route.query.task, route.query.view, loading.value] as const,
+  () => {
+    applyWbsTaskQueryFromRoute()
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => {
+  clearContentFadeInTimer()
+})
 function refreshOnViewSwitch (): Promise<void> {
   // 編集セッション中はローカル並びを壊さない
   if (editMode.value) {
@@ -2341,14 +2478,57 @@ function realtimeTaskToWbsTask (task: RealtimeBoardTask): WbsTask {
   }
 }
 
+type RestoredWbsTaskInput = {
+  id: number
+  title: string
+  list_id?: number | null
+  sort_order?: number
+  is_parent_task?: boolean
+  parent_task_id?: number | null
+  description?: string | null
+  start_date?: string | null
+  due_date?: string | null
+  gantt_bar_color?: string | null
+  effort_hours?: number | string | null
+  progress_rate?: number | string | null
+  labels?: RealtimeBoardTask['labels']
+  assignees?: RealtimeBoardTask['assignees']
+}
+
+/** 編集中でも、復元したタスクを現在の並びと編集開始時の基準の両方へ足す */
+function applyRestoredTasks (
+  restored: RestoredWbsTaskInput,
+  children: RestoredWbsTaskInput[] = [],
+) {
+  // 復元前に走った再取得が、足した行を古い一覧で上書きしないようにする
+  wbsLoadGeneration += 1
+  for (const task of [restored, ...children]) {
+    upsertRealtimeWbsTask({
+      id: task.id,
+      title: task.title,
+      list_id: task.list_id ?? null,
+      sort_order: task.sort_order,
+      is_parent_task: task.is_parent_task,
+      parent_task_id: task.parent_task_id ?? null,
+      description: task.description ?? null,
+      start_date: task.start_date ?? null,
+      due_date: task.due_date ?? null,
+      gantt_bar_color: task.gantt_bar_color ?? null,
+      effort_hours: task.effort_hours ?? null,
+      progress_rate: task.progress_rate ?? null,
+      labels: task.labels,
+      assignees: task.assignees,
+    })
+  }
+}
+
 function upsertRealtimeWbsTask (task: RealtimeBoardTask) {
   const next = realtimeTaskToWbsTask(task)
   const idx = tasks.value.findIndex(row => row.id === next.id)
   const inEditSession = editMode.value && reorderSnapshot.value !== null
 
   if (idx >= 0) {
-    // 編集セッション中はローカルの項目・並びを優先し、既存タスクの realtime 上書きで
-    // 開始時スナップショットとの差分判定を壊さない
+    // 編集中は既存タスクを realtime で上書きせず、開始時スナップショットとの差分判定を壊さない
     if (inEditSession) {
       return
     }
@@ -2445,7 +2625,7 @@ useWorkspaceRealtimeChannel(workspaceIdRef, {
     removeRealtimeWbsTask(taskId)
   },
   onTasksReordered () {
-    // ボード側の list 並び替えも sort_order を共有するため再取得
+    // ボードのリスト並び替えも sort_order を共有するため、編集中でなければ取り直す
     if (editMode.value) {
       return
     }
@@ -2493,6 +2673,7 @@ useWorkspaceRealtimeChannel(workspaceIdRef, {
 
 defineExpose({
   refreshOnViewSwitch,
+  applyRestoredTasks,
   editMode,
   editSaving,
   startEdit,
@@ -2543,7 +2724,10 @@ watch(loading, async () => {
   void syncColumnContentMinWidths()
 })
 watch(
-  () => tasks.value.map(task => `${task.id}:${task.title}`).join('\n'),
+  () => [
+    filteredTasks.value.map(task => `${task.id}:${task.title}`).join('\n'),
+    [...effectiveCollapsedParentIds.value].join(','),
+  ].join('\n'),
   () => {
     void syncColumnContentMinWidths()
   },

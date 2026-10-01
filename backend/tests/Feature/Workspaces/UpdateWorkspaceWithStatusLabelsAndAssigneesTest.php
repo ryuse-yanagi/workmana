@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Workspaces;
 
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -12,6 +12,7 @@ class UpdateWorkspaceWithStatusLabelsAndAssigneesTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** ワークスペースをステータス・ラベル・担当者付きで更新できる */
     public function test_workspace_can_be_updated_with_status_labels_and_assignees(): void
     {
         [$admin, $organization, $member] = $this->createOrgWithAdminAndMember();

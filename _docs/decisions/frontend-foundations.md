@@ -30,9 +30,9 @@
 
 現行の実装詳細は次を参照。
 
-- [`../architecture/frontend-server-state.md`](../architecture/frontend-server-state.md)
-- [`../architecture/frontend-overlays.md`](../architecture/frontend-overlays.md)
-- [`../architecture/shared-contracts.md`](../architecture/shared-contracts.md)
+- [`../architecture/frontend/server-state.md`](../architecture/frontend/server-state.md)
+- [`../architecture/frontend/overlays.md`](../architecture/frontend/overlays.md)
+- [`../architecture/contracts/shared.md`](../architecture/contracts/shared.md)
 
 ## 検討した代替案（要約）
 

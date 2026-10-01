@@ -2,13 +2,12 @@
 
 namespace Tests\Feature\Attachments;
 
-use App\Models\Task;
-use App\Models\TaskAttachment;
+use App\Models\Task\Task;
+use App\Models\Task\TaskAttachment;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
 
@@ -17,25 +16,18 @@ class ListWorkspaceTaskAttachmentsGroupedByTaskTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** ワークスペースのタスク添付をタスクごとに一覧できる */
     public function test_user_can_list_workspace_task_attachments_grouped_by_task(): void
     {
-        Storage::fake('local');
-        Storage::fake('public');
-
         $user = User::factory()->create([
             'name' => 'Attachment Uploader',
             'email' => 'uploader@example.com',
         ]);
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', [
+            ->postJson("/api/orgs/{$slug}/workspaces", [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
@@ -43,7 +35,7 @@ class ListWorkspaceTaskAttachmentsGroupedByTaskTest extends TestCase
         $workspace = Workspace::query()->firstOrFail();
 
         $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks", [
                 'title' => 'First task',
                 'list_id' => $this->defaultListId($workspace),
             ])
@@ -52,13 +44,13 @@ class ListWorkspaceTaskAttachmentsGroupedByTaskTest extends TestCase
         $task = Task::query()->firstOrFail();
 
         $this->actingAsApiUser($user)
-            ->post("/api/orgs/acme/workspaces/{$workspace->id}/tasks/{$task->id}/attachments", [
+            ->post("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/{$task->id}/attachments", [
                 'file' => UploadedFile::fake()->create('notes.txt', 12, 'text/plain'),
             ])
             ->assertCreated();
 
         $this->actingAsApiUser($user)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/attachments")
+            ->getJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/attachments")
             ->assertOk()
             ->assertJsonPath("data.{$task->id}.0.original_name", 'notes.txt')
             ->assertJsonPath("data.{$task->id}.0.task_id", $task->id);

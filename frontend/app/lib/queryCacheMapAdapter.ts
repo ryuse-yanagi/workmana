@@ -1,8 +1,7 @@
 import { queryClient } from './queryClient'
 
 /**
- * Map-like view over QueryClient entries keyed by a single string segment (e.g. org slug).
- * Used by profile/member patch helpers that iterate and mutate cached snapshots.
+ * 組織 slug をキーに、QueryClient のキャッシュを Map として読み書きする。
  */
 export class QueryCacheMapAdapter<TValue> implements Map<string, TValue> {
   readonly [Symbol.toStringTag] = 'Map'
@@ -108,7 +107,7 @@ export class QueryCacheMapAdapter<TValue> implements Map<string, TValue> {
 }
 
 /**
- * Map-like view where the string key is `${segment1}:${segment2}` (e.g. org slug + workspace id).
+ * `slug:スペースID` をキーに、QueryClient のキャッシュを Map として読み書きする。
  */
 export class QueryCacheCompositeMapAdapter<TValue> implements Map<string, TValue> {
   readonly [Symbol.toStringTag] = 'Map'

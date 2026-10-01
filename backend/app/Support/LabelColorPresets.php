@@ -9,6 +9,8 @@ class LabelColorPresets
     public const DEFAULT_INDEX = 5;
 
     /**
+     * 移行期のラベル色。正本は shared/color-presets.json。
+     *
      * @return list<string>
      */
     public static function legacyHex(): array
@@ -19,7 +21,7 @@ class LabelColorPresets
         return $hex;
     }
 
-    /** @deprecated Use legacyHex() — migration-era HEX list lives in shared/color-presets.json */
+    /** @deprecated legacyHex() を使う。 */
     public const LEGACY_HEX = [
         '#baf3db',
         '#fff4cc',
@@ -56,19 +58,6 @@ class LabelColorPresets
     public static function isValidIndex(int $index): bool
     {
         return $index >= 0 && $index < self::COUNT;
-    }
-
-    public static function indexFromLegacyHex(string $hex): int
-    {
-        $normalized = strtolower(trim($hex));
-
-        foreach (self::legacyHex() as $index => $legacy) {
-            if (strtolower($legacy) === $normalized) {
-                return $index;
-            }
-        }
-
-        return self::DEFAULT_INDEX;
     }
 
     public static function assertMatchesSharedJson(): void

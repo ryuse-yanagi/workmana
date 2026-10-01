@@ -20,11 +20,27 @@
         Cognito でログインすると、組織「{{ organizationName }}」を利用できます。
       </p>
       <NuxtLink
-        :to="loginPath"
+        :to="loginAfterRegisterPath"
         class="link-btn"
       >
         ログインへ
       </NuxtLink>
+    </section>
+
+    <section v-else-if="canConfirmAsSignedIn" class="card">
+      <p class="muted">
+        「{{ organizationName }}」へ招待されています。
+        ログイン中のアカウントで参加します。
+      </p>
+      <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
+      <button type="button" :disabled="submitting" @click="confirmAsSignedIn">
+        {{ submitting ? '参加中…' : '参加する' }}
+      </button>
+    </section>
+
+    <section v-else-if="signedInEmail" class="card">
+      <p class="err">この招待は {{ email }} 宛です。ログイン中のアカウントでは参加できません。</p>
+      <NuxtLink :to="loginPath" class="link-btn" @click="rememberInviteReturn">招待されたアカウントでログイン</NuxtLink>
     </section>
 
     <section v-else class="card">
@@ -35,7 +51,7 @@
 
       <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
 
-      <form class="form" @submit.prevent="submit">
+      <form class="form" autocomplete="off" @submit.prevent="submit">
         <label class="field">
           <span class="label">メールアドレス</span>
           <input
@@ -53,7 +69,8 @@
             type="text"
             class="input"
             maxlength="20"
-            autocomplete="name"
+            name="invite-name"
+            autocomplete="off"
             required
             :disabled="submitting"
           >
@@ -65,6 +82,7 @@
             type="password"
             class="input"
             minlength="8"
+            name="invite-password"
             autocomplete="new-password"
             required
             :disabled="submitting"
@@ -75,6 +93,10 @@
           {{ submitting ? '登録中…' : '登録して参加' }}
         </button>
       </form>
+      <p class="muted">
+        すでにアカウントがある場合は、ログインしてから参加してください。
+      </p>
+      <NuxtLink :to="loginPath" class="link-btn" @click="rememberInviteReturn">ログインして参加</NuxtLink>
     </section>
   </main>
 </template>
@@ -86,6 +108,7 @@ type InvitePreview = {
   status: InviteStatus
   message?: string | null
   email?: string
+  role?: string
   organization?: {
     id: number
     name: string
@@ -93,13 +116,17 @@ type InvitePreview = {
   }
 }
 
+defineOptions({ name: 'invite-token' })
+
 definePageMeta({
   name: 'invite-token',
+  keepalive: false,
 })
 
 const route = useRoute()
 const config = useRuntimeConfig()
 const apiBase = String(config.public.apiBaseUrl || '/api').replace(/\/$/, '')
+const { session, fetchSession, patchSessionUser } = useAuth()
 
 const token = computed(() => String(route.params.token || ''))
 
@@ -107,8 +134,11 @@ const loading = ref(true)
 const status = ref<InviteStatus>('invalid')
 const statusMessage = ref('招待が見つかりません。')
 const email = ref('')
+const organizationId = ref<number | null>(null)
 const organizationName = ref('')
 const organizationSlug = ref('')
+const inviteRole = ref('member')
+const signedInEmail = ref<string | null>(null)
 const name = ref('')
 const password = ref('')
 const submitting = ref(false)
@@ -116,11 +146,27 @@ const errorMessage = ref('')
 const completed = ref(false)
 const completedMessage = ref('参加が完了しました。')
 
-const loginPath = computed(() => {
+const invitePath = computed(() => `/invite/${token.value}`)
+
+const loginAfterRegisterPath = computed(() => {
   const next = organizationSlug.value
     ? `/org/${organizationSlug.value}/workspaces`
-    : '/'
+    : '/post-login'
   return { path: '/login', query: { next } }
+})
+
+const loginPath = computed(() => {
+  const next = invitePath.value
+  return {
+    path: '/login',
+    query: signedInEmail.value ? { reauth: '1', next } : { next },
+  }
+})
+
+const canConfirmAsSignedIn = computed(() => {
+  const current = signedInEmail.value?.trim().toLowerCase()
+  const invited = email.value.trim().toLowerCase()
+  return Boolean(current && invited && current === invited)
 })
 
 function applyPreview (preview: InvitePreview) {
@@ -133,14 +179,53 @@ function applyPreview (preview: InvitePreview) {
         : '招待を利用できません。'
   )
   email.value = preview.email || ''
+  organizationId.value = preview.organization?.id ?? null
   organizationName.value = preview.organization?.name || ''
   organizationSlug.value = preview.organization?.slug || ''
+  inviteRole.value = preview.role || 'member'
+}
+
+function rememberInviteReturn () {
+  if (!import.meta.client || !token.value) return
+  sessionStorage.setItem('tm:pending_invite', invitePath.value)
+}
+
+/** 参加した組織をセッションに足し、直前の組織としても記録する */
+function joinOrganizationInSession (organization: { id: number, name: string, slug: string }) {
+  const organizations = [...(session.value?.user?.organizations ?? [])]
+  if (!organizations.some(item => item.id === organization.id)) {
+    organizations.push({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      role: inviteRole.value,
+      icon_url: null,
+    })
+  }
+  patchSessionUser({
+    organizations,
+    last_organization_id: organization.id,
+  })
+}
+
+function resetInviteForm () {
+  name.value = ''
+  password.value = ''
+  submitting.value = false
+  errorMessage.value = ''
+  completed.value = false
 }
 
 async function loadInvite () {
+  resetInviteForm()
   loading.value = true
-  errorMessage.value = ''
-  completed.value = false
+
+  try {
+    const auth = await fetchSession()
+    signedInEmail.value = auth.authenticated ? (auth.user?.email ?? null) : null
+  } catch {
+    signedInEmail.value = null
+  }
 
   if (!token.value) {
     status.value = 'invalid'
@@ -170,6 +255,34 @@ async function loadInvite () {
   }
 }
 
+/** 参加を確定し、その組織のスペース一覧へ進む */
+async function confirmAsSignedIn () {
+  if (submitting.value || !canConfirmAsSignedIn.value) return
+  errorMessage.value = ''
+  submitting.value = true
+  const { api } = useApi()
+  try {
+    const res = await api<{ organization?: { id: number, name: string, slug: string } }>(
+      `/invites/${encodeURIComponent(token.value)}/accept`,
+      { method: 'POST', body: {} },
+    )
+    const organization = {
+      id: res.organization?.id ?? organizationId.value ?? 0,
+      name: res.organization?.name || organizationName.value,
+      slug: res.organization?.slug || organizationSlug.value,
+    }
+    if (!organization.id || !organization.slug) {
+      throw new Error('参加先の組織を確認できませんでした。')
+    }
+    joinOrganizationInSession(organization)
+    await navigateTo(`/org/${organization.slug}/workspaces`)
+  } catch (error: unknown) {
+    errorMessage.value = error instanceof Error ? error.message : '参加に失敗しました。'
+  } finally {
+    submitting.value = false
+  }
+}
+
 async function submit () {
   errorMessage.value = ''
   submitting.value = true
@@ -194,7 +307,13 @@ async function submit () {
       organizationSlug.value = res.organization.slug
     }
   } catch (error: unknown) {
-    errorMessage.value = error instanceof Error ? error.message : '登録に失敗しました。'
+    const message = error instanceof Error ? error.message : '登録に失敗しました。'
+    if (message === 'Unauthenticated.' || message.includes('Unauthenticated')) {
+      rememberInviteReturn()
+      await navigateTo(loginPath.value)
+      return
+    }
+    errorMessage.value = message
     if (errorMessage.value.includes('使用済み')) {
       status.value = 'used'
       statusMessage.value = 'この招待は使用済みです'
@@ -204,6 +323,10 @@ async function submit () {
   }
 }
 
+onActivated(() => {
+  void loadInvite()
+})
+
 onMounted(() => {
   void loadInvite()
 })
@@ -212,5 +335,5 @@ watch(token, () => {
   void loadInvite()
 })
 </script>
-
 <style lang="scss" scoped src="~/assets/styles/pages/invite.scss"></style>
+

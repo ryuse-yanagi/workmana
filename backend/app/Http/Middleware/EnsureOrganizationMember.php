@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -10,6 +10,8 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureOrganizationMember
 {
     /**
+     * 未所属なら 403 にし、所属なら pivot をリクエスト属性に載せる。
+     *
      * @param  Closure(Request): Response  $next
      */
     public function handle(Request $request, Closure $next): Response

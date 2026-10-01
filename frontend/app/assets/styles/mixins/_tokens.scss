@@ -55,6 +55,8 @@ $popover-standard-panel-width: 320px;
 $popover-members-panel-width: $popover-standard-panel-width;
 /** リスト選択ポップオーバーの基準幅 */
 $popover-list-panel-width: 360px;
+/** ガントバー色: 5×60px + 4×4.9px gap + 8px×2 padding = 335.6 → 336px */
+$popover-gantt-color-panel-width: 336px;
 /** ラベル系ポップオーバーの基準幅 */
 $popover-labels-panel-width: $popover-standard-panel-width;
 /** ステータス／カテゴリ選択ポップオーバーの基準幅 */
@@ -65,14 +67,24 @@ $popover-label-bar-height: 40px;
 $popover-member-name-width: 234px;
 /** g / j / p / y 等の descender が clip されない行高 */
 $text-line-height-safe: 1.35;
-/** ポップオーバー開閉フェード（Transition name="popover-fade"） */
-$popover-fade-duration: 0.1s;
+/** ポップオーバー開閉（Transition name="popover-fade"）。0 = 瞬時 */
+$popover-fade-duration: 0s;
 
 $page-header-title-font-weight: $header-nav-label-font-weight;
 /** 画面別ヘッダー — 左右 padding */
 $page-header-inline-padding: 16px;
 /** 一覧画面タイトル幅 — アイコン + ラベルを収める */
 $page-header-list-title-width: 152px;
+/**
+ * 画面別ヘッダー内容領域の左端から、検索欄の左端まで。
+ * スペース詳細の「スペース一覧 + スペース名 + 切り替えタブ」の幅に、その右の 7px を足した位置。
+ * スペース一覧もこの値に合わせ、画面を行き来しても検索欄が動かないようにする。
+ */
+$subheader-search-left: 557px;
+/** 画面別ヘッダー検索欄の最大幅 */
+$subheader-search-max-width: 800px;
+/** スペース詳細のタスク検索欄の最小幅。以降はスペース名を縮める */
+$subheader-search-min-width: 240px;
 
 /** 代表色 */
 $main: #0c66e4;
@@ -103,10 +115,15 @@ $text-muted: #64748b;
 $text-faint: #9ca3af;
 $text-disabled: #d1d5db;
 
+/** 変更不可・必須を示す鍵アイコン */
+$lock: #1e293b;
+
 /** 背景色 */
 $bg-header: #28384a;
 $bg-white: $white;
 $bg-gray: #f9f9f9;
+/** $bg-gray と $gray の中間。変更不可の入力欄など */
+$bg-locked: color-mix(in srgb, $bg-gray 50%, $gray 50%);
 $bg-muted: #f1f5f9;
 $bg-canvas: #f5f6fa;
 $bg-canvas-top: #eef1f6;

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Workspaces;
 
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -12,6 +12,7 @@ class WorkspaceIndexReturnsAllItemsWithoutPaginationCapTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** ワークスペース一覧がページネーション上限なく全件返す */
     public function test_workspace_index_returns_all_items_without_pagination_cap(): void
     {
         [$admin, $organization] = $this->createOrgWithAdminAndMember();

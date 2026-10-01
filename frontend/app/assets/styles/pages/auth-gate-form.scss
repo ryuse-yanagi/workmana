@@ -77,6 +77,10 @@
   color: mixin.$text-sub;
 }
 
+.auth-gate__panel > .auth-copy + .auth-btn {
+  margin-top: 14px;
+}
+
 .auth-copy--strong {
   margin: 12px 0 0;
   font-size: 0.98rem;
@@ -95,6 +99,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
   min-height: 44px;
   padding: 0 18px;
   border-radius: 11px;
@@ -107,17 +114,12 @@
   letter-spacing: 0.01em;
   text-decoration: none;
   box-shadow: 0 10px 24px mixin.main-a(0.28);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+  transition: box-shadow 0.18s ease, filter 0.18s ease;
 }
 
 .auth-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
   filter: brightness(1.04);
   box-shadow: 0 14px 28px mixin.main-a(0.34);
-}
-
-.auth-btn:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 .auth-btn:disabled {
@@ -127,6 +129,7 @@
 }
 
 .auth-btn--block {
+  display: flex;
   width: 100%;
 }
 

@@ -12,6 +12,7 @@ class AdminCanRevokeInviteTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 管理者が招待を取り消せる */
     public function test_admin_can_revoke_invite(): void
     {
         [$admin] = $this->createOrgWithAdmin();

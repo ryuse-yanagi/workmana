@@ -8,17 +8,13 @@
     </template>
     <template v-else>
       <header class="page-header">
-            <PageSubheader
-              actions-root-attr
-              :wrap-start="false"
-            >
+            <PageSubheader actions-root-attr>
               <template #start>
                 <p class="subheader-title">
                   <FolderOpen :size="20" :stroke-width="2.25" class="subheader-title__icon" aria-hidden="true" />
                   Workspaces
                 </p>
-              </template>
-              <template #filters>
+                <span class="header-sort-leading" aria-hidden="true" />
                 <select
                   v-model="sortMode"
                   class="header-sort"
@@ -29,6 +25,8 @@
                   <option value="updated">更新日時順</option>
                   <option value="name">名前順</option>
                 </select>
+              </template>
+              <template #filters>
                 <HeaderSearchField
                   v-model.trim="searchQuery"
                   placeholder="スペースを検索..."
@@ -128,7 +126,7 @@
                     <tr v-if="!visibleWorkspaces.length">
                       <td colspan="5" class="workspace-card-cell">
                         <div class="workspace-card workspace-card--empty" role="status">
-                          <p class="workspace-list-empty__message">該当するスペースがありません</p>
+                          <p class="workspace-list-empty__message">スペースがありません</p>
                         </div>
                       </td>
                     </tr>
@@ -145,7 +143,7 @@
                     tabindex="0"
                     @pointerenter="warmWorkspaceBoard(workspace.id)"
                     @focusin="warmWorkspaceBoard(workspace.id)"
-                    @pointerdown="onWorkspacePointerDown($event, workspace.id)"
+                    @click="onWorkspaceRowClick($event, workspace.id)"
                     @contextmenu.prevent="onWorkspaceContextMenu(workspace.id, $event)"
                     @keydown.enter.prevent="goToWorkspace(workspace.id)"
                     @keydown.space.prevent="goToWorkspace(workspace.id)"
@@ -185,6 +183,7 @@
                           <div class="workspace-card__assignees">
                             <WorkspaceAssigneeSelect
                               readonly
+                              role-label="メンバー"
                               :assignees="workspace.assignees ?? []"
                               :org-members="orgMembers"
                             />
@@ -241,7 +240,7 @@
               v-model:label-search="labelFilterSearchQuery"
               assignee-title="メンバー"
               assignee-search-placeholder="メンバーを検索..."
-              assignee-empty-text="該当するメンバーがありません"
+              assignee-empty-text="メンバーがありません"
               :members="filteredAssigneeFilterMembers"
               :label-categories="labelFilterCategories"
               :is-assignee-selected="isAssigneeFilterSelected"
@@ -269,7 +268,7 @@
       />
       <FloatingMenu
         :open="Boolean(openMenuWorkspace && workspaceMenuPosition)"
-        :instance-key="openMenuWorkspaceId ?? 'workspace-menu'"
+        instance-key="workspace-menu"
         :style="workspaceMenuStyle"
         :disabled="pending"
         :items="workspaceMenuItems"
@@ -324,43 +323,44 @@ import FilterTriggerButton from '../../../../components/ui/FilterTriggerButton.v
 import BoardFilterPopover from '../../../../components/ui/BoardFilterPopover.vue'
 import BoardFilterPopoverBody from '../../../../components/ui/BoardFilterPopoverBody.vue'
 import LoadingSpinner from '../../../../components/ui/LoadingSpinner.vue'
-import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/raceWithTimeout'
-import { withAppLoadingCursor } from '../../../../composables/useAppLoadingCursor'
+import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../composables/shared/raceWithTimeout'
+import { withAppLoadingCursor } from '../../../../composables/ui/useAppLoadingCursor'
 import {
   useOrgWorkspaceIndexPageData,
   useOrgWorkspaceIndexCacheRevision,
   hydrateOrgWorkspaceIndexSnapshot,
   type OrgWorkspaceIndexPageSnapshot,
   type OrgWorkspaceStatus,
-} from '../../../../composables/useOrgWorkspaceIndexPageData'
-import { useWorkspaceMutations } from '../../../../composables/useWorkspaceMutations'
-import { formatDateDisplay, type TaskFormMember } from '../../../../composables/useTaskFormHelpers'
-import { memberMatchesSearchQuery } from '../../../../composables/useMemberDisplay'
-import { filterLabelCategories } from '../../../../composables/useLabelCategories'
-import { useAnchoredFilterPopover } from '../../../../composables/useAnchoredFilterPopover'
-import { useFloatingMenuState } from '../../../../composables/useFloatingMenuState'
-import { useTransientIdFlash } from '../../../../composables/useTransientIdFlash'
-import { useStickyHeaderOffsets } from '../../../../composables/useWorkspaceViewPageRoot'
-import { isViewShortcutModifierBlocked } from '../../../../composables/useViewKeyboardShortcuts'
-import { useWorkspaceBoardPageData } from '../../../../composables/useWorkspaceBoardPageData'
-import { useOrgSafeRedirect } from '../../../../composables/useOrgSafeRedirect'
+} from '../../../../composables/workspace/useOrgWorkspaceIndexPageData'
+import { useWorkspaceMutations } from '../../../../composables/workspace/useWorkspaceMutations'
+import { formatDateDisplay, type TaskFormMember } from '../../../../composables/task/useTaskFormHelpers'
+import { memberMatchesSearchQuery } from '../../../../composables/member/useMemberDisplay'
+import { filterLabelCategories } from '../../../../composables/label/useLabelCategories'
+import { clearFilters } from '../../../../composables/task/useWorkspaceTaskFilters'
+import { useAnchoredFilterPopover } from '../../../../composables/ui/useAnchoredFilterPopover'
+import { useFloatingMenuState } from '../../../../composables/ui/useFloatingMenuState'
+import { useTransientIdFlash } from '../../../../composables/ui/useTransientIdFlash'
+import { useStickyHeaderOffsets } from '../../../../composables/workspace/useWorkspaceViewPageRoot'
+import { isViewShortcutModifierBlocked } from '../../../../composables/ui/useViewKeyboardShortcuts'
+import { useWorkspaceBoardPageData } from '../../../../composables/workspace/useWorkspaceBoardPageData'
+import { useOrgSafeRedirect } from '../../../../composables/org/useOrgSafeRedirect'
 import { DEFAULT_WORKSPACE_STATUS_ITEMS } from '../../../../components/settings/types'
-import { resolveStandardColors } from '../../../../utils/colorPresetResolution'
-import { isAccessDeniedMessage } from '../../../../utils/resourceAccessError'
-import { buildDestructiveConfirmMessage } from '../../../../utils/destructiveConfirmMessage'
+import { resolveStandardColors } from '../../../../utils/shared/colorPresetResolution'
+import { isAccessDeniedMessage } from '../../../../utils/shared/resourceAccessError'
+import { buildDestructiveConfirmMessage } from '../../../../utils/shared/destructiveConfirmMessage'
 import {
   getTopmostModalOverlay,
   isKeyboardShortcutBlockedTarget,
-} from '../../../../utils/uiInteraction'
-import WorkspaceFormModal from '../../../../components/modals/WorkspaceFormModal.vue'
-import ArchivedNamedItemsModal from '../../../../components/modals/ArchivedNamedItemsModal.vue'
-import ConfirmModal from '../../../../components/modals/ConfirmModal.vue'
+} from '../../../../utils/ui/uiInteraction'
+import WorkspaceFormModal from '../../../../components/modals/workspace/WorkspaceFormModal.vue'
+import ArchivedNamedItemsModal from '../../../../components/modals/archived/ArchivedNamedItemsModal.vue'
+import ConfirmModal from '../../../../components/modals/shared/ConfirmModal.vue'
 import WorkspaceAssigneeSelect from '../../../../components/workspace/WorkspaceAssigneeSelect.vue'
 import WorkspaceStatusSelect from '../../../../components/workspace/WorkspaceStatusSelect.vue'
 import FloatingMenu, { type FloatingMenuItem } from '../../../../components/ui/FloatingMenu.vue'
 import CardMenuTrigger from '../../../../components/ui/CardMenuTrigger.vue'
-import { useOrgRole } from '../../../../composables/useOrgRole'
-import { useWorkspaceViewPageRoot } from '../../../../composables/useWorkspaceViewPageRoot'
+import { useOrgRole } from '../../../../composables/org/useOrgRole'
+import { useWorkspaceViewPageRoot } from '../../../../composables/workspace/useWorkspaceViewPageRoot'
 definePageMeta({
   name: 'org-slug-workspaces',
   key: route => route.fullPath,
@@ -445,8 +445,6 @@ const workspaceMenu = useFloatingMenuState<number>({
 })
 const openMenuWorkspaceId = workspaceMenu.openId
 const workspaceMenuPosition = workspaceMenu.position
-const pendingWorkspaceMenuOpen = workspaceMenu.pendingOpen
-let workspaceMenuAnchorEl: HTMLElement | null = null
 const subheaderMenuTriggerRef = ref<HTMLElement | null>(null)
 const SUBHEADER_MENU_MIN_WIDTH = 220
 const subheaderMenu = useFloatingMenuState<'subheader'>({
@@ -466,9 +464,18 @@ function setListFilterTriggerRef (comp: { el?: HTMLElement | null } | null) {
   listFilterTriggerRef.value = comp?.el ?? null
 }
 const listFilterDropdownRef = ref<InstanceType<typeof BoardFilterPopover> | null>(null)
-const assigneeFilterSelected = ref<string[]>([])
-const labelFilterSelected = ref(new Set<string>())
-const statusFilterSelected = ref(new Set<string>())
+type WorkspaceListFilters = {
+  assignees: string[]
+  labels: string[]
+  statuses: string[]
+}
+function createEmptyWorkspaceListFilters (): WorkspaceListFilters {
+  return { assignees: [], labels: [], statuses: [] }
+}
+const listFilters = ref<WorkspaceListFilters>(createEmptyWorkspaceListFilters())
+function clearListFilters () {
+  clearFilters(listFilters, createEmptyWorkspaceListFilters)
+}
 const assigneeFilterSearchQuery = ref('')
 const labelFilterSearchQuery = ref('')
 type ListFilterSectionKey = 'assignee' | 'label' | 'status'
@@ -478,9 +485,9 @@ const filterSectionsOpen = reactive<Record<ListFilterSectionKey, boolean>>({
   status: true,
 })
 const hasActiveListFilters = computed(() => (
-  assigneeFilterSelected.value.length > 0
-  || labelFilterSelected.value.size > 0
-  || statusFilterSelected.value.size > 0
+  listFilters.value.assignees.length > 0
+  || listFilters.value.labels.length > 0
+  || listFilters.value.statuses.length > 0
 ))
 function clearListFilterSearchQueries () {
   assigneeFilterSearchQuery.value = ''
@@ -497,10 +504,6 @@ const {
   triggerRef: listFilterTriggerRef,
   dropdownRef: listFilterDropdownRef,
   onClose: clearListFilterSearchQueries,
-  onBeforeOpen: () => {
-    workspaceMenu.close()
-    subheaderMenu.close()
-  },
   repositionSources: [assigneeFilterSearchQuery, labelFilterSearchQuery],
 })
 const justCreatedWorkspaces = useTransientIdFlash<number>()
@@ -590,7 +593,7 @@ const labelFilterCategories = computed(() =>
   filterLabelCategories(orgLabelCategories.value, labelFilterSearchQuery.value),
 )
 function matchesAssigneeFilter (workspace: Workspace): boolean {
-  const selected = assigneeFilterSelected.value
+  const selected = listFilters.value.assignees
   if (selected.length === 0) {
     return true
   }
@@ -603,64 +606,66 @@ function matchesAssigneeFilter (workspace: Workspace): boolean {
   return matchesUnset || matchesMember
 }
 function matchesLabelFilter (workspace: Workspace): boolean {
-  if (labelFilterSelected.value.size === 0) {
+  const selected = listFilters.value.labels
+  if (selected.length === 0) {
     return true
   }
   const labels = workspace.labels ?? []
-  if (labelFilterSelected.value.has('unset') && labels.length === 0) {
+  if (selected.includes('unset') && labels.length === 0) {
     return true
   }
-  return labels.some(label => labelFilterSelected.value.has(String(label.id)))
+  return labels.some(label => selected.includes(String(label.id)))
 }
 function matchesStatusFilter (workspace: Workspace): boolean {
-  if (statusFilterSelected.value.size === 0) {
+  const selected = listFilters.value.statuses
+  if (selected.length === 0) {
     return true
   }
   const statusName = workspace.status?.name
-  if (statusFilterSelected.value.has('unset') && !statusName) {
+  if (selected.includes('unset') && !statusName) {
     return true
   }
-  return Boolean(statusName && statusFilterSelected.value.has(statusName))
+  return Boolean(statusName && selected.includes(statusName))
 }
 function isAssigneeFilterSelected (key: string): boolean {
-  return assigneeFilterSelected.value.includes(key)
+  return listFilters.value.assignees.includes(key)
 }
 function setAssigneeFilter (key: string, event: Event) {
   const input = event.target
   if (!(input instanceof HTMLInputElement)) {
     return
   }
-  const selected = new Set(assigneeFilterSelected.value)
+  const selected = new Set(listFilters.value.assignees)
   if (input.checked) {
     selected.add(key)
   } else {
     selected.delete(key)
   }
-  assigneeFilterSelected.value = [...selected]
+  listFilters.value = { ...listFilters.value, assignees: [...selected] }
 }
 function isLabelFilterSelected (key: string): boolean {
-  return labelFilterSelected.value.has(key)
+  return listFilters.value.labels.includes(key)
 }
 function toggleLabelFilter (key: string) {
-  const next = new Set(labelFilterSelected.value)
+  const next = new Set(listFilters.value.labels)
   if (next.has(key)) {
     next.delete(key)
   } else {
     next.add(key)
   }
-  labelFilterSelected.value = next
+  listFilters.value = { ...listFilters.value, labels: [...next] }
 }
 function isStatusFilterSelected (key: string): boolean {
-  return statusFilterSelected.value.has(key)
+  return listFilters.value.statuses.includes(key)
 }
 function toggleStatusFilter (key: string) {
-  const next = new Set(statusFilterSelected.value)
+  const next = new Set(listFilters.value.statuses)
   if (next.has(key)) {
     next.delete(key)
   } else {
     next.add(key)
   }
-  statusFilterSelected.value = next
+  listFilters.value = { ...listFilters.value, statuses: [...next] }
 }
 const workspaceFormInitialValues = computed(() => {
   if (workspaceFormMode.value !== 'details' || !workspaceDetailsTarget.value) {
@@ -715,12 +720,6 @@ function resetWorkspaceListReveal () {
 }
 const closeWorkspaceMenu = workspaceMenu.close
 function onWorkspaceMenuAfterLeave () {
-  const pending = pendingWorkspaceMenuOpen.value
-  if (!pending) {
-    workspaceMenuAnchorEl = null
-  } else {
-    workspaceMenuAnchorEl = pending.anchor
-  }
   workspaceMenu.onAfterLeave()
 }
 function closeSubheaderMenu () {
@@ -731,8 +730,6 @@ function toggleSubheaderMenu () {
     closeSubheaderMenu()
     return
   }
-  closeWorkspaceMenu()
-  closeListFilter()
   const anchor = subheaderMenuTriggerRef.value
   if (!anchor) {
     return
@@ -752,9 +749,6 @@ function openArchivedWorkspacesModal () {
   archivedWorkspacesOpen.value = true
 }
 function openWorkspaceMenu (workspaceId: number, anchor: HTMLElement) {
-  closeSubheaderMenu()
-  closeListFilter()
-  workspaceMenuAnchorEl = anchor
   workspaceMenu.open(workspaceId, anchor)
 }
 function toggleWorkspaceMenu (workspaceId: number, event: MouseEvent) {
@@ -1092,6 +1086,7 @@ function onWorkspaceRestored (restored: { id: number }) {
   void fetchAndUpsertWorkspace(slug.value, restored.id, { force: true })
 }
 
+/** 一覧キャッシュと、ボード／WBS のキャッシュを捨てる */
 function onWorkspacePermanentlyDeleted (workspaceId: number) {
   removeCachedWorkspace(slug.value, workspaceId)
   workspaceMutations.invalidateWorkspaceViews(workspaceId)
@@ -1109,12 +1104,13 @@ function warmWorkspaceBoard (workspaceId: number) {
   void warmWorkspaceBoardCache(slug.value, String(workspaceId))
   warmWorkspaceCache(slug.value, workspaceId)
 }
-function onWorkspacePointerDown (event: PointerEvent, workspaceId: number) {
+function onWorkspaceRowClick (event: MouseEvent, workspaceId: number) {
   if (event.button !== 0 || loadingWorkspaceId.value !== null) {
     return
   }
   goToWorkspace(workspaceId)
 }
+/** 遷移中は二重に開かず、先にボードを先読みする */
 function goToWorkspace (workspaceId: number) {
   if (loadingWorkspaceId.value !== null) {
     return

@@ -101,6 +101,8 @@ class DefaultNamedColorItemsDiffNameChangesTest extends TestCase
     }
 
     /**
+     * 名前変更と削除の差分を正しく検出する
+     *
      * @param  list<array{name: string, color_index: int}>  $oldItems
      * @param  list<array{name: string, color_index: int}>  $newItems
      * @param  list<array{from: string, to: string}>  $renames
@@ -119,4 +121,3 @@ class DefaultNamedColorItemsDiffNameChangesTest extends TestCase
         $this->assertSame($deleted, $diff['deleted']);
     }
 }
-

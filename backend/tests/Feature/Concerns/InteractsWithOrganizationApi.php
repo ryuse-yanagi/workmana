@@ -3,15 +3,33 @@
 namespace Tests\Feature\Concerns;
 
 use App\Enums\MembershipRole;
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 
 trait InteractsWithOrganizationApi
 {
+    /**
+     * phpunit.xml の COGNITO_BYPASS=true 専用。Bearer にユーザーIDを載せて認証する。
+     * 本番のセッション Cookie 認証は tests/Feature/Auth で別途検証する。
+     */
     protected function actingAsApiUser(User $user): static
     {
         return $this->withHeader('Authorization', 'Bearer '.$user->id);
+    }
+
+    protected function createOrganizationViaApi(User $user, string $name = 'Acme'): string
+    {
+        $slug = $this->actingAsApiUser($user)
+            ->postJson('/api/organizations', [
+                'name' => $name,
+            ])
+            ->assertCreated()
+            ->json('slug');
+
+        $this->assertIsString($slug);
+
+        return $slug;
     }
 
     /**
@@ -74,5 +92,21 @@ trait InteractsWithOrganizationApi
             ->postJson("/api/orgs/{$orgSlug}/workspaces", ['name' => $name])
             ->assertCreated()
             ->json('id');
+    }
+
+    /**
+     * @param  list<int>  $assigneeIds
+     */
+    protected function syncWorkspaceAssigneesViaApi(
+        User $user,
+        string $orgSlug,
+        int $workspaceId,
+        array $assigneeIds,
+    ): void {
+        $this->actingAsApiUser($user)
+            ->patchJson("/api/orgs/{$orgSlug}/workspaces/{$workspaceId}", [
+                'assignee_ids' => $assigneeIds,
+            ])
+            ->assertOk();
     }
 }

@@ -2,28 +2,34 @@
 /**
  * 未定義パスの受け皿。所属組織のスペース一覧（未ログインはログイン）へ退避する。
  */
-import { useAuth } from '../composables/useAuth'
-import { useOrganizationContext } from '../composables/useOrganizationContext'
+import { useAuth } from '../composables/auth/useAuth'
+import { useOrganizationContext } from '../composables/org/useOrganizationContext'
 
 definePageMeta({
+  name: 'unknown-path',
   authShell: true,
+  keepalive: false,
 })
 
-const { fetchSession } = useAuth()
+const { fetchSession, startLogin } = useAuth()
 const { resolvePostLoginPath } = useOrganizationContext()
 
-onMounted(async () => {
+const session = await fetchSession()
+if (session.authenticated) {
   try {
-    const session = await fetchSession()
-    if (session.authenticated) {
-      await navigateTo(await resolvePostLoginPath(session.user), { replace: true })
-      return
-    }
+    await navigateTo(await resolvePostLoginPath(session.user), { replace: true })
   } catch {
-    // fall through
+    await navigateTo('/login', { replace: true })
   }
+} else if (session.configured) {
+  if (import.meta.client) {
+    startLogin('/post-login')
+  } else {
+    await navigateTo('/login', { replace: true })
+  }
+} else {
   await navigateTo('/login', { replace: true })
-})
+}
 </script>
 
 <template>

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Documents;
 
-use App\Models\SharedDocument;
+use App\Models\Document\Document;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -12,12 +12,15 @@ class DocumentIndexIncludesDescriptionAndBodyTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 資料一覧に説明と本文が含まれる */
     public function test_document_index_includes_description_and_body(): void
     {
         [$user, $organization] = $this->createOrgWithAdmin();
+        $workspaceId = $this->createWorkspaceViaApi($user, 'acme', 'Docs');
 
-        SharedDocument::query()->create([
+        Document::query()->create([
             'organization_id' => $organization->id,
+            'workspace_id' => $workspaceId,
             'created_by' => $user->id,
             'name' => 'API 設計',
             'description' => 'REST API の設計方針',

@@ -130,7 +130,6 @@
             @blur="onItemTextBlur(item)"
           />
           <div
-            v-if="editingItemId !== item.id"
             class="task-checklist__item-menu-wrap"
             :class="{ 'task-checklist__item-menu-wrap--open': openItemMenuId === item.id }"
             @click.stop
@@ -148,11 +147,6 @@
               <Ellipsis :size="16" :stroke-width="2.25" aria-hidden="true" />
             </button>
           </div>
-          <span
-            v-else
-            class="task-checklist__item-menu-spacer"
-            aria-hidden="true"
-          />
         </div>
       </li>
       <li
@@ -216,13 +210,13 @@ import {
   CHECKLIST_TITLE_MAX_LENGTH,
 } from '../../constants/fieldLengthLimits'
 import FloatingMenu, { type FloatingMenuItem } from '../ui/FloatingMenu.vue'
-import { useTaskDetailSectionCollapse } from '../../composables/useTaskDetailSectionCollapse'
-import { adjustTextareaHeight } from '../../utils/textareaAutoGrow'
+import { useTaskDetailSectionCollapse } from '../../composables/task/useTaskDetailSectionCollapse'
+import { adjustTextareaHeight } from '../../utils/task/textareaAutoGrow'
 import {
   POPOVER_VIEWPORT_INSET,
   clampPopoverBox,
   resolveMeasuredFloatingMenuHeight,
-} from '../../utils/popoverScrollbar'
+} from '../../utils/ui/popoverScrollbar'
 export type TaskChecklistItem = {
   id: string
   text: string
@@ -268,6 +262,7 @@ watch(collapsed, (isCollapsed) => {
 const menuOpen = ref(false)
 const menuPosition = ref<{ top: number; left: number } | null>(null)
 const menuItems: FloatingMenuItem[] = [
+  { key: 'edit', label: 'チェックリストの編集' },
   { key: 'delete', label: 'チェックリストの削除', danger: true },
 ]
 const openItemMenuId = ref<string | null>(null)
@@ -386,6 +381,10 @@ function toggleItemMenu (itemId: string, event: MouseEvent) {
 }
 function onMenuSelect (item: FloatingMenuItem) {
   closeMenu()
+  if (item.key === 'edit') {
+    openEditTitle()
+    return
+  }
   if (item.key === 'delete') {
     emit('delete')
   }

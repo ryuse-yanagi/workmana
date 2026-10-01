@@ -18,6 +18,7 @@ class CurrentOrganizationUsesLastOrganizationIdTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 複数所属時はlast_organization_idの組織が現在組織になる */
     public function test_current_organization_uses_last_organization_id_when_multiple(): void
     {
         $user = User::factory()->create(['cognito_sub' => 'sub-2']);

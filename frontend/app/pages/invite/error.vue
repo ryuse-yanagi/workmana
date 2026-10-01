@@ -16,8 +16,8 @@
 </template>
 
 <script setup lang="ts">
-import { useAuth } from '../../composables/useAuth'
-import { useOrganizationContext } from '../../composables/useOrganizationContext'
+import { useAuth } from '../../composables/auth/useAuth'
+import { useOrganizationContext } from '../../composables/org/useOrganizationContext'
 
 definePageMeta({
   name: 'invite-error',

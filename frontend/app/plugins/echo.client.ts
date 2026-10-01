@@ -1,6 +1,6 @@
 import Echo from 'laravel-echo'
 import Pusher from 'pusher-js'
-import { ensureXsrfToken } from '../utils/csrf'
+import { ensureXsrfToken } from '../utils/shared/csrf'
 type EchoInstance = InstanceType<typeof Echo>
 type ChannelAuthorizationData = { auth: string; channel_data?: string; shared_secret?: string }
 const ECHO_SINGLETON_KEY = '__tmEchoInstance'

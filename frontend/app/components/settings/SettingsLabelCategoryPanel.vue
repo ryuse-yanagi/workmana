@@ -4,12 +4,7 @@
       {{ message }}
     </p>
     <p v-if="!loading && !categories.length" class="label-category-panel__empty">
-      <template v-if="canManage">
-        まだカテゴリがありません。「カテゴリ追加」から追加してください。
-      </template>
-      <template v-else>
-        まだカテゴリがありません。
-      </template>
+      カテゴリがありません
     </p>
     <draggable
       v-model="categories"
@@ -94,7 +89,7 @@
     <LabelCategoryNameModal
       ref="categoryModalRef"
       v-model="categoryModalOpen"
-      :title="categoryModalMode === 'add' ? 'カテゴリの追加' : 'カテゴリの編集'"
+      :title="categoryModalTitle"
       :submit-label="categoryModalMode === 'add' ? '追加' : '保存'"
       :initial-name="editingCategoryName"
       :loading="loading"
@@ -110,7 +105,7 @@
     <LabelEditModal
       ref="labelEditModalRef"
       v-model="labelEditModalOpen"
-      title="ラベルの編集"
+      :title="labelEditTitle"
       :initial-name="editingLabel?.name ?? ''"
       :initial-color-index="editingLabel?.color_index"
       :loading="loading"
@@ -119,6 +114,7 @@
     <LabelDeleteModal
       ref="labelDeleteModalRef"
       v-model="labelDeleteModalOpen"
+      :title="labelDeleteTitle"
       :label-name="labelDeleteTarget?.name ?? ''"
       :loading="labelDeletePending"
       @confirm="confirmDeleteLabel"
@@ -126,6 +122,7 @@
     <LabelCategoryDeleteModal
       ref="categoryDeleteModalRef"
       v-model="categoryDeleteModalOpen"
+      :title="categoryDeleteTitle"
       :category-name="categoryDeleteTarget?.name ?? ''"
       :loading="categoryDeletePending"
       @confirm="confirmDeleteCategory"
@@ -136,17 +133,17 @@
 import draggable from 'vuedraggable'
 import { Equal } from 'lucide-vue-next'
 import { TagPlus } from '../icons/TagPlusIcon'
-import { useApi } from '../../composables/useApi'
-import LabelCategoryNameModal from '../modals/LabelCategoryNameModal.vue'
-import LabelAddModal from '../modals/LabelAddModal.vue'
-import LabelEditModal from '../modals/LabelEditModal.vue'
-import LabelDeleteModal from '../modals/LabelDeleteModal.vue'
-import LabelCategoryDeleteModal from '../modals/LabelCategoryDeleteModal.vue'
-import type { SettingsLabelCategory, SettingsLabelItem, SettingsLabelTabKey } from './types'
+import { useApi } from '../../composables/shared/useApi'
+import LabelCategoryNameModal from '../modals/label/LabelCategoryNameModal.vue'
+import LabelAddModal from '../modals/label/LabelAddModal.vue'
+import LabelEditModal from '../modals/label/LabelEditModal.vue'
+import LabelDeleteModal from '../modals/label/LabelDeleteModal.vue'
+import LabelCategoryDeleteModal from '../modals/label/LabelCategoryDeleteModal.vue'
+import { settingsScopedModalTitle, type SettingsLabelCategory, type SettingsLabelItem, type SettingsLabelTabKey } from './types'
 import { normalizeSettingsLabelCategories } from './labelCategoryNormalize'
-import { resolveLabelColors, withResolvedLabelColor } from '../../utils/colorPresetResolution'
-import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
-import { invalidateOrgDerivedCachesForLabelKind } from '../../composables/invalidateOrgDerivedCaches'
+import { resolveLabelColors, withResolvedLabelColor } from '../../utils/shared/colorPresetResolution'
+import { useOrgSettingsPageData } from '../../composables/settings/useOrgSettingsPageData'
+import { invalidateOrgDerivedCachesForLabelKind } from '../../composables/settings/invalidateOrgDerivedCaches'
 const props = defineProps<{
   orgSlug: string
   labelKind: SettingsLabelTabKey
@@ -186,9 +183,14 @@ const categoryApiBase = computed(() => {
 const labelApiBase = computed(() => {
   return props.labelKind === 'workspace' ? 'workspace-labels' : 'task-labels'
 })
-const labelAddTitle = computed(() => {
-  return props.labelKind === 'workspace' ? 'ラベル（スペース）の追加' : 'ラベル（タスク）の追加'
+const itemScope = computed(() => props.labelKind === 'workspace' ? 'スペース' : 'タスク')
+const categoryModalTitle = computed(() => {
+  return settingsScopedModalTitle(itemScope.value, 'ラベルカテゴリ', categoryModalMode.value === 'add' ? '追加' : '編集')
 })
+const labelAddTitle = computed(() => settingsScopedModalTitle(itemScope.value, 'ラベル', '追加'))
+const labelEditTitle = computed(() => settingsScopedModalTitle(itemScope.value, 'ラベル', '編集'))
+const labelDeleteTitle = computed(() => settingsScopedModalTitle(itemScope.value, 'ラベル', '削除'))
+const categoryDeleteTitle = computed(() => settingsScopedModalTitle(itemScope.value, 'ラベルカテゴリ', '削除'))
 function setMessage (msg: string, kind: 'ok' | 'err') {
   message.value = msg
   messageKind.value = kind

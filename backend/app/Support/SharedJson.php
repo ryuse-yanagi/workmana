@@ -8,6 +8,8 @@ final class SharedJson
     private static array $cache = [];
 
     /**
+     * リポジトリ直下の shared JSON を読み、プロセス内では再読込しない。
+     *
      * @return array<string, mixed>
      */
     public static function load(string $filename): array

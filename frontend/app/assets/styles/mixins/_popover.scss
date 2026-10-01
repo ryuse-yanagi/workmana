@@ -195,19 +195,9 @@
 }
 
 // ---------------------------------------------------------------------------
-// 開閉アニメーション（Transition name="popover-fade"）
+// 開閉（Transition name="popover-fade"）— フェードなし・瞬時表示
+// クラス名互換のため mixin は残す（スタイルは付けない）
 // ---------------------------------------------------------------------------
 
 @mixin popover-fade-transition {
-  .popover-fade-enter-active,
-  .popover-fade-leave-active {
-    transition: opacity $popover-fade-duration ease;
-  }
-  .popover-fade-leave-active {
-    pointer-events: none;
-  }
-  .popover-fade-enter-from,
-  .popover-fade-leave-to {
-    opacity: 0;
-  }
 }

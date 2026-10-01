@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Workspaces;
 
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -14,6 +14,7 @@ class WorkspaceCreationUsesOrganizationDefaultBoardListSettingsTest extends Test
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** ワークスペース作成時に組織のデフォルトボードリスト設定が使われる */
     public function test_workspace_creation_uses_organization_default_board_list_settings(): void
     {
         $user = User::factory()->create();

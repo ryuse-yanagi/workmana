@@ -101,6 +101,7 @@ return [
             'handler_with' => [
                 'stream' => 'php://stderr',
             ],
+            // ECS / CloudWatch Logs では JSON 1行が扱いやすい。ローカルは未指定でプレーンテキスト。
             'formatter' => env('LOG_STDERR_FORMATTER'),
             'processors' => [PsrLogMessageProcessor::class],
         ],

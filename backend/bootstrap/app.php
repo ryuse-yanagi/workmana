@@ -32,6 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ],
     )
     ->withMiddleware(function (Middleware $middleware) use ($statefulApi): void {
+        // ALB が HTTPS を終端する。転送ヘッダーを信じないと、コンテナ内は常に HTTP になる。
+        $middleware->trustProxies(at: '*');
+
         $middleware->api(prepend: $statefulApi);
 
         $middleware->alias([

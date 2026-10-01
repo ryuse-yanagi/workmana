@@ -12,19 +12,15 @@ class AdminCanUpdateDefaultWorkspaceStatusSettingsTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 管理者がデフォルトワークスペースステータス設定を更新できる */
     public function test_admin_can_update_default_workspace_status_settings(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->getJson('/api/orgs/acme/settings')
+            ->getJson("/api/orgs/{$slug}/settings")
             ->assertOk()
             ->assertJsonPath('default_workspace_status_names.0.name', '準備中')
             ->assertJsonPath('default_workspace_status_names.0.color_index', 1)
@@ -32,7 +28,7 @@ class AdminCanUpdateDefaultWorkspaceStatusSettingsTest extends TestCase
             ->assertJsonPath('default_workspace_status_names.3.color_index', 5);
 
         $this->actingAsApiUser($user)
-            ->patchJson('/api/orgs/acme/settings', [
+            ->patchJson("/api/orgs/{$slug}/settings", [
                 'default_workspace_status_names' => [
                     ['name' => '計画中', 'color_index' => 2],
                     ['name' => '運用中', 'color_index' => 0],

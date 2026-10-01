@@ -49,12 +49,10 @@ textarea {
 }
 /* Teleport 先でも効くよう、ポップオーバータイトルはグローバル指定 */
 .popover-shell__title,
-.named-pill-select__title,
 .filter-popover-title {
   @include mixin.popover-title-text;
 }
 /* body Teleport の浮動 UI — モーダル内でも必ず前面に出す（inline z-index より優先度低い点に注意） */
-.named-pill-select__dropdown,
 .workspace-assignee-picker-popover.popover,
 .popover-layer--portal,
 .gantt-color-popover-layer {
@@ -64,7 +62,6 @@ textarea {
 .popover,
 .popover-shell,
 .floating-menu,
-.named-pill-select__dropdown,
 .filter-popover-dropdown,
 .global-header .dropdown {
   font-weight: mixin.$popover-font-weight;
@@ -74,6 +71,7 @@ body.workspace-view-page-root {
   overflow: hidden;
   overscroll-behavior: none;
 }
+@include mixin.modal-keep-backdrop-html;
 .app-shell {
   min-height: 100%;
   background: transparent;
@@ -159,7 +157,6 @@ select {
 }
 /* ポップオーバー検索・ユーザー名など — descender の clip を防ぐ */
 .label-search-input,
-.named-pill-select__search,
 .label-picker-bar,
 .option-picker-bar,
 .label-picker-bar,

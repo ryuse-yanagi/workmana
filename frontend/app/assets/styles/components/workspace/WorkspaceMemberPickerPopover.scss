@@ -5,7 +5,8 @@
   @include mixin.popover-panel-width(#{mixin.$popover-members-panel-width});
   min-height: 0;
   overflow: hidden;
-  /* padding は PopoverShell + scroll-host に任せ、gutter レーンを潰さない */
+  /* 親の .popover--members { padding: 0 } より優先し、PopoverShell の 8px を保つ */
+  padding: mixin.$popover-padding;
   gap: 0;
   background: mixin.$white;
   border-radius: mixin.$popover-border-radius;

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Workspaces;
 
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -13,6 +13,7 @@ class NonMemberCannotAccessOrgTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 非メンバーは組織にアクセスできない */
     public function test_non_member_cannot_access_org(): void
     {
         $owner = User::factory()->create();

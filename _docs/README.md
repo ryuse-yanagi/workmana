@@ -1,112 +1,50 @@
 # Docs 構成
 
-docsディレクトリでは、WorkMana の設計・仕様書を管理しています。
+WorkMana の設計・仕様書。
 
-## api ディレクトリ
+## application ディレクトリ
 
-**API仕様**
+**何をするか**（機能、画面操作）
 
-- エンドポイント一覧
-- リクエスト/レスポンス
-- 認証方式
+- [入口](./application/README.md)
+- [機能仕様](./application/features/)
+- [画面操作](./application/design/shortcuts.md)
 
 ## architecture ディレクトリ
 
-**全体設計**
+**どう組んでいるか**（クラウド配置は `cloud/` に後で追加）
 
-- システム構成
-- 技術スタック
-- レイヤー構造（MVCなど）
-- [リアルタイム同期（Laravel Reverb / Redis / Laravel Echo）](./architecture/realtime-sync.md)
-- [フロントエンドのサーバー状態キャッシュ（TanStack Query）](./architecture/frontend-server-state.md)
-- [フロントエンドのオーバーレイ UI（Floating UI / focus-trap / VueUse）](./architecture/frontend-overlays.md)
-- [FE / BE 共有契約（色・文字数・Zod / FormRequest）](./architecture/shared-contracts.md)
+- [構成の入口](./architecture/overview/README.md)
+- [システム境界](./architecture/system/boundaries.md)
+- [バックエンド](./architecture/backend/layers.md)
+- [フロントエンド](./architecture/frontend/structure.md)
+- [認証・認可](./architecture/auth/session.md)
+- [ファイル保存](./architecture/files/media.md)
+- [リアルタイム同期](./architecture/realtime/sync.md)
+- [FE / BE 共有契約](./architecture/contracts/shared.md)
 
-## business-rules ディレクトリ
+API のルート一覧は `backend/routes/api.php`。
 
 ## database ディレクトリ
 
-**DB設計**
+**テーブル**
 
 - [列挙値](./database/enums.md)
-- [スキーマ: 認証・組織・招待](./database/schema-auth.md)
-- [スキーマ: プロジェクト](./database/schema-projects.md)
+- [スキーマ: ユーザー・組織・招待](./database/schema-auth.md)
+- [スキーマ: スペース・ボード列・ラベル](./database/schema-workspaces.md)
 - [スキーマ: タスク](./database/schema-tasks.md)
-- ER図（必要に応じて `database/er.md` 等で追加）
+- [スキーマ: 資料](./database/schema-documents.md)
+- [スキーマ: アプリ内通知](./database/schema-notifications.md)
 
 ## decisions ディレクトリ
 
-**意思決定ログ**
+**なぜそうしたか**
 
-- PostgreSQL を選んだ理由
-- Amazon SQS を選んだ理由
-- 設計のトレードオフ
-- [リアルタイム同期に Laravel Reverb / Redis / Laravel Echo を採用](./decisions/realtime-sync.md)
+- [リアルタイム同期に Laravel Reverb / Laravel Echo を採用](./decisions/realtime-sync.md)
 - [フロント基盤ライブラリと FE/BE 共有契約](./decisions/frontend-foundations.md)
 
 ## deploy ディレクトリ
 
-**デプロイ**
+**本番の環境変数**
 
-- 本番環境への手順
-- CI/CD
-- サーバー設定
-
-## features ディレクトリ
-
-**機能設計・仕様**（E2E。現行実装ベース）
-
-- [認証・セッション](./features/auth.md)
-- [組織・メンバー・招待](./features/organization.md)
-- [組織設定・マスタ](./features/organization-settings.md)
-- [プロフィール・アバター](./features/profile.md)
-- [スペース](./features/workspaces.md)
-- [ボード](./features/board.md)
-- [タスク](./features/tasks.md)
-- [WBS／ガント](./features/wbs.md)
-- [資料](./features/documents.md)
-- [タスク添付](./features/task-attachments.md)
-- [タスク履歴](./features/task-history.md)
-- [アプリ内通知](./features/notification.md)
-
-## notifications ディレクトリ
-
-通知の現行設計・仕様は [features/notification.md](./features/notification.md) を参照。
-
-## permissions ディレクトリ
-
-**権限管理**
-
-- 管理者：admin
-- プロジェクトリーダー：project_leader
-- 一般ユーザー：member
-
-## requirements ディレクトリ
-
-**要件定義**
-
-- 機能一覧
-- 非機能要件（性能・セキュリティなど）
-- ユーザーストーリー
-
-## setup ディレクトリ
-
-**環境構築**
-- ローカル環境の立ち上げ
-- 必要なツール
-- `.env` の設定
-
-## ui ディレクトリ
-
-**画面設計**
-
-- ワイヤーフレーム
-- 画面遷移図
-- UI仕様
-
-## workflows ディレクトリ
-
-**業務フロー**
-- ユースケース
-- シーケンス図
-- タスクの流れ（作成->承認->完了）
+- [本番環境変数](./deploy/production-env.md)

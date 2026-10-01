@@ -18,6 +18,7 @@ class SwitchOrganizationRejectsNonMemberTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 非メンバーは組織を切り替えられない */
     public function test_switch_organization_rejects_non_member(): void
     {
         $user = User::factory()->create(['cognito_sub' => 'sub-5']);

@@ -11,10 +11,6 @@
       </button>
     </template>
 
-    <p v-if="!canManage" class="org-readonly">
-      組織情報の変更は組織管理者のみ行えます。
-    </p>
-
     <div class="org-profile">
       <div class="org-profile__icon-wrap">
         <img
@@ -69,9 +65,9 @@
 </template>
 <script setup lang="ts">
 import { Pencil } from 'lucide-vue-next'
-import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
-import { formatDateDisplay } from '../../composables/useTaskFormHelpers'
-import OrganizationSettingsModal from '../modals/OrganizationSettingsModal.vue'
+import { useOrgSettingsPageData } from '../../composables/settings/useOrgSettingsPageData'
+import { formatDateDisplay } from '../../composables/task/useTaskFormHelpers'
+import OrganizationSettingsModal from '../modals/settings/OrganizationSettingsModal.vue'
 import SettingsPanel from './SettingsPanel.vue'
 
 const props = withDefaults(defineProps<{

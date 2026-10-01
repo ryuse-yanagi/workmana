@@ -26,16 +26,12 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32x32.png' },
-        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16x16.png' },
-        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
       ],
       // 初回ペイント前に隠し、fonts-ready 後に設定どおりの太さで表示する
       style: [
         {
           key: 'fonts-ready-gate',
-          textContent: 'html:not(.fonts-ready){visibility:hidden}html.fonts-ready{visibility:visible}',
+          textContent: 'html:not(.fonts-ready),html:not(.session-ready){visibility:hidden}html.fonts-ready.session-ready{visibility:visible}',
         },
       ],
       noscript: [
@@ -48,7 +44,7 @@ export default defineNuxtConfig({
         {
           key: 'fonts-ready-timeout',
           // プラグインより先に動かし、失敗時も固まらないよう上限を置く
-          textContent: '(function(){var d=document.documentElement;if(d.classList.contains("fonts-ready"))return;setTimeout(function(){d.classList.add("fonts-ready")},2500)})();',
+          textContent: '(function(){var d=document.documentElement;if(d.classList.contains("fonts-ready")&&d.classList.contains("session-ready"))return;setTimeout(function(){d.classList.add("fonts-ready");d.classList.add("session-ready")},2500)})();',
           tagPosition: 'head',
         },
       ],
@@ -61,6 +57,13 @@ export default defineNuxtConfig({
       ignore: ['**/*.ts'],
     },
   ],
+  imports: {
+    dirs: [
+      // ドメイン別サブディレクトリまでスキャンする（デフォルトは直下のみ）
+      'composables/**',
+      'utils/**',
+    ],
+  },
   runtimeConfig: {
     apiInternalBase: process.env.NUXT_DEV_API_PROXY_TARGET || 'http://127.0.0.1:8000',
     public: {
@@ -122,7 +125,7 @@ export default defineNuxtConfig({
           target: process.env.NUXT_DEV_API_PROXY_TARGET || 'http://127.0.0.1:8000',
           changeOrigin: true,
         },
-        // アバター等の公開ストレージ（API は相対 /storage/... を返す）
+        // アバター等の公開ストレージ（ローカル public ディスク時。S3 は絶対 URL）
         '/storage': {
           target: process.env.NUXT_DEV_API_PROXY_TARGET || 'http://127.0.0.1:8000',
           changeOrigin: true,

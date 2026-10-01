@@ -1,0 +1,23 @@
+.task-card-members {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.task-card-members__more {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: mixin.$gray;
+  color: mixin.$text-sub;
+  font-family: mixin.$font-family;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}

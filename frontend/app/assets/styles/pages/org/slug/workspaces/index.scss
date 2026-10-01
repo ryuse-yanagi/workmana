@@ -51,13 +51,30 @@
   box-sizing: border-box;
   padding: 0 14px 14px;
 }
-.subheader {
+/* PageSubheader / HeaderSearchField / SubheaderCount 配下は scoped が届かないため :deep で貫通 */
+:deep(.subheader) {
   position: relative;
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content;
-  align-items: center;
-  column-gap: 8px;
+  display: flex;
+  align-items: stretch;
   height: 100%;
+  min-width: 0;
+}
+/*
+ * 広い画面では幅 $subheader-search-left。検索欄の左端をスペース詳細と揃える。
+ * 狭くなったら並び順の左の余白（.header-sort-leading）が先に縮む。
+ * 並び順が左に寄りきったら、検索欄が縮んで右側のボタンを収める。
+ */
+:deep(.subheader-start) {
+  display: flex;
+  align-items: center;
+  flex: 0 9999 #{mixin.$subheader-search-left};
+  max-width: #{mixin.$subheader-search-left};
+  min-width: min-content;
+  height: 100%;
+}
+.header-sort-leading {
+  flex: 1 1 0;
+  width: 0;
   min-width: 0;
 }
 .subheader-title {
@@ -70,25 +87,26 @@
   @include mixin.page-header-list-title-icon;
   color: mixin.$main;
 }
-.subheader-filters {
+:deep(.subheader-filters) {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
+  justify-content: flex-start;
+  flex: 0 1 auto;
   min-width: 0;
-  max-width: 100%;
+  gap: 6px;
   z-index: 0;
   pointer-events: auto;
 }
-.header-search-field {
+:deep(.header-search-field) {
   position: relative;
-  flex: 0 1 600px;
-  width: auto;
-  min-width: 84px;
-  max-width: 600px;
+  box-sizing: border-box;
+  /* 基準は他画面と同じ 800px。並び順が左に寄りきったあとだけ縮む */
+  flex: 1 1 #{mixin.$subheader-search-max-width};
+  width: #{mixin.$subheader-search-max-width};
+  min-width: 0;
+  max-width: #{mixin.$subheader-search-max-width};
 }
-.header-search-icon {
+:deep(.header-search-icon) {
   position: absolute;
   left: 10px;
   top: 50%;
@@ -96,7 +114,7 @@
   color: mixin.$text-muted;
   pointer-events: none;
 }
-.header-search {
+:deep(.header-search) {
   display: block;
   width: 100%;
   min-width: 0;
@@ -110,27 +128,28 @@
   line-height: 32px;
   @include mixin.popover-input-background;
 }
-.header-search::-webkit-search-decoration,
-.header-search::-webkit-search-cancel-button {
+:deep(.header-search::-webkit-search-decoration),
+:deep(.header-search::-webkit-search-cancel-button) {
   -webkit-appearance: none;
   appearance: none;
 }
-.header-search::placeholder {
+:deep(.header-search::placeholder) {
   color: mixin.$text-muted;
 }
-.header-search:focus {
+:deep(.header-search:focus) {
   @include mixin.input-focus-neutral;
 }
-.header-search:disabled {
+:deep(.header-search:disabled) {
   cursor: pointer;
 }
-/* 検索の左隣。フロー内に置き、タイトル・作成ボタンと被らない */
+/* 左の余白は .header-sort-leading。検索欄との間隔は 16px のまま */
 .header-sort {
-  position: static;
-  flex-shrink: 0;
+  align-self: center;
+  flex: 0 0 auto;
   width: auto;
   min-width: 7.5em;
-  margin-right: 10px; /* gap 6px と合わせて検索まで 16px */
+  margin-left: 0;
+  margin-right: 16px;
   border: 1px solid mixin.$border;
   border-radius: mixin.$input-border-radius;
   padding: 0 28px 0 10px;
@@ -145,7 +164,7 @@
 .header-sort:focus {
   @include mixin.input-focus-neutral;
 }
-.subheader-count {
+:deep(.subheader-count) {
   display: inline-flex;
   align-items: baseline;
   gap: 0.35em;
@@ -157,24 +176,26 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.subheader-count__num {
+:deep(.subheader-count__num) {
   display: inline-block;
   width: 3ch;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-.subheader-count__unit {
+:deep(.subheader-count__unit) {
   flex-shrink: 0;
 }
-.subheader-actions {
+:deep(.subheader-actions) {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 0;
-  justify-self: end;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 7px;
   z-index: 1;
 }
-.subheader-actions .subheader-secondary-btn--add {
+:deep(.subheader-actions) .subheader-secondary-btn--add {
   margin-left: 12px;
   margin-right: 12px;
 }
@@ -425,15 +446,11 @@
  *   ラベル・名前・説明・ステータス → 0.8
  *   「〇名」「・・・」 → 変化なし（親に opacity をかけない。子の打ち消しは
  *   opacity が [0,1] にクランプされるため不可）
- * 「〇名」「・・・」 hover:
- *   スペース全体 → 変化なし
- *   その要素だけ → 0.8
+ * 「〇名」hover: ボタン自身が 0.8（WorkspaceAssigneeSelect）
+ * 「・・・」hover: その要素だけ 0.8
  */
-.clickable-row:hover:not(:has(.workspace-card__assignees:hover)):not(:has(.workspace-card__menu-btn:hover)) .workspace-card__labels,
-.clickable-row:hover:not(:has(.workspace-card__assignees:hover)):not(:has(.workspace-card__menu-btn:hover)) .workspace-card__body > :not(.workspace-card__assignees):not(.workspace-card__actions) {
-  opacity: 0.8;
-}
-.clickable-row .workspace-card__assignees:hover {
+.clickable-row:hover:not(:has(.workspace-assignee-select__btn:hover)):not(:has(.workspace-card__menu-btn:hover)) .workspace-card__labels,
+.clickable-row:hover:not(:has(.workspace-assignee-select__btn:hover)):not(:has(.workspace-card__menu-btn:hover)) .workspace-card__body > :not(.workspace-card__assignees):not(.workspace-card__actions) {
   opacity: 0.8;
 }
 .clickable-row .workspace-card__menu-btn:hover {

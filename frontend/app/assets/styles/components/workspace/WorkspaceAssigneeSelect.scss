@@ -22,7 +22,7 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.workspace-assignee-select__btn--empty {
+.workspace-assignee-select__btn:not(.workspace-assignee-select__btn--readonly).workspace-assignee-select__btn--empty {
   border-color: mixin.$border;
   background: mixin.$surface-muted;
   color: mixin.$text-muted;
@@ -43,22 +43,28 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
   box-sizing: border-box;
-  width: 96px;
-  min-width: 96px;
-  max-width: 96px;
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
   height: 30px;
   padding: 0;
   border: none;
   border-radius: 6px;
-  background: transparent;
-  color: mixin.$text;
+  background: mixin.$bg-gray;
+  color: mixin.$text-heading;
   font-size: 14px;
   font-weight: 400;
+  line-height: 1;
   letter-spacing: normal;
   cursor: pointer;
   white-space: nowrap;
+}
+.workspace-assignee-select__btn--readonly:hover:not(:disabled) {
+  opacity: 0.8;
+}
+.workspace-assignee-select__btn--readonly.workspace-assignee-select__btn--empty {
+  color: mixin.$text-muted;
 }
 .workspace-assignee-select__chevron {
   width: 0;

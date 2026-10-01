@@ -1,5 +1,4 @@
 {
-  "maxItems": 20,
   "boardLists": [
     { "name": "未着手", "color_index": 0 },
     { "name": "進行中", "color_index": 1 },

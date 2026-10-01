@@ -18,6 +18,7 @@ class AdminCanListPendingInvitesTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 管理者が保留中の招待を一覧できる */
     public function test_admin_can_list_pending_invites(): void
     {
         Mail::fake();

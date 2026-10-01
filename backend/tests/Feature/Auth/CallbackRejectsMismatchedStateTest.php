@@ -2,13 +2,8 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\User;
-use App\Services\CognitoJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Session\EncryptedStore;
 use Illuminate\Support\Facades\Http;
-use Mockery;
-use RuntimeException;
 use Tests\Feature\Auth\Concerns\InteractsWithCognitoLogin;
 use Tests\TestCase;
 
@@ -23,6 +18,7 @@ class CallbackRejectsMismatchedStateTest extends TestCase
         $this->configureCognitoForTests();
     }
 
+    /** コールバックは不一致のstateを拒否する */
     public function test_callback_rejects_mismatched_state(): void
     {
         $this->fakeTokenEndpoint();

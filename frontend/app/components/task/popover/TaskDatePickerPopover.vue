@@ -68,11 +68,11 @@
 
 <script setup lang="ts">
 import PopoverShell from '../../ui/PopoverShell.vue'
-import { orderTaskDateRange } from '../../../composables/useTaskFormHelpers'
+import { orderTaskDateRange } from '../../../composables/task/useTaskFormHelpers'
 import {
   TASK_POPOVER_WEEKDAY_LABELS,
   type TaskPopoverCalendarCell,
-} from '../../../utils/taskPopoverTypes'
+} from '../../../utils/task/taskPopoverTypes'
 
 type DragMode = 'create' | 'resize-start' | 'resize-end' | 'click'
 type DragSession = {

@@ -23,7 +23,7 @@
     />
     <div class="popover-scroll">
       <template v-if="filteredAssignedMembers.length">
-        <p class="label-section-heading">{{ assignedSectionHeading }}</p>
+        <p v-if="!readonly" class="label-section-heading">{{ assignedSectionHeading }}</p>
         <ul class="label-picker-list">
           <li v-for="member in filteredAssignedMembers" :key="`assigned-${member.id}`">
             <div
@@ -95,14 +95,14 @@
           </li>
         </ul>
       </template>
-      <p v-if="!orgMembers.length" class="empty-text label-picker-empty">
+      <p v-if="!orgMembers.length && !filteredAssignedMembers.length" class="empty-text label-picker-empty">
         {{ emptyMembersMessage }}
       </p>
       <p
-        v-else-if="!filteredAssignedMembers.length && !filteredUnassignedMembers.length"
+        v-else-if="!hasVisibleMembers"
         class="empty-text label-picker-empty"
       >
-        該当するユーザーがいません
+        {{ emptyFilterMessage }}
       </p>
       <p v-if="error" class="err">{{ error }}</p>
     </div>
@@ -111,10 +111,10 @@
 
 <script setup lang="ts">
 import { Check } from 'lucide-vue-next'
-import { memberDisplayName, memberMatchesSearchQuery } from '../../composables/useMemberDisplay'
-import type { TaskFormMember } from '../../composables/useTaskFormHelpers'
+import { memberDisplayName, memberMatchesSearchQuery } from '../../composables/member/useMemberDisplay'
+import type { TaskFormMember } from '../../composables/task/useTaskFormHelpers'
 import PopoverShell from '../ui/PopoverShell.vue'
-import { schedulePopoverInputFocus } from '../../utils/schedulePopoverInputFocus'
+import { schedulePopoverInputFocus } from '../../utils/ui/schedulePopoverInputFocus'
 
 const props = withDefaults(defineProps<{
   assignees: TaskFormMember[]
@@ -171,11 +171,30 @@ const filteredUnassignedMembers = computed(() => {
   )
 })
 
+const hasVisibleMembers = computed(() => {
+  if (filteredAssignedMembers.value.length > 0) {
+    return true
+  }
+  return !props.readonly && filteredUnassignedMembers.value.length > 0
+})
+
+const emptyFilterMessage = computed(() => {
+  if (props.searchQuery.trim()) {
+    return 'ユーザーがいません'
+  }
+  return props.readonly ? 'メンバーがいません' : 'ユーザーがいません'
+})
+
 onMounted(() => {
   if (props.readonly) {
     return
   }
   schedulePopoverInputFocus(() => searchInputRef.value)
+})
+
+onUnmounted(() => {
+  if (!props.searchQuery) return
+  emit('update:searchQuery', '')
 })
 
 defineExpose({

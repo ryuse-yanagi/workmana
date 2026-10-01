@@ -46,8 +46,8 @@
 <script setup lang="ts">
 import { Network } from 'lucide-vue-next'
 import TaskBoardCard, { type TaskBoardCardTask } from './TaskBoardCard.vue'
-import type { TaskCardParentLookup } from '../../composables/useTaskCardMeta'
-import type { WorkspaceListOption } from '../../composables/useTaskPopoverEditor'
+import type { TaskCardParentLookup } from '../../composables/task/useTaskCardMeta'
+import type { WorkspaceListOption } from '../../composables/task/useTaskPopoverEditor'
 
 export type TaskHierarchyParent = TaskBoardCardTask & {
   list_id?: number | null

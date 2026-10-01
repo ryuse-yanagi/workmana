@@ -3,12 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
-use App\Services\CognitoJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Session\EncryptedStore;
-use Illuminate\Support\Facades\Http;
-use Mockery;
-use RuntimeException;
 use Tests\Feature\Auth\Concerns\InteractsWithCognitoLogin;
 use Tests\TestCase;
 
@@ -23,6 +18,7 @@ class LoginFlowEstablishesSessionTest extends TestCase
         $this->configureCognitoForTests();
     }
 
+    /** ログインでセッションを確立しトークンはサーバー側に保持される */
     public function test_login_flow_establishes_session_and_keeps_tokens_server_side(): void
     {
         $user = User::factory()->create();

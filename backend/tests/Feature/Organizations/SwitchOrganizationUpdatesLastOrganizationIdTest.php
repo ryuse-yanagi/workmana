@@ -18,6 +18,7 @@ class SwitchOrganizationUpdatesLastOrganizationIdTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 組織切替でlast_organization_idが更新される */
     public function test_switch_organization_updates_last_organization_id(): void
     {
         $user = User::factory()->create(['cognito_sub' => 'sub-4']);

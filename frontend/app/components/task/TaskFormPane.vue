@@ -58,6 +58,7 @@
             {{ memberRoleLabel }}
           </button>
           <button
+            v-if="!documentMode"
             type="button"
             class="action-btn"
             :class="{ 'action-btn--active': activePopover === 'labels' }"
@@ -256,7 +257,7 @@
       </div>
     </template>
     <div
-      v-else-if="draft.assignees.length || draft.labels.length || (documentMode && draft.category)"
+      v-else-if="(documentMode && draft.category) || (!documentMode && (draft.assignees.length || draft.labels.length))"
       class="detail-meta-row detail-meta-row--people"
     >
       <section
@@ -325,7 +326,7 @@
         </div>
       </section>
       <section
-        v-if="draft.labels.length && !workspaceMode"
+        v-if="draft.labels.length && !workspaceMode && !documentMode"
         class="detail-item detail-item--labels"
       >
         <span class="detail-item-label">ラベル</span>
@@ -423,13 +424,13 @@
         aria-label="説明"
         :disabled="disabled"
         @input="onDescriptionInput"
+        @keyup="onDescriptionCaretMove"
       />
     </section>
     <Teleport v-if="portalActive" to="body">
-      <Transition name="popover-fade" @after-enter="updatePopoverPosition" @after-leave="notifyPopoverAfterLeave">
+      <Transition name="popover-fade" @after-enter="onPopoverAfterEnter" @after-leave="notifyPopoverAfterLeave">
         <div
           v-if="activePopover"
-          :key="activePopover === 'member-detail' ? `member-detail-${selectedMember?.id}` : activePopover"
           class="popover-layer popover-layer--portal"
         >
           <TaskDatePickerPopover
@@ -525,7 +526,7 @@
             :items="statusOptionItems"
             :has-source-items="workspaceStatuses.length > 0"
             empty-source-message="ステータスは設定画面で追加できます"
-            empty-filter-message="該当するステータスがありません"
+            empty-filter-message="ステータスがありません"
             :pill-style="optionPillStyle"
             @close="closePopover"
             @select="onStatusOptionSelect"
@@ -545,7 +546,7 @@
             :items="categoryOptionItems"
             :has-source-items="documentCategories.length > 0"
             empty-source-message="カテゴリは設定画面で追加できます"
-            empty-filter-message="該当するカテゴリがありません"
+            empty-filter-message="カテゴリがありません"
             :pill-style="optionPillStyle"
             @close="closePopover"
             @select="onCategoryOptionSelect"
@@ -583,7 +584,7 @@ import {
   UserPlus,
 } from 'lucide-vue-next'
 import WorkspaceMemberPickerPopover from '../workspace/WorkspaceMemberPickerPopover.vue'
-import { useTaskFormPane } from '../../composables/useTaskFormPane'
+import { useTaskFormPane } from '../../composables/task/useTaskFormPane'
 import {
   TASK_DESCRIPTION_MAX_LENGTH,
   TASK_TITLE_MAX_LENGTH,
@@ -595,16 +596,16 @@ import type {
   TaskFormDraft,
   TaskFormLabel,
   TaskFormMember,
-} from '../../composables/useTaskFormHelpers'
-import { EFFORT_UNIT_LABEL, PROGRESS_RATE_UNIT_LABEL } from '../../composables/useTaskFormHelpers'
+} from '../../composables/task/useTaskFormHelpers'
+import { EFFORT_UNIT_LABEL, PROGRESS_RATE_UNIT_LABEL } from '../../composables/task/useTaskFormHelpers'
 import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,
 } from '../../constants/colorPresets'
-import { memberDisplayName, memberInitial } from '../../composables/useMemberDisplay'
-import { resolveDisplayAvatarUrl } from '../../composables/userProfileUpdated'
-import { resolveAvatarUrl } from '../../utils/resolveAvatarUrl'
-import { adjustTextareaHeight } from '../../utils/textareaAutoGrow'
+import { memberDisplayName, memberInitial } from '../../composables/member/useMemberDisplay'
+import { resolveDisplayAvatarUrl } from '../../composables/auth/userProfileUpdated'
+import { resolveAvatarUrl } from '../../utils/member/resolveAvatarUrl'
+import { adjustTextareaHeight, ensureTextareaCaretVisible, isCaretMoveKey } from '../../utils/task/textareaAutoGrow'
 import LabelStrip from '../ui/LabelStrip.vue'
 import TaskDatePickerPopover from './popover/TaskDatePickerPopover.vue'
 import TaskEffortPickerPopover from './popover/TaskEffortPickerPopover.vue'
@@ -612,8 +613,8 @@ import TaskProgressRatePickerPopover from './popover/TaskProgressRatePickerPopov
 import TaskLabelsPickerPopover from './popover/TaskLabelsPickerPopover.vue'
 import TaskMemberDetailPopover from './popover/TaskMemberDetailPopover.vue'
 import TaskOptionPickerPopover from './popover/TaskOptionPickerPopover.vue'
-import type { TaskPopoverOptionItem } from '../../utils/taskPopoverTypes'
-import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
+import type { TaskPopoverOptionItem } from '../../utils/task/taskPopoverTypes'
+import type { LabelCategoryGroup } from '../../composables/label/useLabelCategories'
 const props = withDefaults(defineProps<{
   modelValue: TaskFormDraft
   orgSlug: string
@@ -761,6 +762,7 @@ const {
   resetPaneState,
   focusTitleInput,
   updatePopoverPosition,
+  onPopoverAfterEnter,
 } = useTaskFormPane({
   draft,
   orgLabels: toRef(props, 'orgLabels'),
@@ -805,6 +807,10 @@ function adjustDescriptionTextareaHeight () {
 }
 function onDescriptionInput () {
   adjustDescriptionTextareaHeight()
+}
+function onDescriptionCaretMove (event: KeyboardEvent) {
+  if (!isCaretMoveKey(event.key)) return
+  ensureTextareaCaretVisible(descriptionTextareaRef.value)
 }
 function onTitleInput () {
   const cleaned = titleDraft.value.replace(/\r?\n/g, '')

@@ -1,0 +1,162 @@
+<?php
+
+namespace App\Http\Controllers\Api\Workspace;
+
+use App\Http\Controllers\Api\ApiController;
+use App\Models\Organization\Organization;
+use App\Models\Workspace\WorkspaceLabel;
+use App\Models\Workspace\WorkspaceLabelCategory;
+use App\Support\FieldLengthLimits;
+use App\Support\SortOrderReorder;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class WorkspaceLabelCategoryController extends ApiController
+{
+    /** 組織のスペースラベルカテゴリを、ラベル付きで一覧する。 */
+    public function index(Request $request, Organization $organization): JsonResponse
+    {
+        $pivot = $request->attributes->get('organization_membership');
+        if (! $pivot) {
+            abort(403);
+        }
+
+        $categories = WorkspaceLabelCategory::query()
+            ->where('organization_id', $organization->id)
+            ->with(['labels' => fn ($query) => $query->orderBy('sort_order')->orderBy('name')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'data' => $categories->map(fn (WorkspaceLabelCategory $category) => $this->categoryPayload($category)),
+        ]);
+    }
+
+    /** 組織管理者のみスペースラベルのカテゴリを作る。 */
+    public function store(Request $request, Organization $organization): JsonResponse
+    {
+        $this->assertOrganizationAdmin($request);
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:'.FieldLengthLimits::LABEL_CATEGORY_NAME],
+        ]);
+
+        $name = trim($validated['name']);
+        if ($name === '') {
+            return response()->json(['message' => 'Category name cannot be empty.'], 422);
+        }
+
+        $maxOrder = WorkspaceLabelCategory::query()
+            ->where('organization_id', $organization->id)
+            ->max('sort_order');
+
+        $category = WorkspaceLabelCategory::query()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $request->user()->id,
+            'name' => $name,
+            'sort_order' => $maxOrder === null ? 0 : ((int) $maxOrder + 1),
+        ]);
+
+        return response()->json($this->categoryPayload($category->load('labels')), 201);
+    }
+
+    /** 組織管理者のみスペースラベルのカテゴリを更新する。 */
+    public function update(Request $request, Organization $organization, WorkspaceLabelCategory $category): JsonResponse
+    {
+        $this->assertOrganizationAdmin($request);
+        $this->ensureCategoryBelongsToOrganization($category, $organization);
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:'.FieldLengthLimits::LABEL_CATEGORY_NAME],
+            'sort_order' => ['sometimes', 'integer', 'min:0'],
+        ]);
+
+        if (array_key_exists('name', $validated)) {
+            $name = trim($validated['name']);
+            if ($name === '') {
+                return response()->json(['message' => 'Category name cannot be empty.'], 422);
+            }
+            $category->name = $name;
+        }
+
+        if (array_key_exists('sort_order', $validated)) {
+            $category->sort_order = (int) $validated['sort_order'];
+        }
+
+        $category->save();
+
+        return response()->json($this->categoryPayload($category->load('labels')));
+    }
+
+    /** 組織管理者のみ。組織内の全カテゴリを過不足なく並べ替える。 */
+    public function reorder(Request $request, Organization $organization): JsonResponse
+    {
+        $this->assertOrganizationAdmin($request);
+        $validated = $request->validate([
+            'category_ids' => ['present', 'array'],
+            'category_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        /** @var list<int> $categoryIds */
+        $categoryIds = array_map('intval', $validated['category_ids']);
+
+        $activeCategoryIds = WorkspaceLabelCategory::query()
+            ->where('organization_id', $organization->id)
+            ->pluck('id')
+            ->sort()
+            ->values()
+            ->all();
+
+        SortOrderReorder::assertExactIdSet(
+            $categoryIds,
+            $activeCategoryIds,
+            'category_ids',
+            'category_ids must include every workspace label category in the organization exactly once.',
+        );
+
+        SortOrderReorder::apply(
+            WorkspaceLabelCategory::query()->where('organization_id', $organization->id),
+            $categoryIds,
+        );
+
+        return response()->json(['data' => ['ok' => true]]);
+    }
+
+    /** 組織管理者のみスペースラベルのカテゴリを削除する。 */
+    public function destroy(Request $request, Organization $organization, WorkspaceLabelCategory $category): JsonResponse
+    {
+        $this->assertOrganizationAdmin($request);
+        $this->ensureCategoryBelongsToOrganization($category, $organization);
+
+        $category->delete();
+
+        return response()->json(null, 204);
+    }
+
+    private function ensureCategoryBelongsToOrganization(WorkspaceLabelCategory $category, Organization $organization): void
+    {
+        if ((int) $category->organization_id !== (int) $organization->id) {
+            abort(404);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function categoryPayload(WorkspaceLabelCategory $category): array
+    {
+        return [
+            'id' => $category->id,
+            'name' => $category->name,
+            'sort_order' => $category->sort_order,
+            'labels' => $category->labels->map(fn (WorkspaceLabel $label) => [
+                'id' => $label->id,
+                'category_id' => $label->category_id,
+                'name' => $label->name,
+                'color_index' => $label->color_index,
+                'sort_order' => $label->sort_order,
+                'created_at' => $label->created_at,
+            ])->values()->all(),
+        ];
+    }
+}

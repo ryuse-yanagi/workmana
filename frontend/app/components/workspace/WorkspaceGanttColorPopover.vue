@@ -10,16 +10,15 @@
           title="バーの色"
           shell-class="popover popover--gantt-color"
           :style="positionStyle"
-          :close-disabled="saving"
-          :show-clear="canClear"
           @close="emit('close')"
-          @clear="emit('clear')"
         >
-          <ColorPresetPicker
-            :model-value="modelValue"
-            :disabled="saving"
-            @update:model-value="emit('select', $event)"
-          />
+          <div class="popover-scroll">
+            <ColorPresetPicker
+              :model-value="modelValue"
+              :show-label="false"
+              @update:model-value="emit('select', $event)"
+            />
+          </div>
         </PopoverShell>
       </div>
     </Transition>
@@ -28,32 +27,22 @@
 <script setup lang="ts">
 import ColorPresetPicker from '../ui/ColorPresetPicker.vue'
 import PopoverShell from '../ui/PopoverShell.vue'
-import { useExclusivePopover } from '../../composables/useExclusivePopover'
+import { useExclusivePopover } from '../../composables/ui/useExclusivePopover'
 import {
   POPOVER_PANEL_BASE_WIDTH,
-  POPOVER_VIEWPORT_INSET,
-  clampPopoverBox,
-  popoverMaxHeightStyle,
+  type AnchoredPopoverLayout,
+  buildAnchoredPopoverStyle,
+  computeAnchoredPopoverBesideLayout,
   popoverPositionVisibilityStyle,
-  popoverScrollbarLayoutStyle,
-  popoverStablePanelWidthStyle,
-  resolveAnchoredPopoverLayoutWidth,
-  resolvePopoverScrollbarGutter,
   schedulePopoverOpenLayout,
-} from '../../utils/popoverScrollbar'
-const props = withDefaults(defineProps<{
+} from '../../utils/ui/popoverScrollbar'
+const props = defineProps<{
   open: boolean
   modelValue: string
   anchor: { top: number; left: number; right?: number } | null
-  saving?: boolean
-  canClear?: boolean
-}>(), {
-  saving: false,
-  canClear: false,
-})
+}>()
 const emit = defineEmits<{
   close: []
-  clear: []
   select: [string]
   'after-leave': []
 }>()
@@ -63,29 +52,16 @@ useExclusivePopover(
 )
 const shellRef = ref<InstanceType<typeof PopoverShell> | null>(null)
 const layoutSettled = ref(false)
-const layout = ref<{
-  top: number
-  left: number
-  maxHeight: number
-  scrollbarGutter: number
-  panelWidth: number
-} | null>(null)
+const layout = ref<AnchoredPopoverLayout | null>(null)
 
 const positionStyle = computed(() => {
   if (!layout.value) {
     return popoverPositionVisibilityStyle(false)
   }
-  const { top, left, maxHeight, scrollbarGutter, panelWidth } = layout.value
-  return {
-    position: 'fixed',
-    top: `${top}px`,
-    left: `${Math.round(left)}px`,
-    zIndex: '1',
-    ...popoverPositionVisibilityStyle(layoutSettled.value),
-    ...popoverStablePanelWidthStyle(panelWidth),
-    ...popoverMaxHeightStyle(maxHeight, scrollbarGutter),
-    ...popoverScrollbarLayoutStyle(scrollbarGutter, true),
-  }
+  return buildAnchoredPopoverStyle(layout.value, {
+    zIndex: 1,
+    visible: layoutSettled.value,
+  })
 })
 
 function positionPopover () {
@@ -93,36 +69,22 @@ function positionPopover () {
     layout.value = null
     return
   }
-  const pad = POPOVER_VIEWPORT_INSET
-  const gap = 6
-  const anchorRight = props.anchor.right ?? props.anchor.left
-  const anchorLeft = props.anchor.left
-  let left = anchorRight + gap
-  let top = Math.max(pad, Math.round(props.anchor.top))
-  top = Math.max(pad, Math.min(top, window.innerHeight - pad - 40))
-  const maxHeight = Math.max(120, Math.floor(window.innerHeight - top - pad))
   const shell = shellRef.value?.rootRef ?? null
-  const baseWidth = POPOVER_PANEL_BASE_WIDTH.ganttColor
-  const extra = shell
-    ? resolvePopoverScrollbarGutter(shell, maxHeight, baseWidth)
-    : 0
-  const panelWidth = resolveAnchoredPopoverLayoutWidth(baseWidth, extra)
-  if (left + panelWidth > window.innerWidth - pad) {
-    left = anchorLeft - gap - panelWidth
+  if (!shell) {
+    return
   }
-  const panelHeight = shell?.getBoundingClientRect().height || Math.min(maxHeight, 280)
-  const clamped = clampPopoverBox(top, left, panelWidth, panelHeight, pad)
-  layout.value = {
-    top: clamped.top,
-    left: clamped.left,
-    maxHeight,
-    scrollbarGutter: extra,
-    panelWidth,
-  }
+  const left = props.anchor.left
+  const right = props.anchor.right ?? left
+  const top = props.anchor.top
+  layout.value = computeAnchoredPopoverBesideLayout(
+    new DOMRect(left, top, Math.max(0, right - left), 0),
+    POPOVER_PANEL_BASE_WIDTH.ganttColor,
+    shell,
+  )
 }
 
 function handleEscape (event: KeyboardEvent) {
-  if (!props.open || props.saving || event.key !== 'Escape') {
+  if (!props.open || event.key !== 'Escape') {
     return
   }
   event.preventDefault()
@@ -158,7 +120,7 @@ watch(() => props.open, (open) => {
   unbindOutsideListeners()
 })
 watch(() => props.anchor, () => {
-  if (!props.open || !layoutSettled.value) {
+  if (!props.open) {
     return
   }
   positionPopover()

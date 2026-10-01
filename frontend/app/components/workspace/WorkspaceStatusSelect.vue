@@ -124,13 +124,13 @@
           v-if="!statuses.length"
           class="workspace-status-select__empty-text"
         >
-          ステータスは設定画面で作成できます
+          ステータスは設定画面で追加できます
         </p>
         <p
           v-else-if="!filteredStatuses.length"
           class="workspace-status-select__empty-text"
         >
-          該当するステータスがありません
+          ステータスがありません
         </p>
       </div>
     </div>
@@ -142,9 +142,9 @@ import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,
 } from '../../constants/colorPresets'
-import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
-import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { dismissPopoverFromOutsidePointer, isInsideFloatingPopover, isScrollInsideRoot } from '../../utils/uiInteraction'
+import { useDropdownEscapeClose } from '../../composables/ui/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/ui/useExclusivePopover'
+import { dismissPopoverFromOutsidePointer, isInsideFloatingPopover, isScrollInsideRoot } from '../../utils/ui/uiInteraction'
 import {
   POPOVER_PANEL_BASE_WIDTH,
   POPOVER_VIEWPORT_INSET,
@@ -158,8 +158,8 @@ import {
   resolveAnchoredPopoverLayoutWidth,
   resolvePopoverScrollbarGutter,
   schedulePopoverOpenLayout,
-} from '../../utils/popoverScrollbar'
-import type { OrgWorkspaceStatus } from '../../composables/useOrgWorkspaceIndexPageData'
+} from '../../utils/ui/popoverScrollbar'
+import type { OrgWorkspaceStatus } from '../../composables/workspace/useOrgWorkspaceIndexPageData'
 import LabelStrip from '../ui/LabelStrip.vue'
 
 const props = withDefaults(defineProps<{

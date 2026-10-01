@@ -16,6 +16,7 @@ class RegisterCreatesUserWithoutOrganizationTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 登録で組織なしのユーザーが作成される */
     public function test_register_creates_user_without_organization(): void
     {
         $this->postJson('/api/auth/register', [
@@ -34,6 +35,7 @@ class RegisterCreatesUserWithoutOrganizationTest extends TestCase
         $this->assertNull($user->last_organization_id);
     }
 
+    /** 重複メールでの登録は拒否される */
     public function test_register_rejects_duplicate_email(): void
     {
         User::factory()->create([

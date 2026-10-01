@@ -8,7 +8,8 @@ use Illuminate\Http\Request;
 final class ListQuery
 {
     /**
-     * @param  list<string>  $searchColumns
+     * page は 1 以上、per_page は 1 から上限までに収める。
+     *
      * @return array{page: int, per_page: int, q: string}
      */
     public static function params(Request $request, int $defaultPerPage = 50, int $maxPerPage = 100): array
@@ -26,6 +27,8 @@ final class ListQuery
     }
 
     /**
+     * 指定列を小文字の部分一致で探し、列同士は OR で結ぶ。
+     *
      * @param  list<string>  $columns
      */
     public static function applySearch(Builder $query, string $q, array $columns): void
@@ -48,9 +51,10 @@ final class ListQuery
     }
 
     /**
-     * 検索を適用しつつ全件を返す（1ページ表示用）。
+     * 検索後の全件を、1ページ分の meta 付きで返す。
      *
      * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
      * @param  Builder<TModel>  $query
      * @param  callable(TModel): mixed  $map
      * @param  list<string>  $searchColumns
@@ -81,7 +85,10 @@ final class ListQuery
     }
 
     /**
+     * 検索してページを切り、範囲外の page は最終ページに収める。
+     *
      * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
      * @param  Builder<TModel>  $query
      * @param  callable(TModel): mixed  $map
      * @return array{data: list<mixed>, meta: array{page: int, per_page: int, total: int, last_page: int, q: string}}

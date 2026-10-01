@@ -33,14 +33,16 @@
   @include mixin.popover-panel-width(#{mixin.$popover-members-panel-width});
   min-height: 0;
   overflow: hidden;
-  padding: 0;
+  /* padding は WorkspaceMemberPickerPopover / PopoverShell に任せる。
+     ここで 0 にすると見出しの負マージンが枠外にはみ出して切れる。 */
   gap: 0;
 }
 .popover--labels {
   @include mixin.popover-panel-width(#{mixin.$popover-labels-panel-width});
   min-height: 0;
   overflow: hidden;
-  padding: 0;
+  /* padding はタスク追加/詳細と同じく PopoverShell の 8px。0 だと見出しの負マージンが枠外で切れる */
+  padding: mixin.$popover-padding;
   gap: 0;
 }
 .popover--members .empty-text,
@@ -58,7 +60,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 0;
+  padding: mixin.$popover-padding;
   gap: 0;
 }
 .popover--description.popover-shell {
@@ -220,7 +222,7 @@
   padding: 0 mixin.$popover-padding mixin.$popover-padding;
 }
 .popover--member-detail {
-  padding: 0;
+  padding: mixin.$popover-padding;
   @include mixin.popover-panel-width(238px, calc(100% - #{mixin.$popover-viewport-inset * 2}));
   overflow: hidden;
   gap: 0;
@@ -302,14 +304,6 @@
 .member-detail-error {
   margin: 0;
   padding: mixin.$popover-padding;
-}
-.popover-fade-enter-active,
-.popover-fade-leave-active {
-  transition: opacity 0.22s ease;
-}
-.popover-fade-enter-from,
-.popover-fade-leave-to {
-  opacity: 0;
 }
 .popover--effort {
   @include mixin.popover-panel-width(252px);
@@ -474,7 +468,7 @@
   @include mixin.popover-panel-width(#{mixin.$popover-list-panel-width});
   min-height: 0;
   overflow: hidden;
-  padding: 0;
+  padding: mixin.$popover-padding;
   gap: 0;
 }
 .list-picker-list {

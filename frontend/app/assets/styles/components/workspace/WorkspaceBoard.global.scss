@@ -97,6 +97,7 @@
 }
 .task-card.sortable-fallback .task-label-list__strip {
   flex: 0 0 auto;
+  max-width: 100%;
 }
 .task-card.sortable-fallback .label-strip--bar {
   display: block;
@@ -114,14 +115,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  flex-shrink: 1;
   box-sizing: border-box;
-  width: 56px;
-  height: 16px;
+  width: fit-content;
+  height: auto;
   min-width: 56px;
-  max-width: 56px;
+  max-width: 100%;
   min-height: 16px;
-  max-height: 16px;
+  max-height: none;
   padding: 0 4px;
   border-radius: 4px;
   font-size: 12px;
@@ -131,11 +132,13 @@
 }
 .task-card.sortable-fallback .label-strip__text {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  overflow-wrap: anywhere;
   text-align: center;
 }
 .task-card.sortable-fallback .task-card-footer {
@@ -146,6 +149,25 @@
 .task-card.sortable-fallback .task-card-members {
   display: flex;
   align-items: center;
+  gap: 2px;
+}
+.task-card.sortable-fallback .task-card-members__more {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: mixin.$gray;
+  color: mixin.$text-sub;
+  font-family: mixin.$font-family;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
 }
 .task-card.sortable-fallback .task-card-member {
   width: 17.5px;

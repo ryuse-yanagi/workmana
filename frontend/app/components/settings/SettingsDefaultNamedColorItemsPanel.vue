@@ -4,7 +4,7 @@
       <button
         type="button"
         class="settings-panel__action-btn"
-        :disabled="loading || items.length >= DEFAULT_NAMED_COLOR_ITEMS_MAX"
+        :disabled="loading"
         @click="openAdd"
       >
         <component :is="addButtonIcon" :size="20" :stroke-width="2.1" aria-hidden="true" />
@@ -16,12 +16,7 @@
         {{ message }}
       </p>
       <p v-if="!loading && !items.length" class="named-color-items-panel__empty">
-        <template v-if="canManage">
-          まだ{{ itemKind }}がありません。「{{ addButtonLabel }}」から追加してください。
-        </template>
-        <template v-else>
-          まだ{{ itemKind }}がありません。
-        </template>
+        {{ itemKind }}がありません
       </p>
       <draggable
         v-model="items"
@@ -63,6 +58,7 @@
                 編集
               </button>
               <button
+                v-if="canDeleteItems"
                 type="button"
                 class="label-action-btn label-action-btn--delete"
                 :disabled="loading"
@@ -103,15 +99,14 @@
 import type { Component } from 'vue'
 import draggable from 'vuedraggable'
 import { Equal } from 'lucide-vue-next'
-import { useApi } from '../../composables/useApi'
-import { useOrgSettingsPageData } from '../../composables/useOrgSettingsPageData'
-import { useOrgSettingsResource } from '../../composables/useOrgSettingsResource'
-import { invalidateOrgDerivedCaches } from '../../composables/invalidateOrgDerivedCaches'
-import DefaultNamedColorItemDeleteModal from '../modals/DefaultNamedColorItemDeleteModal.vue'
-import DefaultNamedColorItemFormModal from '../modals/DefaultNamedColorItemFormModal.vue'
+import { useApi } from '../../composables/shared/useApi'
+import { useOrgSettingsPageData } from '../../composables/settings/useOrgSettingsPageData'
+import { useOrgSettingsResource } from '../../composables/settings/useOrgSettingsResource'
+import { invalidateOrgDerivedCaches } from '../../composables/settings/invalidateOrgDerivedCaches'
+import DefaultNamedColorItemDeleteModal from '../modals/shared/DefaultNamedColorItemDeleteModal.vue'
+import DefaultNamedColorItemFormModal from '../modals/shared/DefaultNamedColorItemFormModal.vue'
 import SettingsPanel from './SettingsPanel.vue'
 import {
-  DEFAULT_NAMED_COLOR_ITEMS_MAX,
   normalizeDefaultBoardListItems,
   normalizeDefaultDocumentCategoryItems,
   normalizeDefaultWorkspaceStatusItems,
@@ -145,6 +140,7 @@ const props = defineProps<{
   editModalTitle: string
   deleteModalTitle: string
   saveErrorMessage: string
+  minItems?: number
 }>()
 
 const { api } = useApi()
@@ -152,6 +148,8 @@ const { patchOrgSettingsCache } = useOrgSettingsPageData()
 const { fetchOrgSettings } = useOrgSettingsResource()
 let nextItemKey = 1
 const items = ref<DraftItem[]>(attachKeys(props.initialItems))
+const minItems = computed(() => props.minItems ?? 0)
+const canDeleteItems = computed(() => items.value.length > minItems.value)
 const loading = ref(false)
 const reordering = ref(false)
 const message = ref('')
@@ -244,7 +242,7 @@ async function persistItems () {
       })
     } else if (props.settingsField === 'default_document_category_names') {
       invalidateOrgDerivedCaches(props.orgSlug, {
-        workspaceIndex: false,
+        workspaceIndex: true,
         taskViews: false,
         documents: true,
         settingsResource: false,
@@ -303,7 +301,6 @@ function onDragEnd (evt: DragEndEvent) {
 
 function openAdd () {
   if (!props.canManage) return
-  if (items.value.length >= DEFAULT_NAMED_COLOR_ITEMS_MAX) return
   formModalMode.value = 'add'
   editingIndex.value = null
   const nextIndex = items.value.length
@@ -330,6 +327,7 @@ function openEdit (index: number) {
 
 function openDelete (index: number) {
   if (!props.canManage) return
+  if (!canDeleteItems.value) return
   const item = items.value[index]
   if (!item) return
   deletingIndex.value = index
@@ -374,6 +372,7 @@ async function submitForm (payload: {
 
 async function confirmDelete () {
   if (!props.canManage) return
+  if (!canDeleteItems.value) return
   if (deletingIndex.value === null) return
   const draft = cloneItems(items.value)
   draft.splice(deletingIndex.value, 1)

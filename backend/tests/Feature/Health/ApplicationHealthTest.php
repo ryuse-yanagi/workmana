@@ -6,10 +6,21 @@ use Tests\TestCase;
 
 class ApplicationHealthTest extends TestCase
 {
-    public function test_the_application_returns_a_successful_response(): void
+    /** Laravel のヘルスチェック /up が 200 を返す */
+    public function test_the_application_health_endpoint_returns_ok(): void
     {
-        $response = $this->get('/');
+        $this->get('/up')->assertOk();
+    }
 
-        $response->assertStatus(200);
+    /** ALB が付けた X-Forwarded-Proto を HTTPS として扱う */
+    public function test_forwarded_https_from_the_load_balancer_is_secure(): void
+    {
+        $this->withHeaders([
+            'X-Forwarded-Proto' => 'https',
+            'X-Forwarded-Port' => '443',
+        ])->get('/up')->assertOk();
+
+        $this->assertTrue(request()->isSecure());
+        $this->assertSame(443, request()->getPort());
     }
 }

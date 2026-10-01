@@ -2,21 +2,21 @@
 
 namespace Database\Seeders;
 
-use App\Models\Organization;
-use App\Models\TaskLabel;
-use App\Models\TaskLabelCategory;
+use App\Models\Organization\Organization;
+use App\Models\Task\TaskLabel;
+use App\Models\Task\TaskLabelCategory;
 use App\Models\User;
-use App\Models\WorkspaceLabel;
-use App\Models\WorkspaceLabelCategory;
+use App\Models\Workspace\WorkspaceLabel;
+use App\Models\Workspace\WorkspaceLabelCategory;
 use Illuminate\Database\Seeder;
 
 class LabelSeeder extends Seeder
 {
-    public function run (): void
+    public function run(): void
     {
-        $org = Organization::query()->where('slug', DummySeederData::ORG_SLUG)->first();
+        $org = DummySeederData::seededOrganization();
         if ($org === null) {
-            $this->command?->warn('Organization "'.DummySeederData::ORG_SLUG.'" not found. Run OrganizationSeeder first.');
+            $this->command?->warn('Organization "'.DummySeederData::ORG_NAME.'" not found. Run OrganizationSeeder first.');
 
             return;
         }
@@ -49,7 +49,7 @@ class LabelSeeder extends Seeder
      * @param  class-string<WorkspaceLabel|TaskLabel>  $labelModelClass
      * @param  array<string, list<string>>  $labelsByCategory
      */
-    private function seedLabels (
+    private function seedLabels(
         string $categoryModelClass,
         string $labelModelClass,
         Organization $org,

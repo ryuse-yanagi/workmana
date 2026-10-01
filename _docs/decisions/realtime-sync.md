@@ -2,11 +2,10 @@
 
 - ステータス: Accepted
 - 日付: 2026-05-13
-- 最終確認: 2026-08-07（実装に合わせて記述を更新）
 
 ## 背景
 
-業務管理アプリのボード／WBS 画面は、複数メンバーが同時に編集することを想定している。リアルタイム配信がないと、クライアントがリロードや自分の操作をトリガーにしない限り他メンバーの変更が反映されず、ボード状態の食い違いや「気付かないうちに上書き」が発生し得る。
+WorkMana のボード／WBS 画面は、複数メンバーが同時に編集することを想定している。リアルタイム配信がないと、クライアントがリロードや自分の操作をトリガーにしない限り他メンバーの変更が反映されず、ボード状態の食い違いや「気付かないうちに上書き」が発生し得る。
 
 ## 決定
 
@@ -16,7 +15,7 @@
 - **ブロードキャスト接続**: Laravel の `BROADCAST_CONNECTION=reverb`（アプリから Reverb への配信。単一ノードでは Redis を必須としない）
 - **Laravel Echo**（+ `pusher-js`）: フロントエンド（Nuxt / Vue）の購読クライアント
 
-詳細な現行構成は [`../architecture/realtime-sync.md`](../architecture/realtime-sync.md) を参照。
+詳細な現行構成は [`../architecture/realtime/sync.md`](../architecture/realtime/sync.md) を参照。
 
 ## 検討した代替案
 
@@ -36,16 +35,13 @@
 4. **学習資産が再利用できる**: 認可、イベントといった Laravel の既知の概念だけで構築でき、新たな技術スタック（Node.js, Go 等）を持ち込まない。
 5. **単一ノードでは Redis 必須ではない**: 配信は `reverb` ドライバ経由。Redis は Reverb の水平スケール（`REVERB_SCALING_ENABLED`）時のオプションとして使える。
 
-## 影響範囲（現行実装）
+## 影響
 
-- **インフラ**: Reverb プロセス（`php artisan reverb:start`）を常駐させる。本番ではプロセスマネージャ（systemd / Supervisor 等）で監視する。
-- **環境変数**: バックエンドに `BROADCAST_CONNECTION=reverb` と `REVERB_*`。フロントに `NUXT_PUBLIC_REVERB_*`（backend の key/host/port/scheme と一致）。
-- **バックエンド**: リスト／タスク変更に対応する Event を `ShouldBroadcastNow` で実装し、`SafeBroadcast::toOthers(...)`（内部は `broadcast($event)->toOthers()`）で配信する。ローカルでは `BROADCAST_FAIL_SILENTLY` 既定 true により、Reverb 未起動でも HTTP 書き込みは失敗させない。
-- **フロントエンド**: Nuxt プラグインで Echo を初期化し、ボード／WBS で `Echo.private('workspaces.{id}')` を購読して状態を更新する。API リクエストに `X-Socket-ID` を付け、自分の操作分のブロードキャストを除外する。
-- **認可**: `routes/channels.php` で `workspaces.{workspaceId}` をガード。組織メンバー（`canAccessWorkspace`）のみ購読可。認可 HTTP は `/api/broadcasting/auth`（Cookie + `cognito`）。
+- Reverb プロセスを API とは別に常駐させる。止めると、他クライアントへの即時反映が止まる。
+- 書き込みの成功と配信の成功は分ける。配信に失敗しても、保存済みの変更は失敗にしない。
 
 ## 未決定事項 / フォロー
 
 - スケールアウト時の Reverb 複数ノード構成（`REVERB_SCALING_ENABLED` + Redis。sticky session 要否を含む）。
 - プレゼンス機能（誰がボードを見ているか）の導入タイミング。
-- WebSocket 再接続時のボード／WBS フル再取得方針（現状は接続時にリスナー再バインドが中心。一部イベント処理内で部分 `GET` はあるが、再接続ポリシーとしては未整備）。
+- WebSocket 再接続時に、ボード／WBS をどこまで再取得するか。

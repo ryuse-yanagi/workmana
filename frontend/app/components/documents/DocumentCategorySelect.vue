@@ -130,7 +130,7 @@
           v-else-if="!filteredCategories.length"
           class="document-category-select__empty-text"
         >
-          該当するカテゴリがありません
+          カテゴリがありません
         </p>
       </div>
     </div>
@@ -142,9 +142,9 @@ import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,
 } from '../../constants/colorPresets'
-import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
-import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { dismissPopoverFromOutsidePointer, isInsideFloatingPopover, isScrollInsideRoot } from '../../utils/uiInteraction'
+import { useDropdownEscapeClose } from '../../composables/ui/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/ui/useExclusivePopover'
+import { dismissPopoverFromOutsidePointer, isInsideFloatingPopover, isScrollInsideRoot } from '../../utils/ui/uiInteraction'
 import {
   POPOVER_PANEL_BASE_WIDTH,
   POPOVER_VIEWPORT_INSET,
@@ -158,8 +158,8 @@ import {
   resolveAnchoredPopoverLayoutWidth,
   resolvePopoverScrollbarGutter,
   schedulePopoverOpenLayout,
-} from '../../utils/popoverScrollbar'
-import type { TaskFormCategory } from '../../composables/useTaskFormHelpers'
+} from '../../utils/ui/popoverScrollbar'
+import type { TaskFormCategory } from '../../composables/task/useTaskFormHelpers'
 import LabelStrip from '../ui/LabelStrip.vue'
 
 const props = withDefaults(defineProps<{

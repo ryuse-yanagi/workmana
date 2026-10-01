@@ -15,10 +15,9 @@
       <input
         ref="inputRef"
         :value="draft"
-        type="number"
-        min="0"
-        max="100"
-        step="1"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
         class="effort-input"
         placeholder="進捗率を入力..."
         aria-label="進捗率"
@@ -36,7 +35,7 @@
 
 <script setup lang="ts">
 import PopoverShell from '../../ui/PopoverShell.vue'
-import { schedulePopoverInputFocus } from '../../../utils/schedulePopoverInputFocus'
+import { schedulePopoverInputFocus } from '../../../utils/ui/schedulePopoverInputFocus'
 
 withDefaults(defineProps<{
   style?: Record<string, string>

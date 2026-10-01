@@ -3,9 +3,9 @@
 namespace Tests\Feature\Notifications;
 
 use App\Enums\MembershipRole;
-use App\Models\AppNotification;
+use App\Models\Notification\AppNotification;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -15,6 +15,7 @@ class AssigningTaskCreatesNotificationTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** タスク担当者の指定で通知が作成される */
     public function test_assigning_task_creates_notification(): void
     {
         [$admin, $organization] = $this->createOrgWithAdmin();
@@ -38,19 +39,25 @@ class AssigningTaskCreatesNotificationTest extends TestCase
             ])
             ->assertCreated();
 
-        $this->assertTrue(
-            AppNotification::query()
-                ->where('user_id', $member->id)
-                ->where('type', 'task.assigned')
-                ->exists()
-        );
+        $assigned = AppNotification::query()
+            ->where('user_id', $member->id)
+            ->where('type', 'task.assigned')
+            ->first();
+        $this->assertNotNull($assigned);
+        $this->assertSame('Notify space', $assigned->data['workspace_name'] ?? null);
+        $this->assertNull($assigned->data['parent_task_title'] ?? null);
 
-        $this->actingAsApiUser($member)
-            ->getJson('/api/notifications')
-            ->assertOk()
-            ->assertJsonPath('data.0.type', 'task.assigned');
+        $types = collect(
+            $this->actingAsApiUser($member)
+                ->getJson('/api/notifications')
+                ->assertOk()
+                ->json('data')
+        )->pluck('type');
+        $this->assertTrue($types->contains('task.assigned'));
+        $this->assertTrue($types->contains('workspace.member_added'));
     }
 
+    /** 自分自身を担当者にしても通知されない */
     public function test_self_assigning_task_does_not_notify_actor(): void
     {
         [$admin, $organization] = $this->createOrgWithAdmin();

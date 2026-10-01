@@ -3,12 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
-use App\Services\CognitoJwtService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Session\EncryptedStore;
-use Illuminate\Support\Facades\Http;
-use Mockery;
-use RuntimeException;
 use Tests\Feature\Auth\Concerns\InteractsWithCognitoLogin;
 use Tests\TestCase;
 
@@ -23,6 +18,7 @@ class CallbackIgnoresExternalRedirectTargetsTest extends TestCase
         $this->configureCognitoForTests();
     }
 
+    /** コールバックは外部リダイレクト先を無視する */
     public function test_callback_ignores_external_redirect_targets(): void
     {
         $user = User::factory()->create();

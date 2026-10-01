@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Workspaces;
 
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -14,6 +14,7 @@ class EmptyDefaultBoardListSettingsCreateNoListsTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** デフォルトボードリスト設定が空ならリストは作られない */
     public function test_empty_default_board_list_settings_create_no_lists(): void
     {
         $user = User::factory()->create();

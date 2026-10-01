@@ -5,31 +5,29 @@
     data-workspace-assignee-select-root
     @pointerdown.stop
     @pointerup.stop
+    @click.stop
+    @keydown.enter.stop
+    @keydown.space.stop
   >
     <button
-      v-if="!readonly"
       ref="triggerRef"
       type="button"
       class="workspace-assignee-select__btn"
-      :class="{ 'workspace-assignee-select__btn--empty': assigneeCount === 0 }"
+      :class="{
+        'workspace-assignee-select__btn--empty': assigneeCount === 0,
+        'workspace-assignee-select__btn--readonly': readonly,
+      }"
+      data-popover-trigger
       :aria-expanded="isOpen"
       aria-haspopup="dialog"
       :aria-label="triggerAriaLabel"
       :disabled="disabled || pending"
       @click.stop="toggleDropdown"
     >
-      {{ assigneeCount > 0 ? `計${assigneeCount}名` : '未設定' }}
+      {{ triggerLabel }}
     </button>
-    <div
-      v-else
-      class="workspace-assignee-select__btn"
-      :class="{ 'workspace-assignee-select__btn--empty': assigneeCount === 0 }"
-      :aria-label="triggerAriaLabel"
-    >
-      {{ assigneeCount > 0 ? `計${assigneeCount}名` : '未設定' }}
-    </div>
   </div>
-  <Teleport v-if="!readonly" to="body">
+  <Teleport to="body">
     <WorkspaceMemberPickerPopover
       v-if="isOpen"
       ref="dropdownRef"
@@ -41,6 +39,7 @@
       unassigned-section-heading="ユーザー"
       v-model:search-query="memberSearchQuery"
       :disabled="disabled || pending"
+      :readonly="readonly"
       :error="error"
       @close="closeDropdown"
       @toggle-member="toggleMember"
@@ -49,10 +48,15 @@
 </template>
 
 <script setup lang="ts">
-import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
-import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { popoverScrollbarGutterStyle, popoverWidthExtraForGutter, resolvePopoverScrollbarGutter } from '../../utils/popoverScrollbar'
-import type { TaskFormMember } from '../../composables/useTaskFormHelpers'
+import { useDropdownEscapeClose } from '../../composables/ui/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/ui/useExclusivePopover'
+import {
+  popoverScrollbarGutterStyle,
+  popoverWidthExtraForGutter,
+  resolvePopoverScrollbarGutter,
+  schedulePopoverOpenLayout,
+} from '../../utils/ui/popoverScrollbar'
+import type { TaskFormMember } from '../../composables/task/useTaskFormHelpers'
 import WorkspaceMemberPickerPopover from './WorkspaceMemberPickerPopover.vue'
 
 const props = withDefaults(defineProps<{
@@ -90,11 +94,22 @@ const memberSearchQuery = ref('')
 
 const assigneeCount = computed(() => props.assignees.length)
 
+const triggerLabel = computed(() => {
+  if (assigneeCount.value === 0) {
+    return '未設定'
+  }
+  return props.readonly ? `${assigneeCount.value}名` : `計${assigneeCount.value}名`
+})
+
 const triggerAriaLabel = computed(() => {
   if (assigneeCount.value > 0) {
-    return `${props.roleLabel} ${assigneeCount.value} 名。クリックして変更`
+    return props.readonly
+      ? `${props.roleLabel} ${assigneeCount.value} 名。クリックして確認`
+      : `${props.roleLabel} ${assigneeCount.value} 名。クリックして変更`
   }
-  return `${props.roleLabel}未設定。クリックして選択`
+  return props.readonly
+    ? `${props.roleLabel}未設定。クリックして確認`
+    : `${props.roleLabel}未設定。クリックして選択`
 })
 
 const dropdownStyle = computed(() => {
@@ -146,14 +161,16 @@ function positionDropdown () {
 }
 
 function openDropdown () {
-  if (props.readonly || props.disabled || props.pending) {
+  if (props.disabled || props.pending) {
     return
   }
   memberSearchQuery.value = ''
   isOpen.value = true
   nextTick(() => {
-    positionDropdown()
-    requestAnimationFrame(() => positionDropdown())
+    schedulePopoverOpenLayout(
+      () => positionDropdown(),
+      () => {},
+    )
   })
 }
 
@@ -166,7 +183,7 @@ function toggleDropdown () {
 }
 
 function toggleMember (member: TaskFormMember) {
-  if (props.disabled || props.pending) {
+  if (props.readonly || props.disabled || props.pending) {
     return
   }
   const currentIds = props.assignees.map(item => item.id)

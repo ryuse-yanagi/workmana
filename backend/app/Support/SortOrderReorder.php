@@ -3,12 +3,15 @@
 namespace App\Support;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SortOrderReorder
 {
     /**
+     * 順序は見ず、ID の集合が期待と違うときは検証エラーにする。
+     *
      * @param  list<int>  $orderedIds
      * @param  list<int>  $expectedIds
      */
@@ -25,7 +28,9 @@ class SortOrderReorder
     }
 
     /**
-     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $scopedQuery
+     * 渡した ID の順で sort_order を振り、スコープ外の行は更新しない。
+     *
+     * @param  Builder<Model>  $scopedQuery
      * @param  list<int>  $orderedIds
      */
     public static function apply(Builder $scopedQuery, array $orderedIds): void

@@ -3,21 +3,21 @@
 namespace Database\Seeders;
 
 use App\Enums\TaskPriority;
-use App\Models\BoardList;
-use App\Models\Organization;
-use App\Models\Task;
+use App\Models\Organization\Organization;
+use App\Models\Task\Task;
 use App\Models\User;
-use App\Models\Workspace;
-use App\Support\DefaultBoardLists;
+use App\Models\Workspace\BoardList;
+use App\Models\Workspace\Workspace;
+use App\Support\Workspace\DefaultBoardLists;
 use Illuminate\Database\Seeder;
 
 class TaskSeeder extends Seeder
 {
-    public function run (): void
+    public function run(): void
     {
-        $org = Organization::query()->where('slug', DummySeederData::ORG_SLUG)->first();
+        $org = DummySeederData::seededOrganization();
         if ($org === null) {
-            $this->command?->warn('Organization "'.DummySeederData::ORG_SLUG.'" not found. Run OrganizationSeeder first.');
+            $this->command?->warn('Organization "'.DummySeederData::ORG_NAME.'" not found. Run OrganizationSeeder first.');
 
             return;
         }
@@ -43,7 +43,7 @@ class TaskSeeder extends Seeder
         $this->seedTasksForWorkspace($org, $workspace, $reporter);
     }
 
-    private function seedTasksForWorkspace (
+    private function seedTasksForWorkspace(
         Organization $org,
         Workspace $workspace,
         User $reporter,

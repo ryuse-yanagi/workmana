@@ -6,10 +6,7 @@
     title="リスト"
     aria-label="リスト"
     :close-disabled="disabled"
-    :show-clear="canClear"
-    :clear-disabled="disabled"
     @close="$emit('close')"
-    @clear="$emit('clear')"
   >
     <div class="popover-scroll">
       <ul class="list-picker-list">
@@ -58,7 +55,7 @@
         v-if="!lists.length"
         class="empty-text list-picker-empty"
       >
-        該当するリストがありません
+        リストがありません
       </p>
       <p v-if="error" class="err">{{ error }}</p>
     </div>
@@ -68,12 +65,11 @@
 <script setup lang="ts">
 import { Check } from 'lucide-vue-next'
 import PopoverShell from '../../ui/PopoverShell.vue'
-import type { TaskPopoverListOption } from '../../../utils/taskPopoverTypes'
+import type { TaskPopoverListOption } from '../../../utils/task/taskPopoverTypes'
 
 withDefaults(defineProps<{
   style?: Record<string, string>
   disabled?: boolean
-  canClear?: boolean
   error?: string | null
   lists: TaskPopoverListOption[]
   selectedId?: number | null
@@ -82,7 +78,6 @@ withDefaults(defineProps<{
   barStyle?: (list: TaskPopoverListOption) => Record<string, string> | undefined
 }>(), {
   disabled: false,
-  canClear: false,
   error: null,
   selectedId: null,
   variant: 'radio',
@@ -92,7 +87,6 @@ withDefaults(defineProps<{
 
 defineEmits<{
   close: []
-  clear: []
   select: [id: number]
 }>()
 

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Workspaces;
 
-use App\Models\Task;
+use App\Models\Task\Task;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -15,19 +15,15 @@ class TaskUpdateBumpsWorkspaceUpdatedAtTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** タスク更新でワークスペースのupdated_atが更新される */
     public function test_task_update_bumps_workspace_updated_at(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', [
+            ->postJson("/api/orgs/{$slug}/workspaces", [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
@@ -36,7 +32,7 @@ class TaskUpdateBumpsWorkspaceUpdatedAtTest extends TestCase
         $listId = $this->defaultListId($workspace);
 
         $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks", [
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks", [
                 'title' => 'First task',
                 'list_id' => $listId,
             ])
@@ -49,7 +45,7 @@ class TaskUpdateBumpsWorkspaceUpdatedAtTest extends TestCase
         Carbon::setTestNow($baseline->copy()->addMinute());
 
         $this->actingAsApiUser($user)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/tasks/{$task->id}", [
+            ->patchJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/tasks/{$task->id}", [
                 'title' => 'Updated task',
             ])
             ->assertOk();

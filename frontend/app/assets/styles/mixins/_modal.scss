@@ -16,6 +16,24 @@
   padding: $modal-overlay-padding;
 }
 
+/** モーダル切替中に薄暗さを維持する（カードの fade とは独立） */
+@mixin modal-switch-backdrop {
+  position: fixed;
+  inset: 0;
+  background: ink-a(0.45);
+  z-index: calc(var(--wm-z-modal) - 1);
+}
+
+/** html.wm-modal-keep-backdrop 中はオーバーレイ自身の薄暗さを出さない */
+@mixin modal-keep-backdrop-html {
+  html.wm-modal-keep-backdrop {
+    .modal-overlay,
+    .base-modal-overlay {
+      background: transparent;
+    }
+  }
+}
+
 @mixin modal-overlay-top-aligned {
   align-items: flex-start;
 }

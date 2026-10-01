@@ -35,11 +35,11 @@
 </template>
 
 <script setup lang="ts">
-import type { LabelCategoryGroup } from '../../../composables/useLabelCategories'
-import type { TaskFormLabel } from '../../../composables/useTaskFormHelpers'
+import type { LabelCategoryGroup } from '../../../composables/label/useLabelCategories'
+import type { TaskFormLabel } from '../../../composables/task/useTaskFormHelpers'
 import PopoverShell from '../../ui/PopoverShell.vue'
 import LabelPickerGroupedList from '../LabelPickerGroupedList.vue'
-import { schedulePopoverInputFocus } from '../../../utils/schedulePopoverInputFocus'
+import { schedulePopoverInputFocus } from '../../../utils/ui/schedulePopoverInputFocus'
 
 const props = withDefaults(defineProps<{
   style?: Record<string, string>
@@ -74,6 +74,11 @@ const searchQueryModel = computed({
 
 onMounted(() => {
   schedulePopoverInputFocus(() => searchInputRef.value)
+})
+
+onUnmounted(() => {
+  if (!props.searchQuery) return
+  emit('update:searchQuery', '')
 })
 
 defineExpose({

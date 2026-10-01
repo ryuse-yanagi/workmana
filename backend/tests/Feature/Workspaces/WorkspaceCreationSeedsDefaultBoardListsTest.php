@@ -3,7 +3,7 @@
 namespace Tests\Feature\Workspaces;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
 use Tests\TestCase;
@@ -13,19 +13,15 @@ class WorkspaceCreationSeedsDefaultBoardListsTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** ワークスペース作成時にデフォルトボードリストが作成される */
     public function test_workspace_creation_seeds_default_board_lists(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', [
+            ->postJson("/api/orgs/{$slug}/workspaces", [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
@@ -34,7 +30,7 @@ class WorkspaceCreationSeedsDefaultBoardListsTest extends TestCase
         $this->assertNotNull($workspace);
 
         $this->actingAsApiUser($user)
-            ->getJson("/api/orgs/acme/workspaces/{$workspace->id}/lists")
+            ->getJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/lists")
             ->assertOk()
             ->assertJsonPath('data.0.name', '未着手')
             ->assertJsonPath('data.0.color_index', 0)

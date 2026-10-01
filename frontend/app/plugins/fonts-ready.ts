@@ -24,6 +24,13 @@ export default defineNuxtPlugin(() => {
   }
 
   const root = document.documentElement
+  const { fetchSession, session } = useAuth()
+  void fetchSession({ force: !session.value?.user })
+    .catch(() => {})
+    .finally(() => {
+      root.classList.add('session-ready')
+    })
+
   if (root.classList.contains('fonts-ready')) {
     return
   }

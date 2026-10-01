@@ -3,9 +3,9 @@
 namespace Tests\Feature\Attachments;
 
 use App\Enums\MembershipRole;
-use App\Models\TaskAttachment;
+use App\Models\Task\TaskAttachment;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -17,17 +17,15 @@ class UploadTaskAttachmentTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 添付アップロードは成功し、許可外の種類は拒否される */
     public function test_attachment_upload_works_and_rejects_disallowed_types(): void
     {
-        Storage::fake('local');
-        Storage::fake('public');
-
         [$admin, $organization] = $this->createOrgWithAdmin();
         $member = User::factory()->create();
         $organization->members()->attach($member->id, ['role' => MembershipRole::Member->value]);
 
         $workspaceId = (int) $this->actingAsApiUser($admin)
-            ->postJson('/api/orgs/acme/workspaces', ['name' => 'Notify space'])
+            ->postJson('/api/orgs/acme/workspaces', ['name' => 'Notify space', 'assignee_ids' => [$admin->id, $member->id]])
             ->assertCreated()
             ->json('id');
 
@@ -49,7 +47,7 @@ class UploadTaskAttachmentTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('original_name', 'notes.txt');
 
-        Storage::disk('local')->assertExists(
+        Storage::disk($this->privateMediaDisk())->assertExists(
             TaskAttachment::query()->where('task_id', $taskId)->value('path')
         );
 

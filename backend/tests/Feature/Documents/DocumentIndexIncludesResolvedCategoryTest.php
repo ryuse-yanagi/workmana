@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Documents;
 
-use App\Models\Organization;
-use App\Models\SharedDocument;
+use App\Models\Document\Document;
+use App\Models\Organization\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -14,6 +14,7 @@ class DocumentIndexIncludesResolvedCategoryTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** 資料一覧に解決済みカテゴリが含まれる */
     public function test_document_index_includes_resolved_category(): void
     {
         $user = User::factory()->create();
@@ -27,9 +28,11 @@ class DocumentIndexIncludesResolvedCategoryTest extends TestCase
             ],
         ]);
         $org->members()->attach($user->id, ['role' => 'admin']);
+        $workspaceId = $this->createWorkspaceViaApi($user, 'acme', 'Docs');
 
-        SharedDocument::query()->create([
+        Document::query()->create([
             'organization_id' => $org->id,
+            'workspace_id' => $workspaceId,
             'created_by' => $user->id,
             'name' => 'API 設計',
             'category' => '設計書',

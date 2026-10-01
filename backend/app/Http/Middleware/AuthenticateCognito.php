@@ -2,16 +2,13 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\CognitoSessionAuthenticator;
+use App\Services\Auth\CognitoSessionAuthenticator;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * HttpOnly のセッション Cookie でリクエストを認証する。
- * JWT はサーバー側セッションにのみ保持され、Authorization ヘッダーは受け付けない。
- */
+/** HttpOnly セッションで認証し、Authorization ヘッダーは受け付けない。 */
 class AuthenticateCognito
 {
     public function __construct(

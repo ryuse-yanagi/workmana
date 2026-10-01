@@ -153,12 +153,12 @@
 .dropdown {
   position: absolute;
   right: 0;
-  top: calc(100% + 6.3px);
-  /* 内容幅 220px を保つため、レーン分だけ外へ広げる */
-  width: calc(220px + #{mixin.$scrollbar-lane});
+  top: calc(100% + 8px);
+  /* 内容幅 256px を保つため、レーン分だけ外へ広げる */
+  width: calc(256px + #{mixin.$scrollbar-lane});
   box-sizing: border-box;
   background: mixin.$white;
-  border: 1px solid mixin.$gray;
+  border: 1px solid mixin.$border;
   border-radius: mixin.$popover-border-radius;
   box-shadow: mixin.$popover-box-shadow;
   padding: mixin.$popover-padding;
@@ -168,63 +168,105 @@
 }
 
 .dropdown-section {
-  padding-bottom: 4px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid mixin.$gray;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid mixin.$border;
 }
 
 .dropdown-section__label {
   margin: 0;
-  padding: 6px 9px 4px;
-  font-size: 11px;
-  font-weight: mixin.$popover-font-weight;
+  padding: 4px 8px 2px;
+  font-size: mixin.$popover-section-heading-font-size;
+  font-weight: 600;
+  line-height: 1.3;
   color: mixin.$text-muted;
   letter-spacing: 0.04em;
 }
 
 .dropdown-section__error {
-  margin: 0 9px 6px;
+  margin: 0 0 4px;
   padding: 6px 8px;
   border-radius: 6px;
   background: mixin.$danger-surface;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$danger;
 }
 
-.dropdown-item {
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  padding: 8px 9px;
-  border-radius: 8px;
-  font-weight: mixin.$popover-font-weight;
-  color: mixin.$text;
-  cursor: pointer;
+.dropdown-orgs,
+.dropdown-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.dropdown-item--org {
+.dropdown-item {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
   display: flex;
   align-items: center;
   gap: 8px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: mixin.$popover-list-font-size;
+  font-weight: mixin.$popover-font-weight;
+  line-height: mixin.$text-line-height-safe;
+  color: mixin.$text-heading;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid mixin.$main;
+    outline-offset: 1px;
+  }
 }
 
-.dropdown-item--org span {
+.dropdown-item--org {
+  min-height: 40px;
+}
+
+.dropdown-item__label {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: mixin.$text-line-height-safe;
 }
 
 .dropdown-item--active {
-  background: mixin.$surface-muted;
+  background: mixin.$bg-aqua;
   color: mixin.$main;
 }
 
-.dropdown-item.danger {
+.dropdown-item__check {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: mixin.$main;
+}
+
+.dropdown-item__icon {
+  flex-shrink: 0;
+  color: mixin.$text-muted;
+}
+
+.dropdown-item--danger {
   color: mixin.$danger;
+
+  .dropdown-item__icon {
+    color: mixin.$danger;
+  }
 }
 
 .notifications {

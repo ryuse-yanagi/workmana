@@ -181,16 +181,8 @@
                   <span>{{ taskCardProgressRateText(task) }}</span>
                 </p>
               </div>
-              <div v-if="cardAssignees(task).length" class="task-card-footer">
-                <div class="task-card-members" aria-label="担当者">
-                  <MemberAvatar
-                    v-for="member in cardAssignees(task)"
-                    :key="member.id"
-                    :member="member"
-                    size="xs"
-                    :title="memberDisplayName(member)"
-                  />
-                </div>
+              <div v-if="task.assignees?.length" class="task-card-footer">
+                <TaskCardAssignees :assignees="task.assignees ?? []" />
               </div>
             </div>
           </template>
@@ -222,11 +214,10 @@
 import { CalendarDays, ChartNoAxesColumnIncreasing, Clock, Ellipsis, FilePlus } from 'lucide-vue-next'
 import draggable from 'vuedraggable'
 import CardMenuTrigger from '../ui/CardMenuTrigger.vue'
+import TaskCardAssignees from '../task/TaskCardAssignees.vue'
 import TaskCardLabelList from '../task/TaskCardLabelList.vue'
-import MemberAvatar from '../ui/MemberAvatar.vue'
 import { LIST_NAME_MAX_LENGTH, TASK_TITLE_MAX_LENGTH } from '../../constants/fieldLengthLimits'
-import { memberDisplayName } from '../../composables/useMemberDisplay'
-import { listBarSurfaceStyle } from '../../composables/useTaskFormHelpers'
+import { listBarSurfaceStyle } from '../../composables/task/useTaskFormHelpers'
 import {
   formatTaskCardDateRange,
   formatTaskCardEffort,
@@ -234,8 +225,8 @@ import {
   hasTaskCardScheduleMeta,
   resolveParentTaskTitle,
   type TaskCardParentLookup,
-} from '../../composables/useTaskCardMeta'
-import type { WorkspaceBoardTask } from '../../composables/useWorkspaceBoardPageData'
+} from '../../composables/task/useTaskCardMeta'
+import type { WorkspaceBoardTask } from '../../composables/workspace/useWorkspaceBoardPageData'
 
 export type BoardListColumnDef = {
   key: string
@@ -346,10 +337,6 @@ function parentTaskTitle (task: WorkspaceBoardTask): string | null {
   return resolveParentTaskTitle(task, props.parentTasks)
 }
 
-function cardAssignees (task: WorkspaceBoardTask) {
-  return (task.assignees ?? []).slice(0, 3)
-}
-
 function taskCardDateRange (task: WorkspaceBoardTask): string | null {
   return formatTaskCardDateRange(task.start_date, task.due_date)
 }
@@ -362,3 +349,5 @@ function taskCardProgressRateText (task: WorkspaceBoardTask): string | null {
   return formatTaskCardProgressRate(task)
 }
 </script>
+
+<style lang="scss" scoped src="~/assets/styles/components/workspace/BoardListColumn.scss"></style>

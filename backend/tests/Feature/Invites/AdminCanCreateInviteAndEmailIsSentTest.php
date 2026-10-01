@@ -3,7 +3,7 @@
 namespace Tests\Feature\Invites;
 
 use App\Mail\OrganizationInviteMail;
-use App\Models\OrganizationInvite;
+use App\Models\Organization\OrganizationInvite;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -20,6 +20,7 @@ class AdminCanCreateInviteAndEmailIsSentTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 管理者が招待を作成するとメールが送信される */
     public function test_admin_can_create_invite_and_email_is_sent(): void
     {
         Mail::fake();

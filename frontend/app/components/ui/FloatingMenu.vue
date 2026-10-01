@@ -3,7 +3,6 @@
     <Transition name="popover-fade" @after-leave="emit('after-leave')">
       <ul
         v-if="open"
-        :key="instanceKey"
         ref="rootRef"
         class="floating-menu"
         :class="[
@@ -49,8 +48,8 @@
 </template>
 <script setup lang="ts">
 import type { Component, CSSProperties } from 'vue'
-import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { clampPopoverBox } from '../../utils/popoverScrollbar'
+import { useExclusivePopover } from '../../composables/ui/useExclusivePopover'
+import { clampPopoverBox } from '../../utils/ui/popoverScrollbar'
 
 export type FloatingMenuItem = {
   key: string
@@ -62,7 +61,7 @@ export type FloatingMenuItem = {
 
 const props = withDefaults(defineProps<{
   open: boolean
-  /** 同一メニューを別対象へ切り替えるときにフェードさせるキー */
+  /** 同一メニューを別対象へ切り替えるときの再配置キー */
   instanceKey?: string | number
   items?: FloatingMenuItem[]
   style?: CSSProperties | Record<string, string>

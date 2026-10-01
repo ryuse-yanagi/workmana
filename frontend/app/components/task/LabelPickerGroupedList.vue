@@ -36,21 +36,21 @@
     v-if="!hasSourceLabels"
     class="empty-text label-picker-empty"
   >
-    ラベルは設定画面で作成できます。
+    ラベルは設定画面で追加できます。
   </p>
   <p
     v-else-if="!categories.length"
     class="empty-text label-picker-empty"
   >
-    該当するラベルがありません。
+    ラベルがありません。
   </p>
 </template>
 <script setup lang="ts">
 import {
   labelBarTextColor,
   type TaskFormLabel,
-} from '../../composables/useTaskFormHelpers'
-import type { LabelCategoryGroup } from '../../composables/useLabelCategories'
+} from '../../composables/task/useTaskFormHelpers'
+import type { LabelCategoryGroup } from '../../composables/label/useLabelCategories'
 
 const props = withDefaults(defineProps<{
   categories: LabelCategoryGroup[]

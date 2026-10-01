@@ -1,4 +1,4 @@
-import { resolveLabelColors } from '../../utils/colorPresetResolution'
+import { resolveLabelColors } from '../../utils/shared/colorPresetResolution'
 import type { SettingsLabelCategory } from './types'
 
 export function normalizeSettingsLabelCategories (raw: SettingsLabelCategory[]): SettingsLabelCategory[] {

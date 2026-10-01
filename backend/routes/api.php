@@ -1,22 +1,30 @@
 <?php
 
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\InviteAcceptController;
-use App\Http\Controllers\Api\MeController;
-use App\Http\Controllers\Api\OrganizationController;
-use App\Http\Controllers\Api\OrganizationInviteController;
-use App\Http\Controllers\Api\WorkspaceController;
-use App\Http\Controllers\Api\ListController;
-use App\Http\Controllers\Api\WorkspaceLabelController;
-use App\Http\Controllers\Api\WorkspaceLabelCategoryController;
-use App\Http\Controllers\Api\TaskLabelController;
-use App\Http\Controllers\Api\TaskLabelCategoryController;
-use App\Http\Controllers\Api\DocumentLabelController;
-use App\Http\Controllers\Api\DocumentLabelCategoryController;
-use App\Http\Controllers\Api\SharedDocumentController;
-use App\Http\Controllers\Api\TaskController;
-use App\Http\Controllers\Api\TaskCommentController;
+use App\Http\Controllers\Api\Auth\AuthController;
+use App\Http\Controllers\Api\Auth\MeController;
+use App\Http\Controllers\Api\Document\DocumentController;
+use App\Http\Controllers\Api\Notification\NotificationController;
+use App\Http\Controllers\Api\Organization\InviteAcceptController;
+use App\Http\Controllers\Api\Organization\OrganizationController;
+use App\Http\Controllers\Api\Organization\OrganizationInviteController;
+use App\Http\Controllers\Api\Task\TaskAttachmentController;
+use App\Http\Controllers\Api\Task\TaskController;
+use App\Http\Controllers\Api\Task\TaskLabelCategoryController;
+use App\Http\Controllers\Api\Task\TaskLabelController;
+use App\Http\Controllers\Api\Workspace\ListController;
+use App\Http\Controllers\Api\Workspace\WorkspaceController;
+use App\Http\Controllers\Api\Workspace\WorkspaceLabelCategoryController;
+use App\Http\Controllers\Api\Workspace\WorkspaceLabelController;
 use Illuminate\Support\Facades\Route;
+
+Route::pattern('workspace', '[0-9]+');
+Route::pattern('task', '[0-9]+');
+Route::pattern('document', '[0-9]+');
+Route::pattern('relatedDocument', '[0-9]+');
+Route::pattern('relatedWorkspace', '[0-9]+');
+Route::pattern('boardList', '[0-9]+');
+Route::pattern('attachment', '[0-9]+');
+Route::pattern('member', '[0-9]+');
 
 /*
 |--------------------------------------------------------------------------
@@ -39,6 +47,7 @@ Route::prefix('auth')->group(function () {
     Route::get('/session', [AuthController::class, 'session']);       // 認証状態・ユーザー情報（未認証でも 200）
     Route::get('/login', [AuthController::class, 'login']);           // Cognito Hosted UI へリダイレクト開始
     Route::get('/callback', [AuthController::class, 'callback']);     // Cognito からの認可コード受け取り・セッション確立
+    Route::post('/register', [AuthController::class, 'register']);    // 組織なしのセルフサーブ登録
     Route::post('/logout', [AuthController::class, 'logout']);        // セッション破棄 + Hosted UI ログアウト URL 返却
 });
 
@@ -64,6 +73,10 @@ Route::middleware(['cognito'])->group(function () {
     Route::get('/me/current-organization', [MeController::class, 'currentOrganization']);
     Route::put('/me/current-organization', [MeController::class, 'switchOrganization']);
 
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
     // -------------------------------------------------------------------------
     // 組織の作成（組織スラッグ不要）
     // -------------------------------------------------------------------------
@@ -80,10 +93,15 @@ Route::middleware(['cognito'])->group(function () {
         // 組織メンバー・招待・設定
         // =====================================================================
         Route::get('/members', [OrganizationController::class, 'members']);
+        Route::patch('/members/{member}', [OrganizationController::class, 'updateMember']);
+        Route::delete('/members/{member}', [OrganizationController::class, 'removeMember']);
         Route::get('/invites', [OrganizationInviteController::class, 'index']);
         Route::post('/invites', [OrganizationInviteController::class, 'store']);
+        Route::delete('/invites/{invite}', [OrganizationInviteController::class, 'destroy']);
         Route::get('/settings', [OrganizationController::class, 'settings']);
         Route::patch('/settings', [OrganizationController::class, 'updateSettings']);
+        Route::post('/icon', [OrganizationController::class, 'uploadIcon']);
+        Route::delete('/icon', [OrganizationController::class, 'deleteIcon']);
 
         // =====================================================================
         // ラベル関連
@@ -92,7 +110,6 @@ Route::middleware(['cognito'])->group(function () {
         // 対象エンティティごとに同じ CRUD パターンが並ぶ:
         //   - workspace-*: スペースに付けるラベル
         //   - task-*:      タスクに付けるラベル
-        //   - document-*:  ドキュメントに付けるラベル
         // reorder は表示順の一括更新。{category}/{label} 付きルートより先に定義する。
         // =====================================================================
 
@@ -120,18 +137,6 @@ Route::middleware(['cognito'])->group(function () {
         Route::patch('/task-labels/{taskLabel}', [TaskLabelController::class, 'update']);
         Route::delete('/task-labels/{taskLabel}', [TaskLabelController::class, 'destroy']);
 
-        // --- ドキュメント用ラベル ---
-        Route::get('/document-label-categories', [DocumentLabelCategoryController::class, 'index']);
-        Route::post('/document-label-categories', [DocumentLabelCategoryController::class, 'store']);
-        Route::patch('/document-label-categories/reorder', [DocumentLabelCategoryController::class, 'reorder']);
-        Route::patch('/document-label-categories/{category}', [DocumentLabelCategoryController::class, 'update']);
-        Route::delete('/document-label-categories/{category}', [DocumentLabelCategoryController::class, 'destroy']);
-        Route::get('/document-labels', [DocumentLabelController::class, 'index']);
-        Route::post('/document-labels', [DocumentLabelController::class, 'store']);
-        Route::patch('/document-labels/reorder', [DocumentLabelController::class, 'reorder']);
-        Route::patch('/document-labels/{documentLabel}', [DocumentLabelController::class, 'update']);
-        Route::delete('/document-labels/{documentLabel}', [DocumentLabelController::class, 'destroy']);
-
         // =====================================================================
         // スペース（ワークスペース）関連 — 一覧・作成
         // =====================================================================
@@ -141,32 +146,29 @@ Route::middleware(['cognito'])->group(function () {
         // =====================================================================
         // ドキュメント関連（組織共有ドキュメント）
         // =====================================================================
-        Route::get('/documents', [SharedDocumentController::class, 'index']);
-        Route::get('/documents/archived', [SharedDocumentController::class, 'archivedIndex']);
-        Route::post('/documents', [SharedDocumentController::class, 'store']);
-        Route::get('/documents/{document}', [SharedDocumentController::class, 'show']);
-        Route::patch('/documents/{document}', [SharedDocumentController::class, 'update']);
-        Route::post('/documents/{document}/archive', [SharedDocumentController::class, 'archive']);
-        Route::post('/documents/{document}/unarchive', [SharedDocumentController::class, 'unarchive']);
-        Route::put('/documents/{document}/related-workspaces', [SharedDocumentController::class, 'syncRelatedWorkspaces']);
-        Route::delete('/documents/{document}/related-workspaces/{workspace}', [SharedDocumentController::class, 'detachRelatedWorkspace']);
-        Route::put('/documents/{document}/related-documents', [SharedDocumentController::class, 'syncRelatedDocuments']);
-        Route::delete('/documents/{document}/related-documents/{relatedDocument}', [SharedDocumentController::class, 'detachRelatedDocument']);
-        Route::delete('/documents/{document}', [SharedDocumentController::class, 'destroy']);
+        Route::get('/documents', [DocumentController::class, 'index']);
+        Route::get('/documents/archived', [DocumentController::class, 'archivedIndex']);
+        Route::post('/documents', [DocumentController::class, 'store']);
+        Route::get('/documents/{document}', [DocumentController::class, 'show']);
+        Route::patch('/documents/{document}', [DocumentController::class, 'update']);
+        Route::post('/documents/{document}/archive', [DocumentController::class, 'archive']);
+        Route::post('/documents/{document}/unarchive', [DocumentController::class, 'unarchive']);
+        Route::delete('/documents/{document}', [DocumentController::class, 'destroy']);
 
         // =====================================================================
         // スペース関連 — 詳細・更新・関連付け・アーカイブ
         // =====================================================================
         Route::get('/workspaces/archived', [WorkspaceController::class, 'archivedIndex']);
         Route::get('/workspaces/{workspace}/members', [WorkspaceController::class, 'members']);
+        Route::get('/workspaces/{workspace}/documents/archived', [DocumentController::class, 'workspaceArchivedIndex']);
+        Route::get('/workspaces/{workspace}/documents', [DocumentController::class, 'workspaceIndex']);
+        Route::post('/workspaces/{workspace}/documents', [DocumentController::class, 'storeForWorkspace']);
         Route::get('/workspaces/{workspace}', [WorkspaceController::class, 'show']);
         Route::patch('/workspaces/{workspace}', [WorkspaceController::class, 'update']);
-        Route::put('/workspaces/{workspace}/related-workspaces', [WorkspaceController::class, 'syncRelatedWorkspaces']);
-        Route::delete('/workspaces/{workspace}/related-workspaces/{relatedWorkspace}', [WorkspaceController::class, 'detachRelatedWorkspace']);
-        Route::put('/workspaces/{workspace}/related-documents', [WorkspaceController::class, 'syncRelatedDocuments']);
-        Route::delete('/workspaces/{workspace}/related-documents/{document}', [WorkspaceController::class, 'detachRelatedDocument']);
         Route::post('/workspaces/{workspace}/archive', [WorkspaceController::class, 'archive']);
         Route::post('/workspaces/{workspace}/unarchive', [WorkspaceController::class, 'unarchive']);
+        Route::post('/workspaces/{workspace}/pin', [WorkspaceController::class, 'pin']);
+        Route::post('/workspaces/{workspace}/unpin', [WorkspaceController::class, 'unpin']);
         Route::delete('/workspaces/{workspace}', [WorkspaceController::class, 'destroy']);
 
         /**
@@ -180,18 +182,18 @@ Route::middleware(['cognito'])->group(function () {
         Route::patch('/workspaces/{workspace}/lists/{boardList}/tasks/reorder', [ListController::class, 'reorderTasks']);
 
         /**
-         * タスク・親タスク・アーカイブ・コメントの一覧取得
+         * タスク・親タスク・アーカイブの一覧取得
          */
         Route::get('/workspaces/{workspace}/tasks', [TaskController::class, 'index']);
         Route::get('/workspaces/{workspace}/tasks/parents', [TaskController::class, 'parentTasksIndex']);
         Route::get('/workspaces/{workspace}/tasks/archived', [TaskController::class, 'archivedIndex']);
-        Route::get('/workspaces/{workspace}/tasks/comments', [TaskCommentController::class, 'workspaceIndex']);
 
         /**
          * WBSの一覧取得・並び替え
          */
         Route::get('/workspaces/{workspace}/tasks/wbs', [TaskController::class, 'wbsIndex']);
         Route::patch('/workspaces/{workspace}/tasks/wbs/reorder', [TaskController::class, 'wbsReorder']);
+        Route::get('/workspaces/{workspace}/tasks/attachments', [TaskAttachmentController::class, 'workspaceIndex']);
 
         /**
          * タスクの作成・詳細・更新・アーカイブ・復元・削除
@@ -203,17 +205,9 @@ Route::middleware(['cognito'])->group(function () {
         Route::post('/workspaces/{workspace}/tasks/{task}/unarchive', [TaskController::class, 'unarchive']);
         Route::delete('/workspaces/{workspace}/tasks/{task}', [TaskController::class, 'destroy']);
 
-        /**
-         * コメントに対する追加・更新・削除
-         */
-        Route::get('/workspaces/{workspace}/tasks/{task}/comments', [TaskCommentController::class, 'index']);
-        Route::post('/workspaces/{workspace}/tasks/{task}/comments', [TaskCommentController::class, 'store']);
-        Route::patch('/workspaces/{workspace}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'update']);
-        Route::delete('/workspaces/{workspace}/tasks/{task}/comments/{comment}', [TaskCommentController::class, 'destroy']);
-
-        /**
-         * コメントに対するリアクションの追加・解除
-         */
-        Route::post('/workspaces/{workspace}/tasks/{task}/comments/{comment}/reactions', [TaskCommentController::class, 'toggleReaction']);
+        Route::get('/workspaces/{workspace}/tasks/{task}/attachments', [TaskAttachmentController::class, 'index']);
+        Route::post('/workspaces/{workspace}/tasks/{task}/attachments', [TaskAttachmentController::class, 'store']);
+        Route::get('/workspaces/{workspace}/tasks/{task}/attachments/{attachment}/download', [TaskAttachmentController::class, 'download']);
+        Route::delete('/workspaces/{workspace}/tasks/{task}/attachments/{attachment}', [TaskAttachmentController::class, 'destroy']);
     });
 });

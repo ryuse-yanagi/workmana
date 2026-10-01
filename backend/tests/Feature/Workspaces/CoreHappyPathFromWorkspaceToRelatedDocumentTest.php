@@ -11,9 +11,10 @@ class CoreHappyPathFromWorkspaceToRelatedDocumentTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    public function test_core_happy_path_from_workspace_to_related_document(): void
+    /** ワークスペース作成から、そのスペース配下への資料作成までの基本フロー */
+    public function test_core_happy_path_from_workspace_to_workspace_document(): void
     {
-        [$admin, $organization, $member] = $this->createOrgWithAdminAndMember();
+        [$admin, , $member] = $this->createOrgWithAdminAndMember();
 
         $workspaceId = (int) $this->actingAsApiUser($admin)
             ->postJson('/api/orgs/acme/workspaces', [
@@ -61,6 +62,11 @@ class CoreHappyPathFromWorkspaceToRelatedDocumentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('documents.0.id', $documentId);
 
+        $this->assertDatabaseHas('shared_documents', [
+            'id' => $documentId,
+            'workspace_id' => $workspaceId,
+        ]);
+
         $this->actingAsApiUser($admin)
             ->postJson("/api/orgs/acme/workspaces/{$workspaceId}/tasks/{$taskId}/archive")
             ->assertOk();
@@ -75,6 +81,9 @@ class CoreHappyPathFromWorkspaceToRelatedDocumentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('archived_at', null);
 
-        $this->assertSame('acme', $organization->slug);
+        $this->assertDatabaseHas('tasks', [
+            'id' => $taskId,
+            'archived_at' => null,
+        ]);
     }
 }

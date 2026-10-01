@@ -3,7 +3,7 @@
 namespace Tests\Feature\Invites;
 
 use App\Mail\OrganizationInviteMail;
-use App\Models\OrganizationInvite;
+use App\Models\Organization\OrganizationInvite;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -21,6 +21,7 @@ class InvitePreviewAndAcceptCreatesUserAndMembershipTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 招待のプレビューと承諾でユーザーと所属が作成される */
     public function test_invite_preview_and_accept_creates_user_and_membership(): void
     {
         Mail::fake();

@@ -18,6 +18,7 @@ class CurrentOrganizationNullWhenNoMembershipsTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** 所属がない場合は現在組織がnullになる */
     public function test_current_organization_null_when_no_memberships(): void
     {
         $user = User::factory()->create(['cognito_sub' => 'sub-3']);

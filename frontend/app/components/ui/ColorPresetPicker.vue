@@ -1,9 +1,12 @@
 <template>
   <div class="color-preset-picker">
-    <span class="color-preset-picker__label">カラー</span>
+    <span
+      v-if="showLabel"
+      class="color-preset-picker__label"
+    >カラー</span>
     <div
       class="color-preset-picker__list"
-      :style="{ gridTemplateColumns: `repeat(${gridColumns}, 100px)` }"
+      :style="{ gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))` }"
     >
       <button
         v-for="colorItem in colorPresets"
@@ -44,8 +47,10 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   presets?: readonly string[]
   gridColumns?: number
+  showLabel?: boolean
 }>(), {
   disabled: false,
+  showLabel: true,
 })
 const colorPresets = computed(() => props.presets ?? COLOR_PRESETS)
 const gridColumns = computed(() => props.gridColumns ?? COLOR_PRESET_GRID_COLUMNS)

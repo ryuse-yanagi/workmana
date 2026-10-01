@@ -19,6 +19,7 @@ class MemberCannotCreateInviteTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
+    /** メンバーは招待を作成できない */
     public function test_member_cannot_create_invite(): void
     {
         Mail::fake();
@@ -32,5 +33,32 @@ class MemberCannotCreateInviteTest extends TestCase
                 'role' => 'member',
             ])
             ->assertForbidden();
+    }
+
+    /** 一般メンバーは招待の一覧・取り消しができない */
+    public function test_member_cannot_list_or_revoke_invites(): void
+    {
+        Mail::fake();
+        [$admin, $org] = $this->createOrgWithAdmin();
+        $member = User::factory()->create();
+        $org->members()->attach($member->id, ['role' => 'member']);
+
+        $inviteId = (int) $this->actingAsApiUser($admin)
+            ->postJson('/api/orgs/acme/invites', [
+                'email' => 'other@example.com',
+                'role' => 'member',
+            ])
+            ->assertCreated()
+            ->json('id');
+
+        $this->actingAsApiUser($member)
+            ->getJson('/api/orgs/acme/invites')
+            ->assertForbidden();
+
+        $this->actingAsApiUser($member)
+            ->deleteJson("/api/orgs/acme/invites/{$inviteId}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('organization_invites', ['id' => $inviteId]);
     }
 }

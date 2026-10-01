@@ -12,6 +12,11 @@ const surfaceBackgrounds = colorPresetsJson.standardSurfaceBackgrounds as readon
 
 export const COLOR_PRESET_GRID_COLUMNS = colorPresetsJson.gridColumns
 export const COLOR_PRESETS = presets
+/**
+ * ColorPresetPicker + モーダル左右 padding 16px×2 ちょうど。
+ * 5×100px + 4×4.9px gap + 32px = 551.6 → 552px（グリッドは幅100%で埋める）
+ */
+export const COLOR_PRESET_PICKER_MODAL_WIDTH = 'min(552px, 100%)'
 export const DEFAULT_COLOR_PRESET_INDEX = colorPresetsJson.defaultPresetIndex
 export const DEFAULT_COLOR_PRESET = COLOR_PRESETS[DEFAULT_COLOR_PRESET_INDEX]!
 /** 標準色（10色）— COLOR_PRESETS の2行目・5行目 */
@@ -52,6 +57,7 @@ export function standardColorIndexFromHex (hex: string): number {
   )
   return idx >= 0 ? idx : DEFAULT_STANDARD_COLOR_INDEX
 }
+/** 範囲外や不正値は既定色に寄せ、色コードならプリセット番号へ直す。 */
 export function normalizeColorPresetIndex (value: unknown): number {
   if (typeof value === 'number' && Number.isInteger(value)) {
     return Math.min(Math.max(value, 0), COLOR_PRESETS.length - 1)
@@ -64,6 +70,7 @@ export function normalizeColorPresetIndex (value: unknown): number {
   }
   return DEFAULT_COLOR_PRESET_INDEX
 }
+/** 標準10色の範囲に収め、色コードならその番号へ直す。 */
 export function normalizeStandardColorIndex (value: unknown): number {
   if (typeof value === 'number' && Number.isInteger(value)) {
     return Math.min(Math.max(value, 0), STANDARD_COLOR_PRESET_INDICES.length - 1)

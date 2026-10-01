@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\BoardLists;
 
-use App\Events\ListsReordered;
-use App\Models\BoardList;
+use App\Events\List\ListsReordered;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Workspace\BoardList;
+use App\Models\Workspace\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\Feature\Concerns\InteractsWithOrganizationApi;
@@ -16,21 +16,17 @@ class ReorderListsBroadcastsEventTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
+    /** リスト並び替え時にイベントがブロードキャストされる */
     public function test_reorder_lists_broadcasts_event(): void
     {
         Event::fake([ListsReordered::class]);
 
         $user = User::factory()->create();
 
-        $this->actingAsApiUser($user)
-            ->postJson('/api/organizations', [
-                'name' => 'Acme',
-                'slug' => 'acme',
-            ])
-            ->assertCreated();
+        $slug = $this->createOrganizationViaApi($user);
 
         $this->actingAsApiUser($user)
-            ->postJson('/api/orgs/acme/workspaces', [
+            ->postJson("/api/orgs/{$slug}/workspaces", [
                 'name' => 'Sprint 1',
             ])
             ->assertCreated();
@@ -38,14 +34,14 @@ class ReorderListsBroadcastsEventTest extends TestCase
         $workspace = Workspace::query()->firstOrFail();
 
         $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/lists", [
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/lists", [
                 'name' => 'Todo',
                 'color_index' => 0,
             ])
             ->assertCreated();
 
         $listB = $this->actingAsApiUser($user)
-            ->postJson("/api/orgs/acme/workspaces/{$workspace->id}/lists", [
+            ->postJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/lists", [
                 'name' => 'Doing',
                 'color_index' => 1,
             ])
@@ -59,7 +55,7 @@ class ReorderListsBroadcastsEventTest extends TestCase
             ->all()];
 
         $this->actingAsApiUser($user)
-            ->patchJson("/api/orgs/acme/workspaces/{$workspace->id}/lists/reorder", [
+            ->patchJson("/api/orgs/{$slug}/workspaces/{$workspace->id}/lists/reorder", [
                 'list_ids' => $listIds,
             ])
             ->assertOk()

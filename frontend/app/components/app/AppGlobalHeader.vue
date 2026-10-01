@@ -55,36 +55,56 @@
               <img v-if="avatarUrl" :src="avatarUrl" alt="" class="avatar-img" />
               <span v-else class="avatar-fallback">{{ initials }}</span>
             </span>
-            <span class="profile-name">{{ displayName || 'ユーザー' }}</span>
+            <span class="profile-name">{{ displayName }}</span>
           </button>
 
           <Transition name="popover-fade">
           <div v-if="menuOpen" class="dropdown" data-popover-panel role="menu">
-            <div v-if="organizations.length" class="dropdown-section">
-              <p class="dropdown-section__label">組織を切替</p>
+            <div v-if="organizations.length" class="dropdown-section" role="presentation">
+              <p class="dropdown-section__label">組織の切替</p>
               <p v-if="orgSwitchError" class="dropdown-section__error" role="alert">{{ orgSwitchError }}</p>
-              <button
-                v-for="org in organizations"
-                :key="org.id"
-                type="button"
-                class="dropdown-item dropdown-item--org"
-                :class="{ 'dropdown-item--active': org.slug === orgSlug }"
-                :disabled="switchingOrg"
-                @click="switchToOrganization(org)"
-              >
-                <MemberAvatar
-                  :member="{ id: org.id, name: org.name, avatar_url: org.icon_url ?? null }"
-                  size="xs"
-                />
-                <span>{{ org.name }}</span>
+              <div class="dropdown-orgs" role="group" aria-label="組織の切替">
+                <button
+                  v-for="org in organizations"
+                  :key="org.id"
+                  type="button"
+                  class="dropdown-item dropdown-item--org"
+                  :class="{ 'dropdown-item--active': org.slug === orgSlug }"
+                  :disabled="switchingOrg"
+                  role="menuitemradio"
+                  :aria-checked="org.slug === orgSlug"
+                  @click="switchToOrganization(org)"
+                >
+                  <MemberAvatar
+                    :member="{ id: org.id, name: org.name, avatar_url: org.icon_url ?? null }"
+                    size="sm"
+                  />
+                  <span class="dropdown-item__label">{{ org.name }}</span>
+                  <Check
+                    v-if="org.slug === orgSlug"
+                    :size="16"
+                    :stroke-width="2.5"
+                    class="dropdown-item__check"
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+              <button type="button" class="dropdown-item" role="menuitem" @click="goCreateOrganization">
+                <Plus :size="16" :stroke-width="2" class="dropdown-item__icon" aria-hidden="true" />
+                <span class="dropdown-item__label">組織の作成</span>
               </button>
             </div>
-            <button type="button" class="dropdown-item" :disabled="!orgSlug" @click="goProfileFromMenu">
-              プロフィール設定
-            </button>
-            <button type="button" class="dropdown-item danger" @click="logout">
-              ログアウト
-            </button>
+            <div class="dropdown-actions" role="presentation">
+              <button type="button" class="dropdown-item" role="menuitem" :disabled="!orgSlug" @click="goProfileFromMenu">
+                <UserRound :size="16" :stroke-width="2" class="dropdown-item__icon" aria-hidden="true" />
+                <span class="dropdown-item__label">プロフィール設定</span>
+              </button>
+              <p v-if="logoutError" class="dropdown-section__error" role="alert">{{ logoutError }}</p>
+              <button type="button" class="dropdown-item dropdown-item--danger" role="menuitem" :disabled="loggingOut" @click="logout">
+                <LogOut :size="16" :stroke-width="2" class="dropdown-item__icon" aria-hidden="true" />
+                <span class="dropdown-item__label">ログアウト</span>
+              </button>
+            </div>
           </div>
           </Transition>
         </div>
@@ -168,18 +188,19 @@
 </template>
 
 <script setup lang="ts">
-import { Bell, ChevronRight, Circle, FolderOpen, Settings, X } from 'lucide-vue-next'
-import ProfileSettingsModal from '../modals/ProfileSettingsModal.vue'
+import { Bell, Check, ChevronRight, Circle, FolderOpen, LogOut, Plus, Settings, UserRound, X } from 'lucide-vue-next'
+import ProfileSettingsModal from '../modals/settings/ProfileSettingsModal.vue'
 import MemberAvatar from '../ui/MemberAvatar.vue'
-import { useDropdownEscapeClose } from '../../composables/useDropdownEscapeClose'
-import { useExclusivePopover } from '../../composables/useExclusivePopover'
-import { useModalScrollbarGutter } from '../../composables/useModalScrollbarGutter'
-import { useAuth } from '../../composables/useAuth'
-import { useApi } from '../../composables/useApi'
-import { useOrganizationContext, type OrganizationSummary } from '../../composables/useOrganizationContext'
-import { useOrgPageCacheWarmup } from '../../composables/useOrgPageCacheWarmup'
-import { clearSessionScopedCaches } from '../../composables/useSessionScopedCaches'
-import { createOverlayBackdropClose } from '../../utils/uiInteraction'
+import { useDropdownEscapeClose } from '../../composables/ui/useDropdownEscapeClose'
+import { useExclusivePopover } from '../../composables/ui/useExclusivePopover'
+import { useModalScrollbarGutter } from '../../composables/ui/useModalScrollbarGutter'
+import { useAuth } from '../../composables/auth/useAuth'
+import { UnsavedDiscardError } from '../../composables/shared/useUnsavedChangesGuard'
+import { useApi } from '../../composables/shared/useApi'
+import { useOrganizationContext, type OrganizationSummary } from '../../composables/org/useOrganizationContext'
+import { useOrgPageCacheWarmup } from '../../composables/org/useOrgPageCacheWarmup'
+import { createOverlayBackdropClose } from '../../utils/ui/uiInteraction'
+import { workspaceViewFromRoute } from '../../composables/workspace/useWorkspaceViewRoutes'
 
 type AppNotification = {
   id: number
@@ -187,8 +208,15 @@ type AppNotification = {
   data: {
     task_id?: number
     workspace_id?: number
+    workspace_name?: string
     organization_slug?: string
+    organization_name?: string
     title?: string
+    parent_task_title?: string | null
+    due_date?: string | null
+    due_date_change?: 'set' | 'changed' | 'cleared'
+    role?: string
+    invite_token?: string
   } | null
   read_at: string | null
   created_at: string
@@ -196,15 +224,29 @@ type AppNotification = {
 
 const route = useRoute()
 const router = useRouter()
-const { fetchSession, logout: endSession } = useAuth()
+const { session, fetchSession, patchSessionUser, logout: endSession } = useAuth()
 const { api } = useApi()
 const { switchOrganization, orgTopPath } = useOrganizationContext()
 const { warmOrgPageCaches } = useOrgPageCacheWarmup()
 
 const orgSlug = ref<string | null>(slugFromRoute())
-const organizations = ref<OrganizationSummary[]>([])
-const avatarUrl = ref<string | null>(null)
-const displayName = ref('')
+const organizations = computed<OrganizationSummary[]>(() => (
+  (session.value?.user?.organizations ?? []).map(org => ({
+    id: org.id,
+    name: org.name,
+    slug: org.slug,
+    role: org.role,
+    icon_url: org.icon_url ?? null,
+  }))
+))
+const avatarUrl = computed(() => session.value?.user?.avatar_url || null)
+const displayName = computed(() => {
+  const me = session.value?.user
+  if (!me) {
+    return ''
+  }
+  return (me.name || me.email || '').trim() || 'ユーザー'
+})
 const menuOpen = ref(false)
 const profileModalOpen = ref(false)
 const notificationsOpen = ref(false)
@@ -225,11 +267,13 @@ const notificationsDrawerStyle = computed(() => notificationsScrollbarStyle.valu
 let notificationsPollTimer: ReturnType<typeof setInterval> | null = null
 const switchingOrg = ref(false)
 const orgSwitchError = ref<string | null>(null)
+const loggingOut = ref(false)
+const logoutError = ref<string | null>(null)
 
 const unreadCount = computed(() => notifications.value.filter(item => !item.read_at).length)
 
 const initials = computed(() => {
-  const source = (displayName.value || '').trim() || (route.path || '')
+  const source = displayName.value.trim()
   if (!source) return '?'
   return source.slice(0, 1).toUpperCase()
 })
@@ -238,8 +282,6 @@ function slugFromRoute (): string | null {
   const name = String(route.name || '')
   if (
     name === 'org-slug-workspaces'
-    || name === 'org-slug-documents'
-    || name === 'org-slug-documents-id'
     || name === 'org-slug-workspaces-id-documents-documentId'
     || name === 'org-slug-settings'
     || name === 'org-slug-workspaces-id'
@@ -250,49 +292,33 @@ function slugFromRoute (): string | null {
   return null
 }
 
-async function refreshMeContext () {
-  if (!import.meta.client) {
-    return
-  }
-  const routeSlug = slugFromRoute()
+function applyOrgSlugFromSession (me: { last_organization_id?: number | null } | null, routeSlug: string | null) {
   if (routeSlug) {
     orgSlug.value = routeSlug
-  }
-
-  // 未ログインでも 200 が返るセッション API で判定する
-  const me = (await fetchSession()).user
-
-  if (!me) {
-    if (!routeSlug) {
-      orgSlug.value = null
-    }
-    organizations.value = []
-    avatarUrl.value = null
-    displayName.value = ''
     return
   }
-
-  displayName.value = (me.name || me.email || '').trim()
-  avatarUrl.value = me.avatar_url || null
-  organizations.value = (me.organizations ?? []).map(org => ({
-    id: org.id,
-    name: org.name,
-    slug: org.slug,
-    role: org.role,
-    icon_url: org.icon_url ?? null,
-  }))
-  if (!routeSlug) {
-    const lastId = me.last_organization_id
-    const last = lastId != null
-      ? organizations.value.find(org => org.id === lastId)
-      : null
-    const first = last ?? organizations.value[0]
-    orgSlug.value = first?.slug?.trim() ? first.slug : null
+  if (!me) {
+    orgSlug.value = null
+    return
   }
+  const lastId = me.last_organization_id
+  const last = lastId != null
+    ? organizations.value.find(org => org.id === lastId)
+    : null
+  const first = last ?? organizations.value[0]
+  orgSlug.value = first?.slug?.trim() ? first.slug : null
+}
 
-  const activeSlug = orgSlug.value
-  if (activeSlug) {
-    void warmOrgPageCaches(activeSlug)
+async function refreshMeContext (options?: { force?: boolean }) {
+  const routeSlug = slugFromRoute()
+  applyOrgSlugFromSession(session.value?.user ?? null, routeSlug)
+
+  // 未ログインでも 200 が返るセッション API で判定する
+  const me = (await fetchSession(options)).user
+  applyOrgSlugFromSession(me, routeSlug)
+
+  if (orgSlug.value) {
+    void warmOrgPageCaches(orgSlug.value)
   }
 }
 
@@ -307,15 +333,64 @@ function closeNotifications () {
 function toggleNotifications () {
   notificationsOpen.value = !notificationsOpen.value
   if (notificationsOpen.value) {
-    closeMenu()
     void loadNotifications()
   }
 }
 
+function formatDueDateLabel (value: string | null | undefined): string {
+  if (!value) return ''
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  if (!match) return value
+  return `${match[1]}/${match[2]}/${match[3]}`
+}
+
+function taskNotificationSubject (item: AppNotification): string {
+  const title = item.data?.title?.trim() || 'タスク'
+  const workspaceName = item.data?.workspace_name?.trim() || ''
+  const parentTitle = item.data?.parent_task_title?.trim() || ''
+  const taskName = parentTitle ? `「（${parentTitle}）${title}」` : `「${title}」`
+  if (workspaceName) {
+    return `スペース「${workspaceName}」の${taskName}`
+  }
+  return taskName
+}
+
 function notificationLabel (item: AppNotification): string {
   const title = item.data?.title?.trim() || 'タスク'
+  const taskSubject = taskNotificationSubject(item)
+  const workspaceName = item.data?.workspace_name?.trim() || item.data?.title?.trim() || 'スペース'
+  const organizationName = item.data?.organization_name?.trim() || item.data?.title?.trim() || '組織'
   if (item.type === 'task.assigned') {
-    return `「${title}」に担当者として追加されました`
+    return `${taskSubject}に担当者として追加されました`
+  }
+  if (item.type === 'task.due_date_changed') {
+    const due = formatDueDateLabel(item.data?.due_date)
+    if (item.data?.due_date_change === 'cleared' || !due) {
+      return `${taskSubject}の期限が削除されました`
+    }
+    if (item.data?.due_date_change === 'changed') {
+      return `${taskSubject}の期限が ${due} に変更されました`
+    }
+    return `${taskSubject}の期限が ${due} に設定されました`
+  }
+  if (item.type === 'task.archived') {
+    return `${taskSubject}がアーカイブされました`
+  }
+  if (item.type === 'task.restored') {
+    return `${taskSubject}が復元されました`
+  }
+  if (item.type === 'task.deleted') {
+    return `${taskSubject}が削除されました`
+  }
+  if (item.type === 'workspace.member_added') {
+    return `「${workspaceName}」のメンバーに追加されました`
+  }
+  if (item.type === 'organization.role_changed') {
+    const roleLabel = item.data?.role === 'admin' ? '管理者' : 'メンバー'
+    return `「${organizationName}」での役割が${roleLabel}に変更されました`
+  }
+  if (item.type === 'organization.invited') {
+    return `「${organizationName}」に招待されました`
   }
   return title
 }
@@ -364,13 +439,30 @@ async function onNotificationClick (item: AppNotification) {
   await markNotificationRead(item)
   closeNotifications()
   const slug = item.data?.organization_slug || orgSlug.value
+  if (item.type === 'organization.invited') {
+    const token = item.data?.invite_token
+    if (token) {
+      await router.push(`/invite/${token}`)
+    }
+    return
+  }
+  if (item.type === 'organization.role_changed') {
+    if (slug) {
+      await router.push(`/org/${slug}/workspaces`)
+    }
+    return
+  }
   const workspaceId = item.data?.workspace_id
-  const taskId = item.data?.task_id
   if (!slug || !workspaceId) {
     return
   }
+  const opensTask = item.type !== 'task.deleted' && item.type !== 'workspace.member_added'
   const query: Record<string, string> = {}
-  if (typeof taskId === 'number' && Number.isFinite(taskId) && taskId > 0) {
+  if (opensTask && workspaceViewFromRoute(route) === 'wbs') {
+    query.view = 'wbs'
+  }
+  const taskId = item.data?.task_id
+  if (opensTask && typeof taskId === 'number' && Number.isFinite(taskId) && taskId > 0) {
     query.task = String(taskId)
   }
   await router.push({
@@ -381,9 +473,6 @@ async function onNotificationClick (item: AppNotification) {
 
 function toggleMenu () {
   menuOpen.value = !menuOpen.value
-  if (menuOpen.value) {
-    closeNotifications()
-  }
 }
 
 const {
@@ -460,6 +549,12 @@ function goProfileFromMenu () {
   profileModalOpen.value = true
 }
 
+async function goCreateOrganization () {
+  closeMenu()
+  await router.push('/organizations/new')
+}
+
+/** 同じ組織なら閉じるだけ。別組織はセッションを更新してそのトップへ進む */
 async function switchToOrganization (org: OrganizationSummary) {
   if (switchingOrg.value) return
   if (org.slug === orgSlug.value) {
@@ -470,6 +565,7 @@ async function switchToOrganization (org: OrganizationSummary) {
   orgSwitchError.value = null
   try {
     await switchOrganization({ id: org.id, slug: org.slug })
+    patchSessionUser({ last_organization_id: org.id })
     orgSlug.value = org.slug
     closeMenu()
     await router.push(orgTopPath(org.slug))
@@ -481,10 +577,21 @@ async function switchToOrganization (org: OrganizationSummary) {
 }
 
 async function logout () {
-  closeMenu()
-  clearSessionScopedCaches()
-  // セッション Cookie の破棄はバックエンドが行う
-  await endSession()
+  if (loggingOut.value) {
+    return
+  }
+  loggingOut.value = true
+  logoutError.value = null
+  try {
+    // 成功時は別画面へ移動する。失敗したときはログイン状態を残し、このメニューに留まる。
+    await endSession()
+  } catch (e: unknown) {
+    loggingOut.value = false
+    logoutError.value = e instanceof UnsavedDiscardError
+      ? e.message
+      : 'ログアウトに失敗しました。もう一度お試しください。'
+    menuOpen.value = true
+  }
 }
 
 function onOrgUpdated (e: Event) {
@@ -494,40 +601,48 @@ function onOrgUpdated (e: Event) {
     icon_url?: string | null
   }>).detail
   const slug = detail?.slug
-  if (!slug) {
-    void refreshMeContext()
+  const currentOrgs = session.value?.user?.organizations
+  if (!slug || !currentOrgs) {
+    void refreshMeContext({ force: true })
     return
   }
-  organizations.value = organizations.value.map((org) => {
-    if (org.slug !== slug) return org
-    return {
-      ...org,
-      ...(typeof detail.name === 'string' ? { name: detail.name } : {}),
-      ...('icon_url' in detail ? { icon_url: detail.icon_url ?? null } : {}),
-    }
+  patchSessionUser({
+    organizations: currentOrgs.map((org) => {
+      if (org.slug !== slug) return org
+      return {
+        ...org,
+        ...(typeof detail.name === 'string' ? { name: detail.name } : {}),
+        ...('icon_url' in detail ? { icon_url: detail.icon_url ?? null } : {}),
+      }
+    }),
   })
 }
 
 function onUserProfileUpdated (e: Event) {
   const detail = (e as CustomEvent<{ id?: number; name?: string; avatar_url?: string | null }>).detail
   const name = (detail?.name || '').trim()
-  if (name) {
-    displayName.value = name
-  }
-  if (detail && 'avatar_url' in detail) {
-    avatarUrl.value = detail.avatar_url || null
+  if (!detail) {
+    void refreshMeContext({ force: true })
     return
   }
+  const patch: { name?: string; avatar_url?: string | null } = {}
   if (name) {
+    patch.name = name
+  }
+  if ('avatar_url' in detail) {
+    patch.avatar_url = detail.avatar_url || null
+  }
+  if (Object.keys(patch).length === 0) {
+    void refreshMeContext({ force: true })
     return
   }
-  void refreshMeContext()
+  patchSessionUser(patch)
 }
 
 watch(
   () => route.fullPath,
   () => {
-    void refreshMeContext()
+    void refreshMeContext({ force: true })
   },
 )
 
@@ -541,8 +656,12 @@ watch(
   { immediate: true },
 )
 
+if (session.value?.user) {
+  applyOrgSlugFromSession(session.value.user, slugFromRoute())
+}
+
 onMounted(() => {
-  void refreshMeContext()
+  void refreshMeContext({ force: true })
   if (import.meta.client) {
     window.addEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
     window.addEventListener('tm:org-updated', onOrgUpdated as EventListener)

@@ -3,16 +3,15 @@
 namespace Database\Seeders;
 
 use App\Enums\MembershipRole;
-use App\Models\Organization;
+use App\Models\Organization\Organization;
 use App\Models\User;
+use App\Support\Organization\OrganizationSlug;
 use Illuminate\Database\Seeder;
+use RuntimeException;
 
 class OrganizationSeeder extends Seeder
 {
-    /** @deprecated Use DummySeederData::ORG_SLUG */
-    public const SLUG = DummySeederData::ORG_SLUG;
-
-    public function run (): void
+    public function run(): void
     {
         $admin = User::query()->where('name', DummySeederData::ADMIN_NAME)->first();
         if ($admin === null) {
@@ -21,16 +20,16 @@ class OrganizationSeeder extends Seeder
             return;
         }
 
-        $org = Organization::query()->firstOrCreate(
-            ['slug' => DummySeederData::ORG_SLUG],
-            [
-                'name' => DummySeederData::ORG_NAME,
-                'created_by' => $admin->id,
-            ],
-        );
+        $org = DummySeederData::seededOrganization();
 
-        if (! $org->wasRecentlyCreated) {
-            $org->update(['name' => DummySeederData::ORG_NAME]);
+        if ($org === null) {
+            $org = Organization::query()->create([
+                'name' => DummySeederData::ORG_NAME,
+                'slug' => $this->allocateSlug(),
+                'created_by' => $admin->id,
+            ]);
+        } elseif (! preg_match(OrganizationSlug::PATTERN, $org->slug)) {
+            $org->update(['slug' => $this->allocateSlug()]);
         }
 
         if (! $admin->organizations()->where('organizations.id', $org->id)->exists()) {
@@ -54,5 +53,17 @@ class OrganizationSeeder extends Seeder
                 'role' => MembershipRole::Member->value,
             ]);
         }
+    }
+
+    private function allocateSlug(): string
+    {
+        for ($attempt = 0; $attempt < OrganizationSlug::ATTEMPTS; $attempt++) {
+            $slug = OrganizationSlug::generate();
+            if (! Organization::query()->where('slug', $slug)->exists()) {
+                return $slug;
+            }
+        }
+
+        throw new RuntimeException('組織コードを発行できませんでした。');
     }
 }

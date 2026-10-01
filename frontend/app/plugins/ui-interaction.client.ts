@@ -3,7 +3,7 @@ import {
   resolveDragScrollContainer,
   shouldEnableDragScroll,
   type ScrollAxes,
-} from '../utils/uiInteraction'
+} from '../utils/ui/uiInteraction'
 const DRAG_SCROLL_THRESHOLD_PX = 4
 interface DragScrollSession {
   container: Element

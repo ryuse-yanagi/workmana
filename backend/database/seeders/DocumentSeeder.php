@@ -2,21 +2,20 @@
 
 namespace Database\Seeders;
 
-use App\Models\DocumentLabel;
-use App\Models\DocumentLabelCategory;
-use App\Models\Organization;
-use App\Models\SharedDocument;
+use App\Models\Document\Document;
+use App\Models\Organization\Organization;
 use App\Models\User;
-use App\Support\DefaultDocumentCategories;
+use App\Models\Workspace\Workspace;
+use App\Support\Document\DefaultDocumentCategories;
 use Illuminate\Database\Seeder;
 
 class DocumentSeeder extends Seeder
 {
-    public function run (): void
+    public function run(): void
     {
-        $org = Organization::query()->where('slug', DummySeederData::ORG_SLUG)->first();
+        $org = DummySeederData::seededOrganization();
         if ($org === null) {
-            $this->command?->warn('Organization "'.DummySeederData::ORG_SLUG.'" not found. Run OrganizationSeeder first.');
+            $this->command?->warn('Organization "'.DummySeederData::ORG_NAME.'" not found. Run OrganizationSeeder first.');
 
             return;
         }
@@ -28,62 +27,37 @@ class DocumentSeeder extends Seeder
             return;
         }
 
+        $workspace = Workspace::query()
+            ->where('organization_id', $org->id)
+            ->where('name', DummySeederData::WORKSPACE_NAME)
+            ->first();
+        if ($workspace === null) {
+            $this->command?->warn('Workspace "'.DummySeederData::WORKSPACE_NAME.'" not found. Run WorkspaceSeeder first.');
+
+            return;
+        }
+
         if ($org->default_document_category_names === null) {
             $org->default_document_category_names = DefaultDocumentCategories::seededItems();
             $org->save();
         }
 
-        $this->seedDocumentLabels($org, $creator);
-        $this->seedSharedDocument($org, $creator);
+        $this->seedDocument($org, $workspace, $creator);
     }
 
-    private function seedDocumentLabels (Organization $org, User $creator): void
+    private function seedDocument(Organization $org, Workspace $workspace, User $creator): void
     {
-        $colorIndices = DummySeederData::LABEL_COLOR_INDICES;
-        $globalLabelIndex = 0;
-        $labelsByCategory = DummySeederData::documentLabelsByCategory();
-
-        foreach (array_keys($labelsByCategory) as $categorySortOrder => $categoryName) {
-            $category = DocumentLabelCategory::query()->firstOrCreate(
-                [
-                    'organization_id' => $org->id,
-                    'name' => $categoryName,
-                ],
-                [
-                    'created_by' => $creator->id,
-                    'sort_order' => $categorySortOrder,
-                ],
-            );
-
-            foreach ($labelsByCategory[$categoryName] as $labelSortOrder => $labelName) {
-                DocumentLabel::query()->updateOrCreate(
-                    [
-                        'category_id' => $category->id,
-                        'name' => $labelName,
-                    ],
-                    [
-                        'organization_id' => $org->id,
-                        'created_by' => $creator->id,
-                        'color_index' => $colorIndices[$globalLabelIndex % count($colorIndices)],
-                        'sort_order' => $labelSortOrder,
-                    ],
-                );
-                $globalLabelIndex++;
-            }
-        }
-    }
-
-    private function seedSharedDocument (Organization $org, User $creator): void
-    {
-        SharedDocument::query()->updateOrCreate(
+        Document::query()->updateOrCreate(
             [
                 'organization_id' => $org->id,
                 'name' => DummySeederData::DOCUMENT_NAME,
             ],
             [
+                'workspace_id' => $workspace->id,
                 'created_by' => $creator->id,
                 'description' => DummySeederData::DOCUMENT_DESCRIPTION,
                 'category' => DummySeederData::DOCUMENT_CATEGORY,
+                'body' => DummySeederData::DOCUMENT_BODY,
             ],
         );
     }
