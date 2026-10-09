@@ -22,7 +22,7 @@ Nuxt 4（`frontend/app/`）。ファイルベースのルーティング。コ�
 
 | パス | 中身 |
 | --- | --- |
-| `/login` `/register` | 認証の入口。Cognito の秘密は持たない |
+| `/login` `/register` | Cognito Managed Login への入口。Cognito の秘密は持たない |
 | `/post-login` | 所属組織の決定 |
 | `/organizations/new` | 組織作成 |
 | `/invite/[token]` | 招待の確認と受諾 |

@@ -3,11 +3,12 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY frontend/package*.json ./
 
 RUN npm ci
 
-COPY . .
+COPY frontend/ ./
+COPY shared/ /shared/
 
 RUN npm run build
 

@@ -26,6 +26,15 @@ Route::pattern('boardList', '[0-9]+');
 Route::pattern('attachment', '[0-9]+');
 Route::pattern('member', '[0-9]+');
 
+// =============================================================================
+// ヘルスチェック
+// =============================================================================
+// ALBからアプリケーションの稼働確認に使用する。
+// DBやCognitoなどの外部依存には接続せず、HTTP 200のみを返す。
+Route::get('/health', function () {
+    return response()->json(['status' => 'ok']);
+});
+
 /*
 |--------------------------------------------------------------------------
 | API Routes（プレフィックス: /api）
@@ -47,7 +56,6 @@ Route::prefix('auth')->group(function () {
     Route::get('/session', [AuthController::class, 'session']);       // 認証状態・ユーザー情報（未認証でも 200）
     Route::get('/login', [AuthController::class, 'login']);           // Cognito Hosted UI へリダイレクト開始
     Route::get('/callback', [AuthController::class, 'callback']);     // Cognito からの認可コード受け取り・セッション確立
-    Route::post('/register', [AuthController::class, 'register']);    // 組織なしのセルフサーブ登録
     Route::post('/logout', [AuthController::class, 'logout']);        // セッション破棄 + Hosted UI ログアウト URL 返却
 });
 

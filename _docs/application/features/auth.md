@@ -4,7 +4,7 @@
 
 認証は **Amazon Cognito Hosted UI（Authorization Code + PKCE）** を Laravel バックエンドが仲介する。ブラウザは JWT を保持せず、**HttpOnly セッション Cookie** のみを使う。Cognito トークンはサーバ側セッション（`CognitoSession`）に格納する。
 
-アカウント作成は `POST /api/auth/register`（Cognito ユーザー + ローカル `users`）。ログインは Hosted UI 経由でセッションを確立する。
+ログインも新規登録も Cognito Managed Login（Authorization Code + PKCE）を入口にする。ローカル `users` はコールバック時に ID トークンから同期する。
 
 ## 本書の範囲
 
@@ -35,9 +35,11 @@
 ### 登録
 
 ```
-[ /register ] → POST /api/auth/register
-        → Cognito AdminCreateUser + users 行作成
-        → ユーザーは別途 Cognito ログインが必要（この API ではセッションを張らない）
+[ /login の「アカウント作成」または /register ]
+        → GET /api/auth/login?next=（ログインと同じ）
+        → Cognito Managed Login（Sign up / メール確認 / パスワードリセット）
+        → GET /api/auth/callback（ログインと同じ）
+        → メール確認済みなら users 行を作成してセッション確立
 ```
 
 ---
@@ -66,7 +68,6 @@
 | `GET` | `/auth/login?next=` | Hosted UI 開始（state / PKCE をセッションへ） |
 | `GET` | `/auth/callback` | code 交換・ユーザー同期・フロントへリダイレクト |
 | `POST` | `/auth/logout` | セッション破棄。レスポンスに Cognito `logout_url` |
-| `POST` | `/auth/register` | Cognito + ローカルユーザー作成。セッションは張らない。レート制限は掛かっていない |
 
 保護 API は `cognito` ミドルウェア。未認証は 401。
 
@@ -81,7 +82,7 @@
 | パス / 部品 | 役割 |
 | --- | --- |
 | `/login` | Cognito ログイン開始。`?next=` / `sessionStorage tm:pending_invite` |
-| `/register` | 氏名・メール・パスワード登録 |
+| `/register` | ログインと同じ Cognito Managed Login へ転送する |
 | `/post-login` | ログイン後の組織解決・遷移 |
 | `useAuth.ts` | セッション取得・ログアウト等 |
 | `auth.global.ts` | `/org/*`, `/post-login`, `/organizations/*` で要ログイン |
@@ -103,6 +104,6 @@
 | ルート | `backend/routes/api.php` |
 | コントローラ | `backend/app/Http/Controllers/Api/Auth/AuthController.php` |
 | ミドルウェア | `backend/app/Http/Middleware/AuthenticateCognito.php` |
-| サービス | `CognitoOAuthService`, `CognitoJwtService`, `CognitoSessionAuthenticator`, `CognitoUserRegistrationService`, `UserRegistrationService` |
+| サービス | `CognitoOAuthService`, `CognitoJwtService`, `CognitoSessionAuthenticator`, `CognitoUserRegistrationService`（招待受諾のみ） |
 | 設定 | `backend/config/cognito.php` |
 | フロント | `frontend/app/pages/login.vue`, `register.vue`, `post-login.vue` |

@@ -30,7 +30,9 @@
     </button>
     <template #footer>
       アカウントをお持ちでない方は
-      <NuxtLink to="/register">アカウント作成</NuxtLink>
+      <button type="button" class="auth-footer-link" @click="startLogin(nextPath)">
+        アカウント作成
+      </button>
     </template>
   </AuthGateShell>
 </template>

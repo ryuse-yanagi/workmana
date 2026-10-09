@@ -1,0 +1,20 @@
+------------------------------------------------------------------------------------------
+|                                   ListTaskDefinitions                                  |
++----------------------------------------------------------------------------------------+
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:1[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:2[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:3[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:4[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:5[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:6[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:7[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:8[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:9[0m   |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:10[0m  |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:11[0m  |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:12[0m  |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:13[0m  |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:14[0m  |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-frontend-task:1[0m  |
+|  [1m[34marn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-frontend-task:2[0m  |
++----------------------------------------------------------------------------------------+

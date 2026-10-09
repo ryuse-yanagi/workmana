@@ -6,15 +6,12 @@ use App\Http\Controllers\Api\ApiController;
 use App\Services\Auth\CognitoJwtService;
 use App\Services\Auth\CognitoOAuthService;
 use App\Services\Auth\CognitoSessionAuthenticator;
-use App\Services\Auth\UserRegistrationService;
 use App\Support\Auth\CognitoSession;
-use App\Support\FieldLengthLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
-use RuntimeException;
 use Throwable;
 
 /** PKCE をサーバーで完結させ、ブラウザには HttpOnly セッションだけを渡す。 */
@@ -25,7 +22,6 @@ class AuthController extends ApiController
         private CognitoJwtService $jwt,
         private CognitoSession $cognitoSession,
         private CognitoSessionAuthenticator $authenticator,
-        private UserRegistrationService $registration,
     ) {}
 
     /**
@@ -34,37 +30,6 @@ class AuthController extends ApiController
     public function csrfCookie(): Response
     {
         return response()->noContent();
-    }
-
-    /**
-     * 組織に紐付かないアカウント作成。作成後は Cognito ログインが必要。
-     */
-    public function register(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:'.FieldLengthLimits::USER_NAME],
-            'email' => ['required', 'string', 'email', 'max:'.FieldLengthLimits::EMAIL],
-            'password' => ['required', 'string', 'min:8', 'max:'.FieldLengthLimits::PASSWORD],
-        ]);
-
-        try {
-            $user = $this->registration->register(
-                $validated['name'],
-                $validated['email'],
-                $validated['password'],
-            );
-        } catch (RuntimeException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
-        }
-
-        return response()->json([
-            'message' => 'アカウントを作成しました。ログインしてください。',
-            'user' => [
-                'id' => $user->id,
-                'email' => $user->email,
-                'name' => $user->name,
-            ],
-        ], 201);
     }
 
     /**
@@ -100,6 +65,12 @@ class AuthController extends ApiController
         $intendedPath = $this->safeRedirectPath($authorization['intended_path']);
 
         if ($request->query('error') !== null) {
+            \Log::error('Cognito OAuth callback error', [
+                'error' => $request->query('error'),
+                'error_description' => $request->query('error_description'),
+                'error_uri' => $request->query('error_uri'),
+            ]);
+        
             return $this->redirectToFrontend('/login', ['error' => 'cognito_denied']);
         }
 

@@ -154,7 +154,8 @@
   color: rgba(226, 232, 240, 0.72);
 }
 
-.auth-gate__footer :deep(a) {
+.auth-gate__footer :deep(a),
+.auth-gate__footer :deep(button.auth-footer-link) {
   color: #bfdbfe;
   font-weight: 700;
   text-decoration: none;
@@ -162,7 +163,18 @@
   transition: border-color 0.2s ease, color 0.2s ease;
 }
 
-.auth-gate__footer :deep(a:hover) {
+.auth-gate__footer :deep(button.auth-footer-link) {
+  padding: 0;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.auth-gate__footer :deep(a:hover),
+.auth-gate__footer :deep(button.auth-footer-link:hover) {
   color: mixin.$white;
   border-bottom-color: rgba(255, 255, 255, 0.7);
 }

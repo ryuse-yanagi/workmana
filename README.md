@@ -70,7 +70,7 @@
 
 ### 組織・メンバー
 
-- アカウント作成（`/register`）と組織作成は分離。作成後は Cognito ログインが必要
+- アカウント作成は Cognito Managed Login の Sign up。組織作成はログイン後の `/organizations/new`
 - 組織作成は `/organizations/new`。所属が無いときはログイン後の遷移先、所属があるときはプロフィールメニューの「組織の作成」から開ける。作成者が管理者になる
 - ログイン後は `/post-login` で所属を解決。0 件なら組織作成、1 件以上なら `last_organization_id`（無ければ先頭）の組織トップへ遷移
 - プロフィールメニューから所属組織を切替（`PUT /me/current-organization` で `last_organization_id` を更新）
@@ -204,7 +204,6 @@ API ルートは `cognito` ミドルウェア配下です（[`backend/routes/api
 | `POST /api/auth/logout` | セッション破棄と Hosted UI ログアウト URL の取得 |
 | `GET /api/auth/session` | 認証状態とユーザー情報（未認証でも 200） |
 | `GET /api/auth/csrf-cookie` | `XSRF-TOKEN` Cookie の発行 |
-| `POST /api/auth/register` | 組織未所属のアカウント作成（作成後は Cognito ログインが必要） |
 | `GET /api/me/current-organization` | ログイン後の利用組織を解決（`last_organization_id` 更新） |
 | `PUT /api/me/current-organization` | 組織切替（所属メンバーのみ。`last_organization_id` 更新） |
 
@@ -217,7 +216,7 @@ API ルートは `cognito` ミドルウェア配下です（[`backend/routes/api
 - `SESSION_SAME_SITE=lax`または`none`（`strict`はCognitoからのコールバックでCookieが送られないため不可）
 - フロントと API のホストが違う場合、`SESSION_DOMAIN` は両方を覆う親ドメイン
 - `COGNITO_REDIRECT_URI` のホストは `APP_URL` と一致し、パスは `/api/auth/callback`
-- `COGNITO_USER_POOL_ID` 必須（登録・招待受諾の AdminCreateUser。認証は IAM タスクロールまたはアクセスキー）
+- `COGNITO_USER_POOL_ID` 必須（招待受諾の AdminCreateUser。認証は IAM タスクロールまたはアクセスキー）
 - `SESSION_DRIVER`がサーバー側ストレージ（`cookie` / `array`は不可）
 - `COGNITO_BYPASS=false`
 - Cognitoの必須設定がすべて存在し、`COGNITO_AUDIENCE=COGNITO_CLIENT_ID`
@@ -534,7 +533,7 @@ Organization
 | パス | 内容 |
 |------|------|
 | `/login` | ログイン（Cognito コールバックはバックエンドの `/api/auth/callback` が処理） |
-| `/register` | アカウント作成（組織とは分離） |
+| `/register` | Cognito Managed Login へ転送（ログインと同じ入口） |
 | `/organizations/new` | 組織作成（作成者が管理者。所属があるときはキャンセルで元の組織へ戻る） |
 | `/post-login` | ログイン後の組織決定・遷移 |
 | `/invite/[token]` | 招待確認・新規登録／既存ユーザーの参加確認 |
@@ -546,12 +545,11 @@ Organization
 
 ### API（抜粋）
 
-認証必須（招待確認・受諾とアカウント作成を除く）。プレフィックスは `/api`。
+認証必須（招待確認・受諾を除く）。プレフィックスは `/api`。
 
 - `GET/PATCH /me`・`POST/DELETE /me/avatar` … プロフィール／アバター
 - `GET /me/current-organization` / `PUT /me/current-organization` … 利用組織の解決・切替
 - `GET /notifications` / `PATCH …/read` / `POST …/read-all` … 通知
-- `POST /auth/register` … アカウント作成（組織未所属）
 - `POST /organizations` … 組織作成（作成者を admin として所属付け、`last_organization_id` 更新）
 - `GET /orgs/{organization}/members` / `PATCH|DELETE …/members/{member}` / `settings`
 - `GET/POST /orgs/{organization}/invites` / `DELETE …/invites/{invite}` … 招待（管理者）

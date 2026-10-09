@@ -1,0 +1,219 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:14",
+    "containerDefinitions": [
+        {
+            "name": "work-manager-backend",
+            "image": "381904000617.dkr.ecr.ap-northeast-1.amazonaws.com/work-manager-backend:v3",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 80,
+                    "hostPort": 80,
+                    "protocol": "tcp",
+                    "name": "work-manager-backend-80-tcp",
+                    "appProtocol": "http"
+                },
+                {
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp",
+                    "name": "work-manager-backend-8080-tcp",
+                    "appProtocol": "http"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "APP_ENV",
+                    "value": "production"
+                },
+                {
+                    "name": "DB_PORT",
+                    "value": "5432"
+                },
+                {
+                    "name": "APP_NAME",
+                    "value": "Work Manager"
+                },
+                {
+                    "name": "AWS_DEFAULT_REGION",
+                    "value": "ap-northeast-1"
+                },
+                {
+                    "name": "COGNITO_FRONTEND_URL",
+                    "value": "https://workmanager.jp"
+                },
+                {
+                    "name": "COGNITO_JWKS_URL",
+                    "value": "https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_VjInLwG57/.well-known/jwks.json"
+                },
+                {
+                    "name": "COGNITO_AUDIENCE",
+                    "value": "4higbh9b840oljm7tgffrf2vvn"
+                },
+                {
+                    "name": "QUEUE_CONNECTION",
+                    "value": "database"
+                },
+                {
+                    "name": "COGNITO_LOGOUT_REDIRECT_URI",
+                    "value": "https://workmanager.jp/login"
+                },
+                {
+                    "name": "DB_CONNECTION",
+                    "value": "pgsql"
+                },
+                {
+                    "name": "APP_URL",
+                    "value": "https://workmanager.jp"
+                },
+                {
+                    "name": "COGNITO_CLIENT_ID",
+                    "value": "4higbh9b840oljm7tgffrf2vvn"
+                },
+                {
+                    "name": "LOG_LEVEL",
+                    "value": "info"
+                },
+                {
+                    "name": "APP_DEBUG",
+                    "value": "false"
+                },
+                {
+                    "name": "CORS_ALLOWED_ORIGINS",
+                    "value": "https://workmanager.jp"
+                },
+                {
+                    "name": "COGNITO_ISSUER",
+                    "value": "https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_VjInLwG57"
+                },
+                {
+                    "name": "DB_HOST",
+                    "value": "work-manager-db.crkewmk8czaw.ap-northeast-1.rds.amazonaws.com"
+                },
+                {
+                    "name": "COGNITO_DOMAIN",
+                    "value": "https://ap-northeast-1vjinlwg57.auth.ap-northeast-1.amazoncognito.com"
+                },
+                {
+                    "name": "SESSION_SECURE_COOKIE",
+                    "value": "true"
+                },
+                {
+                    "name": "MAIL_FROM_ADDRESS",
+                    "value": "no-reply@workmanager.jp"
+                },
+                {
+                    "name": "LOG_CHANNEL",
+                    "value": "stderr"
+                },
+                {
+                    "name": "COGNITO_REDIRECT_URI",
+                    "value": "https://workmanager.jp/api/auth/callback"
+                },
+                {
+                    "name": "MAIL_MAILER",
+                    "value": "ses"
+                },
+                {
+                    "name": "COGNITO_BYPASS",
+                    "value": "false"
+                },
+                {
+                    "name": "DB_DATABASE",
+                    "value": "work_manager"
+                }
+            ],
+            "environmentFiles": [],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "secrets": [
+                {
+                    "name": "APP_KEY",
+                    "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/app-key-SMOBNv"
+                },
+                {
+                    "name": "COGNITO_CLIENT_SECRET",
+                    "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/cognito-client-secret-tt7yJh"
+                },
+                {
+                    "name": "DB_PASSWORD",
+                    "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:rds!db-fe6d5017-eae3-4062-80e7-8bfb35b0aee0-qxaS3h:password::"
+                },
+                {
+                    "name": "DB_USERNAME",
+                    "valueFrom": "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:rds!db-fe6d5017-eae3-4062-80e7-8bfb35b0aee0-qxaS3h:username::"
+                }
+            ],
+            "ulimits": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/work-manager-backend-task",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "ap-northeast-1",
+                    "awslogs-stream-prefix": "ecs"
+                },
+                "secretOptions": []
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "work-manager-backend-task",
+    "taskRoleArn": "arn:aws:iam::381904000617:role/work-manager-backend-task-role",
+    "executionRoleArn": "arn:aws:iam::381904000617:role/ecsTaskExecutionRole",
+    "networkMode": "awsvpc",
+    "revision": 14,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "ecs.capability.secrets.asm.environment-variables"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.29"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "MANAGED_INSTANCES",
+        "FARGATE"
+    ],
+    "runtimePlatform": {
+        "cpuArchitecture": "X86_64",
+        "operatingSystemFamily": "LINUX"
+    },
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "512",
+    "memory": "1024",
+    "registeredAt": "2026-08-21T20:38:55.588000+09:00",
+    "registeredBy": "arn:aws:iam::381904000617:user/ninomiya",
+    "enableFaultInjection": false
+}

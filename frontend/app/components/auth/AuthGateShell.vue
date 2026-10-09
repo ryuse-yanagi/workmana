@@ -9,7 +9,7 @@
 
     <div class="auth-gate__stage">
       <header class="auth-gate__brand">
-        <p class="auth-gate__mark">業務管理</p>
+        <p class="auth-gate__mark">WorkMana</p>
         <h1 v-if="title" class="auth-gate__title">{{ title }}</h1>
         <p v-if="subtitle" class="auth-gate__lede">{{ subtitle }}</p>
       </header>

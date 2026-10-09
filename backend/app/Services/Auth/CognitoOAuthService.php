@@ -137,7 +137,10 @@ class CognitoOAuthService
         $response = $request->post($this->domain().'/oauth2/token', $payload);
 
         if (! $response->successful()) {
-            throw new RuntimeException('Cognito token endpoint responded with HTTP '.$response->status().'.');
+            throw new RuntimeException(
+                'Cognito token endpoint responded with HTTP '.$response->status().
+                ': '.(string) $response->body()
+            );
         }
 
         /** @var array<string, mixed> $data */
