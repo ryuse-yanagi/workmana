@@ -7,6 +7,7 @@ use App\Models\Organization\Organization;
 use App\Services\Organization\OrganizationContextService;
 use App\Support\FieldLengthLimits;
 use App\Support\MediaStorage;
+use App\Support\Organization\OrganizationBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -86,12 +87,14 @@ class MeController extends ApiController
 
         MediaStorage::deletePublic($oldPath);
 
+        OrganizationBroadcast::userProfile($user);
+
         return response()->json([
             'avatar_url' => $this->avatarUrl($user->avatar_path),
         ]);
     }
 
-    /** ログイン中ユーザーの表示名だけを更新する。 */
+    /** ログイン中ユーザー名だけを更新する。 */
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -102,6 +105,7 @@ class MeController extends ApiController
 
         $user->name = trim($validated['name']);
         $user->save();
+        OrganizationBroadcast::userProfile($user);
 
         return response()->json([
             'id' => $user->id,
@@ -120,6 +124,7 @@ class MeController extends ApiController
         $user->save();
 
         MediaStorage::deletePublic($oldPath);
+        OrganizationBroadcast::userProfile($user);
 
         return response()->json([
             'avatar_url' => null,

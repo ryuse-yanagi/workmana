@@ -119,7 +119,7 @@ class AccessControlApiTest extends TestCase
             ->assertJsonPath('id', $firstId);
     }
 
-    /** メンバーはアーカイブを閲覧できるが復元・削除はできない */
+    /** 一般ユーザーはアーカイブを閲覧できるが復元・削除はできない */
     public function test_member_can_view_archive_but_cannot_restore_or_delete(): void
     {
         [$admin, $org] = $this->createOrgWithAdmin();
@@ -262,10 +262,11 @@ class AccessControlApiTest extends TestCase
             return true;
         });
 
-        $this->postJson('/api/invites/'.$plainToken.'/accept', [
-            'name' => 'Hacker',
-            'password' => 'password123',
-        ])->assertUnauthorized();
+        $this->withoutHeader('Authorization')
+            ->postJson('/api/invites/'.$plainToken.'/accept', [
+                'name' => 'Hacker',
+                'password' => 'password123',
+            ])->assertUnauthorized();
 
         $this->actingAsApiUser($existing)
             ->postJson('/api/invites/'.$plainToken.'/accept', [])

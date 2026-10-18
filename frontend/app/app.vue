@@ -9,7 +9,14 @@
 </template>
 
 <script setup lang="ts">
+import { useOrganizationRealtimeChannel } from './composables/org/useOrganizationRealtimeChannel'
+
 const route = useRoute()
+const realtimeOrgSlug = computed(() => {
+  const match = route.path.match(/^\/org\/([^/]+)/)
+  return match?.[1] ?? ''
+})
+useOrganizationRealtimeChannel(realtimeOrgSlug)
 
 /** 招待・組織作成を含むログイン前後ではグローバルヘッダーを出さない */
 const isAuthRoute = computed(() => {

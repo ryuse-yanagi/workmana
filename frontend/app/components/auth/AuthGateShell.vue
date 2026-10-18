@@ -21,10 +21,6 @@
         </div>
         <slot />
       </section>
-
-      <p v-if="$slots.footer" class="auth-gate__footer">
-        <slot name="footer" />
-      </p>
     </div>
   </main>
 </template>

@@ -112,7 +112,7 @@ class ManageTaskLabelsTest extends TestCase
             ->assertNoContent();
     }
 
-    /** 一般メンバーはタスク用ラベルを作成できない */
+    /** 一般ユーザーはタスク用ラベルを作成できない */
     public function test_member_cannot_create_task_label_category(): void
     {
         [, , $member] = $this->createOrgWithAdminAndMember();

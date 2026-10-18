@@ -10,7 +10,7 @@
 | --- | --- |
 | `shared/color-presets.json` | 30色パレット、標準色 index、ガント配色順、レガシー HEX |
 | `shared/field-length-limits.json` | 名前・メール・タスクタイトル等の max / min |
-| `shared/default-named-color-items.json` | 既定ボードリスト／スペースステータス／資料カテゴリ、配列 max |
+| `shared/default-named-color-items.json` | 既定ボードリスト／スペースステータス／資料カテゴリ。件数の上限キーはない。名前の文字数は `field-length-limits.json` |
 
 Nuxt は `#shared` エイリアス（`nuxt.config.ts`）で import。Laravel は `App\Support\SharedJson` でリポジトリ直下の `shared/` を読む。
 

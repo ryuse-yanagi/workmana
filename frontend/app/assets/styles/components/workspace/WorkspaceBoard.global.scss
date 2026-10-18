@@ -40,7 +40,7 @@
   max-width: 100%;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$main;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -65,7 +65,7 @@
   max-width: 100%;
   font-size: 14px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -86,7 +86,7 @@
   margin: 0;
   font-size: 10.08px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text-muted;
 }
 .task-card.sortable-fallback .task-label-list {
@@ -127,7 +127,7 @@
   border-radius: 4px;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1;
+  line-height: mixin.$text-line-height-safe;
   overflow: hidden;
 }
 .task-card.sortable-fallback .label-strip__text {

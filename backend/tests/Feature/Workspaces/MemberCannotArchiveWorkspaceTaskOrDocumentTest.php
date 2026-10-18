@@ -14,7 +14,7 @@ class MemberCannotArchiveWorkspaceTaskOrDocumentTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    /** 一般メンバーはワークスペース・タスク・資料をアーカイブできない（担当者でも不可） */
+    /** 一般ユーザーはワークスペース・タスク・資料をアーカイブできない（担当者でも不可） */
     public function test_member_cannot_archive_workspace_task_or_document(): void
     {
         [$admin, $organization, $member] = $this->createOrgWithAdminAndMember();
@@ -68,7 +68,7 @@ class MemberCannotArchiveWorkspaceTaskOrDocumentTest extends TestCase
         ]);
     }
 
-    /** 一般メンバーはアーカイブ後の復元・完全削除もできない */
+    /** 一般ユーザーはアーカイブ後の復元・完全削除もできない */
     public function test_member_cannot_unarchive_or_permanently_delete_workspace_or_task(): void
     {
         [$admin, , $member] = $this->createOrgWithAdminAndMember();

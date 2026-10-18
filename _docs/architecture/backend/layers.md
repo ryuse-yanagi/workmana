@@ -15,7 +15,7 @@ Repository 層は置かない。参照と更新は Eloquent をコントロー�
 | `Services/` | 認証、招待、組織コンテキスト、通知など手順が長いもの |
 | `Support/` | 共有 JSON、メディア、並び替え、アクセス判定など状態を持たない処理 |
 | `Models/` | テーブルと関連。ドメインごとにサブディレクトリ |
-| `Events/` | ボード／WBS 向けブロードキャスト。タスク変更の履歴テーブルや Observer はない |
+| `Events/` | スペースチャンネルと組織チャンネルへのブロードキャスト。タスク変更の履歴テーブルや Observer はない |
 | `Enums/` | PHP の列挙。DB の文字列と対応 |
 
 コントローラは `ApiController` を継承し、スペースが組織に属するか、閲覧できるか、アーカイブ済みでないか、を共通メソッドで止める。
@@ -44,7 +44,7 @@ HTTP
 
 | グループ | ミドルウェア | 例 |
 | --- | --- | --- |
-| `auth/*`、招待の確認・受諾 | なし（ログアウトと登録は CSRF の対象） | ログイン開始、コールバック、`/invites/{token}` |
+| `auth/*`、招待の確認・受諾 | なし（ログアウトと招待受諾の POST は CSRF の対象） | ログイン開始、コールバック、`/invites/{token}` |
 | `/me`、通知、組織作成 | `cognito` | プロフィール、利用組織の切替 |
 | `/orgs/{organization}/...` | `cognito` + `org.member` | スペース、タスク、資料、設定 |
 
@@ -56,7 +56,7 @@ HTTP
 
 | 契機 | 副作用 |
 | --- | --- |
-| リスト／タスクの変更 | コントローラが `ShouldBroadcastNow` のイベントを `toOthers()` で送る |
+| リスト／タスク／添付、組織横断の変更 | コントローラまたは Support が `ShouldBroadcastNow` を `toOthers()` で送る。範囲は [../realtime/sync.md](../realtime/sync.md) |
 | スペース担当者の更新 | `workspace_assignees` を更新する |
 | 非 production 起動 | `shared/*.json` と PHP 定数の一致を assert |
 | production 起動 | `ProductionConfigValidator` が危険な設定なら起動を止める |

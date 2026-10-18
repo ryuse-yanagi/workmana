@@ -9,6 +9,7 @@ use App\Events\Task\TaskDeleted;
 use App\Events\Task\TaskRestored;
 use App\Events\Task\TaskUpdated;
 use App\Events\Task\WbsTasksReordered;
+use App\Exceptions\ConflictException;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\StoreTaskRequest;
 use App\Models\Organization\Organization;
@@ -20,6 +21,7 @@ use App\Models\User;
 use App\Models\Workspace\BoardList;
 use App\Models\Workspace\Workspace;
 use App\Services\Notification\NotificationService;
+use App\Support\Concurrency\MutationLock;
 use App\Support\FieldLengthLimits;
 use App\Support\ListQuery;
 use App\Support\PermanentDeleter;
@@ -247,16 +249,33 @@ class TaskController extends ApiController
         }
 
         DB::transaction(function () use ($items, $workspace) {
+            $lockedWorkspace = MutationLock::activeWorkspace((int) $workspace->id);
+            $lockedIds = Task::query()
+                ->where('workspace_id', $lockedWorkspace->id)
+                ->notArchived()
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $expected = array_column($items, 'id');
+            sort($expected);
+            $actual = $lockedIds;
+            sort($actual);
+            if ($actual !== $expected) {
+                throw new ConflictException('他の操作と重なったため、もう一度お試しください。');
+            }
+
             foreach ($items as $item) {
                 Task::query()
                     ->where('id', $item['id'])
-                    ->where('workspace_id', $workspace->id)
+                    ->where('workspace_id', $lockedWorkspace->id)
                     ->update([
                         'sort_order' => $item['sort_order'],
                         'parent_task_id' => $item['parent_task_id'],
                     ]);
             }
-            $workspace->recordActivity();
+            $lockedWorkspace->recordActivity();
         });
 
         SafeBroadcast::toOthers(new WbsTasksReordered((int) $workspace->id, $items));
@@ -362,13 +381,6 @@ class TaskController extends ApiController
         $assigneeIds = $this->resolveAssigneeIds($workspace, $validated);
         [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($workspace, $validated);
 
-        $maxOrder = Task::query()
-            ->where('workspace_id', $workspace->id)
-            ->where('list_id', $validated['list_id'])
-            ->notArchived()
-            ->max('sort_order');
-        $sortOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
-
         $labelIds = $this->validateTaskLabelIds(
             $organization,
             $validated['label_ids'] ?? [],
@@ -379,7 +391,6 @@ class TaskController extends ApiController
             $organization,
             $workspace,
             $validated,
-            $sortOrder,
             $isParentTask,
             $parentTaskId,
             $title,
@@ -388,10 +399,40 @@ class TaskController extends ApiController
             $labelIds,
             &$newAssigneeIds,
         ) {
+            $lockedWorkspace = MutationLock::activeWorkspace((int) $workspace->id);
+            $list = BoardList::query()
+                ->whereKey($validated['list_id'])
+                ->where('workspace_id', $lockedWorkspace->id)
+                ->lockForUpdate()
+                ->first();
+            if ($list === null) {
+                abort(422, 'Invalid list for this workspace.');
+            }
+            if ($parentTaskId !== null) {
+                $parent = Task::query()
+                    ->whereKey($parentTaskId)
+                    ->where('workspace_id', $lockedWorkspace->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($parent === null || $parent->trashed() || $parent->archived_at !== null || ! $parent->is_parent_task) {
+                    abort(422, 'Invalid parent task for this workspace.');
+                }
+            }
+            if ($assigneeIds !== []) {
+                $this->resolveAssigneeIds($lockedWorkspace, ['assignee_ids' => $assigneeIds]);
+            }
+
+            $maxOrder = Task::query()
+                ->where('workspace_id', $lockedWorkspace->id)
+                ->where('list_id', $list->id)
+                ->notArchived()
+                ->max('sort_order');
+            $sortOrder = $maxOrder === null ? 0 : ((int) $maxOrder + 1);
+
             $task = Task::query()->create([
                 'organization_id' => $organization->id,
-                'workspace_id' => $workspace->id,
-                'list_id' => $validated['list_id'],
+                'workspace_id' => $lockedWorkspace->id,
+                'list_id' => $list->id,
                 'sort_order' => $sortOrder,
                 'is_parent_task' => $isParentTask,
                 'parent_task_id' => $parentTaskId,
@@ -529,12 +570,20 @@ class TaskController extends ApiController
         }
 
         $detachFormerChildren = false;
+        $detachedChildIds = [];
         if (array_key_exists('is_parent_task', $validated) || array_key_exists('parent_task_id', $validated)) {
             $wasParent = (bool) $task->is_parent_task;
             [$isParentTask, $parentTaskId] = $this->resolveParentTaskFields($workspace, $validated, $task);
             $task->is_parent_task = $isParentTask;
             $task->parent_task_id = $parentTaskId;
             $detachFormerChildren = $wasParent && ! $isParentTask;
+            if ($detachFormerChildren) {
+                $detachedChildIds = Task::query()
+                    ->where('parent_task_id', $task->id)
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->all();
+            }
         }
 
         $labelIds = array_key_exists('label_ids', $validated)
@@ -542,41 +591,98 @@ class TaskController extends ApiController
             : null;
 
         $newAssigneeIds = [];
-        DB::transaction(function () use (
+        $fresh = DB::transaction(function () use (
             $task,
+            $workspace,
             $assigneeIdsToSync,
             $labelIds,
             $validated,
             $detachFormerChildren,
+            $detachedChildIds,
             &$newAssigneeIds,
         ) {
-            $task->save();
+            MutationLock::activeWorkspace((int) $workspace->id);
+            $lockIds = [(int) $task->id, ...$detachedChildIds];
+            if ($task->parent_task_id !== null) {
+                $lockIds[] = (int) $task->parent_task_id;
+            }
+            $lockIds = array_values(array_unique($lockIds));
+            sort($lockIds);
+            $lockedTasks = Task::withTrashed()
+                ->whereIn('id', $lockIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+            $lockedTask = $lockedTasks->get($task->id);
+            if ($lockedTask === null || $lockedTask->trashed() || (int) $lockedTask->workspace_id !== (int) $workspace->id) {
+                abort(404);
+            }
+            if ($lockedTask->archived_at !== null) {
+                abort(422, 'Cannot update an archived task. Restore it first.');
+            }
+
+            $dirty = $task->getDirty();
+            if (array_key_exists('list_id', $dirty)) {
+                $listExists = BoardList::query()
+                    ->whereKey($dirty['list_id'])
+                    ->where('workspace_id', $workspace->id)
+                    ->lockForUpdate()
+                    ->exists();
+                if (! $listExists) {
+                    abort(422, 'Invalid list for this workspace.');
+                }
+            }
+            if (array_key_exists('parent_task_id', $dirty) && $dirty['parent_task_id'] !== null) {
+                $parent = $lockedTasks->get((int) $dirty['parent_task_id']);
+                if (
+                    $parent === null
+                    || $parent->trashed()
+                    || $parent->archived_at !== null
+                    || ! $parent->is_parent_task
+                    || (int) $parent->workspace_id !== (int) $workspace->id
+                ) {
+                    abort(422, 'Invalid parent task for this workspace.');
+                }
+            }
+            MutationLock::copyDirty($task, $lockedTask);
 
             if ($detachFormerChildren) {
                 Task::query()
-                    ->where('parent_task_id', $task->id)
+                    ->where('parent_task_id', $lockedTask->id)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get();
+                Task::query()
+                    ->where('parent_task_id', $lockedTask->id)
                     ->update(['parent_task_id' => null]);
             }
 
             if ($assigneeIdsToSync !== null) {
-                $newAssigneeIds = $this->syncAssignees($task, $assigneeIdsToSync);
+                $this->resolveAssigneeIds($workspace, ['assignee_ids' => $assigneeIdsToSync]);
+                $newAssigneeIds = $this->syncAssignees($lockedTask, $assigneeIdsToSync);
             }
 
             if ($labelIds !== null) {
-                $beforeLabelIds = $task->labels()->pluck('task_labels.id')->sort()->values()->all();
-                $task->labels()->sync($labelIds);
+                $beforeLabelIds = $lockedTask->labels()->pluck('task_labels.id')->sort()->values()->all();
+                $lockedTask->labels()->sync($labelIds);
                 $afterLabelIds = $labelIds;
                 sort($afterLabelIds);
                 if ($beforeLabelIds !== $afterLabelIds) {
                     // ラベルだけの変更でも updated_at を進める。
-                    $task->touch();
+                    $lockedTask->touch();
                 }
             }
 
             if (array_key_exists('checklists', $validated)) {
-                $this->syncTaskChecklists($task, $validated['checklists']);
+                $this->syncTaskChecklists($lockedTask, $validated['checklists']);
             }
+
+            return $lockedTask->fresh();
         });
+        if ($fresh === null) {
+            abort(404);
+        }
 
         if (array_key_exists('due_date', $validated)) {
             $nextDueDate = $this->normalizeDateOnly($validated['due_date']);
@@ -593,8 +699,7 @@ class TaskController extends ApiController
 
         $this->notifyNewAssignees($task, $newAssigneeIds);
 
-        $fresh = $task->fresh();
-        SafeBroadcast::toOthers(new TaskUpdated($fresh));
+        SafeBroadcast::toOthers(new TaskUpdated($fresh, $detachedChildIds));
 
         return response()->json($this->taskPayload($fresh));
     }
@@ -625,17 +730,32 @@ class TaskController extends ApiController
             ->with(['assignees:id', 'organization:id,slug'])
             ->get();
 
-        $fresh = DB::transaction(function () use ($task) {
+        $fresh = DB::transaction(function () use ($task, $workspace) {
+            MutationLock::activeWorkspace((int) $workspace->id);
+            $locked = Task::withTrashed()->whereKey($task->id)->lockForUpdate()->first();
+            if ($locked === null || $locked->trashed() || (int) $locked->workspace_id !== (int) $workspace->id) {
+                abort(404);
+            }
+            if ($locked->archived_at !== null) {
+                abort(422, 'Task is already archived.');
+            }
+
             $now = now();
             Task::query()
-                ->where('parent_task_id', $task->id)
+                ->where('parent_task_id', $locked->id)
+                ->notArchived()
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            Task::query()
+                ->where('parent_task_id', $locked->id)
                 ->notArchived()
                 ->update(['archived_at' => $now]);
 
-            $task->archived_at = $now;
-            $task->save();
+            $locked->archived_at = $now;
+            $locked->save();
 
-            return $task->fresh();
+            return $locked->fresh();
         });
 
         $fresh->loadMissing([
@@ -686,14 +806,20 @@ class TaskController extends ApiController
             return response()->json(['message' => 'Task is not archived.'], 422);
         }
 
-        $restoredChildren = DB::transaction(function () use ($task) {
-            // 親と同時にアーカイブした直下の子だけ戻す。先に個別アーカイブした子は archived_at が違うので残す。
-            $children = Task::query()
-                ->where('parent_task_id', $task->id)
-                ->where('archived_at', $task->archived_at)
-                ->get();
-            $task->archived_at = null;
-            $task->save();
+        $restoredChildren = DB::transaction(function () use ($task, $workspace) {
+            MutationLock::activeWorkspace((int) $workspace->id);
+            $locked = Task::withTrashed()->whereKey($task->id)->lockForUpdate()->first();
+            if ($locked === null || $locked->trashed() || (int) $locked->workspace_id !== (int) $workspace->id) {
+                abort(404);
+            }
+            if ($locked->archived_at === null) {
+                abort(422, 'Task is not archived.');
+            }
+
+            // 一覧で親にまとまっている子は、アーカイブ時刻に関係なく一緒に戻す。
+            $children = $this->archivedDescendants($locked);
+            $locked->archived_at = null;
+            $locked->save();
             foreach ($children as $child) {
                 $child->archived_at = null;
                 $child->save();
@@ -737,12 +863,37 @@ class TaskController extends ApiController
 
         $taskId = (int) $task->id;
         $workspaceId = (int) $task->workspace_id;
-        foreach ($this->tasksInTree($task) as $item) {
+        $tree = DB::transaction(function () use ($task, $workspace) {
+            MutationLock::activeWorkspace((int) $workspace->id);
+            $locked = Task::withTrashed()->whereKey($task->id)->lockForUpdate()->first();
+            if ($locked === null || $locked->trashed() || (int) $locked->workspace_id !== (int) $workspace->id) {
+                abort(404);
+            }
+            if ($locked->archived_at === null) {
+                throw new ConflictException('このタスクは復元されたため、削除しませんでした。');
+            }
+            $tree = $this->tasksInTree($locked);
+            $tree->each(fn (Task $item) => $item->load([
+                'assignees:id',
+                'organization:id,slug',
+                'workspace:id,name',
+                'parentTask:id,title',
+            ]));
+            PermanentDeleter::deleteTask($locked);
+
+            return $tree;
+        });
+        foreach ($tree as $item) {
             $this->notifyTaskAssignees($item, 'task.deleted');
         }
-        PermanentDeleter::deleteTask($task);
+        $cascadedTaskIds = $tree
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn (int $id) => $id === $taskId)
+            ->values()
+            ->all();
 
-        SafeBroadcast::toOthers(new TaskDeleted($workspaceId, $taskId));
+        SafeBroadcast::toOthers(new TaskDeleted($workspaceId, $taskId, $cascadedTaskIds));
 
         return response()->json(null, 204);
     }
@@ -788,22 +939,23 @@ class TaskController extends ApiController
     }
 
     /**
-     * アーカイブ一覧では、アーカイブ済みの子を親の配下にネストする。
+     * 親もアーカイブ済みなら、子はアーカイブ時刻に関係なく親の下へ入れる。
+     * 親の復元と削除は、その子すべてに及ぶ。
      *
      * @param  Collection<int, array<string, mixed>>  $items
      * @return list<array<string, mixed>>
      */
     private function nestArchivedTaskPayloads(Collection $items): array
     {
-        $ids = [];
+        $byId = [];
         foreach ($items as $item) {
-            $ids[(int) $item['id']] = true;
+            $byId[(int) $item['id']] = $item;
         }
 
         $childrenByParent = [];
         foreach ($items as $item) {
             $parentId = $item['parent_task_id'] ?? null;
-            if (! is_numeric($parentId) || ! isset($ids[(int) $parentId])) {
+            if (! is_numeric($parentId) || ! isset($byId[(int) $parentId])) {
                 continue;
             }
             $childrenByParent[(int) $parentId][] = $item;
@@ -812,7 +964,7 @@ class TaskController extends ApiController
         $nested = [];
         foreach ($items as $item) {
             $parentId = $item['parent_task_id'] ?? null;
-            if (is_numeric($parentId) && isset($ids[(int) $parentId])) {
+            if (is_numeric($parentId) && isset($byId[(int) $parentId])) {
                 continue;
             }
             $children = $childrenByParent[(int) $item['id']] ?? [];
@@ -825,7 +977,34 @@ class TaskController extends ApiController
     }
 
     /**
-     * 同時にアーカイブした子と、その ID を載せる。
+     * アーカイブ済みの子孫を、親に近い順で返す。
+     *
+     * @return Collection<int, Task>
+     */
+    private function archivedDescendants(Task $root): Collection
+    {
+        $all = collect();
+        $parentIds = [(int) $root->id];
+
+        while ($parentIds !== []) {
+            $children = Task::query()
+                ->whereIn('parent_task_id', $parentIds)
+                ->archived()
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            if ($children->isEmpty()) {
+                break;
+            }
+            $all = $all->merge($children);
+            $parentIds = $children->pluck('id')->map(fn ($id) => (int) $id)->all();
+        }
+
+        return $all;
+    }
+
+    /**
+     * アーカイブ済みの子と、その ID を載せる。
      *
      * @param  list<Task>  $children
      * @return array<string, mixed>

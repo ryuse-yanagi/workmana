@@ -84,7 +84,7 @@ class ManageWorkspaceLabelsTest extends TestCase
             ->assertNoContent();
     }
 
-    /** 一般メンバーはワークスペース用ラベルを作成できない */
+    /** 一般ユーザーはワークスペース用ラベルを作成できない */
     public function test_member_cannot_create_workspace_label_category(): void
     {
         [, , $member] = $this->createOrgWithAdminAndMember();

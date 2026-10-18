@@ -11,7 +11,7 @@
 - ポップオーバー配置とモーダルのキーボード a11y
 - 色・文字数上限の FE/BE ドリフト防止
 - DOM 定型処理のライフサイクル漏れ低減
-- 未使用の TipTap 依存の整理
+- 資料とタスク説明は textarea のままにする（TipTap は画面から使わない）
 
 現行のドメインロジック（WBS DnD・ガント・ボード拡張など）は差し替えず、基盤だけ標準化する。
 
@@ -26,7 +26,7 @@
 | DOM 定型 | **VueUse**（必要な箇所から） |
 | 共有定数 | リポジトリ直下 `shared/*.json` を正本 |
 | API 検証構造 | 代表ルートを Laravel **FormRequest** 化 |
-| リッチテキスト | 未使用だった **TipTap を削除**（採用する場合は別 ADR） |
+| リッチテキスト | 編集は **textarea**。`@tiptap/*` は `frontend/package.json` に残るが、Vue / TypeScript からは import しない。採用する場合は別 ADR |
 
 現行の実装詳細は次を参照。
 
@@ -42,11 +42,11 @@
 | SWR（Vercel） | Vue / Nuxt との相性より TanStack Query の方が現行 composable 置換に近い |
 | ポップオーバー全面を headless UI キットへ | 既存の dismiss／計測ルールの再配線コストが大きい |
 | dayjs 全面 | 日付はほぼ `YYYY-MM-DD`。完成度のボトルネックではない |
-| TipTap 本採用 | 現状 textarea 運用。依存だけ残すのは非生産的 |
+| TipTap 本採用 | 画面は textarea。パッケージは残っているが、エディタとしては使っていない |
 
 ## 影響範囲
 
-- `frontend/package.json` の依存追加・TipTap 削除
+- `frontend/package.json` の依存追加。`@tiptap/*` は依存に残し、画面コードからは外したまま
 - `frontend/app/lib/*` / `plugins/vue-query.ts` / 各 page-data composable
 - `frontend/app/composables/useModalFocusTrap.ts` と主要モーダル
 - `shared/` と BE `SharedJson` / FormRequest
@@ -57,5 +57,5 @@
 - コンポーネントからの直接 `useQuery` / `useMutation` 利用への段階移行
 - SSR 時の per-request `QueryClient`
 - 残るインライン `$request->validate` の FormRequest 化範囲
-- リッチテキスト編集を製品要件にする場合のエディタ選定
+- `@tiptap/*` を依存から外すか、リッチテキスト編集の製品要件にして採るか
 

@@ -14,6 +14,7 @@ class OrganizationMemberService
     public function updateRole(Organization $organization, User $target, string $role, User $actor): void
     {
         DB::transaction(function () use ($organization, $target, $role, $actor) {
+            $this->lockOrganizationWorkspaces($organization);
             $this->lockOrganizationMemberships($organization);
 
             if ((int) $actor->id === (int) $target->id && $role !== 'admin') {
@@ -21,7 +22,7 @@ class OrganizationMemberService
             }
 
             if (! $organization->members()->where('users.id', $target->id)->exists()) {
-                throw new RuntimeException('メンバーが見つかりません。');
+                throw new RuntimeException('ユーザーが見つかりません。');
             }
 
             if ($role !== 'admin') {
@@ -40,18 +41,14 @@ class OrganizationMemberService
         }
 
         DB::transaction(function () use ($organization, $target) {
+            $workspaceIds = $this->lockOrganizationWorkspaces($organization);
             $this->lockOrganizationMemberships($organization);
 
             if (! $organization->members()->where('users.id', $target->id)->exists()) {
-                throw new RuntimeException('メンバーが見つかりません。');
+                throw new RuntimeException('ユーザーが見つかりません。');
             }
 
             $this->assertNotLastAdmin($organization, $target, '最後の管理者は削除できません。');
-
-            $workspaceIds = Workspace::query()
-                ->where('organization_id', $organization->id)
-                ->pluck('id')
-                ->all();
 
             if ($workspaceIds !== []) {
                 DB::table('workspace_assignees')
@@ -72,6 +69,22 @@ class OrganizationMemberService
 
             $organization->members()->detach($target->id);
         });
+    }
+
+    /**
+     * スペース行を id 順にロックする。所属より先に取り、担当者の付け外しとデッドロックしないようにする。
+     *
+     * @return list<int>
+     */
+    private function lockOrganizationWorkspaces(Organization $organization): array
+    {
+        return Workspace::withTrashed()
+            ->where('organization_id', $organization->id)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     /** 所属行を user_id 順にロックし、最後の管理者の判定が競合しないようにする。 */

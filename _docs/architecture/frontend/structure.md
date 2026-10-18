@@ -44,7 +44,7 @@ HTTP は `useApi` に集約する。
 - クライアントでは Echo の socket id を `X-Socket-ID` に付ける
 - `avatar_url` / `icon_url` と色 index をレスポンス横断で正規化する
 
-ボード／WBS の他者更新は `useWorkspaceRealtimeChannel`（[../realtime/sync.md](../realtime/sync.md)）。Query キャッシュはその配信そのものではない。
+組織ページは `useOrganizationRealtimeChannel`、ボード／WBS は `useWorkspaceRealtimeChannel` が他者更新を受ける（[../realtime/sync.md](../realtime/sync.md)）。Query キャッシュはその配信そのものではない。
 
 ## 表示の注意
 

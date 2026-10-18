@@ -27,7 +27,7 @@ class AdminCanRemoveMemberTest extends TestCase
         $this->assertFalse($organization->members()->where('users.id', $member->id)->exists());
     }
 
-    /** 一般メンバーは他メンバーを削除できない */
+    /** 一般ユーザーは他ユーザーを削除できない */
     public function test_member_cannot_remove_another_member(): void
     {
         [$admin, $organization, $member] = $this->createOrgWithAdminAndMember();

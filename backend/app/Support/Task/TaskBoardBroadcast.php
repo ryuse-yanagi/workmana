@@ -3,6 +3,8 @@
 namespace App\Support\Task;
 
 use App\Models\Task\Task;
+use App\Models\Task\TaskChecklist;
+use App\Models\Task\TaskChecklistItem;
 use App\Support\MediaUrl;
 
 final class TaskBoardBroadcast
@@ -58,8 +60,33 @@ final class TaskBoardBroadcast
      */
     public static function taskDetailPayload(Task $task): array
     {
+        $task->loadMissing(['checklists.items']);
+
         return array_merge(self::taskPayload($task), [
             'description' => $task->description,
+            'checklists' => self::checklistPayload($task),
         ]);
+    }
+
+    /**
+     * @return list<array{id: int, title: string, items: list<array{id: string, text: string, checked: bool}>}>
+     */
+    private static function checklistPayload(Task $task): array
+    {
+        return $task->checklists
+            ->sortBy([
+                fn (TaskChecklist $checklist) => $checklist->sort_order,
+                fn (TaskChecklist $checklist) => $checklist->id,
+            ])
+            ->values()
+            ->map(fn (TaskChecklist $checklist) => [
+                'id' => (int) $checklist->id,
+                'title' => $checklist->title,
+                'items' => $checklist->items->map(fn (TaskChecklistItem $item) => [
+                    'id' => (string) $item->id,
+                    'text' => $item->text,
+                    'checked' => (bool) $item->checked,
+                ])->values()->all(),
+            ])->all();
     }
 }

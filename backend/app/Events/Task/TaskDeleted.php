@@ -13,7 +13,14 @@ class TaskDeleted implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public int $workspaceId, public int $taskId) {}
+    /**
+     * @param  list<int>  $cascadedTaskIds
+     */
+    public function __construct(
+        public int $workspaceId,
+        public int $taskId,
+        public array $cascadedTaskIds = [],
+    ) {}
 
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
@@ -29,6 +36,9 @@ class TaskDeleted implements ShouldBroadcastNow
     /** @return array<string, mixed> */
     public function broadcastWith(): array
     {
-        return ['id' => $this->taskId];
+        return [
+            'id' => $this->taskId,
+            'cascaded_task_ids' => array_values($this->cascadedTaskIds),
+        ];
     }
 }

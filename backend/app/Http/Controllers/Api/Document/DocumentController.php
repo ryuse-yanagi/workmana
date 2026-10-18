@@ -6,9 +6,11 @@ use App\Http\Controllers\Api\ApiController;
 use App\Models\Document\Document;
 use App\Models\Organization\Organization;
 use App\Models\Workspace\Workspace;
+use App\Support\Concurrency\MutationLock;
 use App\Support\Document\DefaultDocumentCategories;
 use App\Support\FieldLengthLimits;
 use App\Support\ListQuery;
+use App\Support\Organization\OrganizationBroadcast;
 use App\Support\PermanentDeleter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -160,23 +162,26 @@ class DocumentController extends ApiController
             $category,
             $workspace,
         ) {
+            $lockedWorkspace = MutationLock::activeWorkspace((int) $workspace->id);
             $document = Document::query()->create([
                 'organization_id' => $organization->id,
-                'workspace_id' => $workspace->id,
+                'workspace_id' => $lockedWorkspace->id,
                 'created_by' => $request->user()->id,
                 'name' => $name,
                 'description' => $validated['description'] ?? null,
                 'category' => $category,
             ]);
-            $workspace->recordActivity();
+            $lockedWorkspace->recordActivity();
 
             return $document;
         });
 
-        return response()->json(
-            $this->documentPayload($document, $organization),
-            201,
-        );
+        $payload = $this->documentPayload($document, $organization);
+        OrganizationBroadcast::send($organization, 'document.created', [
+            'document' => $payload,
+        ]);
+
+        return response()->json($payload, 201);
     }
 
     /** アーカイブ済みの資料は更新できない。 */
@@ -212,9 +217,29 @@ class DocumentController extends ApiController
             );
         }
 
-        $document->save();
+        $document = DB::transaction(function () use ($document) {
+            $workspace = MutationLock::workspace((int) $document->workspace_id);
+            if ($workspace->isArchived()) {
+                abort(403, 'Workspace is archived.');
+            }
+            $locked = Document::withTrashed()->whereKey($document->id)->lockForUpdate()->first();
+            if ($locked === null || $locked->trashed()) {
+                abort(404);
+            }
+            if ($locked->isArchived()) {
+                abort(422, 'Cannot update an archived document.');
+            }
+            MutationLock::copyDirty($document, $locked);
 
-        return response()->json($this->documentPayload($document, $organization));
+            return $locked;
+        });
+
+        $payload = $this->documentPayload($document, $organization);
+        OrganizationBroadcast::send($organization, 'document.updated', [
+            'document' => $payload,
+        ]);
+
+        return response()->json($payload);
     }
 
     /** 組織管理者のみ資料をアーカイブする。 */
@@ -223,14 +248,27 @@ class DocumentController extends ApiController
         $this->ensureDocumentBelongsToOrganization($document, $organization);
         $this->assertCanManageArchive($request);
 
-        if ($document->isArchived()) {
-            return response()->json(['message' => 'Document is already archived.'], 422);
-        }
+        $document = DB::transaction(function () use ($document) {
+            MutationLock::workspace((int) $document->workspace_id);
+            $locked = Document::withTrashed()->whereKey($document->id)->lockForUpdate()->first();
+            if ($locked === null || $locked->trashed()) {
+                abort(404);
+            }
+            if ($locked->isArchived()) {
+                abort(422, 'Document is already archived.');
+            }
+            $locked->archived_at = now();
+            $locked->save();
 
-        $document->archived_at = now();
-        $document->save();
+            return $locked;
+        });
 
-        return response()->json($this->documentPayload($document, $organization));
+        $payload = $this->documentPayload($document, $organization);
+        OrganizationBroadcast::send($organization, 'document.archived', [
+            'document' => $this->documentPayload($document, $organization, false),
+        ]);
+
+        return response()->json($payload);
     }
 
     /** 組織管理者のみアーカイブ済み資料を戻す。 */
@@ -239,14 +277,27 @@ class DocumentController extends ApiController
         $this->ensureDocumentBelongsToOrganization($document, $organization);
         $this->assertCanManageArchive($request);
 
-        if (! $document->isArchived()) {
-            return response()->json(['message' => 'Document is not archived.'], 422);
-        }
+        $document = DB::transaction(function () use ($document) {
+            MutationLock::workspace((int) $document->workspace_id);
+            $locked = Document::withTrashed()->whereKey($document->id)->lockForUpdate()->first();
+            if ($locked === null || $locked->trashed()) {
+                abort(404);
+            }
+            if (! $locked->isArchived()) {
+                abort(422, 'Document is not archived.');
+            }
+            $locked->archived_at = null;
+            $locked->save();
 
-        $document->archived_at = null;
-        $document->save();
+            return $locked;
+        });
 
-        return response()->json($this->documentPayload($document, $organization));
+        $payload = $this->documentPayload($document, $organization);
+        OrganizationBroadcast::send($organization, 'document.restored', [
+            'document' => $this->documentPayload($document, $organization, false),
+        ]);
+
+        return response()->json($payload);
     }
 
     /** アーカイブ済みの資料だけを完全削除する。組織管理者のみ。 */
@@ -261,7 +312,16 @@ class DocumentController extends ApiController
             ], 422);
         }
 
-        PermanentDeleter::deleteDocument($document);
+        $documentId = (int) $document->id;
+        $workspaceId = (int) $document->workspace_id;
+        DB::transaction(function () use ($document) {
+            MutationLock::workspace((int) $document->workspace_id);
+            PermanentDeleter::deleteDocument($document);
+        });
+        OrganizationBroadcast::send($organization, 'document.deleted', [
+            'id' => $documentId,
+            'workspace_id' => $workspaceId,
+        ]);
 
         return response()->json(null, 204);
     }
@@ -288,21 +348,26 @@ class DocumentController extends ApiController
 
     /**
      * カテゴリは組織の既定カテゴリに解決して返す。
+     * アーカイブと復元は本文を載せない。配信サイズの上限でイベント自体が落ちると、一覧が同期しない。
      *
      * @return array<string, mixed>
      */
-    private function documentPayload(Document $document, Organization $organization): array
+    private function documentPayload(Document $document, Organization $organization, bool $includeBody = true): array
     {
-        return [
+        $payload = [
             'id' => $document->id,
             'name' => $document->name,
             'description' => $document->description,
-            'body' => $document->body,
             'category' => DefaultDocumentCategories::resolvedCategoryPayload($document, $organization),
             'workspace_id' => (int) $document->workspace_id,
             'archived_at' => $document->archived_at,
             'created_at' => $document->created_at,
             'updated_at' => $document->updated_at,
         ];
+        if ($includeBody) {
+            $payload['body'] = $document->body;
+        }
+
+        return $payload;
     }
 }

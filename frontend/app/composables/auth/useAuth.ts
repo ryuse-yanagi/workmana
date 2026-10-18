@@ -98,16 +98,21 @@ export function useAuth () {
    * Cognito Hosted UI へのリダイレクトはバックエンドが組み立てる。
    * クライアント側に client_id や PKCE の情報を持たせない。
    */
-  function loginUrl (next: string): string {
+  function loginUrl (next: string, loginHint?: string): string {
     const target = safeInternalPath(next, '/')
-    return `${apiBase}/auth/login?next=${encodeURIComponent(target)}`
+    const params = new URLSearchParams({ next: target })
+    const hint = loginHint?.trim()
+    if (hint) {
+      params.set('login_hint', hint)
+    }
+    return `${apiBase}/auth/login?${params.toString()}`
   }
 
-  function startLogin (next: string): void {
+  function startLogin (next: string, loginHint?: string): void {
     if (!import.meta.client) {
       return
     }
-    window.location.href = loginUrl(next)
+    window.location.href = loginUrl(next, loginHint)
   }
 
   function canUseCachedSession (force: boolean): boolean {

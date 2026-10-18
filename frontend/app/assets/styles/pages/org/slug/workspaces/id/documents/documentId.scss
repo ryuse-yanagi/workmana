@@ -318,7 +318,7 @@ $document-sidebar-pad-inline: 20px;
   border-radius: 4px;
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   white-space: normal;
   overflow: visible;
   text-overflow: unset;
@@ -350,7 +350,7 @@ $document-sidebar-pad-inline: 20px;
   min-width: 0;
   font-size: 14px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -530,7 +530,7 @@ $document-documents-panel-gap: 8px;
   color: mixin.$text-heading;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }
 .document-sidebar__document-category {
   display: flex;
@@ -551,7 +551,7 @@ $document-documents-panel-gap: 8px;
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
 }
 .document-sidebar__document-desc {
   overflow: hidden;
@@ -559,7 +559,7 @@ $document-documents-panel-gap: 8px;
   white-space: nowrap;
   color: mixin.$text-muted;
   font-size: 12px;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }
 .document-sidebar__documents-empty {
   display: flex;
@@ -586,7 +586,7 @@ $document-documents-panel-gap: 8px;
   margin: 0;
   color: mixin.$text-muted;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
 }
 .document-sidebar__title,
 .document-sidebar__title-input {
@@ -596,7 +596,7 @@ $document-documents-panel-gap: 8px;
   font-size: 22px;
   font-weight: 700;
   font-family: inherit;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text;
   padding: 8px 12px;
   border: 1px solid transparent;
@@ -683,7 +683,7 @@ $document-documents-panel-gap: 8px;
   color: mixin.$text;
   font-size: 14px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: mixin.$text-line-height-safe;
 }
 .document-sidebar__related-link:hover {
   opacity: 0.8;
@@ -805,7 +805,7 @@ $document-documents-panel-gap: 8px;
 .document-sidebar__save-error {
   margin: 0;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$danger;
 }
 .document-viewer {
@@ -889,7 +889,7 @@ $document-documents-panel-gap: 8px;
   color: mixin.$text-heading;
   font-size: 28px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
   letter-spacing: 0.01em;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -926,7 +926,7 @@ $document-documents-panel-gap: 8px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
-  line-height: 1.2;
+  line-height: mixin.$text-line-height-safe;
   white-space: nowrap;
 }
 .document-viewer__char-count--warn {
@@ -984,7 +984,7 @@ $document-documents-panel-gap: 8px;
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }
 .document-viewer textarea.document-viewer__body-input {
   display: block;
@@ -1033,7 +1033,7 @@ $document-documents-panel-gap: 8px;
   margin-right: auto;
   min-width: 0;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$danger;
 }
 @media (max-width: 768px) {

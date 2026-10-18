@@ -1,0 +1,50 @@
+.org-delete-modal-body {
+  padding: 16px 16px 0;
+}
+
+.org-delete-modal-message {
+  margin: 0;
+  font-size: 14px;
+  color: mixin.$text;
+  line-height: 1.75;
+}
+
+.org-delete-modal-target {
+  display: block;
+  margin-top: 10px;
+}
+
+.org-delete-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 4.9px;
+  margin-top: 16px;
+}
+
+.org-delete-confirm__label {
+  @include mixin.modal-field-label;
+}
+
+.org-delete-confirm__input {
+  @include mixin.modal-input-single-line;
+  width: 100%;
+  border: 1px solid mixin.$border;
+  border-radius: mixin.$input-border-radius;
+  font-size: mixin.$modal-field-font-size;
+  color: mixin.$text;
+
+  &:focus {
+    @include mixin.input-focus-neutral;
+  }
+
+  &:disabled {
+    cursor: pointer;
+  }
+}
+
+.err {
+  margin: 10.5px 0 0;
+  color: mixin.$danger;
+  font-weight: 700;
+  font-size: mixin.$modal-field-font-size;
+}

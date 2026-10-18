@@ -52,7 +52,8 @@ class AuthController extends ApiController
 
         return redirect()->away($this->oauth->authorizationUrl(
             $state,
-            $this->oauth->codeChallengeFor($codeVerifier)
+            $this->oauth->codeChallengeFor($codeVerifier),
+            $this->loginHint($request->query('login_hint')),
         ));
     }
 
@@ -177,5 +178,20 @@ class AuthController extends ApiController
         }
 
         return $path;
+    }
+
+    /** Hosted UI の入力欄へ出すメール。メールでなければ付けない。 */
+    private function loginHint(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $email = strtolower(trim($value));
+        if ($email === '' || strlen($email) > 254 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return null;
+        }
+
+        return $email;
     }
 }

@@ -117,7 +117,7 @@
   margin: 0;
   color: inherit;
   font-size: inherit;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   white-space: nowrap;
 }
 
@@ -250,7 +250,7 @@
   color: mixin.$text-heading;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }
 
 .archived-list-popover__document-desc {
@@ -259,7 +259,7 @@
   white-space: nowrap;
   color: mixin.$text-muted;
   font-size: 12px;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }
 
 .archived-list-popover__document-category {
@@ -291,7 +291,7 @@
   padding: 6px 10px;
   overflow: visible;
   font-size: 12px;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   text-align: center;
 }
 
@@ -300,6 +300,6 @@
   max-width: 100%;
   overflow: visible;
   text-overflow: clip;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   text-align: center;
 }

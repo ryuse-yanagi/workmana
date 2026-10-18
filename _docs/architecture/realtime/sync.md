@@ -1,6 +1,6 @@
 # リアルタイム同期
 
-WorkMana は複数メンバーが同一スペースのボード／WBS を同時に操作することを想定しているため、サーバー側の変更を即時に各クライアントへ伝搬する仕組みを採用する。
+WorkMana は複数メンバーが同じ組織とスペースを同時に操作することを想定しているため、サーバー側の変更を即時に各クライアントへ伝搬する仕組みを採用する。
 
 用語: UI「スペース」＝コードの `workspace`。
 
@@ -88,18 +88,21 @@ DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び
 
 ## チャンネル設計（現行）
 
-| チャンネル名 | 種類 | 認可 | 用途 |
-| --- | --- | --- | --- |
-| `workspaces.{workspaceId}` | private | そのスペースを閲覧できるユーザー（`User::canAccessWorkspace`） | ボード／WBS のリスト・タスク変更 |
+| チャンネル名 | 種類 | 認可 | 購読する画面 | 用途 |
+| --- | --- | --- | --- | --- |
+| `workspaces.{workspaceId}` | private | そのスペースを閲覧できるユーザー（`User::canAccessWorkspace`） | ボード／WBS | そのスペースのリスト・タスク・添付・担当者 |
+| `organizations.{organizationId}` | private | その組織のメンバー（`User::isMemberOfOrganization`） | `/org/{slug}/…` を開いているあいだ | スペース、資料、組織設定、メンバー、招待、ラベル、プロフィール |
 
 - 認可定義: `backend/routes/channels.php`
 - 認可 HTTP: `POST /api/broadcasting/auth`（`cognito` + Cookie セッション。Echo の `channelAuthorization.customHandler`）
 
-未実装（将来候補）: `orgs.*`（組織横断マスタ）、`users.*`（個人宛て通知の push）。アプリ内通知は現状ポーリング（[../../application/features/notification.md](../../application/features/notification.md)）。
+個人宛てチャンネル（`users.*`）は未実装。アプリ内通知はポーリング（[../../application/features/notification.md](../../application/features/notification.md)）。
 
 ## 配信イベント（現行）
 
-いずれも `private-workspaces.{workspaceId}` 相当。`broadcastAs` はクラス名（Echo 側は `.TaskUpdated` のように listen）。
+呼び出しは `SafeBroadcast::toOthers`。組織向けは `OrganizationBroadcast::send` が `OrganizationChanged` を送る。`broadcastAs` はクラス名（Echo 側は `.TaskUpdated` のように listen）。
+
+### `workspaces.{workspaceId}`
 
 | イベント | 主な発火元 |
 | --- | --- |
@@ -107,12 +110,37 @@ DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び
 | `TasksReordered` | `ListController`（列内タスク並べ替え） |
 | `TaskCreated` / `TaskUpdated` / `TaskArchived` / `TaskRestored` / `TaskDeleted` | `TaskController` |
 | `WbsTasksReordered` | `TaskController`（WBS 並べ替え） |
+| `TaskAttachmentAdded` / `TaskAttachmentRemoved` | `TaskAttachmentController` |
+| `WorkspaceMembersUpdated` | `WorkspaceController`（スペース担当者の変更） |
 
 補足:
 
 - タスクの列移動は専用 `TaskMoved` ではなく **`TaskUpdated` + `TasksReordered`**。
-- ラベル更新・資料・組織設定・スペースメタの CRUD は **ブロードキャスト対象外**。
-- 呼び出しはコントローラから `SafeBroadcast::toOthers(new …)`。
+- `WorkspaceMembersUpdated` はスペース担当者の集合。組織メンバーの追加・削除は組織チャンネルの `member.*`。
+
+### `organizations.{organizationId}`
+
+イベントは `OrganizationChanged` 一つ。ペイロードの `type` で区別する。
+
+| `type` | 主な発火元 | 内容 |
+| --- | --- | --- |
+| `workspace.created` / `workspace.updated` / `workspace.archived` / `workspace.unarchived` / `workspace.deleted` | `WorkspaceController` | スペースのメタとライフサイクル |
+| `workspace.pinned` | `WorkspaceController` | ピン留め。クライアントは自分の `user_id` のときだけ反映する |
+| `document.created` / `document.updated` / `document.archived` / `document.restored` / `document.deleted` | `DocumentController` | 資料。削除以外は本文（`body`）を含む |
+| `settings.updated` | `OrganizationController` | 組織名と既定マスタ |
+| `icon.updated` | `OrganizationController` | 組織アイコン |
+| `member.upserted` / `member.removed` | `OrganizationController`、招待受諾 | 組織メンバー |
+| `invite.upserted` / `invite.removed` | `OrganizationInviteController`、招待受諾 | 招待 |
+| `task_labels.updated` / `workspace_labels.updated` | `LabelCatalogBroadcast` | タスク／スペースのラベルカタログ一式 |
+| `user.profile_updated` | `MeController`（`OrganizationBroadcast::userProfile`） | ユーザー名とアバター。所属する各組織へ送る |
+| `organization.deleted` | `OrganizationController`（削除確定後） | 組織の削除。配下の個別イベントは出さない |
+
+`organization.deleted` は削除操作のソケットには送らない（`toOthers`）。その画面は API 成功後に自分で遷移する。同じ組織を開いている他の画面は、サーバーが付け替えた現在組織のスペース一覧へ進む。所属が残っていなければ組織作成画面へ進む。
+
+## 配信しないもの
+
+- **アプリ内通知**の作成・既読。未読の有無はヘッダーのポーリング。
+- **入力中・プレゼンス**。資料の同時編集（カーソル共有）もしない。資料は保存のたびに `document.*` を配信する。
 
 ## フロント購読
 
@@ -120,8 +148,11 @@ DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び
 | --- | --- |
 | `frontend/app/plugins/echo.client.ts` | Echo 初期化（`broadcaster: 'reverb'`）、認可ハンドラ |
 | `frontend/app/composables/useApi.ts` | リクエストに `X-Socket-ID` を付与 |
-| `frontend/app/composables/useWorkspaceRealtimeChannel.ts` | `Echo.private('workspaces.{id}')` 購読・イベント listen |
+| `frontend/app/composables/workspace/useWorkspaceRealtimeChannel.ts` | `Echo.private('workspaces.{id}')` 購読・イベント listen |
 | `WorkspaceBoard.vue` / `WorkspaceWbsView.vue` | ハンドラでボード／WBS 状態を更新 |
+| `frontend/app/app.vue` | `/org/{slug}/…` のあいだ組織チャンネルを購読 |
+| `frontend/app/composables/org/useOrganizationRealtimeChannel.ts` | `Echo.private('organizations.{id}')` で `.OrganizationChanged` を listen |
+| `frontend/app/composables/org/applyOrganizationRealtime.ts` | `type` に応じて一覧・設定・資料キャッシュを更新 |
 
 再接続時は接続成功後にリスナーをバインドする。**ボード全体の自動フル再取得ポリシーは未整備**（一部ハンドラ内で部分 refresh あり）。
 
@@ -157,3 +188,6 @@ DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び
 - 意思決定ログ: [`../../decisions/realtime-sync.md`](../../decisions/realtime-sync.md)
 - ボード機能: [`../../application/features/board.md`](../../application/features/board.md)
 - WBS 機能: [`../../application/features/wbs.md`](../../application/features/wbs.md)
+- スペース: [`../../application/features/workspaces.md`](../../application/features/workspaces.md)
+- 資料: [`../../application/features/documents.md`](../../application/features/documents.md)
+- 組織・通知: [`../../application/features/organization.md`](../../application/features/organization.md)、[`../../application/features/notification.md`](../../application/features/notification.md)

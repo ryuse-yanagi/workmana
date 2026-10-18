@@ -47,6 +47,10 @@ export function useOrgDocumentsCacheRevision (): Ref<number> {
   return cacheRevision
 }
 
+export function documentsSnapshotEpoch (orgSlug: string): number {
+  return snapshotEpochBySlug.get(orgSlug.trim()) ?? 0
+}
+
 export function clearAllOrgDocumentsPageCaches (): void {
   cacheBySlug.clear()
   documentCacheByKey.clear()
@@ -93,6 +97,75 @@ export function upsertDocumentCached (orgSlug: string, document: OrgDocument): v
     }
   }
   notifyDocumentsCacheChanged()
+}
+
+type DocumentCategoryDiff = {
+  renames?: Array<{ from?: string; to?: string }>
+  deleted?: string[]
+}
+
+function renamedCategoryName (
+  name: string | null | undefined,
+  diff: DocumentCategoryDiff,
+): string | null {
+  if (!name) {
+    return null
+  }
+  for (const rename of diff.renames ?? []) {
+    if (rename.from && rename.to && rename.from === name) {
+      return rename.to
+    }
+  }
+  if ((diff.deleted ?? []).includes(name)) {
+    return null
+  }
+  return name
+}
+
+/** 資料カテゴリの改名、削除、色変更を、一覧と詳細キャッシュへ反映する。 */
+export function remapCachedDocumentCategories (
+  orgSlug: string,
+  diff: DocumentCategoryDiff,
+  catalog: Array<{ name: string; color_index: number; color?: string }>,
+): void {
+  const slug = orgSlug.trim()
+  const prefix = `${slug}:`
+  let changed = false
+  const apply = (document: OrgDocument): OrgDocument => {
+    const nextName = renamedCategoryName(document.category?.name, diff)
+    const match = nextName ? catalog.find(item => item.name === nextName) ?? null : null
+    const nextCategory = match
+      ? { name: match.name, color_index: match.color_index, color: match.color }
+      : null
+    if (
+      (document.category?.name ?? null) === (nextCategory?.name ?? null)
+      && (document.category?.color_index ?? null) === (nextCategory?.color_index ?? null)
+    ) {
+      return document
+    }
+    changed = true
+    return { ...document, category: nextCategory }
+  }
+  for (const [key, document] of documentCacheByKey) {
+    if (!key.startsWith(prefix)) {
+      continue
+    }
+    documentCacheByKey.set(key, apply(document))
+  }
+  const snapshot = cacheBySlug.get(slug)
+  if (snapshot) {
+    snapshot.documents = snapshot.documents.map(apply)
+    snapshot.documentCategories = catalog.map(item => ({
+      name: item.name,
+      color_index: item.color_index,
+      color: item.color ?? '',
+    }))
+    changed = true
+  }
+  if (changed) {
+    bumpDocumentsSnapshotEpoch(slug)
+    notifyDocumentsCacheChanged()
+  }
 }
 
 export function removeDocumentCached (orgSlug: string, documentId: number | string): void {
@@ -199,8 +272,17 @@ export function useOrgDocumentsPageData () {
       return inflight
     }
     const job = (async () => {
+      const epochAtStart = snapshotEpochBySlug.get(slug) ?? 0
       const document = await api<OrgDocument>(`/orgs/${slug}/documents/${id}`)
+      // 取得中にアーカイブなどでキャッシュから外れていたら、古い応答で戻さない。
+      if ((snapshotEpochBySlug.get(slug) ?? 0) !== epochAtStart && !documentCacheByKey.has(key)) {
+        return document
+      }
+      if (document.archived_at) {
+        return document
+      }
       documentCacheByKey.set(key, document)
+      notifyDocumentsCacheChanged()
       return document
     })()
     documentInflightByKey.set(key, job)

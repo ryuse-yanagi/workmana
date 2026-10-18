@@ -2,15 +2,21 @@
 
 namespace App\Http\Controllers\Api\Task;
 
+use App\Events\Task\TaskAttachmentAdded;
+use App\Events\Task\TaskAttachmentRemoved;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization\Organization;
 use App\Models\Task\Task;
 use App\Models\Task\TaskAttachment;
 use App\Models\Workspace\Workspace;
+use App\Support\Concurrency\MutationLock;
 use App\Support\MediaStorage;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class TaskAttachmentController extends ApiController
 {
@@ -111,16 +117,35 @@ class TaskAttachmentController extends ApiController
 
         $path = MediaStorage::storePrivate($file, 'tasks/'.$task->id);
 
-        $attachment = TaskAttachment::query()->create([
-            'task_id' => $task->id,
-            'uploaded_by' => $request->user()->id,
-            'original_name' => $file->getClientOriginalName(),
-            'path' => $path,
-            'mime_type' => self::EXTENSION_CONTENT_TYPES[$extension],
-            'size_bytes' => $file->getSize(),
-        ]);
+        try {
+            $attachment = DB::transaction(function () use ($workspace, $task, $request, $file, $path, $extension) {
+                MutationLock::activeWorkspace((int) $workspace->id);
+                $locked = Task::withTrashed()->whereKey($task->id)->lockForUpdate()->first();
+                if ($locked === null || $locked->trashed() || (int) $locked->workspace_id !== (int) $workspace->id) {
+                    abort(404);
+                }
+                if ($locked->archived_at !== null) {
+                    abort(422, 'Cannot attach files to an archived task.');
+                }
 
-        return response()->json($this->attachmentPayload($attachment), 201);
+                return TaskAttachment::query()->create([
+                    'task_id' => $locked->id,
+                    'uploaded_by' => $request->user()->id,
+                    'original_name' => $file->getClientOriginalName(),
+                    'path' => $path,
+                    'mime_type' => self::EXTENSION_CONTENT_TYPES[$extension],
+                    'size_bytes' => $file->getSize(),
+                ]);
+            });
+        } catch (Throwable $e) {
+            MediaStorage::deletePrivate($path);
+            throw $e;
+        }
+
+        $payload = $this->attachmentPayload($attachment);
+        SafeBroadcast::toOthers(new TaskAttachmentAdded((int) $workspace->id, $payload));
+
+        return response()->json($payload, 201);
     }
 
     public function download(
@@ -176,9 +201,23 @@ class TaskAttachmentController extends ApiController
         $this->assertAttachmentInTask($attachment, $task);
 
         $path = $attachment->path;
-        $attachment->delete();
+        $attachmentId = (int) $attachment->id;
+        $taskId = (int) $task->id;
+        DB::transaction(function () use ($workspace, $task, $attachment) {
+            MutationLock::activeWorkspace((int) $workspace->id);
+            $locked = TaskAttachment::query()
+                ->whereKey($attachment->id)
+                ->where('task_id', $task->id)
+                ->lockForUpdate()
+                ->first();
+            if ($locked === null) {
+                abort(404);
+            }
+            $locked->delete();
+        });
 
         MediaStorage::deletePrivate($path);
+        SafeBroadcast::toOthers(new TaskAttachmentRemoved((int) $workspace->id, $taskId, $attachmentId));
 
         return response()->json(null, 204);
     }

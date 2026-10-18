@@ -78,22 +78,4 @@ return [
 
     'bypass_user_id' => env('COGNITO_BYPASS_USER_ID'),
 
-    /*
-    |--------------------------------------------------------------------------
-    | User Pool（招待登録時のユーザー作成）
-    |--------------------------------------------------------------------------
-    |
-    | region 例: ap-northeast-1
-    | user_pool_id 例: ap-northeast-1_XXXXXXXXX
-    | 設定時は AdminCreateUser / AdminSetUserPassword / AdminGetUser を使う。
-    | 認証情報は AWS SDK の既定チェーン（環境変数または ECS タスクロール）で解決する。
-    | 未設定かつ bypass=false の場合は、アプリクライアント向け SignUp API を使う。
-    | 本番では User Pool ID を必須にし、メール未検証のままログインできない SignUp 経路を避ける。
-    |
-    */
-
-    'region' => (string) env('COGNITO_REGION', env('AWS_DEFAULT_REGION', 'ap-northeast-1')),
-
-    'user_pool_id' => (string) env('COGNITO_USER_POOL_ID', ''),
-
 ];

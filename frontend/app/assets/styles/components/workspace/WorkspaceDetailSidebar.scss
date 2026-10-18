@@ -59,7 +59,7 @@ $workspace-sidebar-pad-inline: 20px;
   border-radius: 4px;
   font-size: 14px;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   white-space: normal;
   overflow: visible;
   text-overflow: unset;
@@ -85,7 +85,7 @@ $workspace-sidebar-pad-inline: 20px;
   font-size: 22px;
   font-weight: 700;
   font-family: inherit;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text;
   padding: 8px 12px;
   border: 1px solid transparent;
@@ -159,7 +159,7 @@ $workspace-sidebar-pad-inline: 20px;
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   white-space: normal;
   overflow: visible;
   text-overflow: unset;
@@ -295,13 +295,13 @@ $workspace-sidebar-pad-inline: 20px;
 .workspace-sidebar__save-error {
   margin: 0;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$danger;
 }
 .workspace-sidebar__empty-text {
   margin: 0;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text-muted;
 }
 .workspace-sidebar__related-heading {
@@ -486,7 +486,7 @@ $workspace-documents-panel-gap: 8px;
   color: mixin.$text-heading;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }
 .workspace-sidebar__document-category {
   display: flex;
@@ -507,7 +507,7 @@ $workspace-documents-panel-gap: 8px;
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
 }
 .workspace-sidebar__document-desc {
   overflow: hidden;
@@ -515,7 +515,7 @@ $workspace-documents-panel-gap: 8px;
   white-space: nowrap;
   color: mixin.$text-muted;
   font-size: 12px;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }
 .workspace-sidebar__documents-empty {
   display: flex;
@@ -542,5 +542,5 @@ $workspace-documents-panel-gap: 8px;
   margin: 0;
   color: mixin.$text-muted;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
 }

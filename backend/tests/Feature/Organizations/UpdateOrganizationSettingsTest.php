@@ -68,7 +68,7 @@ class UpdateOrganizationSettingsTest extends TestCase
         $this->assertNull($organization->fresh()->icon_path);
     }
 
-    /** 一般メンバーは組織設定とアイコンを変更できない */
+    /** 一般ユーザーは組織設定とアイコンを変更できない */
     public function test_member_cannot_update_organization_settings_or_icon(): void
     {
         [, , $member] = $this->createOrgWithAdminAndMember();

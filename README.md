@@ -37,7 +37,7 @@
 - **カンバンと WBS** — ボード列の並び替えと、ガント付き WBS ビューを同一スペースで利用
 - **資料** — スペース配下の Markdown 編集、カテゴリ
 - **セッションベース認証** — Cognito 認可コード（PKCE）。JWT はブラウザに保存せず HttpOnly Cookie のみ
-- **ボード／WBS のリアルタイム同期** — Laravel Reverb でリスト／タスク操作を他クライアントへ反映
+- **リアルタイム同期** — Laravel Reverb でスペース内のリスト／タスクと、組織のスペース・資料・設定・メンバーを他クライアントへ反映
 - **添付の私有化** — タスク添付は非公開ディスクに置き、認証付き download でのみ取得する（直リンク不可）
 
 ---
@@ -111,7 +111,7 @@
 
 - プロフィール・アバター
 - アプリ内通知（ヘッダーの一覧と既読。一括既読は API のみ）
-- ボード／WBS 上のリスト／タスク操作のリアルタイム反映（Reverb。資料等は対象外）
+- 組織画面とボード／WBS のリアルタイム反映（Reverb。通知の push は対象外）
 
 ---
 
@@ -216,12 +216,11 @@ API ルートは `cognito` ミドルウェア配下です（[`backend/routes/api
 - `SESSION_SAME_SITE=lax`または`none`（`strict`はCognitoからのコールバックでCookieが送られないため不可）
 - フロントと API のホストが違う場合、`SESSION_DOMAIN` は両方を覆う親ドメイン
 - `COGNITO_REDIRECT_URI` のホストは `APP_URL` と一致し、パスは `/api/auth/callback`
-- `COGNITO_USER_POOL_ID` 必須（招待受諾の AdminCreateUser。認証は IAM タスクロールまたはアクセスキー）
 - `SESSION_DRIVER`がサーバー側ストレージ（`cookie` / `array`は不可）
 - `COGNITO_BYPASS=false`
 - Cognitoの必須設定がすべて存在し、`COGNITO_AUDIENCE=COGNITO_CLIENT_ID`
 - `APP_URL`、CORS許可オリジン、Cognito・コールバック・フロントエンドのURLがすべてHTTPS
-- 招待メールは Amazon SES（`MAIL_MAILER=ses` または `ses-v2`）。`MAIL_FROM_ADDRESS` はプレースホルダ以外の検証済みアドレス。`AWS_DEFAULT_REGION` 必須（認証は IAM ロールまたはアクセスキー）
+- 招待メールは Amazon SES（`MAIL_MAILER=ses` または `ses-v2`）。`MAIL_FROM_ADDRESS` はプレースホルダ以外の検証済みアドレス。認証は IAM タスクロールまたはアクセスキー。`AWS_DEFAULT_REGION` が空でも、SES の region は `config/services.php` が `ap-northeast-1` を入れるため、この項目では起動は止まらない。S3 ディスクの region（`config/filesystems.php`）にはその既定がない
 - アバター・組織アイコン・タスク添付は Amazon S3（`FILESYSTEM_DISK=s3`）。`AWS_BUCKET` 必須。ACL は送らない。公開読み取りは `avatars/*` と `org-icons/*` だけ（バケットポリシーまたはそのプレフィックスだけの CloudFront）。添付は非公開で download API 経由
 - ログは CloudWatch 向けに `LOG_CHANNEL=stderr`（または `errorlog`、あるいはそれらを含む `stack`）
 - リアルタイム同期は `BROADCAST_CONNECTION=reverb`。`REVERB_APP_ID` / `KEY` / `SECRET` / `HOST` 必須。`REVERB_SCHEME=https`。`REVERB_HOST` はクライアントから見たホスト名（localhost 不可）。複数 Reverb タスクにする場合は `REVERB_SCALING_ENABLED=true` と Redis
@@ -245,15 +244,14 @@ COGNITO_BYPASS_USER_ID=1
 
 1. 組織管理者が設定画面の「ユーザー招待」からメールアドレスとロールを指定して送信
 2. サーバーが `organization_invites` を作成し、`/invite/{token}` へのリンク付きメールを送る（有効期限は既定 7 日）
-3. **新規ユーザー**: 名前・パスワードを入力して登録。Cognito / `users` / `memberships` を作成し、招待組織を `last_organization_id` に設定。その後 Cognito ログイン
-4. **既存ユーザー**: 自動ログインせず、ログイン後に参加確認を経てから `memberships` へ登録。招待メールとログイン中アカウントのメールが一致する場合のみ参加可能
+3. **未ログイン**: 招待ページから Cognito Hosted UI へ進む（`next` は招待 URL、`login_hint` は招待先メール）。アカウントが無ければその画面で登録し、メール確認後に招待ページへ戻る
+4. **ログイン済み**: 招待メールとログイン中アカウントのメールが一致する場合だけ「参加する」で `memberships` へ登録し、スペース一覧へ進む。アプリは名前もパスワードも受け取らない。ユーザー行はログインのコールバックが作る
 5. 使用済みトークンへ再アクセスすると「この招待は使用済みです」を表示（ワンタイム）
 
 | 環境変数 | 用途 |
 |----------|------|
 | `ORGANIZATION_INVITE_EXPIRES_DAYS` | 招待リンクの有効日数（既定 7） |
-| `COGNITO_USER_POOL_ID` / `COGNITO_REGION` | 本番必須。AdminCreateUser で登録する。認証は IAM タスクロールまたはアクセスキー。未設定時は Client SignUp API（本番では起動しない） |
-| `MAIL_*` | 招待メール送信。ローカル既定は `log`。**本番は Amazon SES**（`MAIL_MAILER=ses`） |
+| `MAIL_*` | 招待メール送信。ローカル既定は `log`。**本番は Amazon SES**（`MAIL_MAILER=ses` または `ses-v2`） |
 
 DB には平文トークンを保存せず、SHA-256 ハッシュを `organization_invites.token` に格納します。
 
@@ -266,7 +264,12 @@ DB には平文トークンを保存せず、SHA-256 ハッシュを `organizati
 | WebSocket サーバー | Laravel Reverb | 購読クライアントへ push |
 | クライアント | Laravel Echo | チャンネル購読 |
 
-ボード（`WorkspaceBoard`）と WBS（`WorkspaceWbsView`）向けに、リスト／タスクの作成・更新・並び替え・アーカイブ等を配信します。WBS の親子・並び替えは `WbsTasksReordered` でも同期します。資料・通知などはリアルタイム対象外です。
+プライベートチャンネルは二つです。
+
+- `workspaces.{id}` … ボード（`WorkspaceBoard`）と WBS（`WorkspaceWbsView`）。リスト／タスクの作成・更新・並び替え・アーカイブ、添付、スペース担当者。WBS の親子・並び替えは `WbsTasksReordered`
+- `organizations.{id}` … `/org/{slug}/…` を開いているあいだ。スペース、資料（本文を含む保存）、組織設定、メンバー／招待、ラベル、プロフィール
+
+アプリ内通知は WebSocket 対象外で、未読はポーリングです。範囲の一覧は [`_docs/architecture/realtime/sync.md`](_docs/architecture/realtime/sync.md)。
 
 ローカルで Reverb を起動しない場合、ボード／WBS のリアルタイム反映は動きませんが REST API 自体は利用できます（`APP_ENV=local` では `BROADCAST_FAIL_SILENTLY` 既定が有効）。
 
@@ -432,8 +435,8 @@ Reverb を使う場合は `NUXT_PUBLIC_REVERB_*` を backend の値に合わせ�
 | `FILESYSTEM_DISK` | ローカル既定 `local`。本番は `s3`（アバター・組織アイコン・タスク添付） |
 | `AWS_BUCKET` | S3 バケット名。本番（`FILESYSTEM_DISK=s3`）で必須 |
 | `AWS_URL` | 任意。CloudFront 等の公開ベース URL |
-| `MAIL_*` | 招待メール。ローカル既定は `log`。本番は `MAIL_MAILER=ses` と SES 検証済みの `MAIL_FROM_ADDRESS` が必須 |
-| `AWS_DEFAULT_REGION` | SES・Cognito Admin・S3 のリージョン。本番 SES / S3 で必須 |
+| `MAIL_*` | 招待メール。ローカル既定は `log`。本番は `MAIL_MAILER=ses` または `ses-v2` と、SES 検証済みの `MAIL_FROM_ADDRESS` が必須 |
+| `AWS_DEFAULT_REGION` | SES・S3 のリージョン。未設定時、SES は `ap-northeast-1`。S3 ディスクの region は空のまま。起動検査はこの未設定では止まらない |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | SES / S3 をキー方式で使う場合。IAM タスクロールなら不要 |
 | `COGNITO_JWKS_URL` / `ISSUER` / `AUDIENCE` | JWT検証。すべて必須で、`AUDIENCE`は`CLIENT_ID`と一致させる |
 | `COGNITO_DOMAIN` / `CLIENT_ID` / `CLIENT_SECRET` | Hosted UI と認可コードフロー（シークレットは任意） |
@@ -514,7 +517,7 @@ Organization
 | 値 | 意味 |
 |----|------|
 | `admin` | 組織管理者 |
-| `member` | メンバー |
+| `member` | 一般ユーザー |
 
 実装の正は [`MembershipRole`](backend/app/Enums/MembershipRole.php) です。組織ロールは `admin` / `member` のみです（[`_docs/database/enums.md`](_docs/database/enums.md)）。
 
@@ -536,7 +539,7 @@ Organization
 | `/register` | Cognito Managed Login へ転送（ログインと同じ入口） |
 | `/organizations/new` | 組織作成（作成者が管理者。所属があるときはキャンセルで元の組織へ戻る） |
 | `/post-login` | ログイン後の組織決定・遷移 |
-| `/invite/[token]` | 招待確認・新規登録／既存ユーザーの参加確認 |
+| `/invite/[token]` | 招待確認。未ログインは Cognito でログインまたは登録し、戻ってから参加する |
 | `/org/[slug]` | 組織ホーム（スペース一覧へリダイレクト） |
 | `/org/[slug]/workspaces` | スペース一覧 |
 | `/org/[slug]/workspaces/[id]` | スペース詳細（ボード／WBS・ガント） |
@@ -553,7 +556,7 @@ Organization
 - `POST /organizations` … 組織作成（作成者を admin として所属付け、`last_organization_id` 更新）
 - `GET /orgs/{organization}/members` / `PATCH|DELETE …/members/{member}` / `settings`
 - `GET/POST /orgs/{organization}/invites` / `DELETE …/invites/{invite}` … 招待（管理者）
-- `GET /invites/{token}` / `POST /invites/{token}/accept` … 招待確認・受諾（既存 Cognito ユーザーはセッション必須）
+- `GET /invites/{token}` / `POST /invites/{token}/accept` … 招待確認・受諾（受諾はセッション必須。メール一致）
 - `CRUD /orgs/{organization}/workspaces`（`archived`・`archive`・`unarchive` 含む。`GET …/members` はそのスペースの担当者）
 - `CRUD /orgs/{organization}/workspaces/{workspace}/documents`（一覧・作成・アーカイブ一覧）＋ `/documents/{id}`（詳細・更新・archive/unarchive・削除）
 - ラベル類: `workspace-labels` / `task-labels`（＋ categories）

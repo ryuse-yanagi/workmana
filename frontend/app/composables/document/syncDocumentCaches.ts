@@ -6,10 +6,16 @@ import {
 } from './useOrgDocumentsPageData'
 import {
   dropInFlightWorkspaceItemQuery,
+  patchDocumentInAllCachedWorkspaces,
+  removeDocumentFromAllCachedWorkspaces,
   useOrgWorkspaceIndexPageData,
   type OrgWorkspaceDocumentItem,
 } from '../workspace/useOrgWorkspaceIndexPageData'
-import { useArchivedNamedItemsCache, type ArchivedNamedItem } from '../archived/useArchivedNamedItemsCache'
+import {
+  removeArchivedDocumentFromLists,
+  upsertArchivedNamedItem,
+  type ArchivedNamedItem,
+} from '../archived/useArchivedNamedItemsCache'
 
 function toWorkspaceDocumentItem (document: {
   id: number
@@ -102,14 +108,13 @@ export function applyDocumentCreated (
     ...(ownerId == null ? [] : [ownerId]),
     ...extraWorkspaceIds.map(id => Number(id)).filter(Number.isFinite),
   ]
-  const { patchDocumentInAllCachedWorkspaces, fetchAndUpsertWorkspace } = useOrgWorkspaceIndexPageData()
   patchDocumentInAllCachedWorkspaces(slug, toWorkspaceDocumentItem(document), {
     addToWorkspaceIds: workspaceIds,
   })
   for (const workspaceId of new Set(workspaceIds)) {
     dropInFlightWorkspaceItemQuery(slug, workspaceId)
-    void fetchAndUpsertWorkspace(slug, workspaceId, { force: true }).catch(() => {})
   }
+  refreshWorkspaceDocuments(slug, workspaceIds)
 }
 
 /** 資料の更新を、一覧・詳細・所属スペースのサイドバーへ同時反映する */
@@ -120,7 +125,6 @@ export function applyDocumentUpdated (orgSlug: string, document: OrgDocument): v
   }
   upsertDocumentCached(slug, document)
   const ownerId = owningWorkspaceId(document)
-  const { patchDocumentInAllCachedWorkspaces } = useOrgWorkspaceIndexPageData()
   patchDocumentInAllCachedWorkspaces(slug, toWorkspaceDocumentItem(document), {
     addToWorkspaceIds: ownerId == null ? [] : [ownerId],
   })
@@ -148,15 +152,13 @@ export function applyDocumentArchived (
   const cached = getDocumentCached(slug, document.id)
   const ownerId = owningWorkspaceId(cached ?? {}) ?? owningWorkspaceId(document)
   removeDocumentCached(slug, document.id)
-  const { removeDocumentFromAllCachedWorkspaces } = useOrgWorkspaceIndexPageData()
   const removedFrom = removeDocumentFromAllCachedWorkspaces(slug, document.id)
   const workspaceIds = [...new Set([...(ownerId == null ? [] : [ownerId]), ...removedFrom])]
-  const { upsertCachedItem } = useArchivedNamedItemsCache()
   const archived = toArchivedNamedItem(document)
-  upsertCachedItem({ orgSlug: slug, resource: 'documents' }, archived)
+  upsertArchivedNamedItem({ orgSlug: slug, resource: 'documents' }, archived)
   for (const workspaceId of workspaceIds) {
     dropInFlightWorkspaceItemQuery(slug, workspaceId)
-    upsertCachedItem(
+    upsertArchivedNamedItem(
       { orgSlug: slug, resource: 'documents', workspaceId },
       archived,
     )
@@ -184,50 +186,61 @@ export function applyDocumentRestored (
   if (!slug) {
     return
   }
+  const existing = getDocumentCached(slug, document.id)
   const restored = toOrgDocument(slug, {
     ...document,
     archived_at: null,
   })
-  upsertDocumentCached(slug, restored)
+  // アーカイブ配信は本文を含まない。空の本文で詳細キャッシュを埋めると、開いたときに再取得しない。
+  if (document.body != null || existing?.body != null) {
+    upsertDocumentCached(slug, restored)
+  }
   const ownerId = owningWorkspaceId(restored)
   const workspaceIds = [
     ...(ownerId == null ? [] : [ownerId]),
     ...extraWorkspaceIds.map(id => Number(id)).filter(Number.isFinite),
   ]
-  const { patchDocumentInAllCachedWorkspaces, fetchAndUpsertWorkspace } = useOrgWorkspaceIndexPageData()
   patchDocumentInAllCachedWorkspaces(slug, toWorkspaceDocumentItem(restored), {
     addToWorkspaceIds: workspaceIds,
   })
-  const { removeCachedItem } = useArchivedNamedItemsCache()
-  removeCachedItem({ orgSlug: slug, resource: 'documents' }, document.id)
+  removeArchivedDocumentFromLists(slug, document.id, ownerId)
   for (const workspaceId of new Set(workspaceIds)) {
     dropInFlightWorkspaceItemQuery(slug, workspaceId)
-    removeCachedItem(
-      { orgSlug: slug, resource: 'documents', workspaceId },
-      document.id,
-    )
-    void fetchAndUpsertWorkspace(slug, workspaceId, { force: true }).catch(() => {})
+  }
+  refreshWorkspaceDocuments(slug, workspaceIds)
+}
+
+/** クリック操作のときだけ、所属スペースの資料一覧を取り直す。 */
+function refreshWorkspaceDocuments(orgSlug: string, workspaceIds: number[]): void {
+  if (!workspaceIds.length) {
+    return
+  }
+  try {
+    const { fetchAndUpsertWorkspace } = useOrgWorkspaceIndexPageData()
+    for (const workspaceId of new Set(workspaceIds)) {
+      void fetchAndUpsertWorkspace(orgSlug, workspaceId, { force: true }).catch(() => {})
+    }
+  } catch {
+    // リアルタイムの受信時は Nuxt の文脈が無い。キャッシュ更新だけで反映する。
   }
 }
 
 /** 完全削除を、一覧・全スペースサイドバー・アーカイブ一覧から除く */
-export function applyDocumentPermanentlyDeleted (orgSlug: string, documentId: number): void {
+export function applyDocumentPermanentlyDeleted (
+  orgSlug: string,
+  documentId: number,
+  workspaceId?: number | null,
+): void {
   const slug = orgSlug.trim()
   if (!slug) {
     return
   }
   const cached = getDocumentCached(slug, documentId)
-  const ownerId = owningWorkspaceId(cached ?? {})
+  const ownerId = workspaceId ?? owningWorkspaceId(cached ?? {})
   removeDocumentCached(slug, documentId)
-  const { removeDocumentFromAllCachedWorkspaces } = useOrgWorkspaceIndexPageData()
   const removedFrom = removeDocumentFromAllCachedWorkspaces(slug, documentId)
-  const { removeCachedItem } = useArchivedNamedItemsCache()
-  removeCachedItem({ orgSlug: slug, resource: 'documents' }, documentId)
-  for (const workspaceId of new Set([...(ownerId == null ? [] : [ownerId]), ...removedFrom])) {
-    dropInFlightWorkspaceItemQuery(slug, workspaceId)
-    removeCachedItem(
-      { orgSlug: slug, resource: 'documents', workspaceId },
-      documentId,
-    )
+  for (const id of new Set([...(ownerId == null ? [] : [ownerId]), ...removedFrom])) {
+    dropInFlightWorkspaceItemQuery(slug, id)
   }
+  removeArchivedDocumentFromLists(slug, documentId, ownerId)
 }

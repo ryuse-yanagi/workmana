@@ -248,6 +248,88 @@ function normalizeSnapshot (snapshot: OrgWorkspaceIndexPageSnapshot): OrgWorkspa
 
 }
 
+/** 資料の追加・更新を、キャッシュ済みの全スペースへ反映する。 */
+export function patchDocumentInAllCachedWorkspaces (
+  orgSlug: string,
+  document: OrgWorkspaceDocumentItem,
+  options?: { addToWorkspaceIds?: Array<string | number> },
+): void {
+  const slug = orgSlug.trim()
+  const key = queryKeys.orgWorkspaceIndex(slug)
+  const cached = queryClient.getQueryData<OrgWorkspaceIndexPageSnapshot>(key)
+  if (!cached) {
+    return
+  }
+  const addTo = new Set(
+    (options?.addToWorkspaceIds ?? [])
+      .map(id => Number(id))
+      .filter(id => Number.isFinite(id)),
+  )
+  let changed = false
+  const nextWorkspaces = cached.workspaces.map((workspace) => {
+    const list = workspace.documents ?? []
+    const documentIndex = list.findIndex(item => item.id === document.id)
+    const shouldAdd = addTo.has(workspace.id)
+    if (documentIndex < 0 && !shouldAdd) {
+      return workspace
+    }
+    changed = true
+    dropInFlightWorkspaceItemQuery(slug, workspace.id)
+    const nextDocuments = documentIndex >= 0
+      ? list.map((item, index) => (index === documentIndex ? { ...item, ...document } : item))
+      : [document, ...list]
+    return normalizeOrgWorkspaceItem({
+      ...workspace,
+      documents: nextDocuments,
+      updated_at: new Date().toISOString(),
+    }, cached.orgLabels)
+  })
+  if (!changed) {
+    return
+  }
+  queryClient.setQueryData(key, {
+    ...cached,
+    workspaces: nextWorkspaces,
+  })
+  notifyCacheChanged()
+}
+
+/** 資料をキャッシュ済みの全スペースから外し、外したスペース ID を返す。 */
+export function removeDocumentFromAllCachedWorkspaces (
+  orgSlug: string,
+  documentId: number,
+): number[] {
+  const slug = orgSlug.trim()
+  const key = queryKeys.orgWorkspaceIndex(slug)
+  const cached = queryClient.getQueryData<OrgWorkspaceIndexPageSnapshot>(key)
+  if (!cached) {
+    return []
+  }
+  const removedFrom: number[] = []
+  const nextWorkspaces = cached.workspaces.map((workspace) => {
+    const list = workspace.documents ?? []
+    if (!list.some(item => item.id === documentId)) {
+      return workspace
+    }
+    removedFrom.push(workspace.id)
+    dropInFlightWorkspaceItemQuery(slug, workspace.id)
+    return {
+      ...workspace,
+      documents: list.filter(item => item.id !== documentId),
+      updated_at: new Date().toISOString(),
+    }
+  })
+  if (removedFrom.length === 0) {
+    return []
+  }
+  queryClient.setQueryData(key, {
+    ...cached,
+    workspaces: nextWorkspaces,
+  })
+  notifyCacheChanged()
+  return removedFrom
+}
+
 export function useOrgWorkspaceIndexPageData () {
 
   const { api } = useApi()
@@ -578,86 +660,6 @@ export function useOrgWorkspaceIndexPageData () {
     patchDocumentInAllCachedWorkspaces(orgSlug, document, {
       addToWorkspaceIds: [workspaceId],
     })
-  }
-
-  function patchDocumentInAllCachedWorkspaces (
-    orgSlug: string,
-    document: OrgWorkspaceDocumentItem,
-    options?: { addToWorkspaceIds?: Array<string | number> },
-  ): void {
-    const slug = orgSlug.trim()
-    const key = queryKeys.orgWorkspaceIndex(slug)
-    const cached = queryClient.getQueryData<OrgWorkspaceIndexPageSnapshot>(key)
-    if (!cached) {
-      return
-    }
-    const addTo = new Set(
-      (options?.addToWorkspaceIds ?? [])
-        .map(id => Number(id))
-        .filter(id => Number.isFinite(id)),
-    )
-    let changed = false
-    const nextWorkspaces = cached.workspaces.map((workspace) => {
-      const list = workspace.documents ?? []
-      const documentIndex = list.findIndex(item => item.id === document.id)
-      const shouldAdd = addTo.has(workspace.id)
-      if (documentIndex < 0 && !shouldAdd) {
-        return workspace
-      }
-      changed = true
-      dropInFlightWorkspaceItemQuery(slug, workspace.id)
-      const nextDocuments = documentIndex >= 0
-        ? list.map((item, index) => (index === documentIndex ? { ...item, ...document } : item))
-        : [document, ...list]
-      return normalizeOrgWorkspaceItem({
-        ...workspace,
-        documents: nextDocuments,
-        updated_at: new Date().toISOString(),
-      }, cached.orgLabels)
-    })
-    if (!changed) {
-      return
-    }
-    queryClient.setQueryData(key, {
-      ...cached,
-      workspaces: nextWorkspaces,
-    })
-    notifyCacheChanged()
-  }
-
-  function removeDocumentFromAllCachedWorkspaces (
-    orgSlug: string,
-    documentId: number,
-  ): number[] {
-    const slug = orgSlug.trim()
-    const key = queryKeys.orgWorkspaceIndex(slug)
-    const cached = queryClient.getQueryData<OrgWorkspaceIndexPageSnapshot>(key)
-    if (!cached) {
-      return []
-    }
-    const removedFrom: number[] = []
-    const nextWorkspaces = cached.workspaces.map((workspace) => {
-      const list = workspace.documents ?? []
-      if (!list.some(item => item.id === documentId)) {
-        return workspace
-      }
-      removedFrom.push(workspace.id)
-      dropInFlightWorkspaceItemQuery(slug, workspace.id)
-      return {
-        ...workspace,
-        documents: list.filter(item => item.id !== documentId),
-        updated_at: new Date().toISOString(),
-      }
-    })
-    if (removedFrom.length === 0) {
-      return []
-    }
-    queryClient.setQueryData(key, {
-      ...cached,
-      workspaces: nextWorkspaces,
-    })
-    notifyCacheChanged()
-    return removedFrom
   }
 
   function removeOrgMemberFromAllCachedWorkspaces (orgSlug: string, memberId: number): number[] {

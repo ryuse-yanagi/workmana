@@ -71,7 +71,7 @@
   width: 100%;
   box-sizing: border-box;
   font-size: 16px;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
   font-weight: 700;
   font-family: inherit;
   color: inherit;
@@ -367,7 +367,7 @@
   max-width: 100%;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$main;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -392,7 +392,7 @@
   max-width: 100%;
   font-size: 14px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -410,7 +410,7 @@
   margin: 0;
   font-size: 10px;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text-muted;
 }
 .task-card-meta__row span {
@@ -519,7 +519,7 @@
   padding: 8px 9px;
   font: inherit;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   background: mixin.$white;
   box-shadow: none;
   resize: none;

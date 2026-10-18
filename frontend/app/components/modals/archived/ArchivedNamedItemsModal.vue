@@ -162,13 +162,14 @@ import { useApi } from '../../../composables/shared/useApi'
 import { useArchivedListPopoverLayout } from '../../../composables/archived/useArchivedListPopoverLayout'
 import {
   useArchivedNamedItemsCache,
+  useArchivedNamedItemsRevision,
   type ArchivedNamedItem,
 } from '../../../composables/archived/useArchivedNamedItemsCache'
 import {
   standardColorEmphasisText,
   standardColorSurfaceBackground,
 } from '../../../constants/colorPresets'
-import { resolveStandardColors } from '../../../utils/shared/colorPresetResolution'
+import { resolveStandardColors, withResolvedLabelColor } from '../../../utils/shared/colorPresetResolution'
 import { buildDestructiveConfirmMessage } from '../../../utils/shared/destructiveConfirmMessage'
 import LabelStrip from '../../ui/LabelStrip.vue'
 import OverflowFlexRow from '../../ui/OverflowFlexRow.vue'
@@ -203,6 +204,7 @@ const {
   fetchList,
   removeCachedItem,
 } = useArchivedNamedItemsCache()
+const archivedItemsRevision = useArchivedNamedItemsRevision()
 const items = ref<ArchivedNamedItem[] | null>(null)
 const error = ref<string | null>(null)
 const loading = ref(false)
@@ -264,6 +266,27 @@ function cacheInput () {
     workspaceId: props.workspaceId,
   }
 }
+function archivedListContains (list: ArchivedNamedItem[] | null, itemId: number): boolean {
+  return Boolean(list?.some(item => item.id === itemId))
+}
+
+watch(archivedItemsRevision, () => {
+  if (!props.modelValue) {
+    return
+  }
+  const cached = getCached(cacheInput())
+  if (!cached) {
+    return
+  }
+  items.value = cached
+  loading.value = false
+  if (restoreTarget.value && !archivedListContains(cached, restoreTarget.value.id)) {
+    restoreTarget.value = null
+  }
+  if (deleteTarget.value && !archivedListContains(cached, deleteTarget.value.id)) {
+    deleteTarget.value = null
+  }
+})
 
 function clearContentFadeInTimer () {
   if (contentFadeInTimer === null) return
@@ -329,10 +352,14 @@ function workspaceLabels (item: ArchivedNamedItem) {
   return (item.labels ?? []).flatMap(label => {
     const name = label.name?.trim()
     if (!name) return []
+    const resolved = withResolvedLabelColor({
+      color_index: label.color_index,
+      color: label.color,
+    })
     return [{
       id: label.id,
       name,
-      color: label.color || '#ccc',
+      color: resolved.color,
     }]
   })
 }
@@ -373,8 +400,14 @@ async function load () {
   contentShouldFadeIn.value = false
   items.value = null
   try {
-    items.value = await fetchList(cacheInput())
-    triggerContentFadeIn()
+    await fetchList(cacheInput())
+    const cached = getCached(cacheInput())
+    if (cached) {
+      items.value = cached
+    }
+    if (items.value) {
+      triggerContentFadeIn()
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '読み込みに失敗しました'
   } finally {
@@ -390,9 +423,12 @@ async function load () {
 
 async function revalidateCachedList () {
   try {
-    const fresh = await fetchList(cacheInput(), { refresh: true })
+    await fetchList(cacheInput(), { refresh: true })
     if (!props.modelValue) return
-    items.value = fresh
+    const cached = getCached(cacheInput())
+    if (cached) {
+      items.value = cached
+    }
     nextTick(() => {
       positionPopover()
     })

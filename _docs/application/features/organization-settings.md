@@ -6,6 +6,8 @@
 
 既定ボードリストはスペース作成時のリストシードに、スペースステータスはスペースの `status` 検証に、資料カテゴリは資料の `category` 検証に使われる。
 
+名前・既定マスタは `settings.updated`、アイコンは `icon.updated`、ラベルカタログは `task_labels.updated` / `workspace_labels.updated` で組織チャンネルへ配信する（[`../../architecture/realtime/sync.md`](../../architecture/realtime/sync.md)）。
+
 ## 本書の範囲
 
 - 組織名、組織アイコン、`GET/PATCH …/settings`、ラベル／カテゴリ CRUD・reorder、設定 UI
@@ -37,6 +39,7 @@
 | `PATCH` | `/orgs/{org}/settings` | **admin** | `name` と三つの既定配列のいずれか／複数 |
 | `POST` | `/orgs/{org}/icon` | **admin** | multipart `icon`（画像、最大 2MB）。旧ファイルを置換 |
 | `DELETE` | `/orgs/{org}/icon` | **admin** | アイコンを外す |
+| `DELETE` | `/orgs/{org}` | **admin** | 組織自体を削除（[organization.md](./organization.md)） |
 | CRUD + reorder | `/workspace-label-categories`, `/workspace-labels` | 読取:メンバー／書込:**admin** | |
 | 同上 | `/task-label-*` | 同上 | |
 
@@ -48,7 +51,7 @@
 
 | 部品 | タブ |
 | --- | --- |
-| `SettingsOrganizationPanel` → `OrganizationSettingsModal` | 組織設定（名前・アイコン） |
+| `SettingsOrganizationPanel` → `OrganizationSettingsModal` / `OrganizationDeleteModal` | 組織設定（名前・アイコン）。削除はパネル末尾。admin のみ |
 | `SettingsDefaultBoardListsPanel` | リスト設定 |
 | `SettingsDefaultWorkspaceStatusesPanel` | ステータス設定 |
 | `SettingsDefaultDocumentCategoriesPanel` | 資料カテゴリ |
@@ -57,7 +60,7 @@
 | `SettingsSidebar`, `useOrgSettingsPageData` | シェル・データ |
 | `LabelAddModal`, `LabelFormModal`, `LabelEditModal`, `LabelCategoryNameModal` | ラベルの追加・編集・カテゴリ名 |
 
-`canManageSettings = role === 'admin'`。メンバーは参照のみ。
+`canManageSettings = role === 'admin'`。一般ユーザーは参照のみ。
 
 タブキー: `organization` / `members` / `workspace_labels` / `workspace_statuses` / `default_board_lists` / `task_labels` / `document_categories`。旧クエリ `labels` と `project_labels` はスペースラベル、`invites` はユーザー設定に寄せる。
 

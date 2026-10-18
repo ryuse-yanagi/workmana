@@ -12,3 +12,7 @@ Broadcast::channel('workspaces.{workspaceId}', function (User $user, int $worksp
 
     return $user->canAccessWorkspace($workspace);
 });
+
+Broadcast::channel('organizations.{organizationId}', function (User $user, int $organizationId) {
+    return $user->isMemberOfOrganization($organizationId);
+});

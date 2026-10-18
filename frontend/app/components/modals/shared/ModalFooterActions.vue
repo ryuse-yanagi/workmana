@@ -20,9 +20,12 @@
     <button
       type="button"
       class="modal-footer-actions__btn"
-      :class="confirmVariant === 'danger'
-        ? 'modal-footer-actions__btn--danger'
-        : 'modal-footer-actions__btn--primary'"
+      :class="[
+        confirmVariant === 'danger'
+          ? 'modal-footer-actions__btn--danger'
+          : 'modal-footer-actions__btn--primary',
+        { 'modal-footer-actions__btn--muted': confirmMuted },
+      ]"
       :disabled="confirmIsDisabled"
       @click="emit('confirm')"
     >
@@ -41,6 +44,8 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
   /** 決定ボタンのみ追加で無効化（disabled と OR） */
   confirmDisabled?: boolean
+  /** 決定ボタンの色を薄くする（無効な削除など） */
+  confirmMuted?: boolean
 }>(), {
   cancelText: 'キャンセル',
   confirmText: '保存',
@@ -48,6 +53,7 @@ const props = withDefaults(defineProps<{
   confirmVariant: 'primary',
   disabled: false,
   confirmDisabled: false,
+  confirmMuted: false,
 })
 
 const emit = defineEmits<{

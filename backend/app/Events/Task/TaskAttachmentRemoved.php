@@ -1,0 +1,41 @@
+<?php
+
+namespace App\Events\Task;
+
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+
+/** タスク添付の削除を、そのスペースのプライベートチャンネルへ即時配信する。 */
+class TaskAttachmentRemoved implements ShouldBroadcastNow
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public function __construct(
+        public int $workspaceId,
+        public int $taskId,
+        public int $attachmentId,
+    ) {}
+
+    /** @return array<int, PrivateChannel> */
+    public function broadcastOn(): array
+    {
+        return [new PrivateChannel("workspaces.{$this->workspaceId}")];
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'TaskAttachmentRemoved';
+    }
+
+    /** @return array<string, mixed> */
+    public function broadcastWith(): array
+    {
+        return [
+            'task_id' => $this->taskId,
+            'id' => $this->attachmentId,
+        ];
+    }
+}

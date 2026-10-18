@@ -216,7 +216,6 @@ type AppNotification = {
     due_date?: string | null
     due_date_change?: 'set' | 'changed' | 'cleared'
     role?: string
-    invite_token?: string
   } | null
   read_at: string | null
   created_at: string
@@ -386,11 +385,8 @@ function notificationLabel (item: AppNotification): string {
     return `「${workspaceName}」のメンバーに追加されました`
   }
   if (item.type === 'organization.role_changed') {
-    const roleLabel = item.data?.role === 'admin' ? '管理者' : 'メンバー'
+    const roleLabel = item.data?.role === 'admin' ? '管理者' : '一般ユーザー'
     return `「${organizationName}」での役割が${roleLabel}に変更されました`
-  }
-  if (item.type === 'organization.invited') {
-    return `「${organizationName}」に招待されました`
   }
   return title
 }
@@ -439,13 +435,6 @@ async function onNotificationClick (item: AppNotification) {
   await markNotificationRead(item)
   closeNotifications()
   const slug = item.data?.organization_slug || orgSlug.value
-  if (item.type === 'organization.invited') {
-    const token = item.data?.invite_token
-    if (token) {
-      await router.push(`/invite/${token}`)
-    }
-    return
-  }
   if (item.type === 'organization.role_changed') {
     if (slug) {
       await router.push(`/org/${slug}/workspaces`)
@@ -594,6 +583,10 @@ async function logout () {
   }
 }
 
+function onOrgDeleted () {
+  void loadNotifications()
+}
+
 function onOrgUpdated (e: Event) {
   const detail = (e as CustomEvent<{
     slug?: string
@@ -665,6 +658,7 @@ onMounted(() => {
   if (import.meta.client) {
     window.addEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
     window.addEventListener('tm:org-updated', onOrgUpdated as EventListener)
+    window.addEventListener('tm:org-deleted', onOrgDeleted as EventListener)
     void loadNotifications()
     notificationsPollTimer = setInterval(() => {
       void loadNotifications()
@@ -676,6 +670,7 @@ onBeforeUnmount(() => {
   if (import.meta.client) {
     window.removeEventListener('tm:user-profile-updated', onUserProfileUpdated as EventListener)
     window.removeEventListener('tm:org-updated', onOrgUpdated as EventListener)
+    window.removeEventListener('tm:org-deleted', onOrgDeleted as EventListener)
     if (notificationsPollTimer) {
       clearInterval(notificationsPollTimer)
       notificationsPollTimer = null

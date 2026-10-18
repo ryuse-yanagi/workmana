@@ -9,7 +9,7 @@ PostgreSQL では `CHECK (role IN ('admin','member'))`。`project_leader` は現
 | 値 | 意味 |
 | --- | --- |
 | `admin` | 組織管理者 |
-| `member` | メンバー |
+| `member` | 一般ユーザー |
 
 PHP: `App\Enums\MembershipRole`。
 

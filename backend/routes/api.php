@@ -110,6 +110,7 @@ Route::middleware(['cognito'])->group(function () {
         Route::patch('/settings', [OrganizationController::class, 'updateSettings']);
         Route::post('/icon', [OrganizationController::class, 'uploadIcon']);
         Route::delete('/icon', [OrganizationController::class, 'deleteIcon']);
+        Route::delete('/', [OrganizationController::class, 'destroy']);
 
         // =====================================================================
         // ラベル関連

@@ -7,6 +7,7 @@ use App\Models\Organization\Organization;
 use App\Models\Task\TaskLabel;
 use App\Models\Task\TaskLabelCategory;
 use App\Support\FieldLengthLimits;
+use App\Support\Label\LabelCatalogBroadcast;
 use App\Support\SortOrderReorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,6 +58,8 @@ class TaskLabelCategoryController extends ApiController
             'sort_order' => $maxOrder === null ? 0 : ((int) $maxOrder + 1),
         ]);
 
+        LabelCatalogBroadcast::publishTask($organization);
+
         return response()->json($this->categoryPayload($category->load('labels')), 201);
     }
 
@@ -84,6 +87,8 @@ class TaskLabelCategoryController extends ApiController
         }
 
         $category->save();
+
+        LabelCatalogBroadcast::publishTask($organization);
 
         return response()->json($this->categoryPayload($category->load('labels')));
     }
@@ -119,6 +124,8 @@ class TaskLabelCategoryController extends ApiController
             $categoryIds,
         );
 
+        LabelCatalogBroadcast::publishTask($organization);
+
         return response()->json(['data' => ['ok' => true]]);
     }
 
@@ -129,6 +136,8 @@ class TaskLabelCategoryController extends ApiController
         $this->ensureCategoryBelongsToOrganization($category, $organization);
 
         $category->delete();
+
+        LabelCatalogBroadcast::publishTask($organization);
 
         return response()->json(null, 204);
     }

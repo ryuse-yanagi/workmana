@@ -230,7 +230,7 @@
   font: inherit;
   font-size: mixin.$modal-field-font-size;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text-heading;
   text-align: left;
   overflow: hidden;

@@ -169,7 +169,7 @@
   padding: 5px 8px;
   font-size: mixin.$popover-list-font-size;
   font-weight: mixin.$popover-font-weight;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   display: flex;
   align-items: center;
   justify-content: center;

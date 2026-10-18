@@ -1,5 +1,12 @@
 @use '~/assets/styles/components/settings/shared';
 
+.org-settings-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .org-profile {
   display: flex;
   flex-direction: column;
@@ -60,7 +67,7 @@
   font-size: 14px;
   font-weight: 600;
   color: mixin.$text-emphasis;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }
 
 .org-field__value {
@@ -81,9 +88,55 @@
   color: mixin.$text;
   font-size: 14px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.org-danger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: auto;
+  padding: 28px 0 8px 24px;
+  border-top: 1px solid mixin.$border;
+}
+
+.org-danger__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: mixin.$text-line-height-safe;
+  color: mixin.$text-emphasis;
+}
+
+.org-danger__note {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: mixin.$text-muted;
+}
+
+.org-danger__btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 999px;
+  background: mixin.$danger;
+  color: mixin.$white;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  cursor: pointer;
 }
 
 @media (max-width: 720px) {
@@ -91,5 +144,12 @@
     grid-template-columns: 1fr;
     gap: 8px;
     align-items: stretch;
+  }
+
+  .org-danger {
+    flex-direction: column;
+    align-items: stretch;
+    padding-right: 0;
+    padding-left: 0;
   }
 }

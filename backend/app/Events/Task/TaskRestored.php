@@ -32,7 +32,7 @@ class TaskRestored implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'task' => TaskBoardBroadcast::taskPayload($this->task),
+            'task' => TaskBoardBroadcast::taskDetailPayload($this->task),
         ];
     }
 }

@@ -12,14 +12,16 @@ Cognito の client id と redirect URI はバックエンドの設定だけが�
 
 認可コードフロー（PKCE）は Laravel が完結させる。
 
-1. `GET /api/auth/login` が `state` と PKCE verifier をセッションに置き、Hosted UI へリダイレクトする
-2. `GET /api/auth/callback` が `state` を検証し、コードをトークンに交換する
-3. ID トークンの署名・`iss`・`aud`・`token_use=id`・期限を JWKS で検証し、`users` を同期する
+1. `GET /api/auth/login` が `state`（40 文字）と PKCE verifier（`random_bytes(64)`）をセッションに置き、Hosted UI へリダイレクトする。challenge は S256。認可 URL には `prompt=login` を付ける。`login_hint` がメールアドレスなら同じ URL に載せ、Hosted UI の入力欄へ出す。メールでなければ捨てる
+2. `GET /api/auth/callback` が `state` を `hash_equals` で検証し、verifier をセッションから消してコードをトークンに交換する
+3. ID トークンの署名・`iss`・`aud`・`token_use=id`・期限を JWKS で検証し、`users` を同期する。JWKS は 1 時間キャッシュする
 4. セッション ID を再生成して Cookie を発行する
-5. 以降の API は `AuthenticateCognito` がセッションからユーザーを解決する。期限切れなら Refresh を試し、検証に失敗したらセッションを破棄する
-6. ログアウトは Cognito の revoke のあとローカルセッションを破棄する
+5. 以降の API は `AuthenticateCognito` がセッションからユーザーを解決する。Cognito セッションでは `Authorization` ヘッダーを見ない。期限切れなら Refresh を試し、返った ID トークンを再検証する。`sub` がセッションのユーザーと違えば拒否し、検証に失敗したらセッションを破棄する
+6. ログアウトは Cognito の refresh token revoke を試したあと、成否にかかわらずローカルセッションを破棄し CSRF トークンを再生成する
 
-`email_verified` が真でない ID トークンは同期しない。メールが一致しても、別の `cognito_sub` が既に付いているユーザーは上書きしない。ログイン後の `next` は同一オリジンの相対パスだけ許可する。
+`email_verified` が真でない ID トークンは同期しない。メールが一致しても、別の `cognito_sub` が既に付いているユーザーは上書きしない。ログイン後の `next` は `/` で始まるパスだけ許可する。`//` と `/\` で始まる値は外部オリジンとして解釈されるため拒否し、既定の戻り先にする。
+
+通常の API 認証に Bearer は使わない。CORS は `CORS_ALLOWED_ORIGINS`（未設定時は `FRONTEND_URL`）のオリジンだけを許し、`supports_credentials` は true。本番起動時は [`ProductionConfigValidator`](../../../backend/app/Support/ProductionConfigValidator.php) が、セッション暗号化・Secure・HttpOnly、`SESSION_SAME_SITE` の `lax` または `none`、サーバー側セッション（`cookie` / `array` 不可）、バイパス無効、Cognito と CORS の HTTPS、コールバックが `APP_URL` の `/api/auth/callback` であることを要求する。項目は [../../deploy/production-env.md](../../deploy/production-env.md)。
 
 トークンの置き場は `App\Support\Auth\CognitoSession`。解決は `CognitoSessionAuthenticator`。
 
@@ -29,7 +31,11 @@ API でもセッションを使うため、`PreventRequestForgery` を API グ�
 
 ## ローカルバイパス
 
-`COGNITO_BYPASS=true` かつ `COGNITO_BYPASS_USER_ID` のとき、Cookie セッションなしでそのユーザーとして扱う。本番起動時は `ProductionConfigValidator` がバイパスを拒否する。
+`COGNITO_BYPASS=true` かつ `COGNITO_BYPASS_USER_ID` があるとき、Cookie セッションなしでそのユーザーとして扱う。`COGNITO_BYPASS_USER_ID` が空のときだけ、Bearer の数値ユーザー ID を使う。本番起動時は `ProductionConfigValidator` がバイパスを拒否する。
+
+## 画面のログイン確認
+
+`auth.global.ts` は `/org/`、`/post-login`、`/organizations/` について、クライアントだけでセッションを確認し、未ログインなら `/login` へ戻す。SSR では判定しない。この確認は画面遷移用で、API の認可は `cognito` ミドルウェアが正本である。
 
 ## タブ
 

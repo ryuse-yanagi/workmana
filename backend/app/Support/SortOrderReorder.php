@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Exceptions\ConflictException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +37,20 @@ class SortOrderReorder
     public static function apply(Builder $scopedQuery, array $orderedIds): void
     {
         DB::transaction(function () use ($scopedQuery, $orderedIds) {
+            $lockedIds = (clone $scopedQuery)
+                ->whereIn('id', $orderedIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            sort($lockedIds);
+            $expected = $orderedIds;
+            sort($expected);
+            if ($lockedIds !== $expected) {
+                throw new ConflictException('他の操作と重なったため、もう一度お試しください。');
+            }
+
             foreach ($orderedIds as $index => $id) {
                 (clone $scopedQuery)
                     ->where('id', $id)

@@ -11,7 +11,7 @@ class CreateDocumentTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    /** 一般メンバーでも資料を作成できる */
+    /** 一般ユーザーでも資料を作成できる */
     public function test_organization_member_can_create_shared_document(): void
     {
         [$admin, $organization, $member] = $this->createOrgWithAdminAndMember();

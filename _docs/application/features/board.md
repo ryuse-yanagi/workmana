@@ -73,8 +73,10 @@
 | --- |
 | `ListCreated`, `ListUpdated`, `ListDeleted`, `ListsReordered` |
 | `TaskCreated`, `TaskUpdated`, `TaskArchived`, `TaskRestored`, `TaskDeleted`, `TasksReordered` |
+| `TaskAttachmentAdded`, `TaskAttachmentRemoved` |
+| `WorkspaceMembersUpdated` |
 
-専用の `TaskMoved` はない（移動は `TaskUpdated` + `TasksReordered`）。
+専用の `TaskMoved` はない（移動は `TaskUpdated` + `TasksReordered`）。スペースメタや資料は組織チャンネル（同じ sync 文書）。
 
 ---
 

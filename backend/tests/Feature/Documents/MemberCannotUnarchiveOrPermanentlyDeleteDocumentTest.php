@@ -12,7 +12,7 @@ class MemberCannotUnarchiveOrPermanentlyDeleteDocumentTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    /** 一般メンバーはアーカイブ済み資料の復元・完全削除ができない */
+    /** 一般ユーザーはアーカイブ済み資料の復元・完全削除ができない */
     public function test_member_cannot_unarchive_or_permanently_delete_document(): void
     {
         [$admin, $organization, $member] = $this->createOrgWithAdminAndMember();

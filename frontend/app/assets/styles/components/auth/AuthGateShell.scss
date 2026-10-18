@@ -8,11 +8,12 @@
   isolation: isolate;
   min-height: calc(100dvh - var(--tm-auth-chrome-offset, 0px));
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: safe center;
+  justify-content: safe center;
   padding: clamp(28px, 6vh, 56px) 20px;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: auto;
   color: mixin.$text-heading;
   background: var(--auth-ink);
 }
@@ -145,38 +146,6 @@
   border: 2.5px solid mixin.main-a(0.2);
   border-top-color: mixin.$main;
   animation: auth-spin 0.75s linear infinite;
-}
-
-.auth-gate__footer {
-  margin: 0;
-  text-align: center;
-  font-size: 0.86rem;
-  color: rgba(226, 232, 240, 0.72);
-}
-
-.auth-gate__footer :deep(a),
-.auth-gate__footer :deep(button.auth-footer-link) {
-  color: #bfdbfe;
-  font-weight: 700;
-  text-decoration: none;
-  border-bottom: 1px solid rgba(191, 219, 254, 0.35);
-  transition: border-color 0.2s ease, color 0.2s ease;
-}
-
-.auth-gate__footer :deep(button.auth-footer-link) {
-  padding: 0;
-  border-top: 0;
-  border-right: 0;
-  border-left: 0;
-  background: none;
-  font: inherit;
-  cursor: pointer;
-}
-
-.auth-gate__footer :deep(a:hover),
-.auth-gate__footer :deep(button.auth-footer-link:hover) {
-  color: mixin.$white;
-  border-bottom-color: rgba(255, 255, 255, 0.7);
 }
 
 @keyframes auth-stage-enter {

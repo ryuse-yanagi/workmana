@@ -7,11 +7,13 @@ use App\Events\List\ListDeleted;
 use App\Events\List\ListsReordered;
 use App\Events\List\ListUpdated;
 use App\Events\Task\TasksReordered;
+use App\Exceptions\ConflictException;
 use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization\Organization;
 use App\Models\Task\Task;
 use App\Models\Workspace\BoardList;
 use App\Models\Workspace\Workspace;
+use App\Support\Concurrency\MutationLock;
 use App\Support\FieldLengthLimits;
 use App\Support\SafeBroadcast;
 use App\Support\Workspace\BoardListColors;
@@ -55,11 +57,15 @@ class ListController extends ApiController
             return response()->json(['message' => 'Invalid list color index.'], 422);
         }
 
-        $list = $workspace->lists()->create([
-            'name' => $name,
-            'color_index' => $colorIndex,
-            'sort_order' => $validated['sort_order'] ?? 0,
-        ]);
+        $list = DB::transaction(function () use ($workspace, $name, $colorIndex, $validated) {
+            $lockedWorkspace = MutationLock::activeWorkspace((int) $workspace->id);
+
+            return $lockedWorkspace->lists()->create([
+                'name' => $name,
+                'color_index' => $colorIndex,
+                'sort_order' => $validated['sort_order'] ?? 0,
+            ]);
+        });
 
         SafeBroadcast::toOthers(new ListCreated($list));
 
@@ -101,7 +107,20 @@ class ListController extends ApiController
             $boardList->color_index = $colorIndex;
         }
 
-        $boardList->save();
+        $boardList = DB::transaction(function () use ($workspace, $boardList) {
+            MutationLock::activeWorkspace((int) $workspace->id);
+            $locked = BoardList::query()
+                ->whereKey($boardList->id)
+                ->where('workspace_id', $workspace->id)
+                ->lockForUpdate()
+                ->first();
+            if ($locked === null) {
+                abort(404);
+            }
+            MutationLock::copyDirty($boardList, $locked);
+
+            return $locked;
+        });
 
         SafeBroadcast::toOthers(new ListUpdated($boardList));
 
@@ -119,29 +138,38 @@ class ListController extends ApiController
             abort(404);
         }
 
-        $otherList = $workspace->lists()
-            ->where('id', '!=', $boardList->id)
-            ->orderBy('sort_order')
-            ->first();
-
-        if ($otherList === null) {
-            return response()->json(['message' => 'Cannot delete the last list in the workspace.'], 422);
-        }
-
         $listId = (int) $boardList->id;
         $workspaceId = (int) $workspace->id;
 
-        DB::transaction(function () use ($workspace, $boardList, $otherList) {
-            $tasksToMove = Task::query()
-                ->where('workspace_id', $workspace->id)
-                ->where('list_id', $boardList->id)
-                ->orderBy('sort_order')
+        DB::transaction(function () use ($workspace, $listId) {
+            $lockedWorkspace = MutationLock::activeWorkspace((int) $workspace->id);
+            $lists = BoardList::query()
+                ->where('workspace_id', $lockedWorkspace->id)
                 ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            $boardList = $lists->firstWhere('id', $listId);
+            if ($boardList === null) {
+                abort(404);
+            }
+            $otherList = $lists
+                ->where('id', '!=', $listId)
+                ->sortBy('sort_order')
+                ->first();
+            if ($otherList === null) {
+                abort(422, 'Cannot delete the last list in the workspace.');
+            }
+
+            $tasksToMove = Task::query()
+                ->where('workspace_id', $lockedWorkspace->id)
+                ->where('list_id', $boardList->id)
+                ->orderBy('id')
+                ->lockForUpdate()
                 ->get();
 
             if ($tasksToMove->isNotEmpty()) {
                 $maxOrder = Task::query()
-                    ->where('workspace_id', $workspace->id)
+                    ->where('workspace_id', $lockedWorkspace->id)
                     ->where('list_id', $otherList->id)
                     ->notArchived()
                     ->max('sort_order');
@@ -193,14 +221,32 @@ class ListController extends ApiController
             ], 422);
         }
 
-        foreach ($listIds as $index => $listId) {
-            BoardList::query()
-                ->where('id', $listId)
-                ->where('workspace_id', $workspace->id)
-                ->update(['sort_order' => $index]);
-        }
+        DB::transaction(function () use ($workspace, $listIds) {
+            $lockedWorkspace = MutationLock::activeWorkspace((int) $workspace->id);
+            $lockedIds = BoardList::query()
+                ->where('workspace_id', $lockedWorkspace->id)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $expected = $listIds;
+            sort($expected);
+            $actual = $lockedIds;
+            sort($actual);
+            if ($actual !== $expected) {
+                throw new ConflictException('他の操作と重なったため、もう一度お試しください。');
+            }
 
-        $workspace->recordActivity();
+            foreach ($listIds as $index => $listId) {
+                BoardList::query()
+                    ->where('id', $listId)
+                    ->where('workspace_id', $lockedWorkspace->id)
+                    ->update(['sort_order' => $index]);
+            }
+
+            $lockedWorkspace->recordActivity();
+        });
 
         SafeBroadcast::toOthers(new ListsReordered((int) $workspace->id, $listIds));
 
@@ -244,14 +290,42 @@ class ListController extends ApiController
             ], 422);
         }
 
-        foreach ($taskIds as $index => $taskId) {
-            Task::query()
-                ->where('id', $taskId)
-                ->where('workspace_id', $workspace->id)
-                ->update(['sort_order' => $index]);
-        }
+        DB::transaction(function () use ($workspace, $boardList, $taskIds) {
+            $lockedWorkspace = MutationLock::activeWorkspace((int) $workspace->id);
+            $list = BoardList::query()
+                ->whereKey($boardList->id)
+                ->where('workspace_id', $lockedWorkspace->id)
+                ->lockForUpdate()
+                ->first();
+            if ($list === null) {
+                abort(404);
+            }
+            $lockedIds = Task::query()
+                ->where('workspace_id', $lockedWorkspace->id)
+                ->where('list_id', $list->id)
+                ->notArchived()
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $expected = $taskIds;
+            sort($expected);
+            $actual = $lockedIds;
+            sort($actual);
+            if ($actual !== $expected) {
+                throw new ConflictException('他の操作と重なったため、もう一度お試しください。');
+            }
 
-        $workspace->recordActivity();
+            foreach ($taskIds as $index => $taskId) {
+                Task::query()
+                    ->where('id', $taskId)
+                    ->where('workspace_id', $lockedWorkspace->id)
+                    ->update(['sort_order' => $index]);
+            }
+
+            $lockedWorkspace->recordActivity();
+        });
 
         SafeBroadcast::toOthers(new TasksReordered(
             (int) $workspace->id,

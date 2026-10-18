@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ApiController;
 use App\Models\Organization\Organization;
 use App\Models\Organization\OrganizationInvite;
 use App\Services\Organization\OrganizationInviteService;
+use App\Support\Organization\OrganizationBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -56,21 +57,25 @@ class OrganizationInviteController extends ApiController
                 $organization,
                 $validated['email'],
                 $validated['role'],
-                $request->user()?->id,
             );
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
         $invite = $result['invite'];
-
-        return response()->json([
+        $payload = [
             'id' => $invite->id,
             'email' => $invite->email,
             'role' => $invite->role,
             'expires_at' => $invite->expires_at?->toIso8601String(),
+            'created_at' => $invite->created_at?->toIso8601String(),
             'resent' => $result['resent'],
-        ], $result['resent'] ? 200 : 201);
+        ];
+        OrganizationBroadcast::send($organization, 'invite.upserted', [
+            'invite' => $payload,
+        ]);
+
+        return response()->json($payload, $result['resent'] ? 200 : 201);
     }
 
     /** 組織管理者のみ招待を取り消す。 */
@@ -82,7 +87,11 @@ class OrganizationInviteController extends ApiController
             abort(404);
         }
 
+        $inviteId = (int) $invite->id;
         $invite->delete();
+        OrganizationBroadcast::send($organization, 'invite.removed', [
+            'id' => $inviteId,
+        ]);
 
         return response()->json(null, 204);
     }

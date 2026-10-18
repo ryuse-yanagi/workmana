@@ -21,8 +21,8 @@ class InvitePreviewAndAcceptCreatesUserAndMembershipTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
-    /** 招待のプレビューと承諾でユーザーと所属が作成される */
-    public function test_invite_preview_and_accept_creates_user_and_membership(): void
+    /** 招待のプレビューのあと、ログイン済みの招待先だけが所属できる */
+    public function test_invite_preview_and_authenticated_accept_creates_membership(): void
     {
         Mail::fake();
         [$admin, $org] = $this->createOrgWithAdmin();
@@ -48,18 +48,26 @@ class InvitePreviewAndAcceptCreatesUserAndMembershipTest extends TestCase
             ->assertJsonPath('email', 'invitee@example.com')
             ->assertJsonPath('organization.slug', 'acme');
 
-        $this->postJson('/api/invites/'.$plainToken.'/accept', [
+        $this->withoutHeader('Authorization')
+            ->postJson('/api/invites/'.$plainToken.'/accept', [
+                'name' => '招待太郎',
+                'password' => 'password123',
+            ])->assertUnauthorized();
+        $this->assertNull(User::query()->where('email', 'invitee@example.com')->first());
+
+        $user = User::factory()->create([
+            'email' => 'invitee@example.com',
             'name' => '招待太郎',
-            'password' => 'password123',
-        ])
+            'cognito_sub' => 'sub-invitee',
+        ]);
+
+        $this->actingAsApiUser($user)
+            ->postJson('/api/invites/'.$plainToken.'/accept', [])
             ->assertOk()
+            ->assertJsonPath('message', '参加が完了しました。')
             ->assertJsonPath('organization.slug', 'acme');
 
-        $user = User::query()->where('email', 'invitee@example.com')->first();
-        $this->assertNotNull($user);
-        $this->assertSame('招待太郎', $user->name);
-        $this->assertNotNull($user->email_verified_at);
-        $this->assertNotNull($user->cognito_sub);
+        $this->assertSame('招待太郎', $user->fresh()->name);
         $this->assertTrue($org->members()->where('users.id', $user->id)->exists());
         $this->assertSame('member', $org->members()->where('users.id', $user->id)->first()->pivot->role);
         $this->assertSame($org->id, $user->fresh()->last_organization_id);
@@ -72,10 +80,8 @@ class InvitePreviewAndAcceptCreatesUserAndMembershipTest extends TestCase
             ->assertJsonPath('status', 'used')
             ->assertJsonPath('message', 'この招待は使用済みです');
 
-        $this->postJson('/api/invites/'.$plainToken.'/accept', [
-            'name' => '招待太郎',
-            'password' => 'password123',
-        ])
+        $this->actingAsApiUser($user)
+            ->postJson('/api/invites/'.$plainToken.'/accept', [])
             ->assertStatus(410)
             ->assertJsonPath('message', 'この招待は使用済みです');
     }

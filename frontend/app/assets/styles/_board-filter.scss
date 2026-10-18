@@ -85,7 +85,7 @@
   font-weight: mixin.$popover-font-weight;
   color: mixin.$text-muted;
   letter-spacing: 0.04em;
-  line-height: 1.3;
+  line-height: mixin.$text-line-height-safe;
 }
 .board-filter-section-chevron {
   flex-shrink: 0;

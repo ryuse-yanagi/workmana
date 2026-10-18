@@ -3,6 +3,7 @@
 namespace Tests\Feature\Notifications;
 
 use App\Enums\MembershipRole;
+use App\Mail\OrganizationInviteMail;
 use App\Models\Notification\AppNotification;
 use App\Models\User;
 use App\Models\Workspace\Workspace;
@@ -230,12 +231,12 @@ class OperationNotificationsTest extends TestCase
         $this->assertSame('acme', $notification?->data['organization_slug'] ?? null);
     }
 
-    /** アカウントを持つ招待先には、メールに加えてアプリ内通知を作る */
-    public function test_invite_notifies_existing_user_and_skips_unknown_email(): void
+    /** 招待はメールだけで伝え、アプリ内通知は作らない */
+    public function test_invite_sends_email_without_an_in_app_notification(): void
     {
         Mail::fake();
         [$admin] = $this->createOrgWithAdmin();
-        $existing = User::factory()->create(['email' => 'already@example.com']);
+        User::factory()->create(['email' => 'already@example.com']);
 
         $this->actingAsApiUser($admin)
             ->postJson('/api/orgs/acme/invites', [
@@ -244,14 +245,10 @@ class OperationNotificationsTest extends TestCase
             ])
             ->assertCreated();
 
-        $notification = AppNotification::query()
-            ->where('user_id', $existing->id)
-            ->where('type', 'organization.invited')
-            ->first();
-        $this->assertNotNull($notification);
-        $this->assertSame('acme', $notification->data['organization_slug'] ?? null);
-        $this->assertIsString($notification->data['invite_token'] ?? null);
-        $this->assertNotSame('', $notification->data['invite_token']);
+        Mail::assertSent(OrganizationInviteMail::class, function (OrganizationInviteMail $mail) {
+            return $mail->hasTo('already@example.com');
+        });
+        $this->assertSame(0, AppNotification::query()->where('type', 'organization.invited')->count());
 
         $this->actingAsApiUser($admin)
             ->postJson('/api/orgs/acme/invites', [
@@ -260,10 +257,7 @@ class OperationNotificationsTest extends TestCase
             ])
             ->assertCreated();
 
-        $this->assertSame(
-            1,
-            AppNotification::query()->where('type', 'organization.invited')->count()
-        );
+        $this->assertSame(0, AppNotification::query()->where('type', 'organization.invited')->count());
     }
 
     /**

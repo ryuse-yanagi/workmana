@@ -4,7 +4,7 @@
 
 1 つのスペースに所属する **Markdown 資料**（モデル `Document`）。一覧・作成・詳細編集／プレビュー・カテゴリ・アーカイブを持つ。作成はスペースのサイドバーから行い、資料は必ずそのスペースにだけ属する。
 
-本文は DB の longText に生 Markdown を保存。**サニタイズ付き HTML 化はフロントのみ**（`renderMarkdownToSafeHtml`）。サーバ側サニタイズ・版管理・資料添付・リアルタイム同期はなし。
+本文は DB の longText に生 Markdown を保存。**サニタイズ付き HTML 化はフロントのみ**（`renderMarkdownToSafeHtml`）。`marked` の出力を信頼せず、見出し・リスト・表・強調・リンクなどの許可タグ以外は落とす。リンクは `http` / `https` / `mailto` / `#` / `/` 始まり（`//` と `/\` は不可）だけ残す。チェックボックスは `disabled` の checkbox に固定する。サーバ側サニタイズ・版管理・資料添付はなし。保存時の作成・更新・アーカイブ・復元・削除は組織チャンネルで配信する（[`../../architecture/realtime/sync.md`](../../architecture/realtime/sync.md)）。
 
 カテゴリは FK テーブルではなく、組織の `default_document_category_names` にある **名前文字列**。
 
@@ -49,7 +49,7 @@
 | `GET` | `/workspaces/{workspace}/documents/archived` | スペース配下のアーカイブ一覧 |
 | `POST` | `…/archive` \| `…/unarchive` | アーカイブ／復元（いずれも **admin**） |
 
-- アーカイブ中の更新は 403
+- アーカイブ中の更新は、更新前の検査で 403。トランザクション内で先にアーカイブされていた場合は 422
 - 完全削除はアーカイブ後・admin（`PermanentDeleter`）
 - スペースを完全削除すると、その `workspace_id` の資料も消える
 
@@ -72,7 +72,7 @@
 
 - 組織直下の資料一覧ページはない。一覧はスペース詳細のサイドバー
 - サーバ側 Markdown サニタイズなし
-- 版管理・添付・リアルタイムなし
+- 版管理・添付・同時編集（カーソル共有）なし。保存後の他クライアント反映は組織チャンネルの `document.*`
 
 ---
 

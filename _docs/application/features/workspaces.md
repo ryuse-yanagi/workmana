@@ -81,7 +81,7 @@ CRUD・アーカイブ／復元／完全削除・ステータス・複数担当�
 | `WorkspaceAssigneeSelect`, `WorkspaceStatusSelect` | 担当・ステータス |
 | `ArchivedNamedItemsModal` | アーカイブ一覧 |
 
-リアルタイム: スペース CRUD／アーカイブ自体のブロードキャストは**なし**。
+リアルタイム: 作成・更新・アーカイブ・復元・削除・ピン留めは組織チャンネルの `workspace.*`。担当者の変更は加えてスペースチャンネルの `WorkspaceMembersUpdated`（[`../../architecture/realtime/sync.md`](../../architecture/realtime/sync.md)）。
 
 ---
 

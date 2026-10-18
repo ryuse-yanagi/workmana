@@ -22,7 +22,7 @@
 .task-hierarchy__title {
   margin: 0;
   @include mixin.modal-field-label;
-  line-height: 1.3;
+  line-height: mixin.$text-line-height-safe;
 }
 .task-hierarchy__group {
   display: flex;

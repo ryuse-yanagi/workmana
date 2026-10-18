@@ -13,7 +13,7 @@ class MemberCanViewArchivedWorkspaceButCannotRestoreOrDeleteTest extends TestCas
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    /** メンバーはアーカイブ済みワークスペースを閲覧できるが復元・削除はできない */
+    /** 一般ユーザーはアーカイブ済みワークスペースを閲覧できるが復元・削除はできない */
     public function test_member_can_view_archived_workspace_but_cannot_restore_or_delete(): void
     {
         [$admin, $organization] = $this->createOrgWithAdmin();

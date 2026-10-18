@@ -10,15 +10,15 @@
       別のタブでログイン状態が変わりました。続けるには、もう一度ログインしてください。
     </p>
     <p v-if="showBypassNote" class="auth-copy">
-      Cognito は未設定です。この環境ではバイパス認証でスペースへ進めます。
+      ログインの設定が未完了です。この環境では、ログインせずにスペースへ進めます。
     </p>
     <button
       v-if="showCognitoLogin"
       type="button"
       class="auth-btn auth-btn--block"
-      @click="startLogin(nextPath)"
+      @click="startLogin(nextPath, loginHint)"
     >
-      Cognito でログイン
+      ログイン
     </button>
     <button
       v-if="showRetry"
@@ -28,12 +28,6 @@
     >
       再試行
     </button>
-    <template #footer>
-      アカウントをお持ちでない方は
-      <button type="button" class="auth-footer-link" @click="startLogin(nextPath)">
-        アカウント作成
-      </button>
-    </template>
   </AuthGateShell>
 </template>
 
@@ -54,8 +48,8 @@ const { resolvePostLoginPath } = useOrganizationContext()
 const { setCurrentUserId } = useCurrentUser()
 
 const ERROR_MESSAGES: Record<string, string> = {
-  cognito_not_configured: 'Cognito の設定が未完了のためログインできません。',
-  cognito_denied: 'Cognito 側でログインが中断されました。',
+  cognito_not_configured: 'ログインの設定が未完了のため、ログインできません。',
+  cognito_denied: 'ログインが中断されました。もう一度お試しください。',
   invalid_callback: 'ログイン応答が不正でした。もう一度お試しください。',
   state_mismatch: 'ログインの有効期限が切れました。もう一度お試しください。',
   login_failed: 'ログインに失敗しました。もう一度お試しください。',
@@ -69,6 +63,12 @@ const resolveFailed = ref(false)
 const signedInUser = ref<AuthUser | null>(null)
 
 const reauthRequested = computed(() => route.query.reauth === '1')
+
+const loginHint = computed(() => {
+  const raw = route.query.login_hint
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+})
 
 const nextPath = computed(() => {
   const raw = route.query.next

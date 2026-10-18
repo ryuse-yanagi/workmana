@@ -17,6 +17,15 @@ import {
 
 const cacheBySlug = new Map<string, SettingsPageSnapshot>()
 const inflightBySlug = new Map<string, Promise<SettingsPageSnapshot>>()
+const settingsCacheRevision = ref(0)
+
+export function useOrgSettingsCacheRevision (): Ref<number> {
+  return settingsCacheRevision
+}
+
+function touchSettingsCache (): void {
+  settingsCacheRevision.value += 1
+}
 
 export function clearAllOrgSettingsPageCaches (): void {
   cacheBySlug.clear()
@@ -134,6 +143,7 @@ export function useOrgSettingsPageData () {
         ? { workspaceLabelCategories: categories }
         : { taskLabelCategories: categories }),
     })
+    touchSettingsCache()
   }
 
   function patchOrgSettingsCache (
@@ -160,6 +170,7 @@ export function useOrgSettingsPageData () {
       ...existing,
       orgSettings: merged,
     })
+    touchSettingsCache()
   }
 
   function patchMembersCache (
@@ -178,6 +189,7 @@ export function useOrgSettingsPageData () {
       memberCount: members.length,
       pendingInvites: pendingInvites ?? existing.pendingInvites,
     })
+    touchSettingsCache()
   }
 
   function invalidateCached (orgSlug: string): void {

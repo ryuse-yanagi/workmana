@@ -2,12 +2,16 @@
 
 namespace App\Support;
 
+use App\Exceptions\ConflictException;
 use App\Models\Document\Document;
+use App\Models\Notification\AppNotification;
+use App\Models\Organization\Organization;
 use App\Models\Task\Task;
 use App\Models\Task\TaskAttachment;
 use App\Models\Task\TaskChecklist;
 use App\Models\Workspace\BoardList;
 use App\Models\Workspace\Workspace;
+use App\Support\Concurrency\MutationLock;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -23,11 +27,14 @@ final class PermanentDeleter
         $attachmentFiles = ['paths' => [], 'directories' => []];
 
         DB::transaction(function () use ($task, &$attachmentFiles) {
-            $taskIds = self::taskTreeIds((int) $task->id);
-
-            $attachmentFiles = self::attachmentFileTargets($taskIds);
-            self::purgeTaskRelations($taskIds);
-            Task::withTrashed()->whereIn('id', array_reverse($taskIds))->forceDelete();
+            $locked = Task::withTrashed()->whereKey($task->id)->lockForUpdate()->first();
+            if ($locked === null) {
+                abort(404);
+            }
+            if ($locked->archived_at === null) {
+                throw new ConflictException('このタスクは復元されたため、削除しませんでした。');
+            }
+            $attachmentFiles = self::deleteTaskRows($locked);
         });
 
         self::purgeAttachmentFiles($attachmentFiles);
@@ -37,7 +44,14 @@ final class PermanentDeleter
     public static function deleteDocument(Document $document): void
     {
         DB::transaction(function () use ($document) {
-            $document->forceDelete();
+            $locked = Document::withTrashed()->whereKey($document->id)->lockForUpdate()->first();
+            if ($locked === null) {
+                abort(404);
+            }
+            if ($locked->archived_at === null) {
+                throw new ConflictException('この資料は復元されたため、削除しませんでした。');
+            }
+            self::deleteDocumentRows($locked);
         });
 
         self::purgeDocumentFiles($document);
@@ -46,49 +60,216 @@ final class PermanentDeleter
     /** 資料・タスク・ボード列の順に物理削除し、ファイルはトランザクション確定後に消す。 */
     public static function deleteWorkspace(Workspace $workspace): void
     {
+        $deleted = [
+            'documents' => [],
+            'attachments' => ['paths' => [], 'directories' => []],
+        ];
+
+        DB::transaction(function () use ($workspace, &$deleted) {
+            $locked = Workspace::withTrashed()->whereKey($workspace->id)->lockForUpdate()->first();
+            if ($locked === null) {
+                abort(404);
+            }
+            if ($locked->archived_at === null) {
+                throw new ConflictException('このスペースは復元されたため、削除しませんでした。');
+            }
+            $deleted = self::deleteWorkspaceRows($locked);
+        });
+
+        self::purgeDeletedWorkspaceFiles($deleted);
+    }
+
+    /**
+     * 組織と配下の行を一つのトランザクションで消す。
+     * 途中で失敗したらスペース・タスク・資料・所属・通知・現在組織の付け替えもすべて戻す。
+     * アイコンと添付などのファイルは、行削除が確定してから消す。
+     */
+    public static function deleteOrganization(Organization $organization): void
+    {
+        $organizationId = (int) $organization->id;
+        $iconPath = $organization->icon_path;
         $documentFileTargets = [];
         $attachmentFiles = ['paths' => [], 'directories' => []];
 
-        DB::transaction(function () use ($workspace, &$documentFileTargets, &$attachmentFiles) {
-            $workspaceId = (int) $workspace->id;
+        DB::transaction(function () use ($organization, $organizationId, &$documentFileTargets, &$attachmentFiles) {
+            MutationLock::organization($organizationId);
+
+            $workspaces = Workspace::withTrashed()
+                ->where('organization_id', $organizationId)
+                ->get();
+            foreach ($workspaces as $workspace) {
+                $deleted = self::deleteWorkspaceRows($workspace);
+                array_push($documentFileTargets, ...$deleted['documents']);
+                $attachmentFiles = self::mergeAttachmentFiles($attachmentFiles, $deleted['attachments']);
+            }
 
             $documents = Document::withTrashed()
-                ->where('workspace_id', $workspaceId)
+                ->where('organization_id', $organizationId)
                 ->get();
             foreach ($documents as $document) {
+                self::deleteDocumentRows($document);
                 $documentFileTargets[] = $document;
-                $document->forceDelete();
             }
 
-            if (Schema::hasTable('workspace_pins')) {
-                DB::table('workspace_pins')->where('workspace_id', $workspaceId)->delete();
+            $tasks = Task::withTrashed()
+                ->where('organization_id', $organizationId)
+                ->get();
+            foreach ($tasks as $task) {
+                if (! Task::withTrashed()->whereKey($task->id)->exists()) {
+                    continue;
+                }
+                $attachmentFiles = self::mergeAttachmentFiles(
+                    $attachmentFiles,
+                    self::deleteTaskRows($task),
+                );
             }
-            $taskIds = Task::withTrashed()
-                ->where('workspace_id', $workspaceId)
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
-            $attachmentFiles = self::attachmentFileTargets($taskIds);
-            self::purgeTaskRelations($taskIds);
-            Task::withTrashed()
-                ->where('workspace_id', $workspaceId)
-                ->forceDelete();
 
-            // tasks.list_id は RESTRICT のため、ボード列はタスク削除後に消す。
-            BoardList::query()
-                ->where('workspace_id', $workspaceId)
+            self::repointLastOrganization($organizationId);
+            self::purgeOrganizationChecklists($organizationId);
+
+            AppNotification::query()
+                ->where('data->organization_slug', $organization->slug)
                 ->delete();
 
-            DB::table('workspace_assignees')->where('workspace_id', $workspaceId)->delete();
-            DB::table('workspace_workspace_label')->where('workspace_id', $workspaceId)->delete();
-
-            $workspace->forceDelete();
+            $organization->delete();
         });
 
         self::purgeAttachmentFiles($attachmentFiles);
         foreach ($documentFileTargets as $document) {
             self::purgeDocumentFiles($document);
         }
+        MediaStorage::deletePublic(is_string($iconPath) ? $iconPath : null);
+    }
+
+    /**
+     * タスク行と関連行だけを消す。呼び出し側のトランザクションに参加する。
+     *
+     * @return array{paths: list<string>, directories: list<string>}
+     */
+    private static function deleteTaskRows(Task $task): array
+    {
+        $taskIds = self::taskTreeIds((int) $task->id);
+        $attachmentFiles = self::attachmentFileTargets($taskIds);
+        self::purgeTaskRelations($taskIds);
+        Task::withTrashed()->whereIn('id', array_reverse($taskIds))->forceDelete();
+
+        return $attachmentFiles;
+    }
+
+    /** 資料行だけを消す。呼び出し側のトランザクションに参加する。 */
+    private static function deleteDocumentRows(Document $document): void
+    {
+        $document->forceDelete();
+    }
+
+    /**
+     * スペースと配下の行だけを消す。呼び出し側のトランザクションに参加する。
+     *
+     * @return array{documents: list<Document>, attachments: array{paths: list<string>, directories: list<string>}}
+     */
+    private static function deleteWorkspaceRows(Workspace $workspace): array
+    {
+        $workspaceId = (int) $workspace->id;
+        $documents = Document::withTrashed()
+            ->where('workspace_id', $workspaceId)
+            ->get()
+            ->all();
+        foreach ($documents as $document) {
+            self::deleteDocumentRows($document);
+        }
+
+        if (Schema::hasTable('workspace_pins')) {
+            DB::table('workspace_pins')->where('workspace_id', $workspaceId)->delete();
+        }
+        $taskIds = Task::withTrashed()
+            ->where('workspace_id', $workspaceId)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        $attachmentFiles = self::attachmentFileTargets($taskIds);
+        self::purgeTaskRelations($taskIds);
+        Task::withTrashed()
+            ->where('workspace_id', $workspaceId)
+            ->forceDelete();
+
+        // tasks.list_id は RESTRICT のため、ボード列はタスク削除後に消す。
+        BoardList::query()
+            ->where('workspace_id', $workspaceId)
+            ->delete();
+
+        DB::table('workspace_assignees')->where('workspace_id', $workspaceId)->delete();
+        DB::table('workspace_workspace_label')->where('workspace_id', $workspaceId)->delete();
+
+        $workspace->forceDelete();
+
+        return [
+            'documents' => $documents,
+            'attachments' => $attachmentFiles,
+        ];
+    }
+
+    /**
+     * @param  array{documents: list<Document>, attachments: array{paths: list<string>, directories: list<string>}}  $deleted
+     */
+    private static function purgeDeletedWorkspaceFiles(array $deleted): void
+    {
+        self::purgeAttachmentFiles($deleted['attachments']);
+        foreach ($deleted['documents'] as $document) {
+            self::purgeDocumentFiles($document);
+        }
+    }
+
+    /**
+     * @param  array{paths: list<string>, directories: list<string>}  $left
+     * @param  array{paths: list<string>, directories: list<string>}  $right
+     * @return array{paths: list<string>, directories: list<string>}
+     */
+    private static function mergeAttachmentFiles(array $left, array $right): array
+    {
+        return [
+            'paths' => [...$left['paths'], ...$right['paths']],
+            'directories' => array_values(array_unique([...$left['directories'], ...$right['directories']])),
+        ];
+    }
+
+    /** 削除する組織を現在組織にしているユーザーを、残りの所属か未設定へ移す。 */
+    private static function repointLastOrganization(int $organizationId): void
+    {
+        $userIds = DB::table('users')
+            ->where('last_organization_id', $organizationId)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->pluck('id');
+
+        foreach ($userIds as $userId) {
+            $nextId = DB::table('memberships')
+                ->where('user_id', $userId)
+                ->where('organization_id', '!=', $organizationId)
+                ->orderBy('organization_id')
+                ->value('organization_id');
+
+            DB::table('users')
+                ->where('id', $userId)
+                ->where('last_organization_id', $organizationId)
+                ->update([
+                    'last_organization_id' => $nextId,
+                    'updated_at' => now(),
+                ]);
+        }
+    }
+
+    /** タスク削除後に残ったチェックリストがあれば、組織削除の RESTRICT を避ける。 */
+    private static function purgeOrganizationChecklists(int $organizationId): void
+    {
+        $checklistIds = DB::table('task_checklists')
+            ->where('organization_id', $organizationId)
+            ->pluck('id');
+        if ($checklistIds->isEmpty()) {
+            return;
+        }
+
+        DB::table('task_checklist_items')->whereIn('task_checklist_id', $checklistIds)->delete();
+        DB::table('task_checklists')->where('organization_id', $organizationId)->delete();
     }
 
     /** コミット後に呼び、資料の保存ディレクトリごと消す。 */

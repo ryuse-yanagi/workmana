@@ -372,6 +372,8 @@
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../../../../composables/shared/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../../../../composables/ui/useAppLoadingCursor'
 import {
+  documentsSnapshotEpoch,
+  useOrgDocumentsCacheRevision,
   useOrgDocumentsPageData,
   type OrgDocument,
   type OrgDocumentCategory,
@@ -405,7 +407,7 @@ import DocumentFormModal from '../../../../../../components/modals/document/Docu
 import ConfirmModal from '../../../../../../components/modals/shared/ConfirmModal.vue'
 import { useDropdownEscapeClose } from '../../../../../../composables/ui/useDropdownEscapeClose'
 import { useUiSidebarPreference } from '../../../../../../composables/ui/useUiSidebarPreference'
-import { useUnsavedChangesGuard } from '../../../../../../composables/shared/useUnsavedChangesGuard'
+import { beginForcedAppNavigation, endForcedAppNavigation, useUnsavedChangesGuard } from '../../../../../../composables/shared/useUnsavedChangesGuard'
 import {
   useWorkspaceDetailMeta,
 } from '../../../../../../composables/workspace/useWorkspaceDetailMeta'
@@ -452,6 +454,7 @@ const {
   getDocumentCached,
   invalidateDocumentCached,
 } = useOrgDocumentsPageData()
+const documentsCacheRevision = useOrgDocumentsCacheRevision()
 const currentDocument = ref<OrgDocument | null>(null)
 /** スペース文脈は URL の [id] */
 const parentWorkspaceId = computed(() => workspaceId.value)
@@ -499,7 +502,7 @@ const {
     },
     onDocumentArchived: async (archived) => {
       if (currentDocument.value?.id === archived.id) {
-        await router.push(`/org/${slug.value}/workspaces/${archived.workspaceId}`)
+        await leaveArchivedDocument(archived.id)
       }
     },
   },
@@ -728,22 +731,70 @@ async function ensureCategoriesLoaded () {
     // カテゴリ取得失敗時はプルダウンを空のままにする
   }
 }
-/** アーカイブ済みなら表示せず、所属スペース（無ければスペース一覧）へ戻す */
+let leavingArchivedDocument = false
+function isViewingDocument (documentIdToMatch: number): boolean {
+  return route.name === 'org-slug-workspaces-id-documents-documentId'
+    && String(route.params.documentId ?? '') === String(documentIdToMatch)
+}
+/** この資料を開いているときだけ、所属スペース（無ければスペース一覧）へ戻す */
+async function leaveArchivedDocument (documentIdToMatch?: number): Promise<void> {
+  if (leavingArchivedDocument) {
+    return
+  }
+  if (documentIdToMatch != null && !isViewingDocument(documentIdToMatch)) {
+    return
+  }
+  const wsId = parentWorkspaceId.value
+  const path = wsId
+    ? `/org/${slug.value}/workspaces/${wsId}`
+    : `/org/${slug.value}/workspaces`
+  if (route.path === path) {
+    return
+  }
+  leavingArchivedDocument = true
+  beginForcedAppNavigation()
+  try {
+    await navigateTo(path)
+  } finally {
+    endForcedAppNavigation()
+    leavingArchivedDocument = false
+  }
+}
 function applyDocument (value: OrgDocument): boolean {
   if (value.archived_at) {
     applyDocumentArchived(slug.value, value)
-    const wsId = parentWorkspaceId.value
-    if (wsId) {
-      void navigateTo(`/org/${slug.value}/workspaces/${wsId}`)
-    } else {
-      void navigateTo(`/org/${slug.value}/workspaces`)
-    }
+    void leaveArchivedDocument(value.id)
     return false
   }
   currentDocument.value = value
   void ensureParentWorkspaceLoaded()
   return true
 }
+watch(documentsCacheRevision, () => {
+  const current = currentDocument.value
+  if (!current || !pageReady.value) {
+    return
+  }
+  const cached = getDocumentCached(slug.value, current.id)
+  if (!cached || cached.archived_at) {
+    // ページは KeepAlive で残る。離れたあともキャッシュ更新のたびに戻すと、他画面へ進めなくなる。
+    const viewing = isViewingDocument(current.id)
+    currentDocument.value = null
+    pageReady.value = false
+    if (viewing) {
+      void leaveArchivedDocument(current.id)
+    }
+    return
+  }
+  if (!isViewingDocument(current.id)) {
+    return
+  }
+  if (bodyEditing.value || bodySaving.value) {
+    currentDocument.value = { ...cached, body: current.body }
+    return
+  }
+  currentDocument.value = cached
+})
 function closeDocumentMenu () {
   documentMenuOpen.value = false
   documentMenuPosition.value = null
@@ -944,12 +995,7 @@ async function confirmDocumentArchive () {
       })
       documentArchiveConfirmOpen.value = false
       applyDocumentArchived(slug.value, target)
-      const wsId = parentWorkspaceId.value
-      if (wsId) {
-        await router.push(`/org/${slug.value}/workspaces/${wsId}`)
-      } else {
-        await router.push(`/org/${slug.value}/workspaces`)
-      }
+      await leaveArchivedDocument(target.id)
     })
   } catch {
   } finally {
@@ -1210,8 +1256,12 @@ const {
     discardBodyEditOnLeave()
   },
 })
-/** 資料が無いときは所属スペース（無ければスペース一覧）へ戻す */
+/** 資料が無いときは、まだその資料を開いている場合だけ所属スペース（無ければスペース一覧）へ戻す */
 async function redirectAwayFromMissingDocument (): Promise<void> {
+  const openedId = Number(documentId.value)
+  if (!Number.isFinite(openedId) || !isViewingDocument(openedId)) {
+    return
+  }
   if (workspaceId.value) {
     await navigateTo(`/org/${slug.value}/workspaces/${workspaceId.value}`, { replace: true })
     return
@@ -1239,6 +1289,7 @@ async function load () {
     }
     try {
       await withAppLoadingCursor(async () => {
+        const epochAtStart = documentsSnapshotEpoch(slug.value)
         const result = await raceWithTimeout(
           () => fetchDocument(slug.value, documentId.value),
           TM_PAGE_LOAD_TIMEOUT_MS,
@@ -1253,6 +1304,13 @@ async function load () {
             return
           }
           fatalLoadError.value = result.message
+          return
+        }
+        if (
+          documentsSnapshotEpoch(slug.value) !== epochAtStart
+          && !getDocumentCached(slug.value, result.value.id)
+        ) {
+          await redirectAwayFromMissingDocument()
           return
         }
         if (applyDocument(result.value)) {
@@ -1305,7 +1363,9 @@ onActivated(() => {
   const cached = getDocumentCached(slug.value, documentId.value)
   if (cached && applyDocument(cached)) {
     pageReady.value = true
-  } else if (!pageReady.value) {
+  } else {
+    currentDocument.value = null
+    pageReady.value = false
     void load()
   }
   void ensureCategoriesLoaded()

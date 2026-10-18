@@ -1,7 +1,7 @@
 <template>
   <AuthGateShell
     title="移動中"
-    subtitle="Cognito の認証画面へ移動しています…"
+    subtitle="ログイン画面へ移動しています…"
     :busy="true"
     busy-label="移動しています…"
   />

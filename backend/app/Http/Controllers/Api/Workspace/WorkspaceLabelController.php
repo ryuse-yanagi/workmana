@@ -7,6 +7,7 @@ use App\Models\Organization\Organization;
 use App\Models\Workspace\WorkspaceLabel;
 use App\Models\Workspace\WorkspaceLabelCategory;
 use App\Support\FieldLengthLimits;
+use App\Support\Label\LabelCatalogBroadcast;
 use App\Support\LabelColorPresets;
 use App\Support\SortOrderReorder;
 use Illuminate\Http\JsonResponse;
@@ -70,6 +71,8 @@ class WorkspaceLabelController extends ApiController
             'sort_order' => $maxOrder === null ? 0 : ((int) $maxOrder + 1),
         ]);
 
+        LabelCatalogBroadcast::publishWorkspace($organization);
+
         return response()->json($this->labelPayload($label), 201);
     }
 
@@ -109,6 +112,8 @@ class WorkspaceLabelController extends ApiController
         }
 
         $workspaceLabel->save();
+
+        LabelCatalogBroadcast::publishWorkspace($organization);
 
         return response()->json($this->labelPayload($workspaceLabel));
     }
@@ -151,6 +156,8 @@ class WorkspaceLabelController extends ApiController
             $labelIds,
         );
 
+        LabelCatalogBroadcast::publishWorkspace($organization);
+
         return response()->json(['data' => ['ok' => true]]);
     }
 
@@ -164,6 +171,8 @@ class WorkspaceLabelController extends ApiController
         }
 
         $workspaceLabel->delete();
+
+        LabelCatalogBroadcast::publishWorkspace($organization);
 
         return response()->json(null, 204);
     }

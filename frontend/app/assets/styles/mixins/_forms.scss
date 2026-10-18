@@ -59,7 +59,7 @@
   padding: 8px 11px;
   font: inherit;
   font-size: $modal-field-font-size;
-  line-height: 1.45;
+  line-height: $text-line-height-safe;
   color: $text;
   background: $bg-gray;
   resize: none;

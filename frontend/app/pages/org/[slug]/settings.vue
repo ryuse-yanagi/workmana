@@ -81,7 +81,7 @@
 import { raceWithTimeout, timeoutMessage, TM_PAGE_LOAD_TIMEOUT_MS } from '../../../composables/shared/raceWithTimeout'
 import { withAppLoadingCursor } from '../../../composables/ui/useAppLoadingCursor'
 import { useCurrentUser } from '../../../composables/auth/useCurrentUser'
-import { useOrgSettingsPageData } from '../../../composables/settings/useOrgSettingsPageData'
+import { useOrgSettingsCacheRevision, useOrgSettingsPageData } from '../../../composables/settings/useOrgSettingsPageData'
 import SettingsDefaultBoardListsPanel from '../../../components/settings/SettingsDefaultBoardListsPanel.vue'
 import SettingsDefaultWorkspaceStatusesPanel from '../../../components/settings/SettingsDefaultWorkspaceStatusesPanel.vue'
 import SettingsDefaultDocumentCategoriesPanel from '../../../components/settings/SettingsDefaultDocumentCategoriesPanel.vue'
@@ -123,6 +123,7 @@ const {
   getCached,
   invalidateCached,
 } = useOrgSettingsPageData()
+const settingsCacheRevision = useOrgSettingsCacheRevision()
 const { ensureCurrentUser } = useCurrentUser()
 
 const menuSections: SettingsMenuSection[] = [
@@ -177,6 +178,16 @@ const defaultWorkspaceStatusItemsFromSnapshot = computed(() => {
 
 const defaultDocumentCategoryItemsFromSnapshot = computed(() => {
   return normalizeDefaultDocumentCategoryItems(settingsSnapshot.value?.orgSettings.default_document_category_names)
+})
+
+watch(settingsCacheRevision, () => {
+  if (!settingsPageReady.value) {
+    return
+  }
+  const cached = getCached(slug.value)
+  if (cached) {
+    settingsSnapshot.value = cached
+  }
 })
 
 const canManageSettings = computed(() => {

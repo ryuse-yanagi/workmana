@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | ユーザー・組織・スペース・タスク・資料 | PostgreSQL | API レスポンスは都度組み立てる |
 | 画面上の一覧キャッシュ | ブラウザ内の TanStack Query | サーバーの正本ではない。[../frontend/server-state.md](../frontend/server-state.md) |
-| ボード／WBS の他者更新 | Reverb のイベント | best-effort。取りこぼしの完全補償は未整備 |
+| 他クライアントへの即時反映 | Reverb のイベント | スペースと組織の二つのチャンネル。best-effort。取りこぼしの完全補償は未整備 |
 | ID / Refresh トークン | サーバー側セッション | ブラウザの JS からは読めない |
 | 色・文字数・既定マスタ | `shared/*.json` | [../contracts/shared.md](../contracts/shared.md) |
 | アバター・組織アイコン | 公開ディスク | URL を API が返す |

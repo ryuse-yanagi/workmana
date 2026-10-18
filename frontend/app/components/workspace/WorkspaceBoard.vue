@@ -206,7 +206,6 @@
       </div>
       <template v-if="pageReady">
         <ArchivedTasksModal
-          ref="archivedModalRef"
           v-model="archivedModalOpen"
           :org-slug="slug"
           :workspace-id="workspaceId"
@@ -286,6 +285,8 @@
           :initial-attachments="detailInitialAttachments"
           :remote-update="detailModalRemotePatch"
           :remote-update-rev="detailModalRemoteRev"
+          :remote-attachment-event="detailAttachmentEvent"
+          :remote-attachment-event-rev="detailAttachmentEventRev"
           @updated="onTaskDetailUpdated"
           @attachments-updated="onTaskAttachmentsUpdated"
           @navigate="onTaskDetailNavigate"
@@ -383,6 +384,7 @@ import BoardFilterPopover from '../ui/BoardFilterPopover.vue'
 import BoardFilterPopoverBody from '../ui/BoardFilterPopoverBody.vue'
 import LoadingSpinner from '../ui/LoadingSpinner.vue'
 import ArchivedTasksModal, { type ArchivedTask } from '../modals/archived/ArchivedTasksModal.vue'
+import { archivedTaskFromRealtime, useArchivedTasksCache } from '../../composables/archived/useArchivedTasksCache'
 import ArchivedNamedItemsModal, { type ArchivedNamedItem } from '../modals/archived/ArchivedNamedItemsModal.vue'
 import ListFormModal from '../modals/workspace/ListFormModal.vue'
 import NamedItemDeleteModal from '../modals/shared/NamedItemDeleteModal.vue'
@@ -411,6 +413,7 @@ import { syncAppLoadingCursor, withAppLoadingCursor } from '../../composables/ui
 import { useApi } from '../../composables/shared/useApi'
 import {
   boardTaskToTaskDetail,
+  getWorkspaceBoardCacheMap,
   useWorkspaceBoardPageData,
   type WorkspaceBoardLabel,
   type WorkspaceBoardLabelCategory,
@@ -420,7 +423,8 @@ import {
 import { enrichTaskDetailHierarchy } from '../../composables/task/useTaskHierarchy'
 import { normalizeProjectViewQuery } from '../../composables/workspace/useWorkspaceViewRoutes'
 import { sortMembersByDisplayName } from '../../composables/member/useMemberDisplay'
-import { resolveAndSortLabels } from '../../composables/label/useLabelCategories'
+import { flattenLabelCategories, resolveAndSortLabels } from '../../composables/label/useLabelCategories'
+import { useOnLabelCatalogUpdated } from '../../composables/org/applyOrganizationRealtime'
 import { type TaskFormDefaultsSource } from '../../composables/task/useTaskFormHelpers'
 import {
   applyUserProfileToTasks,
@@ -513,7 +517,7 @@ const searchQuery = defineModel<string>('searchQuery', { default: '' })
 const { sidebarOpen, toggleSidebar, hydrateSidebarPreference } = useUiSidebarPreference('workspace')
 const archivedModalOpen = ref(false)
 const archivedDocumentsOpen = ref(false)
-const archivedModalRef = ref<InstanceType<typeof ArchivedTasksModal> | null>(null)
+const { upsertCachedTask: upsertArchivedTask, removeCachedTask: removeArchivedTask } = useArchivedTasksCache()
 const subheaderMenuTriggerRef = ref<HTMLElement | null>(null)
 const boardFilterTriggerRef = ref<HTMLElement | null>(null)
 function setBoardFilterTriggerRef (comp: { el?: HTMLElement | null } | null) {
@@ -710,6 +714,12 @@ let detailQuerySeq = 0
 let detailQueryInflightId: number | null = null
 const detailModalRemotePatch = ref<TaskDetail | null>(null)
 const detailModalRemoteRev = ref(0)
+const detailAttachmentEvent = ref<{
+  taskId: number
+  attachment?: TaskAttachmentItem
+  removedId?: number
+} | null>(null)
+const detailAttachmentEventRev = ref(0)
 const detailModalInitialTask = computed((): TaskDetail | null => {
   const queried = detailQueryTask.value
   if (queried && queried.id === detailTaskId.value) {
@@ -1317,6 +1327,42 @@ function onTaskAttachmentsUpdated (payload: { taskId: number; attachments: TaskA
     [String(payload.taskId)]: payload.attachments,
   }
 }
+function publishTaskAttachments (taskId: number, attachments: TaskAttachmentItem[]) {
+  onTaskAttachmentsUpdated({ taskId, attachments })
+  const cached = getWorkspaceBoardCacheMap().get(`${slug.value}:${workspaceId.value}`)
+  if (cached) {
+    cached.taskAttachmentsByTaskId = {
+      ...cached.taskAttachmentsByTaskId,
+      [String(taskId)]: attachments,
+    }
+  }
+}
+function pushAttachmentEvent (event: { taskId: number; attachment?: TaskAttachmentItem; removedId?: number }) {
+  if (detailTaskId.value !== event.taskId) {
+    return
+  }
+  detailAttachmentEvent.value = event
+  detailAttachmentEventRev.value += 1
+}
+function detachRealtimeChildren (childIds: number[]) {
+  if (!tasks.value || childIds.length === 0) {
+    return
+  }
+  const idSet = new Set(childIds)
+  let changed = false
+  tasks.value = tasks.value.map((task) => {
+    if (!idSet.has(task.id) || (task.parent_task_id ?? null) === null) {
+      return task
+    }
+    changed = true
+    return { ...task, parent_task_id: null }
+  })
+  if (!changed) {
+    return
+  }
+  rebuildBoardFromTasks()
+  syncBoardPageCache()
+}
 /** カード表示に効く項目が変わったときだけ組み直し、キャッシュも更新する */
 function onTaskDetailUpdated (detail: TaskDetail) {
   if (!tasks.value) return
@@ -1461,7 +1507,7 @@ async function confirmArchiveFromModal () {
     await api(`/orgs/${slug.value}/workspaces/${workspaceId.value}/tasks/${task.id}/archive`, {
       method: 'POST',
     })
-    archivedModalRef.value?.addTaskFromRealtime({
+    upsertArchivedTask(slug.value, workspaceId.value, archivedTaskFromRealtime({
       id: snapshot.id,
       title: snapshot.title,
       list_id: snapshot.list_id,
@@ -1493,7 +1539,7 @@ async function confirmArchiveFromModal () {
         archived_child_count: 0,
         archived_children: [],
       })),
-    })
+    }))
   } catch (e: unknown) {
     addTaskToBoard(snapshot)
     for (const child of childSnapshots) {
@@ -2941,15 +2987,60 @@ watch(listDeleteOpen, (open) => {
     listDeleteTarget.value = null
   }
 })
+useOnLabelCatalogUpdated((detail) => {
+  if (detail.kind !== 'task' || detail.orgSlug !== slug.value || !tasks.value) {
+    return
+  }
+  const labels = flattenLabelCategories(detail.categories)
+  orgLabels.value = labels
+  orgLabelCategories.value = detail.categories
+  const byId = new Map(labels.map(label => [label.id, label]))
+  let changed = false
+  const nextTasks = tasks.value.map((task) => {
+    if (!task.labels?.length) {
+      return task
+    }
+    let labelsChanged = false
+    const nextLabels = task.labels.flatMap((label) => {
+      const catalog = byId.get(label.id)
+      if (!catalog) {
+        labelsChanged = true
+        return []
+      }
+      if (label.name !== catalog.name || label.color !== catalog.color || label.color_index !== catalog.color_index) {
+        labelsChanged = true
+        return [{ ...label, name: catalog.name, color: catalog.color, color_index: catalog.color_index }]
+      }
+      return [label]
+    })
+    if (!labelsChanged) {
+      return task
+    }
+    changed = true
+    return { ...task, labels: nextLabels }
+  })
+  if (!changed) {
+    return
+  }
+  tasks.value = nextTasks
+  rebuildBoardFromTasks()
+  if (detailTaskId.value != null) {
+    const row = tasks.value.find(task => task.id === detailTaskId.value)
+    if (row) {
+      pushDetailModalRemote(boardTaskToTaskDetail(row, orgLabels.value))
+    }
+  }
+})
 useWorkspaceRealtimeChannel(workspaceId, {
   onTaskCreated (task) {
     addTaskToBoard(task)
     markTaskAsJustCreated(task.id)
   },
-  onTaskUpdated (task) {
+  onTaskUpdated (task, detachedChildIds) {
     const detail = task as TaskDetail
     onTaskDetailUpdated(detail)
     pushDetailModalRemote(detail)
+    detachRealtimeChildren(detachedChildIds)
   },
   onTaskArchived ({ id, task, cascaded_task_ids }) {
     const removeIds = [id, ...(cascaded_task_ids ?? [])]
@@ -2957,11 +3048,11 @@ useWorkspaceRealtimeChannel(workspaceId, {
       removeTaskFromBoard(taskId, { removeChildTasks: false })
     }
     if (task) {
-      archivedModalRef.value?.addTaskFromRealtime(task)
+      upsertArchivedTask(slug.value, workspaceId.value, archivedTaskFromRealtime(task))
     }
   },
   onTaskRestored (task) {
-    archivedModalRef.value?.removeTaskFromRealtime(task.id)
+    removeArchivedTask(slug.value, workspaceId.value, task.id)
     const detail = task as TaskDetail
     if (tasks.value?.some(t => t.id === task.id)) {
       onTaskDetailUpdated(detail)
@@ -2970,9 +3061,24 @@ useWorkspaceRealtimeChannel(workspaceId, {
     }
     addTaskToBoard(task)
   },
-  onTaskDeleted (taskId) {
-    removeTaskFromBoard(taskId)
-    archivedModalRef.value?.removeTaskFromRealtime(taskId)
+  onTaskDeleted (taskId, cascadedTaskIds) {
+    for (const id of [taskId, ...cascadedTaskIds]) {
+      removeTaskFromBoard(id)
+      removeArchivedTask(slug.value, workspaceId.value, id)
+    }
+  },
+  onTaskAttachmentAdded (attachment) {
+    const current = taskAttachmentsByTaskId.value[String(attachment.task_id)] ?? []
+    if (current.some(item => item.id === attachment.id)) {
+      return
+    }
+    publishTaskAttachments(attachment.task_id, [attachment, ...current])
+    pushAttachmentEvent({ taskId: attachment.task_id, attachment })
+  },
+  onTaskAttachmentRemoved ({ taskId, id }) {
+    const current = taskAttachmentsByTaskId.value[String(taskId)] ?? []
+    publishTaskAttachments(taskId, current.filter(item => item.id !== id))
+    pushAttachmentEvent({ taskId, removedId: id })
   },
   onTasksReordered ({ list_id, task_ids }) {
     applyTasksReordered(list_id, task_ids)

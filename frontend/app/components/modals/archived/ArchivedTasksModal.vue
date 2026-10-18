@@ -150,8 +150,10 @@ import { useEventListener } from '@vueuse/core'
 import { useApi } from '../../../composables/shared/useApi'
 import { useArchivedListPopoverLayout } from '../../../composables/archived/useArchivedListPopoverLayout'
 import {
+  archivedTaskFromRealtime,
   nestArchivedTasks,
   useArchivedTasksCache,
+  useArchivedTasksRevision,
   type ArchivedTask,
 } from '../../../composables/archived/useArchivedTasksCache'
 import { buildDestructiveConfirmMessage } from '../../../utils/shared/destructiveConfirmMessage'
@@ -193,6 +195,7 @@ const {
   removeCachedTask,
   upsertCachedTask,
 } = useArchivedTasksCache()
+const archivedTasksRevision = useArchivedTasksRevision()
 const tasks = ref<ArchivedTask[] | null>(null)
 const error = ref<string | null>(null)
 const loading = ref(false)
@@ -420,11 +423,11 @@ async function load () {
       })
     }
     void fetchList(props.orgSlug, props.workspaceId, { refresh: true })
-      .then((fresh) => {
+      .then(() => {
         if (!props.modelValue) {
           return
         }
-        tasks.value = nestArchivedTasks(fresh)
+        syncTasksFromCache()
         nextTick(() => {
           positionPopover()
           requestAnimationFrame(() => positionPopover())
@@ -438,8 +441,11 @@ async function load () {
   contentShouldFadeIn.value = false
   tasks.value = null
   try {
-    tasks.value = nestArchivedTasks(await fetchList(props.orgSlug, props.workspaceId))
-    triggerContentFadeIn()
+    await fetchList(props.orgSlug, props.workspaceId)
+    syncTasksFromCache()
+    if (tasks.value) {
+      triggerContentFadeIn()
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '読み込みに失敗しました'
   } finally {
@@ -456,16 +462,20 @@ async function load () {
 async function restoreTask (task: ArchivedTask) {
   pendingId.value = task.id
   error.value = null
-  const cascadedChildren = [...(task.archived_children ?? [])]
+  const cascadedChildren = task.archived_children ?? []
   try {
     const restored = await api<ArchivedTask>(
       `/orgs/${props.orgSlug}/workspaces/${props.workspaceId}/tasks/${task.id}/unarchive`,
       { method: 'POST' },
     )
     removeCachedTask(props.orgSlug, props.workspaceId, task.id)
-    tasks.value = (tasks.value ?? []).filter(t => t.id !== task.id)
-    if (childrenPopoverTaskId.value === task.id) {
-      closeChildrenPopover()
+    if (getCached(props.orgSlug, props.workspaceId)) {
+      syncTasksFromCache()
+    } else {
+      tasks.value = (tasks.value ?? []).filter(t => t.id !== task.id)
+      if (childrenPopoverTaskId.value === task.id) {
+        closeChildrenPopover()
+      }
     }
     emit('restored', restored, cascadedChildren)
   } catch (e: unknown) {
@@ -504,9 +514,13 @@ async function confirmPermanentDelete () {
     )
     deleteConfirmTask.value = null
     removeCachedTask(props.orgSlug, props.workspaceId, task.id)
-    tasks.value = (tasks.value ?? []).filter(t => t.id !== task.id)
-    if (childrenPopoverTaskId.value === task.id) {
-      closeChildrenPopover()
+    if (getCached(props.orgSlug, props.workspaceId)) {
+      syncTasksFromCache()
+    } else {
+      tasks.value = (tasks.value ?? []).filter(t => t.id !== task.id)
+      if (childrenPopoverTaskId.value === task.id) {
+        closeChildrenPopover()
+      }
     }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : '削除に失敗しました'
@@ -515,76 +529,45 @@ async function confirmPermanentDelete () {
   }
 }
 
-function toArchivedTask (task: RealtimeArchivedTask): ArchivedTask {
-  return {
-    id: task.id,
-    title: task.title,
-    description: null,
-    list_id: task.list_id,
-    archived_at: task.archived_at ?? null,
-    labels: task.labels ?? [],
-    assignees: task.assignees ?? [],
-    start_date: task.start_date ?? null,
-    due_date: task.due_date ?? null,
-    effort_hours: task.effort_hours ?? null,
-    progress_rate: task.progress_rate ?? null,
-    is_parent_task: task.is_parent_task ?? false,
-    parent_task_id: task.parent_task_id ?? null,
-    parent_task_title: task.parent_task_title ?? null,
-    archived_child_count: task.archived_child_count
-      ?? task.archived_children?.length
-      ?? 0,
-    archived_children: (task.archived_children ?? []).map(child => toArchivedTask(child)),
+function archivedListContains (list: ArchivedTask[] | null, taskId: number): boolean {
+  return Boolean(list?.some(task => (
+    task.id === taskId || (task.archived_children ?? []).some(child => child.id === taskId)
+  )))
+}
+
+function syncTasksFromCache () {
+  const cached = getCached(props.orgSlug, props.workspaceId)
+  if (!cached) {
+    return
+  }
+  const next = nestArchivedTasks(cached)
+  tasks.value = next
+  loading.value = false
+  if (restoreConfirmTask.value && !archivedListContains(next, restoreConfirmTask.value.id)) {
+    restoreConfirmTask.value = null
+  }
+  if (deleteConfirmTask.value && !archivedListContains(next, deleteConfirmTask.value.id)) {
+    deleteConfirmTask.value = null
+  }
+  if (childrenPopoverTaskId.value != null && !archivedListContains(next, childrenPopoverTaskId.value)) {
+    closeChildrenPopover()
   }
 }
 
 function addTaskFromRealtime (task: RealtimeArchivedTask) {
-  const archived = toArchivedTask(task)
-  // 親配下の子は一覧に出さない
-  if (archived.parent_task_id != null) {
-    const parent = (tasks.value ?? []).find(row => row.id === archived.parent_task_id)
-    if (parent) {
-      const children = [...(parent.archived_children ?? [])]
-      if (!children.some(child => child.id === archived.id)) {
-        children.unshift(archived)
-      }
-      const nextParent: ArchivedTask = {
-        ...parent,
-        archived_children: children,
-        archived_child_count: children.length,
-      }
-      upsertCachedTask(props.orgSlug, props.workspaceId, nextParent)
-      if (tasks.value) {
-        tasks.value = tasks.value.map(row => (
-          row.id === nextParent.id ? nextParent : row
-        ))
-      }
-      return
-    }
-  }
-  upsertCachedTask(props.orgSlug, props.workspaceId, archived)
-  if (tasks.value === null) {
-    return
-  }
-  if (tasks.value.some(t => t.id === archived.id)) {
-    tasks.value = tasks.value.map(row => (
-      row.id === archived.id ? archived : row
-    ))
-    return
-  }
-  tasks.value = [archived, ...tasks.value]
+  upsertCachedTask(props.orgSlug, props.workspaceId, archivedTaskFromRealtime(task))
 }
 
 function removeTaskFromRealtime (taskId: number) {
   removeCachedTask(props.orgSlug, props.workspaceId, taskId)
-  if (tasks.value === null) {
+}
+
+watch(archivedTasksRevision, () => {
+  if (!props.modelValue) {
     return
   }
-  tasks.value = tasks.value.filter(t => t.id !== taskId)
-  if (childrenPopoverTaskId.value === taskId) {
-    closeChildrenPopover()
-  }
-}
+  syncTasksFromCache()
+})
 
 watch(
   () => props.modelValue,

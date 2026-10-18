@@ -94,17 +94,6 @@ class ProductionConfigValidatorTest extends TestCase
         );
     }
 
-    /** 本番の登録・招待は AdminCreateUser が必要なので User Pool ID を必須にする */
-    public function test_missing_user_pool_id_is_rejected(): void
-    {
-        config(['cognito.user_pool_id' => '']);
-
-        $this->assertContains(
-            'COGNITO_USER_POOL_ID is required so registration and invite acceptance use AdminCreateUser',
-            ProductionConfigValidator::errors(),
-        );
-    }
-
     /** コールバックがフロントホストだとログインセッションが届かない */
     public function test_callback_on_frontend_host_is_rejected(): void
     {
@@ -167,7 +156,6 @@ class ProductionConfigValidatorTest extends TestCase
             'cognito.audience' => 'client-id',
             'cognito.domain' => 'https://example.auth.ap-northeast-1.amazoncognito.com',
             'cognito.client_id' => 'client-id',
-            'cognito.user_pool_id' => 'ap-northeast-1_example',
             'cognito.redirect_uri' => 'https://api.example.com/api/auth/callback',
             'cognito.logout_redirect_uri' => 'https://app.example.com/login',
             'cognito.frontend_url' => 'https://app.example.com',

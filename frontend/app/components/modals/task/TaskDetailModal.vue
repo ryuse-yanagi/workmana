@@ -915,6 +915,13 @@ const props = withDefaults(defineProps<{
   /** 他クライアントからの TaskUpdated など（rev が変わるたびに適用） */
   remoteUpdate?: TaskDetailRemotePatch | null
   remoteUpdateRev?: number
+  /** 他クライアントからの添付追加・削除（rev が変わるたびに適用） */
+  remoteAttachmentEvent?: {
+    taskId: number
+    attachment?: TaskAttachmentItem
+    removedId?: number
+  } | null
+  remoteAttachmentEventRev?: number
 }>(), {
   workspaceLists: () => [],
   labelCategories: () => [],
@@ -2148,6 +2155,24 @@ watch(
       return
     }
     applyRemoteTaskPatch(patch)
+  },
+)
+watch(
+  () => props.remoteAttachmentEventRev,
+  () => {
+    const event = props.remoteAttachmentEvent
+    if (!event || !props.modelValue || event.taskId !== props.taskId || attachmentUploading.value) {
+      return
+    }
+    if (event.removedId != null) {
+      attachments.value = attachments.value.filter(item => item.id !== event.removedId)
+      return
+    }
+    const attachment = event.attachment
+    if (!attachment || attachments.value.some(item => item.id === attachment.id)) {
+      return
+    }
+    attachments.value = [attachment, ...attachments.value]
   },
 )
 watch(titleDraft, () => {

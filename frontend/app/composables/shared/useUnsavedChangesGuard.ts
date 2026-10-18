@@ -11,10 +11,21 @@ const logoutDiscarders = new Set<LogoutDiscarder>()
  * beforeunload が遷移を止めると、セッションを消した画面に残ってしまう。
  */
 let unloadPromptSuppressed = false
+/** 組織削除のように、今の画面を捨ててアプリ内遷移するあいだだけ確認を止める */
+let forcedAppNavigationDepth = 0
 
 /** 未保存の離脱確認を通さず、ページ遷移を許可する。 */
 export function allowUnloadWithoutUnsavedPrompt (): void {
   unloadPromptSuppressed = true
+}
+
+/** 続くアプリ内遷移が終わるまで、未保存の離脱確認を出さない。 */
+export function beginForcedAppNavigation (): void {
+  forcedAppNavigationDepth += 1
+}
+
+export function endForcedAppNavigation (): void {
+  forcedAppNavigationDepth = Math.max(0, forcedAppNavigationDepth - 1)
 }
 
 export class UnsavedDiscardError extends Error {
@@ -123,7 +134,7 @@ export function useUnsavedChangesGuard (options: {
   })
 
   function onBeforeUnload (event: BeforeUnloadEvent) {
-    if (unloadPromptSuppressed || !guardEnabled.value || !toValue(options.isDirty)) {
+    if (unloadPromptSuppressed || forcedAppNavigationDepth > 0 || !guardEnabled.value || !toValue(options.isDirty)) {
       return
     }
     event.preventDefault()
@@ -174,7 +185,7 @@ export function useUnsavedChangesGuard (options: {
   }
 
   removeRouterGuard = router.beforeEach((to, from) => {
-    if (unloadPromptSuppressed || !guardEnabled.value) {
+    if (unloadPromptSuppressed || forcedAppNavigationDepth > 0 || !guardEnabled.value) {
       return true
     }
     if (to.fullPath === from.fullPath) {

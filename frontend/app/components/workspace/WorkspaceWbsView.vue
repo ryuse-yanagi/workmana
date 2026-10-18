@@ -282,6 +282,10 @@
       :hierarchy-tasks="detailHierarchyTasks"
       :initial-task-detail="detailInitialTask"
       :initial-parent-tasks="detailParentTasks"
+      :remote-update="detailModalRemotePatch"
+      :remote-update-rev="detailModalRemoteRev"
+      :remote-attachment-event="detailAttachmentEvent"
+      :remote-attachment-event-rev="detailAttachmentEventRev"
       @updated="onTaskDetailUpdated"
       @navigate="onTaskDetailNavigate"
       @missing="onTaskDetailMissing"
@@ -414,13 +418,14 @@ import {
   dispatchWorkspaceMembersUpdated,
 } from '../../composables/member/workspaceMembersUpdated'
 import { useApi } from '../../composables/shared/useApi'
-import { useArchivedTasksCache } from '../../composables/archived/useArchivedTasksCache'
+import { archivedTaskFromRealtime, useArchivedTasksCache } from '../../composables/archived/useArchivedTasksCache'
 import {
   useWorkspaceBoardPageData,
   type WorkspaceBoardTask,
 } from '../../composables/workspace/useWorkspaceBoardPageData'
 import { useWorkspaceWbsPageData, type WorkspaceWbsPageSnapshot } from '../../composables/wbs/useWorkspaceWbsPageData'
 import { useWorkspaceTaskMemberCandidates } from '../../composables/task/useWorkspaceTaskMemberCandidates'
+import { useOnLabelCatalogUpdated } from '../../composables/org/applyOrganizationRealtime'
 import { useOrgWorkspaceIndexPageData } from '../../composables/workspace/useOrgWorkspaceIndexPageData'
 import {
   useWorkspaceRealtimeChannel,
@@ -486,7 +491,10 @@ const route = useRoute()
 const router = useRouter()
 const { api } = useApi()
 const { isOrgAdmin } = useOrgRole(toRef(props, 'orgSlug'))
-const { upsertCachedTask: upsertArchivedTask } = useArchivedTasksCache()
+const {
+  upsertCachedTask: upsertArchivedTask,
+  removeCachedTask: removeArchivedTask,
+} = useArchivedTasksCache()
 const {
   patchCachedTasks,
   getCached: getBoardCached,
@@ -584,6 +592,14 @@ const ganttDateSaving = ref(false)
 const openMenuTaskId = taskMenu.openId
 const taskMenuPosition = taskMenu.position
 const detailTaskId = ref<number | null>(null)
+const detailModalRemotePatch = ref<TaskDetail | null>(null)
+const detailModalRemoteRev = ref(0)
+const detailAttachmentEvent = ref<{
+  taskId: number
+  attachment?: { id: number; task_id: number; original_name: string }
+  removedId?: number
+} | null>(null)
+const detailAttachmentEventRev = ref(0)
 /** 一覧に無いタスクを通知から開くとき、取得済みの詳細。モーダルはこれがあるまで出さない */
 const detailQueryTask = ref<TaskDetail | null>(null)
 let detailQuerySeq = 0
@@ -2475,6 +2491,7 @@ function realtimeTaskToWbsTask (task: RealtimeBoardTask): WbsTask {
     sort_order: task.sort_order,
     is_parent_task: task.is_parent_task,
     parent_task_id: task.parent_task_id ?? null,
+    checklists: task.checklists,
   }
 }
 
@@ -2538,7 +2555,7 @@ function upsertRealtimeWbsTask (task: RealtimeBoardTask) {
       ...next,
       description: next.description ?? current.description ?? null,
       list_name: next.list_name ?? current.list_name ?? null,
-      checklists: current.checklists,
+      checklists: next.checklists ?? current.checklists,
     }
   } else {
     tasks.value = sortWbsTasks([...tasks.value, next])
@@ -2605,24 +2622,93 @@ function applyRealtimeWbsReorder (items: RealtimeWbsReorderItem[]) {
 }
 
 const workspaceIdRef = computed(() => props.workspaceId)
+function detachRealtimeChildren (childIds: number[]) {
+  if (childIds.length === 0) {
+    return
+  }
+  const idSet = new Set(childIds)
+  let changed = false
+  tasks.value = tasks.value.map((task) => {
+    if (!idSet.has(task.id) || (task.parent_task_id ?? null) === null) {
+      return task
+    }
+    changed = true
+    return { ...task, parent_task_id: null }
+  })
+  if (changed) {
+    persistWbsCache()
+  }
+}
+useOnLabelCatalogUpdated((detail) => {
+  if (detail.kind !== 'task' || detail.orgSlug !== props.orgSlug) {
+    return
+  }
+  const labels = flattenLabelCategories(detail.categories)
+  orgLabels.value = labels
+  orgLabelCategories.value = detail.categories
+  const byId = new Map(labels.map(label => [label.id, label]))
+  tasks.value = tasks.value.map((task) => {
+    if (!task.labels?.length) {
+      return task
+    }
+    const nextLabels = task.labels.flatMap((label) => {
+      const catalog = byId.get(label.id)
+      if (!catalog) {
+        return []
+      }
+      return [{ ...label, name: catalog.name, color: catalog.color, color_index: catalog.color_index }]
+    })
+    return { ...task, labels: nextLabels }
+  })
+  persistWbsCache()
+})
 useWorkspaceRealtimeChannel(workspaceIdRef, {
   onTaskCreated (task) {
     upsertRealtimeWbsTask(task)
   },
-  onTaskUpdated (task) {
+  onTaskUpdated (task, detachedChildIds) {
     upsertRealtimeWbsTask(task)
+    detachRealtimeChildren(detachedChildIds)
+    if (detailTaskId.value === task.id) {
+      detailModalRemotePatch.value = task as TaskDetail
+      detailModalRemoteRev.value += 1
+    }
   },
-  onTaskArchived ({ id, cascaded_task_ids }) {
+  onTaskArchived ({ id, task, cascaded_task_ids }) {
     const removeIds = [id, ...(cascaded_task_ids ?? [])]
     for (const taskId of removeIds) {
       removeRealtimeWbsTask(taskId)
     }
+    if (task) {
+      upsertArchivedTask(props.orgSlug, props.workspaceId, archivedTaskFromRealtime(task))
+    }
   },
   onTaskRestored (task) {
+    removeArchivedTask(props.orgSlug, props.workspaceId, task.id)
     upsertRealtimeWbsTask(task)
   },
-  onTaskDeleted (taskId) {
-    removeRealtimeWbsTask(taskId)
+  onTaskDeleted (taskId, cascadedTaskIds) {
+    for (const id of [taskId, ...cascadedTaskIds]) {
+      removeArchivedTask(props.orgSlug, props.workspaceId, id)
+      removeRealtimeWbsTask(id)
+      if (detailTaskId.value === id) {
+        detailTaskId.value = null
+      }
+    }
+  },
+  onTaskAttachmentAdded (attachment) {
+    if (detailTaskId.value !== attachment.task_id) {
+      return
+    }
+    detailAttachmentEvent.value = { taskId: attachment.task_id, attachment }
+    detailAttachmentEventRev.value += 1
+  },
+  onTaskAttachmentRemoved ({ taskId, id }) {
+    if (detailTaskId.value !== taskId) {
+      return
+    }
+    detailAttachmentEvent.value = { taskId, removedId: id }
+    detailAttachmentEventRev.value += 1
   },
   onTasksReordered () {
     // ボードのリスト並び替えも sort_order を共有するため、編集中でなければ取り直す

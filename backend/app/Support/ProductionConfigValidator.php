@@ -58,10 +58,6 @@ final class ProductionConfigValidator
             $errors[] = 'COGNITO_AUDIENCE must match COGNITO_CLIENT_ID for Cognito ID tokens';
         }
 
-        if (trim((string) (config('cognito.user_pool_id') ?? '')) === '') {
-            $errors[] = 'COGNITO_USER_POOL_ID is required so registration and invite acceptance use AdminCreateUser';
-        }
-
         $errors = array_merge($errors, self::cognitoCallbackErrors(), self::splitHostSessionErrors());
 
         foreach ([

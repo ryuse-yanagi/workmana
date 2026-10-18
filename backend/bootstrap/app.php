@@ -1,8 +1,10 @@
 <?php
 
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 /**
  * Cookie ベースの認証を成立させるため、API ルートでもセッションと CSRF 検証を有効にする。
@@ -43,5 +45,22 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // 同時操作の外部キー違反やデッドロックは、500 ではなくやり直し可能な応答にする。
+        $exceptions->render(function (QueryException $e, Request $request) {
+            if (! $request->is('api/*') && ! $request->expectsJson()) {
+                return null;
+            }
+
+            $state = (string) ($e->errorInfo[0] ?? $e->getCode());
+            $message = match ($state) {
+                '40P01', '40001' => '他の操作と重なったため、もう一度お試しください。',
+                '23503', '23505' => '他の操作と重なったため、保存できませんでした。画面を更新してもう一度お試しください。',
+                default => null,
+            };
+            if ($message === null) {
+                return null;
+            }
+
+            return response()->json(['message' => $message], 409);
+        });
     })->create();

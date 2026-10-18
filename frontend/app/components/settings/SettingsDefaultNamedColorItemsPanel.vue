@@ -32,12 +32,10 @@
         <template #item="{ element: item, index }">
           <div class="label-row">
             <button
+              v-if="canManage"
               type="button"
               class="label-row__drag-handle"
-              :class="{ 'settings-drag-handle--readonly': !canManage }"
-              :aria-hidden="!canManage"
-              :tabindex="canManage ? 0 : -1"
-              :aria-label="canManage ? `ドラッグして${itemKind}の並び順を変更` : undefined"
+              :aria-label="`ドラッグして${itemKind}の並び順を変更`"
               @click.prevent
             >
               <Equal :size="24" :stroke-width="2.25" aria-hidden="true" />
@@ -163,6 +161,15 @@ const deleteModalRef = ref<{ setSubmitError: (message: string) => void } | null>
 const deletingIndex = ref<number | null>(null)
 /** 一覧から楽観的に消しても【対象】が残るよう、開いた時点の名前を保持する */
 const deletingItemName = ref('')
+watch(
+  () => props.initialItems,
+  (next) => {
+    if (formModalOpen.value || deleteModalOpen.value || reordering.value) {
+      return
+    }
+    items.value = attachKeys(next)
+  },
+)
 
 const nameMaxLength = computed(() => {
   if (props.settingsField === 'default_workspace_status_names') {

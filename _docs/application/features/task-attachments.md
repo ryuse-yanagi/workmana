@@ -32,7 +32,7 @@ API レスポンスにストレージ `path` は出さない（直リンク不�
 | `GET` | `…/attachments/{attachment}/download` | アクセス可 |
 | `DELETE` | `…/attachments/{attachment}` | 編集可 |
 
-制約例: 最大 **10240 KB**。拡張子 pdf / txt / csv / md / 画像 / Office / zip 等。
+制約例: 最大 **10240 KB**。拡張子 pdf / txt / csv / md / png / jpg / jpeg / gif / webp / doc / docx / xls / xlsx / ppt / pptx / zip。一覧の `mime_type` と download の Content-Type は、保存値や申告 MIME ではなくこの拡張子表から決める。応答に `X-Content-Type-Options: nosniff`。`inline=1` を許すのは画像・テキスト・PDF のみで、テキストには `Content-Security-Policy: default-src 'none'` を付ける。ファイル名は `basename` にし、改行と `"` を除く。
 
 ---
 
@@ -41,6 +41,8 @@ API レスポンスにストレージ `path` は出さない（直リンク不�
 ボードを開くとき `useWorkspaceBoardPageData` がスペース単位の一覧 API で添付メタデータを先読みし、`TaskDetailModal` に `initialAttachments` として渡す。モーダル内で選択、一覧、ダウンロード、削除を行う。ダウンロード URL は API の download ルート。
 
 プレビュー UI（インライン表示）はなし。ウイルススキャンなし。
+
+追加と削除はスペースチャンネルの `TaskAttachmentAdded` / `TaskAttachmentRemoved`（[`../../architecture/realtime/sync.md`](../../architecture/realtime/sync.md)）。
 
 ---
 

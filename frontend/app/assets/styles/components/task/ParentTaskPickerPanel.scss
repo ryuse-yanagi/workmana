@@ -48,7 +48,7 @@
   min-width: 0;
   font-size: 16px;
   font-weight: mixin.$popover-font-weight;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text;
   overflow-wrap: anywhere;
   word-break: break-word;

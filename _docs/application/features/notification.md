@@ -2,9 +2,9 @@
 
 ## 概要
 
-ユーザー向けの**アプリ内通知**。担当の追加、期限の変更、タスクのアーカイブ／復元／完全削除、スペースへのメンバー追加、組織の役割変更、既存ユーザーへの招待を契機に `app_notifications` へ同期的に書き、グローバルヘッダーのベルから右サイドドロワー（タイトル「通知」）で一覧・既読・遷移する。
+ユーザー向けの**アプリ内通知**。担当の追加、期限の変更、タスクのアーカイブ／復元／完全削除、スペースへのメンバー追加、組織の役割変更を契機に `app_notifications` へ同期的に書き、グローバルヘッダーのベルから右サイドドロワー（タイトル「通知」）で一覧・既読・遷移する。組織への招待はメールだけとし、アプリ内通知は作らない。
 
-Laravel の `Notification` チャネル、Event / Listener、キューは使わない。書き込みは `NotificationService` の直接呼び出しで、リクエスト内で完了する。呼び出し元は `TaskController`、`WorkspaceController`、`OrganizationController`、および招待の `OrganizationInviteService`。ボード／WBS のリアルタイム同期（Reverb / Echo）とは独立しており、通知の配信に WebSocket は使わない。未読の有無はヘッダーがポーリングで知る。
+Laravel の `Notification` チャネル、Event / Listener、キューは使わない。書き込みは `NotificationService` の直接呼び出しで、リクエスト内で完了する。呼び出し元は `TaskController`、`WorkspaceController`、`OrganizationController`。リアルタイム同期（Reverb / Echo）とは独立しており、通知の配信に WebSocket は使わない。未読の有無はヘッダーがポーリングで知る。
 
 ## 本書の範囲
 
@@ -13,7 +13,7 @@ Laravel の `Notification` チャネル、Event / Listener、キューは使わ�
 対象外:
 
 - メール・プッシュ等の外部チャネル（招待メールは [organization.md](./organization.md)。アプリ内通知とは別）
-- ボード／タスクのリアルタイム同期（[`../../architecture/realtime/sync.md`](../../architecture/realtime/sync.md)）
+- スペース／組織のリアルタイム同期（[`../../architecture/realtime/sync.md`](../../architecture/realtime/sync.md)）。通知自体は配信しない
 
 関連: [`../../database/schema-notifications.md`](../../database/schema-notifications.md)
 
@@ -22,7 +22,7 @@ Laravel の `Notification` チャネル、Event / Listener、キューは使わ�
 ## 全体フロー
 
 ```
-[ タスク / スペース / 組織 / 招待の処理 ]
+[ タスク / スペース / 組織の処理 ]
         │ 同期呼び出し（キューなし）
         ▼
 [ NotificationService ]
@@ -42,7 +42,7 @@ Laravel の `Notification` チャネル、Event / Listener、キューは使わ�
 
 ```mermaid
 flowchart LR
-  A[タスク・スペース・組織・招待] --> G[NotificationService]
+  A[タスク・スペース・組織] --> G[NotificationService]
   G --> H[(app_notifications)]
   H --> I[GET /api/notifications]
   I --> J[ヘッダーの点 / 通知ドロワー]
@@ -96,9 +96,8 @@ Eloquent:
 | `task.deleted` | アーカイブ済みタスクを完全削除する直前。対象はルートと子孫（ソフトデリート済みを含む）で、タスクごとに 1 通 | 削除前の各タスクの担当者 |
 | `workspace.member_added` | スペース作成時の `assignee_ids`、またはスペース更新で `assignee_ids` に**新たに入った**ユーザー。外したメンバーには送らない | 追加されたメンバー |
 | `organization.role_changed` | メンバー更新で、変更前の役割が空でなく、`admin` / `member` が実際に変わったとき。同じ役割の再送では作らない | 役割が変わった本人。自分の役割を自分で変えた場合は除外されて届かない |
-| `organization.invited` | 組織招待の新規発行と、有効な招待の再送（トークン再発行）。メールは宛先へ送り、アプリ内通知は**そのメールのユーザー行があるときだけ** | メールを大文字小文字を無視して一致したユーザー。操作者は除外 |
 
-通知しないもの: タイトル、説明、開始日、優先度、工数、進捗、チェックリスト、添付、ラベル、リスト移動、親子の付け替え、担当の解除、スペースメンバーの解除、スペースのアーカイブ、資料、組織マスタの編集、組織からの除名。アカウントの無いメールアドレスへの招待、既に組織メンバーであるアドレスへの招待（API は 422 で、通知行は作らない）もアプリ内通知は無い。
+通知しないもの: タイトル、説明、開始日、優先度、工数、進捗、チェックリスト、添付、ラベル、リスト移動、親子の付け替え、担当の解除、スペースメンバーの解除、スペースのアーカイブ、資料、組織マスタの編集、組織からの除名、組織への招待。招待はメールだけが案内で、招待リンクの平文トークンは通知へ保存しない。
 
 アーカイブ／復元が歩くのは直下の子だけである（タスクの親子は 1 階層）。完全削除だけ子孫をたどる。
 
@@ -110,7 +109,6 @@ Eloquent:
 | `due_date` / `due_date_change` | `task.due_date_changed` のみ追加。`due_date` は `Y-m-d` または null。`due_date_change` は `set`（未設定→日付）/ `changed`（日付→別の日付）/ `cleared`（日付→未設定） |
 | `workspace_id` / `workspace_name` / `organization_slug` / `title` | `workspace.member_added`。`title` と `workspace_name` はどちらもスペース名 |
 | `organization_slug` / `organization_name` / `role` / `title` | `organization.role_changed`。`role` は変更後。`title` は組織名 |
-| `organization_slug` / `organization_name` / `invite_token` / `role` / `title` | `organization.invited`。`invite_token` は招待 URL 用の**平文**トークン。DB の `organization_invites.token` はハッシュで、招待 API の JSON には平文を含めない。再送のときは新しい平文が入る |
 
 ---
 
@@ -133,8 +131,7 @@ Eloquent:
 | `task.deleted` | {主語}が削除されました |
 | `workspace.member_added` | 「{スペース名}」のメンバーに追加されました |
 | `organization.role_changed` かつ `role === admin` | 「{組織名}」での役割が管理者に変更されました |
-| `organization.role_changed` のそれ以外 | 「{組織名}」での役割がメンバーに変更されました |
-| `organization.invited` | 「{組織名}」に招待されました |
+| `organization.role_changed` のそれ以外 | 「{組織名}」での役割が一般ユーザーに変更されました |
 | 上記以外 | `title`（空なら「タスク」） |
 
 期限の表示は `due_date` 先頭の `YYYY-MM-DD` を `YYYY/MM/DD` にしたもの。その形でなければ文字列をそのまま出す。
@@ -210,7 +207,7 @@ Policy クラスは無い。単件はコントローラが所有者を見て、�
 | --- | --- |
 | 一覧 / 一括既読 | 認証ユーザーの `user_id` だけ |
 | 単件既読 | 所有者以外は 404 |
-| 作成 | タスク・スペース・メンバー・招待 API の副作用。通知専用の作成 API は無い |
+| 作成 | タスク・スペース・メンバー API の副作用。通知専用の作成 API は無い。組織への招待は通知を作らない |
 
 ---
 
@@ -243,7 +240,6 @@ Policy クラスは無い。単件はコントローラが所有者を見て、�
 
 | 種別 | 遷移 |
 | --- | --- |
-| `organization.invited` | `invite_token` があるときだけ `/invite/{invite_token}`。無いときは閉じるだけ |
 | `organization.role_changed` | スラグがあるとき `/org/{slug}/workspaces` |
 | `task.deleted` / `workspace.member_added` | スラグと `workspace_id` があるとき `/org/{slug}/workspaces/{workspaceId}`。タスクは開かない。`view` も付けない |
 | その他のタスク系 | 同じパス。`task_id` が正の有限数なら `?task={taskId}`。今見ている画面のビューが WBS のときだけ `view=wbs` を足す（`view` が `wbs` のほか、旧値 `list` / `table` / `gantt` も WBS とみなす） |
@@ -267,7 +263,6 @@ Policy クラスは無い。単件はコントローラが所有者を見て、�
 | タスク起点 | `backend/app/Http/Controllers/Api/Task/TaskController.php`（作成・更新の担当追加、期限変更、アーカイブ、復元、完全削除） |
 | スペース起点 | `backend/app/Http/Controllers/Api/Workspace/WorkspaceController.php`（作成、メンバー追加） |
 | 役割起点 | `backend/app/Http/Controllers/Api/Organization/OrganizationController.php`（`updateMember`） |
-| 招待起点 | `backend/app/Services/Organization/OrganizationInviteService.php`（`createOrResend`。コントローラは `OrganizationInviteController`） |
 | ルート | `backend/routes/api.php` |
 | マイグレーション | `backend/database/migrations/2026_07_31_000004_create_notifications_table.php` |
 | Feature テスト | `backend/tests/Feature/Notifications/AssigningTaskCreatesNotificationTest.php` |

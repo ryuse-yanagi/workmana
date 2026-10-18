@@ -19,7 +19,7 @@ class MemberCannotCreateInviteTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
-    /** メンバーは招待を作成できない */
+    /** 一般ユーザーは招待を作成できない */
     public function test_member_cannot_create_invite(): void
     {
         Mail::fake();
@@ -35,7 +35,7 @@ class MemberCannotCreateInviteTest extends TestCase
             ->assertForbidden();
     }
 
-    /** 一般メンバーは招待の一覧・取り消しができない */
+    /** 一般ユーザーは招待の一覧・取り消しができない */
     public function test_member_cannot_list_or_revoke_invites(): void
     {
         Mail::fake();

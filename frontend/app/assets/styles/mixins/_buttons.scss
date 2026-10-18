@@ -94,7 +94,7 @@
   color: $white;
   font-size: 14px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: $text-line-height-safe;
   cursor: pointer;
   text-align: left;
   transition:

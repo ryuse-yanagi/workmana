@@ -32,7 +32,7 @@
   font-size: mixin.$modal-field-font-size;
   font-weight: 700;
   color: mixin.$danger;
-  line-height: 1.4;
+  line-height: mixin.$text-line-height-safe;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -120,14 +120,14 @@
 .org-icon-dropzone__title {
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$main;
 }
 
 .org-icon-dropzone__hint {
   font-size: 12px;
   font-weight: 500;
-  line-height: 1.3;
+  line-height: mixin.$text-line-height-safe;
   color: mixin.$text-gray;
 }
 

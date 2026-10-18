@@ -60,7 +60,7 @@
 | アーカイブ | `archived_at`。ボード／WBS から除外。完全削除はアーカイブ後 |
 | 検索 | タイトル `q` 等の部分対応 |
 
-ブロードキャスト: `TaskCreated`, `TaskUpdated`, `TaskArchived`, `TaskRestored`, `TaskDeleted`, `TasksReordered`, `WbsTasksReordered`
+ブロードキャスト（スペースチャンネル）: `TaskCreated`, `TaskUpdated`, `TaskArchived`, `TaskRestored`, `TaskDeleted`, `TasksReordered`, `WbsTasksReordered`。添付は [task-attachments.md](./task-attachments.md)。一覧は [`../../architecture/realtime/sync.md`](../../architecture/realtime/sync.md)。
 
 ---
 

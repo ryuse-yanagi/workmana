@@ -42,6 +42,6 @@ WorkMana のボード／WBS 画面は、複数メンバーが同時に編集す�
 
 ## 未決定事項 / フォロー
 
-- スケールアウト時の Reverb 複数ノード構成（`REVERB_SCALING_ENABLED` + Redis。sticky session 要否を含む）。
+- 複数 Reverb ノード用の `REVERB_SCALING_ENABLED` と Redis の起動検証は実装済み。ALB の sticky session が必要かは未決。
 - プレゼンス機能（誰がボードを見ているか）の導入タイミング。
 - WebSocket 再接続時に、ボード／WBS をどこまで再取得するか。

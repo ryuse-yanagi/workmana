@@ -8,10 +8,13 @@ use App\Models\User;
 use App\Services\Notification\NotificationService;
 use App\Services\Organization\OrganizationContextService;
 use App\Services\Organization\OrganizationMemberService;
+use App\Support\DefaultNamedColorItems;
 use App\Support\Document\DefaultDocumentCategories;
 use App\Support\FieldLengthLimits;
 use App\Support\MediaStorage;
+use App\Support\Organization\OrganizationBroadcast;
 use App\Support\Organization\OrganizationSlug;
+use App\Support\PermanentDeleter;
 use App\Support\Workspace\DefaultBoardLists;
 use App\Support\Workspace\DefaultWorkspaceStatuses;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -131,13 +134,18 @@ class OrganizationController extends ApiController
 
         $member->load(['organizations' => fn ($q) => $q->where('organizations.id', $organization->id)]);
 
-        return response()->json([
+        $payload = [
             'id' => $member->id,
             'name' => $member->name,
             'email' => $member->email,
             'role' => $validated['role'],
             'avatar_url' => $this->avatarUrl($member->avatar_path),
+        ];
+        OrganizationBroadcast::send($organization, 'member.upserted', [
+            'member' => $payload,
         ]);
+
+        return response()->json($payload);
     }
 
     /** 組織管理者のみメンバーを外す。 */
@@ -150,6 +158,10 @@ class OrganizationController extends ApiController
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
+
+        OrganizationBroadcast::send($organization, 'member.removed', [
+            'id' => (int) $member->id,
+        ]);
 
         return response()->json(null, 204);
     }
@@ -176,9 +188,12 @@ class OrganizationController extends ApiController
 
         MediaStorage::deletePublic($oldPath);
 
-        return response()->json([
+        $payload = [
             'icon_url' => $this->iconUrl($organization->icon_path),
-        ]);
+        ];
+        OrganizationBroadcast::send($organization, 'icon.updated', $payload);
+
+        return response()->json($payload);
     }
 
     /** 組織管理者のみアイコンを消す。 */
@@ -192,9 +207,30 @@ class OrganizationController extends ApiController
 
         MediaStorage::deletePublic($oldPath);
 
+        OrganizationBroadcast::send($organization, 'icon.updated', [
+            'icon_url' => null,
+        ]);
+
         return response()->json([
             'icon_url' => null,
         ]);
+    }
+
+    /** 組織管理者のみ。配下のスペース・資料・タスクを含めて組織を削除する。 */
+    public function destroy(Request $request, Organization $organization): JsonResponse
+    {
+        $this->assertOrganizationAdmin($request);
+
+        $organizationId = (int) $organization->id;
+        $slug = (string) $organization->slug;
+        PermanentDeleter::deleteOrganization($organization);
+
+        OrganizationBroadcast::send($organizationId, 'organization.deleted', [
+            'id' => $organizationId,
+            'slug' => $slug,
+        ]);
+
+        return response()->json(null, 204);
     }
 
     /** 組織管理者のみ。既定のステータス名と資料カテゴリ名の変更は既存データへ反映する。 */
@@ -221,6 +257,9 @@ class OrganizationController extends ApiController
             }
             $organization->name = $name;
         }
+
+        $oldStatusItems = DefaultWorkspaceStatuses::itemsForOrganization($organization);
+        $oldCategoryItems = DefaultDocumentCategories::itemsForOrganization($organization);
 
         DB::transaction(function () use ($request, $organization) {
             if ($request->has('default_board_list_names')) {
@@ -257,6 +296,25 @@ class OrganizationController extends ApiController
 
             $organization->save();
         });
+
+        $organization->refresh();
+        $settings = $this->settingsPayload($request, $organization);
+        unset($settings['role']);
+        OrganizationBroadcast::send($organization, 'settings.updated', [
+            'settings' => $settings,
+            'status_diff' => $request->has('default_workspace_status_names')
+                ? DefaultNamedColorItems::diffNameChanges(
+                    $oldStatusItems,
+                    DefaultWorkspaceStatuses::itemsForOrganization($organization),
+                )
+                : ['renames' => [], 'deleted' => []],
+            'category_diff' => $request->has('default_document_category_names')
+                ? DefaultNamedColorItems::diffNameChanges(
+                    $oldCategoryItems,
+                    DefaultDocumentCategories::itemsForOrganization($organization),
+                )
+                : ['renames' => [], 'deleted' => []],
+        ]);
 
         return response()->json($this->settingsPayload($request, $organization));
     }

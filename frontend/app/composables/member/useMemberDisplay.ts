@@ -19,14 +19,14 @@ export function compareMembersByDisplayName (a: MemberLike, b: MemberLike): numb
   }
   return a.id - b.id
 }
+/** 担当者・メンバー検索はユーザー名のみ。メールアドレスでは絞らない。 */
 export function memberMatchesSearchQuery (member: MemberLike, query: string): boolean {
   const normalized = query.trim().toLowerCase()
   if (!normalized) {
     return true
   }
-  const name = memberDisplayName(member).toLowerCase()
-  const email = (member.email ?? '').toLowerCase()
-  return name.includes(normalized) || email.includes(normalized)
+  const name = (member.name ?? '').trim().toLowerCase()
+  return name.length > 0 && name.includes(normalized)
 }
 export function sortMembersByDisplayName<T extends MemberLike> (members: T[]): T[] {
   if (members.length < 2) {

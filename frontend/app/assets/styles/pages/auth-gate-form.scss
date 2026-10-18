@@ -7,7 +7,7 @@
   background: mixin.$bg-danger;
   color: mixin.$danger;
   font-size: 0.86rem;
-  line-height: 1.45;
+  line-height: mixin.$text-line-height-safe;
   font-weight: 600;
 }
 

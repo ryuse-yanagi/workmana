@@ -35,10 +35,7 @@ class ExpiredInviteIsRejectedTest extends TestCase
             ->assertStatus(410)
             ->assertJsonPath('status', 'expired');
 
-        $this->postJson('/api/invites/'.$plainToken.'/accept', [
-            'name' => '遅れた人',
-            'password' => 'password123',
-        ])
+        $this->postJson('/api/invites/'.$plainToken.'/accept', [])
             ->assertStatus(410);
     }
 }

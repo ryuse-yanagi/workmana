@@ -17,6 +17,11 @@ export type RealtimeBoardTask = {
   progress_rate?: number | string | null
   labels?: Array<{ id: number; name: string; color_index?: number; color: string }>
   assignees?: Array<{ id: number; name: string | null; email: string | null; avatar_url: string | null }>
+  checklists?: Array<{
+    id: number
+    title: string
+    items: Array<{ id: string; text: string; checked: boolean }>
+  }>
 }
 export type RealtimeArchivedTask = {
   id: number
@@ -39,6 +44,15 @@ export type RealtimeWbsReorderItem = {
   id: number
   sort_order: number
   parent_task_id: number | null
+}
+export type RealtimeTaskAttachment = {
+  id: number
+  task_id: number
+  original_name: string
+  mime_type?: string | null
+  size_bytes?: number | null
+  uploaded_by?: number | null
+  created_at?: string | null
 }
 export type RealtimeWorkspaceMember = {
   id: number
@@ -64,14 +78,16 @@ type EchoClient = {
 }
 export type ProjectRealtimeHandlers = {
   onTaskCreated?: (task: RealtimeBoardTask) => void
-  onTaskUpdated?: (task: RealtimeBoardTask) => void
+  onTaskUpdated?: (task: RealtimeBoardTask, detachedChildIds: number[]) => void
   onTaskArchived?: (payload: {
     id: number
     task?: RealtimeArchivedTask
     cascaded_task_ids?: number[]
   }) => void
   onTaskRestored?: (task: RealtimeBoardTask) => void
-  onTaskDeleted?: (taskId: number) => void
+  onTaskDeleted?: (taskId: number, cascadedTaskIds: number[]) => void
+  onTaskAttachmentAdded?: (attachment: RealtimeTaskAttachment) => void
+  onTaskAttachmentRemoved?: (payload: { taskId: number; id: number }) => void
   onTasksReordered?: (payload: { list_id: number; task_ids: number[] }) => void
   onWbsTasksReordered?: (tasks: RealtimeWbsReorderItem[]) => void
   onListCreated?: () => void
@@ -155,9 +171,12 @@ export function useWorkspaceRealtimeChannel (
     }
     if (handlers.onTaskUpdated) {
       channel.listen('.TaskUpdated', (payload: unknown) => {
-        const data = payload as { task?: RealtimeBoardTask }
+        const data = payload as { task?: RealtimeBoardTask; detached_child_ids?: number[] }
         if (data?.task) {
-          handlers.onTaskUpdated!(normalizeRealtimeTask(data.task))
+          const detachedChildIds = Array.isArray(data.detached_child_ids)
+            ? data.detached_child_ids.filter((id): id is number => typeof id === 'number')
+            : []
+          handlers.onTaskUpdated!(normalizeRealtimeTask(data.task), detachedChildIds)
         }
       })
     }
@@ -189,9 +208,28 @@ export function useWorkspaceRealtimeChannel (
     }
     if (handlers.onTaskDeleted) {
       channel.listen('.TaskDeleted', (payload: unknown) => {
-        const data = payload as { id?: number }
+        const data = payload as { id?: number; cascaded_task_ids?: number[] }
         if (typeof data?.id === 'number') {
-          handlers.onTaskDeleted!(data.id)
+          const cascadedTaskIds = Array.isArray(data.cascaded_task_ids)
+            ? data.cascaded_task_ids.filter((id): id is number => typeof id === 'number')
+            : []
+          handlers.onTaskDeleted!(data.id, cascadedTaskIds)
+        }
+      })
+    }
+    if (handlers.onTaskAttachmentAdded) {
+      channel.listen('.TaskAttachmentAdded', (payload: unknown) => {
+        const data = payload as { attachment?: RealtimeTaskAttachment }
+        if (data?.attachment && typeof data.attachment.id === 'number' && typeof data.attachment.task_id === 'number') {
+          handlers.onTaskAttachmentAdded!(data.attachment)
+        }
+      })
+    }
+    if (handlers.onTaskAttachmentRemoved) {
+      channel.listen('.TaskAttachmentRemoved', (payload: unknown) => {
+        const data = payload as { task_id?: number; id?: number }
+        if (typeof data?.task_id === 'number' && typeof data?.id === 'number') {
+          handlers.onTaskAttachmentRemoved!({ taskId: data.task_id, id: data.id })
         }
       })
     }

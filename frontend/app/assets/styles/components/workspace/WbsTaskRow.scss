@@ -40,7 +40,7 @@
   border-bottom: 1px solid color-mix(in srgb, mixin.$border 85%, mixin.$white);
   vertical-align: middle;
   color: mixin.$text;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   overflow: hidden;
 }
 .workspace-wbs__code-cell {
@@ -568,7 +568,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
 }
 .workspace-wbs__cell-btn--notes-has-content {
   position: relative;
@@ -594,7 +594,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.25;
+  line-height: mixin.$text-line-height-safe;
   font-weight: 500;
 }
 .workspace-wbs__task-row--parent .workspace-wbs__cell-btn--notes-has-content > .workspace-wbs__notes {
@@ -692,7 +692,7 @@
   justify-content: center;
   padding: 0 6px;
   font-size: 13px;
-  line-height: 1;
+  line-height: mixin.$text-line-height-safe;
   overflow: visible;
 }
 .workspace-wbs__labels :deep(.label-strip__text) {

@@ -31,7 +31,7 @@
   color: mixin.$text-muted;
   font-weight: 700;
   font-size: 10.92px;
-  line-height: 1.2;
+  line-height: mixin.$text-line-height-safe;
   white-space: nowrap;
 }
 .overflow-flex-row__more--probe {

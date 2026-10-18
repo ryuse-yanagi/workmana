@@ -13,12 +13,15 @@ use App\Models\Workspace\Workspace;
 use App\Models\Workspace\WorkspaceLabel;
 use App\Services\Notification\NotificationService;
 use App\Support\Document\DefaultDocumentCategories;
+use App\Support\Concurrency\MutationLock;
 use App\Support\ListQuery;
 use App\Support\Organization\OrganizationAccess;
+use App\Support\Organization\OrganizationBroadcast;
 use App\Support\PermanentDeleter;
 use App\Support\SafeBroadcast;
 use App\Support\Workspace\DefaultBoardLists;
 use App\Support\Workspace\DefaultWorkspaceStatuses;
+use App\Support\Workspace\WorkspaceBroadcastPayload;
 use App\Support\Workspace\WorkspaceMembersBroadcast;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -129,6 +132,8 @@ class WorkspaceController extends ApiController
             $labelIds,
             $assigneeIds,
         ) {
+            MutationLock::organization((int) $organization->id);
+
             $workspace = Workspace::query()->create([
                 'organization_id' => $organization->id,
                 'created_by' => $user->id,
@@ -160,6 +165,9 @@ class WorkspaceController extends ApiController
         ));
         $this->loadViewerPin($workspace, $request->user());
         $this->notifyAddedWorkspaceMembers($workspace, $organization, $assigneeIds, $user->id);
+        OrganizationBroadcast::send($organization, 'workspace.created', [
+            'workspace' => WorkspaceBroadcastPayload::make($workspace),
+        ]);
 
         return response()->json($this->workspacePayload($workspace, $organization, $request->user()), 201);
     }
@@ -238,24 +246,31 @@ class WorkspaceController extends ApiController
             ? []
             : array_values(array_diff($assigneeIds, $this->currentWorkspaceAssigneeIds($workspace)));
 
-        DB::transaction(function () use ($workspace, $labelIds, $assigneeIds, $request, &$removedAssigneeIds) {
-            $workspace->save();
+        $workspace = DB::transaction(function () use ($workspace, $organization, $labelIds, $assigneeIds, &$removedAssigneeIds) {
+            $locked = MutationLock::workspace((int) $workspace->id);
+            if ($locked->isArchived()) {
+                abort(403, 'Cannot update an archived workspace.');
+            }
+            MutationLock::copyDirty($workspace, $locked);
 
             if ($labelIds !== null) {
-                $workspace->labels()->sync($labelIds);
+                $locked->labels()->sync($labelIds);
             }
             if ($assigneeIds !== null) {
-                $removedAssigneeIds = $this->removedWorkspaceAssigneeIds($workspace, $assigneeIds);
-                OrganizationAccess::syncWorkspaceAssignees($workspace, $assigneeIds);
+                $this->validateWorkspaceAssigneeIds($organization, $assigneeIds);
+                $removedAssigneeIds = $this->removedWorkspaceAssigneeIds($locked, $assigneeIds);
+                OrganizationAccess::syncWorkspaceAssignees($locked, $assigneeIds);
                 if ($removedAssigneeIds !== []) {
-                    $this->removeTaskAssigneesForUsers($workspace, $removedAssigneeIds);
+                    $this->removeTaskAssigneesForUsers($locked, $removedAssigneeIds);
                 }
             }
 
             // ラベルや担当者だけの変更でも、スペースの活動日時を更新する。
             if ($labelIds !== null || $assigneeIds !== null) {
-                $workspace->recordActivity();
+                $locked->recordActivity();
             }
+
+            return $locked;
         });
 
         $workspace->load([
@@ -279,6 +294,10 @@ class WorkspaceController extends ApiController
             );
         }
 
+        OrganizationBroadcast::send($organization, 'workspace.updated', [
+            'workspace' => WorkspaceBroadcastPayload::make($workspace),
+        ]);
+
         return response()->json($this->workspacePayload($workspace, $organization, $request->user()));
     }
 
@@ -288,13 +307,20 @@ class WorkspaceController extends ApiController
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->assertCanManageArchive($request);
 
-        if ($workspace->isArchived()) {
-            return response()->json(['message' => 'Workspace is already archived.'], 422);
-        }
+        $workspace = DB::transaction(function () use ($workspace) {
+            $locked = MutationLock::workspace((int) $workspace->id);
+            if ($locked->isArchived()) {
+                abort(422, 'Workspace is already archived.');
+            }
+            $locked->archived_at = now();
+            $locked->save();
 
-        $workspace->archived_at = now();
-        $workspace->save();
+            return $locked;
+        });
         $this->loadViewerPin($workspace, $request->user());
+        OrganizationBroadcast::send($organization, 'workspace.archived', [
+            'workspace' => WorkspaceBroadcastPayload::make($workspace),
+        ]);
 
         return response()->json($this->workspacePayload($workspace, $organization, $request->user()));
     }
@@ -305,13 +331,20 @@ class WorkspaceController extends ApiController
         $this->ensureWorkspaceBelongsToOrganization($workspace, $organization);
         $this->assertCanManageArchive($request);
 
-        if (! $workspace->isArchived()) {
-            return response()->json(['message' => 'Workspace is not archived.'], 422);
-        }
+        $workspace = DB::transaction(function () use ($workspace) {
+            $locked = MutationLock::workspace((int) $workspace->id);
+            if (! $locked->isArchived()) {
+                abort(422, 'Workspace is not archived.');
+            }
+            $locked->archived_at = null;
+            $locked->save();
 
-        $workspace->archived_at = null;
-        $workspace->save();
+            return $locked;
+        });
         $this->loadViewerPin($workspace, $request->user());
+        OrganizationBroadcast::send($organization, 'workspace.unarchived', [
+            'workspace' => WorkspaceBroadcastPayload::make($workspace),
+        ]);
 
         return response()->json($this->workspacePayload($workspace, $organization, $request->user()));
     }
@@ -334,6 +367,12 @@ class WorkspaceController extends ApiController
         $workspace->load([
             'pinnedByUsers' => fn ($q) => $q->where('users.id', $user->id),
         ]);
+        OrganizationBroadcast::send($organization, 'workspace.pinned', [
+            'user_id' => (int) $user->id,
+            'workspace_id' => (int) $workspace->id,
+            'pinned' => true,
+            'pinned_at' => $workspace->pinnedAtFor($user),
+        ]);
 
         return response()->json($this->workspacePayload($workspace, $organization, $user));
     }
@@ -352,6 +391,12 @@ class WorkspaceController extends ApiController
             ...$this->workspaceDetailOnlyRelations(),
         ]);
         $workspace->setRelation('pinnedByUsers', collect());
+        OrganizationBroadcast::send($organization, 'workspace.pinned', [
+            'user_id' => (int) $user->id,
+            'workspace_id' => (int) $workspace->id,
+            'pinned' => false,
+            'pinned_at' => null,
+        ]);
 
         return response()->json($this->workspacePayload($workspace, $organization, $user));
     }
@@ -368,7 +413,11 @@ class WorkspaceController extends ApiController
             ], 422);
         }
 
+        $workspaceId = (int) $workspace->id;
         PermanentDeleter::deleteWorkspace($workspace);
+        OrganizationBroadcast::send($organization, 'workspace.deleted', [
+            'id' => $workspaceId,
+        ]);
 
         return response()->json(null, 204);
     }

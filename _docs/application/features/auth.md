@@ -35,12 +35,14 @@
 ### 登録
 
 ```
-[ /login の「アカウント作成」または /register ]
+[ /login の「Cognito でログイン」または /register ]
         → GET /api/auth/login?next=（ログインと同じ）
         → Cognito Managed Login（Sign up / メール確認 / パスワードリセット）
         → GET /api/auth/callback（ログインと同じ）
         → メール確認済みなら users 行を作成してセッション確立
 ```
+
+招待の未ログイン参加者も同じ入口を使う。`next` は `/invite/{token}`、`login_hint` は招待先メール。登録とメール確認が終わると招待ページへ戻り、メールが一致すれば参加を確定する。アプリはパスワードを受け取らない。ユーザープールで自己登録が無効だと、Hosted UI に登録導線が出ない。表示名は ID トークンの `name`、無ければメールのローカル部になる。
 
 ---
 
@@ -65,7 +67,7 @@
 | --- | --- | --- |
 | `GET` | `/auth/csrf-cookie` | XSRF-TOKEN 発行 |
 | `GET` | `/auth/session` | 認証状態＋ユーザー（未ログインでも 200） |
-| `GET` | `/auth/login?next=` | Hosted UI 開始（state / PKCE をセッションへ） |
+| `GET` | `/auth/login?next=&login_hint=` | Hosted UI 開始（state / PKCE をセッションへ）。`login_hint` はメールのときだけ認可 URL に載せる |
 | `GET` | `/auth/callback` | code 交換・ユーザー同期・フロントへリダイレクト |
 | `POST` | `/auth/logout` | セッション破棄。レスポンスに Cognito `logout_url` |
 
@@ -104,6 +106,6 @@
 | ルート | `backend/routes/api.php` |
 | コントローラ | `backend/app/Http/Controllers/Api/Auth/AuthController.php` |
 | ミドルウェア | `backend/app/Http/Middleware/AuthenticateCognito.php` |
-| サービス | `CognitoOAuthService`, `CognitoJwtService`, `CognitoSessionAuthenticator`, `CognitoUserRegistrationService`（招待受諾のみ） |
+| サービス | `CognitoOAuthService`, `CognitoJwtService`, `CognitoSessionAuthenticator` |
 | 設定 | `backend/config/cognito.php` |
 | フロント | `frontend/app/pages/login.vue`, `register.vue`, `post-login.vue` |

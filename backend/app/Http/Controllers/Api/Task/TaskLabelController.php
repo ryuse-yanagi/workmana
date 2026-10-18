@@ -7,6 +7,7 @@ use App\Models\Organization\Organization;
 use App\Models\Task\TaskLabel;
 use App\Models\Task\TaskLabelCategory;
 use App\Support\FieldLengthLimits;
+use App\Support\Label\LabelCatalogBroadcast;
 use App\Support\LabelColorPresets;
 use App\Support\SortOrderReorder;
 use Illuminate\Http\JsonResponse;
@@ -70,6 +71,8 @@ class TaskLabelController extends ApiController
             'sort_order' => $maxOrder === null ? 0 : ((int) $maxOrder + 1),
         ]);
 
+        LabelCatalogBroadcast::publishTask($organization);
+
         return response()->json($this->labelPayload($label), 201);
     }
 
@@ -109,6 +112,8 @@ class TaskLabelController extends ApiController
         }
 
         $taskLabel->save();
+
+        LabelCatalogBroadcast::publishTask($organization);
 
         return response()->json($this->labelPayload($taskLabel));
     }
@@ -151,6 +156,8 @@ class TaskLabelController extends ApiController
             $labelIds,
         );
 
+        LabelCatalogBroadcast::publishTask($organization);
+
         return response()->json(['data' => ['ok' => true]]);
     }
 
@@ -164,6 +171,8 @@ class TaskLabelController extends ApiController
         }
 
         $taskLabel->delete();
+
+        LabelCatalogBroadcast::publishTask($organization);
 
         return response()->json(null, 204);
     }

@@ -13,7 +13,7 @@ class AdminCanChangeMemberRoleTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    /** 管理者はメンバーを管理者へ昇格でき、一覧の role にも反映される */
+    /** 管理者は一般ユーザーを管理者へ昇格でき、一覧の role にも反映される */
     public function test_admin_can_change_member_role(): void
     {
         [$admin, $organization] = $this->createOrgWithAdmin();
@@ -31,7 +31,7 @@ class AdminCanChangeMemberRoleTest extends TestCase
             ->assertJsonFragment(['id' => $member->id, 'role' => 'admin']);
     }
 
-    /** 一般メンバーは他人のロールを変更できない */
+    /** 一般ユーザーは他人のロールを変更できない */
     public function test_member_cannot_change_another_members_role(): void
     {
         [$admin, $organization, $member] = $this->createOrgWithAdminAndMember();
@@ -49,7 +49,7 @@ class AdminCanChangeMemberRoleTest extends TestCase
         ]);
     }
 
-    /** 最後の管理者は自分を一般メンバーへ降格できない */
+    /** 最後の管理者は自分を一般ユーザーへ降格できない */
     public function test_last_admin_cannot_demote_self(): void
     {
         [$admin] = $this->createOrgWithAdmin();

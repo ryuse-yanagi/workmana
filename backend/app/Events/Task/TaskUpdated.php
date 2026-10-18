@@ -15,7 +15,13 @@ class TaskUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public Task $task) {}
+    /**
+     * @param  list<int>  $detachedChildIds
+     */
+    public function __construct(
+        public Task $task,
+        public array $detachedChildIds = [],
+    ) {}
 
     /** @return array<int, PrivateChannel> */
     public function broadcastOn(): array
@@ -33,6 +39,7 @@ class TaskUpdated implements ShouldBroadcastNow
     {
         return [
             'task' => TaskBoardBroadcast::taskDetailPayload($this->task),
+            'detached_child_ids' => array_values($this->detachedChildIds),
         ];
     }
 }

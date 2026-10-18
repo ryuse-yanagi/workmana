@@ -151,7 +151,7 @@
   border-radius: 6px;
   font-size: $modal-action-btn-font-size;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: $text-line-height-safe;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -175,7 +175,7 @@
   height: $modal-input-height;
   min-height: $modal-input-height;
   padding: 7px 11px;
-  line-height: 1.35;
+  line-height: $text-line-height-safe;
   background: $bg-gray;
   border-radius: $input-border-radius;
 }
@@ -190,7 +190,7 @@
   padding: 7px 11px;
   font: inherit;
   font-size: $modal-field-font-size;
-  line-height: 1.35;
+  line-height: $text-line-height-safe;
   color: $text;
   background: $bg-gray;
   resize: none;

@@ -1,104 +1,60 @@
 <template>
-  <main class="page">
-    <h1>組織への参加登録</h1>
-
-    <section v-if="loading" class="card">
-      <p class="muted">招待情報を確認しています…</p>
-    </section>
-
-    <section v-else-if="status !== 'active'" class="card">
-      <p class="err">{{ statusMessage }}</p>
-      <p class="muted">
+  <AuthGateShell
+    :title="shellTitle"
+    :subtitle="shellSubtitle"
+    :busy="loading"
+    busy-label="招待情報を確認しています…"
+  >
+    <template v-if="!loading && status !== 'active'">
+      <p class="auth-err" role="alert">{{ statusMessage }}</p>
+      <p class="auth-copy">
         新しい招待が必要な場合は、組織の管理者に連絡してください。
       </p>
-      <NuxtLink to="/login" class="link-btn">ログインへ</NuxtLink>
-    </section>
+      <NuxtLink to="/login" class="auth-btn auth-btn--block">ログインへ</NuxtLink>
+    </template>
 
-    <section v-else-if="completed" class="card">
-      <p class="ok">{{ completedMessage }}</p>
-      <p class="muted">
-        Cognito でログインすると、組織「{{ organizationName }}」を利用できます。
-      </p>
-      <NuxtLink
-        :to="loginAfterRegisterPath"
-        class="link-btn"
+    <template v-else-if="!loading && canConfirmAsSignedIn">
+      <p v-if="errorMessage" class="auth-err" role="alert">{{ errorMessage }}</p>
+      <p class="auth-copy">招待先: {{ email }}</p>
+      <button
+        type="button"
+        class="auth-btn auth-btn--block"
+        :disabled="submitting"
+        @click="confirmAsSignedIn"
       >
-        ログインへ
-      </NuxtLink>
-    </section>
-
-    <section v-else-if="canConfirmAsSignedIn" class="card">
-      <p class="muted">
-        「{{ organizationName }}」へ招待されています。
-        ログイン中のアカウントで参加します。
-      </p>
-      <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
-      <button type="button" :disabled="submitting" @click="confirmAsSignedIn">
-        {{ submitting ? '参加中…' : '参加する' }}
+        参加する
       </button>
-    </section>
+    </template>
 
-    <section v-else-if="signedInEmail" class="card">
-      <p class="err">この招待は {{ email }} 宛です。ログイン中のアカウントでは参加できません。</p>
-      <NuxtLink :to="loginPath" class="link-btn" @click="rememberInviteReturn">招待されたアカウントでログイン</NuxtLink>
-    </section>
+    <template v-else-if="!loading && signedInEmail">
+      <p class="auth-err" role="alert">この招待は {{ email }} 宛です。ログイン中のアカウントでは参加できません。</p>
+      <NuxtLink :to="loginPath" class="auth-btn auth-btn--block" @click="rememberInviteReturn">
+        招待されたアカウントでログイン
+      </NuxtLink>
+    </template>
 
-    <section v-else class="card">
-      <p class="muted">
-        「{{ organizationName }}」へ招待されています。
-        パスワードと名前を入力して登録を完了してください。
+    <template v-else-if="!loading && !cognitoConfigured">
+      <p class="auth-copy">
+        招待先は {{ email }} です。この環境では Cognito を使わずにログインします。ログインしたアカウントのメールアドレスが招待先と一致すると参加できます。
       </p>
+      <NuxtLink :to="loginPath" class="auth-btn auth-btn--block" @click="rememberInviteReturn">
+        ログインして参加
+      </NuxtLink>
+    </template>
 
-      <p v-if="errorMessage" class="err">{{ errorMessage }}</p>
-
-      <form class="form" autocomplete="off" @submit.prevent="submit">
-        <label class="field">
-          <span class="label">メールアドレス</span>
-          <input
-            :value="email"
-            type="email"
-            class="input"
-            readonly
-            tabindex="-1"
-          >
-        </label>
-        <label class="field">
-          <span class="label">名前</span>
-          <input
-            v-model="name"
-            type="text"
-            class="input"
-            maxlength="20"
-            name="invite-name"
-            autocomplete="off"
-            required
-            :disabled="submitting"
-          >
-        </label>
-        <label class="field">
-          <span class="label">パスワード</span>
-          <input
-            v-model="password"
-            type="password"
-            class="input"
-            minlength="8"
-            name="invite-password"
-            autocomplete="new-password"
-            required
-            :disabled="submitting"
-          >
-        </label>
-        <p class="hint">パスワードは8文字以上にしてください。</p>
-        <button type="submit" :disabled="submitting || !name.trim() || password.length < 8">
-          {{ submitting ? '登録中…' : '登録して参加' }}
-        </button>
-      </form>
-      <p class="muted">
-        すでにアカウントがある場合は、ログインしてから参加してください。
+    <template v-else-if="!loading">
+      <p class="auth-copy">
+        招待先は {{ email }} です。Cognito の画面でもこのメールアドレスを使ってください。アカウントが無い場合は、その画面から登録できます。
       </p>
-      <NuxtLink :to="loginPath" class="link-btn" @click="rememberInviteReturn">ログインして参加</NuxtLink>
-    </section>
-  </main>
+      <button
+        type="button"
+        class="auth-btn auth-btn--block"
+        @click="continueWithCognito"
+      >
+        ログインまたは登録して参加
+      </button>
+    </template>
+  </AuthGateShell>
 </template>
 
 <script setup lang="ts">
@@ -126,7 +82,7 @@ definePageMeta({
 const route = useRoute()
 const config = useRuntimeConfig()
 const apiBase = String(config.public.apiBaseUrl || '/api').replace(/\/$/, '')
-const { session, fetchSession, patchSessionUser } = useAuth()
+const { session, fetchSession, patchSessionUser, startLogin } = useAuth()
 
 const token = computed(() => String(route.params.token || ''))
 
@@ -139,34 +95,53 @@ const organizationName = ref('')
 const organizationSlug = ref('')
 const inviteRole = ref('member')
 const signedInEmail = ref<string | null>(null)
-const name = ref('')
-const password = ref('')
+const cognitoConfigured = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
-const completed = ref(false)
-const completedMessage = ref('参加が完了しました。')
 
 const invitePath = computed(() => `/invite/${token.value}`)
 
-const loginAfterRegisterPath = computed(() => {
-  const next = organizationSlug.value
-    ? `/org/${organizationSlug.value}/workspaces`
-    : '/post-login'
-  return { path: '/login', query: { next } }
-})
-
 const loginPath = computed(() => {
-  const next = invitePath.value
-  return {
-    path: '/login',
-    query: signedInEmail.value ? { reauth: '1', next } : { next },
+  const query: Record<string, string> = { next: invitePath.value }
+  if (email.value) {
+    query.login_hint = email.value
   }
+  if (signedInEmail.value) {
+    query.reauth = '1'
+  }
+  return { path: '/login', query }
 })
 
 const canConfirmAsSignedIn = computed(() => {
   const current = signedInEmail.value?.trim().toLowerCase()
   const invited = email.value.trim().toLowerCase()
   return Boolean(current && invited && current === invited)
+})
+
+const shellTitle = computed(() => {
+  if (loading.value) {
+    return '組織への参加'
+  }
+  if (status.value !== 'active') {
+    return '招待を確認できません'
+  }
+  return '組織への参加'
+})
+
+const shellSubtitle = computed(() => {
+  if (loading.value) {
+    return '招待リンクから、組織への参加を完了します。'
+  }
+  if (status.value !== 'active') {
+    return '招待リンクの状態を確認できませんでした。'
+  }
+  if (canConfirmAsSignedIn.value) {
+    return `「${organizationName.value}」へ招待されています。ログイン中のアカウントで参加します。`
+  }
+  if (signedInEmail.value) {
+    return '招待されたメールアドレスのアカウントでログインしてください。'
+  }
+  return `「${organizationName.value}」へ招待されています。ログインまたは登録のあと、この画面で参加を確定します。`
 })
 
 function applyPreview (preview: InvitePreview) {
@@ -190,6 +165,11 @@ function rememberInviteReturn () {
   sessionStorage.setItem('tm:pending_invite', invitePath.value)
 }
 
+function continueWithCognito () {
+  rememberInviteReturn()
+  startLogin(invitePath.value, email.value)
+}
+
 /** 参加した組織をセッションに足し、直前の組織としても記録する */
 function joinOrganizationInSession (organization: { id: number, name: string, slug: string }) {
   const organizations = [...(session.value?.user?.organizations ?? [])]
@@ -208,23 +188,18 @@ function joinOrganizationInSession (organization: { id: number, name: string, sl
   })
 }
 
-function resetInviteForm () {
-  name.value = ''
-  password.value = ''
+async function loadInvite () {
   submitting.value = false
   errorMessage.value = ''
-  completed.value = false
-}
-
-async function loadInvite () {
-  resetInviteForm()
   loading.value = true
 
   try {
     const auth = await fetchSession()
     signedInEmail.value = auth.authenticated ? (auth.user?.email ?? null) : null
+    cognitoConfigured.value = auth.configured
   } catch {
     signedInEmail.value = null
+    cognitoConfigured.value = false
   }
 
   if (!token.value) {
@@ -275,49 +250,12 @@ async function confirmAsSignedIn () {
       throw new Error('参加先の組織を確認できませんでした。')
     }
     joinOrganizationInSession(organization)
+    if (import.meta.client) {
+      sessionStorage.removeItem('tm:pending_invite')
+    }
     await navigateTo(`/org/${organization.slug}/workspaces`)
   } catch (error: unknown) {
     errorMessage.value = error instanceof Error ? error.message : '参加に失敗しました。'
-  } finally {
-    submitting.value = false
-  }
-}
-
-async function submit () {
-  errorMessage.value = ''
-  submitting.value = true
-  const { api } = useApi()
-  try {
-    const res = await api<{ message: string, organization?: { name: string, slug: string } }>(
-      `/invites/${encodeURIComponent(token.value)}/accept`,
-      {
-        method: 'POST',
-        body: {
-          name: name.value.trim(),
-          password: password.value,
-        },
-      },
-    )
-    completed.value = true
-    completedMessage.value = res.message || '参加が完了しました。'
-    if (res.organization?.name) {
-      organizationName.value = res.organization.name
-    }
-    if (res.organization?.slug) {
-      organizationSlug.value = res.organization.slug
-    }
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : '登録に失敗しました。'
-    if (message === 'Unauthenticated.' || message.includes('Unauthenticated')) {
-      rememberInviteReturn()
-      await navigateTo(loginPath.value)
-      return
-    }
-    errorMessage.value = message
-    if (errorMessage.value.includes('使用済み')) {
-      status.value = 'used'
-      statusMessage.value = 'この招待は使用済みです'
-    }
   } finally {
     submitting.value = false
   }
@@ -335,5 +273,3 @@ watch(token, () => {
   void loadInvite()
 })
 </script>
-<style lang="scss" scoped src="~/assets/styles/pages/invite.scss"></style>
-

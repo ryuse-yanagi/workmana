@@ -240,5 +240,5 @@ select:hover:not(:disabled),
   color: mixin.$danger;
   font-size: mixin.$modal-field-font-size;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: mixin.$text-line-height-safe;
 }

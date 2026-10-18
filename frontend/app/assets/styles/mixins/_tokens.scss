@@ -65,8 +65,13 @@ $popover-status-category-panel-width: $popover-standard-panel-width;
 $popover-label-bar-height: 40px;
 /** 担当者ポップオーバーのユーザー名 — 最大幅まで、不足時は省略 */
 $popover-member-name-width: 234px;
-/** g / j / p / y 等の descender が clip されない行高 */
-$text-line-height-safe: 1.35;
+/**
+ * g / j / p / y 等の descender が clip されない行高。
+ * Noto Sans JP の g はベースラインから 0.25em 下まで伸びる。
+ * hhea の上下が 1.448em あるため、それより低い行高で overflow:hidden すると下端が切れる。
+ * 1.35 ではまだ切れる。
+ */
+$text-line-height-safe: 1.5;
 /** ポップオーバー開閉（Transition name="popover-fade"）。0 = 瞬時 */
 $popover-fade-duration: 0s;
 
@@ -156,8 +161,8 @@ $modal-card-min-height: 240px;
 $modal-header-height: 48px;
 /** モーダル背面オーバーレイの余白（上下は $modal-viewport-inset-block と揃える） */
 $modal-overlay-padding: 56px 14px;
-/** モーダル内の単一行入力欄の高さ（タスク詳細モーダル除く） */
-$modal-input-height: 36px;
+/** モーダル内の単一行入力欄。14px × 行高 1.5 + 上下 padding 7px + border 1px */
+$modal-input-height: 38px;
 /** 入力欄の角丸 */
 $input-border-radius: 4px;
 

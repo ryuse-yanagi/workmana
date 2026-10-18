@@ -51,8 +51,6 @@
 | `COGNITO_CLIENT_SECRET` | 機密クライアントのときだけ。パブリッククライアントなら空 |
 | `COGNITO_SCOPES` | 既定 `openid email profile` |
 | `COGNITO_DEFAULT_REDIRECT_PATH` | 既定 `/post-login` |
-| `COGNITO_USER_POOL_ID` | 必須。登録と招待受諾は AdminCreateUser でメール検証済み・本パスワードにする |
-| `COGNITO_REGION` | 未設定時は `AWS_DEFAULT_REGION`。Admin API のリージョン |
 
 ### メール（SES）/ ストレージ（S3）
 
@@ -61,7 +59,7 @@
 | `MAIL_MAILER` | `ses` または `ses-v2` |
 | `MAIL_FROM_ADDRESS` | SES 検証済みの送信元（`hello@example.com` 不可） |
 | `MAIL_FROM_NAME` | ユーザー名（任意） |
-| `AWS_DEFAULT_REGION` | SES / S3 のリージョン |
+| `AWS_DEFAULT_REGION` | SES / S3 のリージョン。未設定でも起動は止まらない。SES（`config/services.php`）は `ap-northeast-1` になる。S3（`config/filesystems.php`）の region は空のまま |
 | `FILESYSTEM_DISK` | `s3` |
 | `AWS_BUCKET` | バケット名。アバター・組織アイコン・タスク添付が同じバケットに入る |
 | `AWS_URL` | 任意。アバター／組織アイコンの公開 URL（CloudFront）。付ける場合は `avatars/*` と `org-icons/*` だけを配信する |
@@ -158,7 +156,6 @@ COGNITO_ISSUER=https://cognito-idp.ap-northeast-1.amazonaws.com/<pool-id>
 COGNITO_AUDIENCE=
 COGNITO_DOMAIN=https://<prefix>.auth.ap-northeast-1.amazoncognito.com
 COGNITO_CLIENT_ID=
-COGNITO_USER_POOL_ID=ap-northeast-1_XXXXXXXXX
 COGNITO_REDIRECT_URI=https://api.example.com/api/auth/callback
 COGNITO_LOGOUT_REDIRECT_URI=https://app.example.com/login
 COGNITO_FRONTEND_URL=https://app.example.com

@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | id | bigint PK | NO | |
 | user_id | bigint FK → users.id | NO | 受信者。`ON DELETE CASCADE` |
-| type | varchar(64) | NO | 通知種別。`task.assigned` / `task.due_date_changed` / `task.archived` / `task.restored` / `task.deleted` / `workspace.member_added` / `organization.role_changed` / `organization.invited` |
+| type | varchar(64) | NO | 通知種別。`task.assigned` / `task.due_date_changed` / `task.archived` / `task.restored` / `task.deleted` / `workspace.member_added` / `organization.role_changed`。組織への招待はメールだけで、このテーブルには書かない |
 | data | json | NO | 表示と遷移に使うペイロード |
 | read_at | timestamp | YES | 未読は NULL |
 | created_at / updated_at | timestamp | YES | 一覧 API は `updated_at` を返さない |

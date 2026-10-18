@@ -75,7 +75,7 @@ abstract class ApiController extends Controller
     }
 
     /**
-     * 所属組織とロールを含めて返す。
+     * 所属組織と権限を含めて返す。
      *
      * @return array<string, mixed>
      */

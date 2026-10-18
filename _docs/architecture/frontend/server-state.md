@@ -46,7 +46,7 @@
 
 ## リアルタイムとの関係
 
-ボード／WBS の他クライアント更新は Echo / Reverb（[`../realtime/sync.md`](../realtime/sync.md)）。Query キャッシュは REST 取得・楽観更新・明示 revalidate の正本であり、WebSocket 配信そのものではない。
+他クライアント更新は Echo / Reverb のスペースチャンネルと組織チャンネル（[`../realtime/sync.md`](../realtime/sync.md)）。Query キャッシュは REST 取得・楽観更新・明示 revalidate の正本であり、WebSocket 配信そのものではない。
 
 ## 注意
 

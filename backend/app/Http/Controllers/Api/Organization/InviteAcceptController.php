@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Api\Organization;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Models\User;
 use App\Services\Auth\CognitoSessionAuthenticator;
 use App\Services\Organization\OrganizationInviteService;
+use App\Support\MediaUrl;
+use App\Support\Organization\OrganizationBroadcast;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -53,7 +54,7 @@ class InviteAcceptController extends ApiController
         return response()->json($payload);
     }
 
-    /** 連携済みメールはログイン必須。未連携は名前とパスワードで参加する。 */
+    /** ログイン中で、招待メールと一致するアカウントだけが参加できる。 */
     public function accept(Request $request, string $token): JsonResponse
     {
         $resolved = $this->invites->resolve($token);
@@ -74,30 +75,13 @@ class InviteAcceptController extends ApiController
         }
 
         $invite = $resolved['invite'];
-        $existing = User::query()
-            ->whereRaw('LOWER(email) = ?', [mb_strtolower((string) $invite->email)])
-            ->first();
         $authUser = $this->authenticator->resolve($request);
+        if ($authUser === null) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
 
         try {
-            if ($existing !== null && $existing->cognito_sub !== null && $existing->cognito_sub !== '') {
-                if ($authUser === null || strcasecmp((string) $authUser->email, (string) $invite->email) !== 0) {
-                    return response()->json(['message' => 'Unauthenticated.'], 401);
-                }
-
-                $result = $this->invites->acceptForAuthenticatedUser($token, $authUser);
-            } else {
-                $validated = $request->validate([
-                    'name' => ['required', 'string', 'max:20'],
-                    'password' => ['required', 'string', 'min:8', 'max:255'],
-                ]);
-
-                $result = $this->invites->accept(
-                    $token,
-                    $validated['name'],
-                    $validated['password'],
-                );
-            }
+            $result = $this->invites->acceptForAuthenticatedUser($token, $authUser);
         } catch (RuntimeException $e) {
             $message = $e->getMessage();
             $status = str_contains($message, '使用済み') || str_contains($message, '有効期限')
@@ -108,11 +92,24 @@ class InviteAcceptController extends ApiController
         }
 
         $organization = $result['organization'];
+        $user = $result['user'];
+        OrganizationBroadcast::send($organization, 'member.upserted', [
+            'member' => [
+                'id' => (int) $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $invite->role,
+                'avatar_url' => MediaUrl::avatar($user->avatar_path),
+            ],
+        ]);
+        OrganizationBroadcast::send($organization, 'invite.removed', [
+            'id' => (int) $invite->id,
+        ]);
 
         return response()->json([
             'message' => $result['already_member']
-                ? '既に組織に参加済みです。ログインしてください。'
-                : '参加が完了しました。ログインしてください。',
+                ? '既にこの組織のメンバーです。'
+                : '参加が完了しました。',
             'organization' => [
                 'id' => $organization->id,
                 'name' => $organization->name,

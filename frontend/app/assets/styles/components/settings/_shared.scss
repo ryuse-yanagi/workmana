@@ -22,6 +22,8 @@ $settings-sidebar-first-menu-offset: $settings-menu-section-title-font-size * 1.
   box-sizing: border-box;
   width: 880px;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
   background: mixin.$white;
   border: 1px solid mixin.$border;
   border-radius: 10px;
@@ -172,10 +174,4 @@ $settings-sidebar-first-menu-offset: $settings-menu-section-title-font-size * 1.
 .settings-label-empty {
   color: mixin.$text-muted;
   font-size: 12.6px;
-}
-
-.settings-drag-handle--readonly {
-  opacity: 0.45;
-  cursor: default;
-  pointer-events: none;
 }

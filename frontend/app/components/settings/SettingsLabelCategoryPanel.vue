@@ -21,12 +21,10 @@
         <div class="label-category-block">
           <div class="label-category-row">
             <button
+              v-if="canManage"
               type="button"
               class="label-category-row__drag-handle"
-              :class="{ 'settings-drag-handle--readonly': !canManage }"
-              :aria-hidden="!canManage"
-              :tabindex="canManage ? 0 : -1"
-              :aria-label="canManage ? 'ドラッグしてカテゴリの並び順を変更' : undefined"
+              aria-label="ドラッグしてカテゴリの並び順を変更"
               @click.prevent
             >
               <Equal :size="24" :stroke-width="2.25" aria-hidden="true" />
@@ -60,12 +58,10 @@
             <template #item="{ element: label }">
               <div class="label-row">
                 <button
+                  v-if="canManage"
                   type="button"
                   class="label-row__drag-handle"
-                  :class="{ 'settings-drag-handle--readonly': !canManage }"
-                  :aria-hidden="!canManage"
-                  :tabindex="canManage ? 0 : -1"
-                  :aria-label="canManage ? 'ドラッグしてラベルの並び順を変更' : undefined"
+                  aria-label="ドラッグしてラベルの並び順を変更"
                   @click.prevent
                 >
                   <Equal :size="24" :stroke-width="2.25" aria-hidden="true" />
@@ -142,6 +138,7 @@ import LabelCategoryDeleteModal from '../modals/label/LabelCategoryDeleteModal.v
 import { settingsScopedModalTitle, type SettingsLabelCategory, type SettingsLabelItem, type SettingsLabelTabKey } from './types'
 import { normalizeSettingsLabelCategories } from './labelCategoryNormalize'
 import { resolveLabelColors, withResolvedLabelColor } from '../../utils/shared/colorPresetResolution'
+import { useOnLabelCatalogUpdated } from '../../composables/org/applyOrganizationRealtime'
 import { useOrgSettingsPageData } from '../../composables/settings/useOrgSettingsPageData'
 import { invalidateOrgDerivedCachesForLabelKind } from '../../composables/settings/invalidateOrgDerivedCaches'
 const props = defineProps<{
@@ -203,6 +200,20 @@ function applyCategories (next: SettingsLabelCategory[], opts?: { invalidateCons
     invalidateOrgDerivedCachesForLabelKind(props.orgSlug, props.labelKind)
   }
 }
+function labelCatalogEditInProgress (): boolean {
+  return reordering.value
+    || categoryModalOpen.value
+    || labelAddModalOpen.value
+    || labelEditModalOpen.value
+    || labelDeleteModalOpen.value
+    || categoryDeleteModalOpen.value
+}
+useOnLabelCatalogUpdated((detail) => {
+  if (detail.orgSlug !== props.orgSlug || detail.kind !== props.labelKind || labelCatalogEditInProgress()) {
+    return
+  }
+  applyCategories(normalizeSettingsLabelCategories(detail.categories as SettingsLabelCategory[]))
+})
 type LabelDragEndEvent = {
   oldIndex?: number
   newIndex?: number

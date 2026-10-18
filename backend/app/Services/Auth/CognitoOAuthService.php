@@ -33,14 +33,14 @@ class CognitoOAuthService
         return $this->base64Url(hash('sha256', $codeVerifier, true));
     }
 
-    public function authorizationUrl(string $state, string $codeChallenge): string
+    public function authorizationUrl(string $state, string $codeChallenge, ?string $loginHint = null): string
     {
         $this->assertConfigured();
 
         /** @var list<string> $scopes */
         $scopes = (array) config('cognito.scopes', []);
 
-        return $this->domain().'/oauth2/authorize?'.http_build_query([
+        $query = [
             'response_type' => 'code',
             'client_id' => $this->clientId(),
             'redirect_uri' => $this->redirectUri(),
@@ -50,7 +50,13 @@ class CognitoOAuthService
             'code_challenge_method' => 'S256',
             // Hosted UI の Cookie が残っていても、同じユーザーで無言ログインさせない。
             'prompt' => 'login',
-        ]);
+        ];
+
+        if ($loginHint !== null && $loginHint !== '') {
+            $query['login_hint'] = $loginHint;
+        }
+
+        return $this->domain().'/oauth2/authorize?'.http_build_query($query);
     }
 
     /**
