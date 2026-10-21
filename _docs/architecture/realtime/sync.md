@@ -1,6 +1,6 @@
 # リアルタイム同期
 
-WorkMana は複数メンバーが同じ組織とスペースを同時に操作することを想定しているため、サーバー側の変更を即時に各クライアントへ伝搬する仕組みを採用する。
+WorkMana は複数ユーザーが同じ組織とスペースを同時に操作することを想定しているため、サーバー側の変更を即時に各クライアントへ伝搬する仕組みを採用する。
 
 用語: UI「スペース」＝コードの `workspace`。
 
@@ -36,7 +36,7 @@ Redis は **Reverb 水平スケール**（`REVERB_SCALING_ENABLED`、既定 `fal
 [ PostgreSQL ]
 ```
 
-### ② 配信フロー（他メンバーの画面に変更を即時反映）
+### ② 配信フロー（他ユーザーの画面に変更を即時反映）
 
 DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び、Reverb 経由で他クライアントへ push する。
 
@@ -91,7 +91,7 @@ DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び
 | チャンネル名 | 種類 | 認可 | 購読する画面 | 用途 |
 | --- | --- | --- | --- | --- |
 | `workspaces.{workspaceId}` | private | そのスペースを閲覧できるユーザー（`User::canAccessWorkspace`） | ボード／WBS | そのスペースのリスト・タスク・添付・担当者 |
-| `organizations.{organizationId}` | private | その組織のメンバー（`User::isMemberOfOrganization`） | `/org/{slug}/…` を開いているあいだ | スペース、資料、組織設定、メンバー、招待、ラベル、プロフィール |
+| `organizations.{organizationId}` | private | その組織のユーザー（`User::isMemberOfOrganization`） | `/org/{slug}/…` を開いているあいだ | スペース、資料、組織設定、ユーザー、招待、ラベル、プロフィール |
 
 - 認可定義: `backend/routes/channels.php`
 - 認可 HTTP: `POST /api/broadcasting/auth`（`cognito` + Cookie セッション。Echo の `channelAuthorization.customHandler`）
@@ -116,7 +116,7 @@ DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び
 補足:
 
 - タスクの列移動は専用 `TaskMoved` ではなく **`TaskUpdated` + `TasksReordered`**。
-- `WorkspaceMembersUpdated` はスペース担当者の集合。組織メンバーの追加・削除は組織チャンネルの `member.*`。
+- `WorkspaceMembersUpdated` はスペース担当者の集合。組織ユーザーの追加・削除は組織チャンネルの `member.*`。
 
 ### `organizations.{organizationId}`
 
@@ -129,7 +129,7 @@ DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び
 | `document.created` / `document.updated` / `document.archived` / `document.restored` / `document.deleted` | `DocumentController` | 資料。削除以外は本文（`body`）を含む |
 | `settings.updated` | `OrganizationController` | 組織名と既定マスタ |
 | `icon.updated` | `OrganizationController` | 組織アイコン |
-| `member.upserted` / `member.removed` | `OrganizationController`、招待受諾 | 組織メンバー |
+| `member.upserted` / `member.removed` | `OrganizationController`、招待受諾 | 組織ユーザー |
 | `invite.upserted` / `invite.removed` | `OrganizationInviteController`、招待受諾 | 招待 |
 | `task_labels.updated` / `workspace_labels.updated` | `LabelCatalogBroadcast` | タスク／スペースのラベルカタログ一式 |
 | `user.profile_updated` | `MeController`（`OrganizationBroadcast::userProfile`） | ユーザー名とアバター。所属する各組織へ送る |

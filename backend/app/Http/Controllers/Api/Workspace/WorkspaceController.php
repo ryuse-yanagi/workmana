@@ -466,7 +466,7 @@ class WorkspaceController extends ApiController
     }
 
     /**
-     * 組織メンバー以外は担当者にできない。
+     * 組織ユーザー以外は担当者にできない。
      *
      * @param  array<int, mixed>  $assigneeIds
      * @return array<int, int>

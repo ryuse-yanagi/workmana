@@ -53,8 +53,8 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| 認可 | 組織メンバーならそのスペースを編集できる。アーカイブ・復元・完全削除は組織 **admin** |
-| 担当 | `assignee_ids` → `task_assignees`。組織メンバーであること |
+| 認可 | 組織ユーザーならそのスペースを編集できる。アーカイブ・復元・完全削除は組織 **admin** |
+| 担当 | `assignee_ids` → `task_assignees`。組織ユーザーであること |
 | 進捗 | `progress_rate`。ボード上の位置は `list_id`（`tasks.status` も `lists.mapped_status` もない） |
 | チェックリスト | `PATCH` の `checklists[]` で同期 |
 | アーカイブ | `archived_at`。ボード／WBS から除外。完全削除はアーカイブ後 |

@@ -14,7 +14,7 @@ class OrgMemberCanBeTaskAssigneeAndListedInWorkspaceMembersTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    /** 組織メンバーを担当者に指定でき、ワークスペースメンバーにも表示される */
+    /** 組織ユーザーを担当者に指定でき、スペースメンバーにも表示される */
     public function test_org_member_can_be_task_assignee_and_listed_in_workspace_members(): void
     {
         [$admin, $organization] = $this->createOrgWithAdmin();

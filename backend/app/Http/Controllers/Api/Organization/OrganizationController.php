@@ -148,7 +148,7 @@ class OrganizationController extends ApiController
         return response()->json($payload);
     }
 
-    /** 組織管理者のみメンバーを外す。 */
+    /** 組織管理者のみ組織ユーザーを外す。 */
     public function removeMember(Request $request, Organization $organization, User $member): JsonResponse
     {
         $this->assertOrganizationAdmin($request);

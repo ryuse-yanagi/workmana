@@ -2,7 +2,7 @@
 
 ## 概要
 
-組織の **名前とアイコン**、**既定値 JSON**（ボードリスト名、スペースステータス名、資料カテゴリ名）、二種の **ラベル体系**（スペース／タスク：各カテゴリ＋ラベル＋並べ替え）を管理する。設定画面 `/org/{slug}/settings` の各タブから操作する。メンバー招待タブの詳細は [organization.md](./organization.md)。
+組織の **名前とアイコン**、**既定値 JSON**（ボードリスト名、スペースステータス名、資料カテゴリ名）、二種の **ラベル体系**（スペース／タスク：各カテゴリ＋ラベル＋並べ替え）を管理する。設定画面 `/org/{slug}/settings` の各タブから操作する。ユーザー招待タブの詳細は [organization.md](./organization.md)。
 
 既定ボードリストはスペース作成時のリストシードに、スペースステータスはスペースの `status` 検証に、資料カテゴリは資料の `category` 検証に使われる。
 
@@ -12,7 +12,7 @@
 
 - 組織名、組織アイコン、`GET/PATCH …/settings`、ラベル／カテゴリ CRUD・reorder、設定 UI
 
-対象外: slug の変更（API にない）、メンバー管理の詳細
+対象外: slug の変更（API にない）、ユーザー管理の詳細
 
 ---
 
@@ -35,12 +35,12 @@
 
 | Method | Path | 権限 | 説明 |
 | --- | --- | --- | --- |
-| `GET` | `/orgs/{org}/settings` | メンバー | 名前・slug・`icon_url`・既定値・`role` |
+| `GET` | `/orgs/{org}/settings` | ユーザー | 名前・slug・`icon_url`・既定値・`role` |
 | `PATCH` | `/orgs/{org}/settings` | **admin** | `name` と三つの既定配列のいずれか／複数 |
 | `POST` | `/orgs/{org}/icon` | **admin** | multipart `icon`（画像、最大 2MB）。旧ファイルを置換 |
 | `DELETE` | `/orgs/{org}/icon` | **admin** | アイコンを外す |
 | `DELETE` | `/orgs/{org}` | **admin** | 組織自体を削除（[organization.md](./organization.md)） |
-| CRUD + reorder | `/workspace-label-categories`, `/workspace-labels` | 読取:メンバー／書込:**admin** | |
+| CRUD + reorder | `/workspace-label-categories`, `/workspace-labels` | 読取:ユーザー／書込:**admin** | |
 | 同上 | `/task-label-*` | 同上 | |
 
 空のボードリスト設定だと、新規スペースはリストなしで作成される。

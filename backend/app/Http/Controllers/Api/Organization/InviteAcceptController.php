@@ -108,7 +108,7 @@ class InviteAcceptController extends ApiController
 
         return response()->json([
             'message' => $result['already_member']
-                ? '既にこの組織のメンバーです。'
+                ? '既にこの組織のユーザーです。'
                 : '参加が完了しました。',
             'organization' => [
                 'id' => $organization->id,

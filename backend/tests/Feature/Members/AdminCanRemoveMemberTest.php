@@ -13,7 +13,7 @@ class AdminCanRemoveMemberTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    /** 管理者がメンバーを削除できる */
+    /** 管理者がユーザーを削除できる */
     public function test_admin_can_remove_member(): void
     {
         [$admin, $organization] = $this->createOrgWithAdmin();

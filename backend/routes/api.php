@@ -98,7 +98,7 @@ Route::middleware(['cognito'])->group(function () {
     Route::prefix('orgs/{organization}')->middleware('org.member')->group(function () {
 
         // =====================================================================
-        // 組織メンバー・招待・設定
+        // 組織ユーザー・招待・設定
         // =====================================================================
         Route::get('/members', [OrganizationController::class, 'members']);
         Route::patch('/members/{member}', [OrganizationController::class, 'updateMember']);

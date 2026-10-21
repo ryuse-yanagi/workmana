@@ -63,7 +63,7 @@ class User extends Authenticatable
     }
 
     /**
-     * 組織メンバーとして開けるスペースは編集可。
+     * 組織ユーザーとして開けるスペースは編集可。
      */
     public function canEditWorkspace(Workspace $workspace): bool
     {

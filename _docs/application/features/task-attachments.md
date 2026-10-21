@@ -26,8 +26,8 @@ API レスポンスにストレージ `path` は出さない（直リンク不�
 
 | Method | Path | 権限 |
 | --- | --- | --- |
-| `GET` | `…/workspaces/{ws}/tasks/attachments` | メンバー（タスク ID ごとの一括・ボード preload） |
-| `GET` | `…/tasks/{task}/attachments` | メンバー（アクセス可） |
+| `GET` | `…/workspaces/{ws}/tasks/attachments` | ユーザー（タスク ID ごとの一括・ボード preload） |
+| `GET` | `…/tasks/{task}/attachments` | ユーザー（アクセス可） |
 | `POST` | `…/tasks/{task}/attachments` | 編集可＋スペース未アーカイブ。ソフトデリート済みタスク不可 |
 | `GET` | `…/attachments/{attachment}/download` | アクセス可 |
 | `DELETE` | `…/attachments/{attachment}` | 編集可 |

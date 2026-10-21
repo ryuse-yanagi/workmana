@@ -7,7 +7,7 @@ WorkMana が何をするか。機能、画面操作。
 ## 機能仕様
 
 - [認証・セッション](./features/auth.md)
-- [組織・メンバー・招待](./features/organization.md)
+- [組織・ユーザー・招待](./features/organization.md)
 - [組織設定・マスタ](./features/organization-settings.md)
 - [プロフィール・アバター](./features/profile.md)
 - [スペース](./features/workspaces.md)

@@ -13,7 +13,7 @@ class NonMemberCannotAccessOrgTest extends TestCase
     use InteractsWithOrganizationApi;
     use RefreshDatabase;
 
-    /** 非メンバーは組織にアクセスできない */
+    /** 非組織ユーザーは組織にアクセスできない */
     public function test_non_member_cannot_access_org(): void
     {
         $owner = User::factory()->create();

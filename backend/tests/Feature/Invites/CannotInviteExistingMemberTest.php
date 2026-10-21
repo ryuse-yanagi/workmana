@@ -19,7 +19,7 @@ class CannotInviteExistingMemberTest extends TestCase
         config(['cognito.bypass_user_id' => null]);
     }
 
-    /** 既存メンバーは招待できない */
+    /** 既存ユーザーは招待できない */
     public function test_cannot_invite_existing_member(): void
     {
         Mail::fake();

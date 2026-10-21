@@ -6,7 +6,7 @@
 
 CRUD・アーカイブ／復元／完全削除・ステータス・複数担当者・スペースラベル・個人ごとのピン留めを持つ。資料はスペースに 1 対多で所属する。作成時、組織設定の既定ボードリスト名からリストをシードする。
 
-組織メンバーは担当の有無にかかわらず、組織内の全スペースを開いて編集できる。アーカイブ・復元・完全削除は管理者のみ。判定の詳細は [`../../architecture/auth/authorization.md`](../../architecture/auth/authorization.md)。
+組織ユーザーは担当の有無にかかわらず、組織内の全スペースを開いて編集できる。アーカイブ・復元・完全削除は管理者のみ。判定の詳細は [`../../architecture/auth/authorization.md`](../../architecture/auth/authorization.md)。
 
 ## 本書の範囲
 

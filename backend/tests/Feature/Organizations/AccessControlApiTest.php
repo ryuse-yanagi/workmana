@@ -15,7 +15,7 @@ class AccessControlApiTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * スペース／資料の見え方と、メンバー削除のカスケードはここが正本。
+     * スペース／資料の見え方と、ユーザー削除のカスケードはここが正本。
      * 分割した Feature テストとは重複するが、削除すると可視性回帰を取りこぼす。
      */
     protected function setUp(): void
@@ -25,7 +25,7 @@ class AccessControlApiTest extends TestCase
         config(['cognito.bypass' => true]);
     }
 
-    /** 組織メンバーは担当外のワークスペースも開ける */
+    /** 組織ユーザーは担当外のワークスペースも開ける */
     public function test_member_can_open_workspaces_they_are_not_assigned_to(): void
     {
         [$admin, $org] = $this->createOrgWithAdmin();
@@ -69,7 +69,7 @@ class AccessControlApiTest extends TestCase
         ]);
     }
 
-    /** 組織メンバーは担当外の資料も開ける */
+    /** 組織ユーザーは担当外の資料も開ける */
     public function test_member_can_open_documents_they_are_not_listed_on(): void
     {
         [$admin, $org] = $this->createOrgWithAdmin();
@@ -156,7 +156,7 @@ class AccessControlApiTest extends TestCase
             ->assertOk();
     }
 
-    /** 管理者がメンバーを削除するとアクセス権限も連動して消える */
+    /** 管理者がユーザーを削除するとアクセス権限も連動して消える */
     public function test_admin_can_remove_member_and_cascade_access(): void
     {
         [$admin, $org] = $this->createOrgWithAdmin();
@@ -197,7 +197,7 @@ class AccessControlApiTest extends TestCase
         ]);
     }
 
-    /** 管理者がメンバーのロール変更と招待取り消しができる */
+    /** 管理者がユーザーのロール変更と招待取り消しができる */
     public function test_admin_can_change_member_role_and_revoke_invite(): void
     {
         Mail::fake();

@@ -8,7 +8,7 @@
 
 - `GET/PATCH /me`、アバター upload／delete、ヘッダー反映
 
-対象外: 認証 → [auth.md](./auth.md)、組織メンバー一覧での他ユーザー表示の詳細
+対象外: 認証 → [auth.md](./auth.md)、組織ユーザー一覧での他ユーザー表示の詳細
 
 ---
 
@@ -38,7 +38,7 @@ API は `avatar_url` を返す。S3 のときはオブジェクトの絶対 URL�
 - `AppGlobalHeader.vue` … モーダル起動、アバターまたはイニシャル表示
 - `useApi` / `resolveAvatarUrl` … `avatar_url` を表示可能な URL に正規化
 - 更新後 `tm:user-profile-updated` CustomEvent で自分のヘッダーを同期する。他クライアントへは所属組織ごとの `user.profile_updated`（[`../../architecture/realtime/sync.md`](../../architecture/realtime/sync.md)）
-- メンバー一覧等でも `MemberAvatar` 経由で表示
+- ユーザー一覧等でも `MemberAvatar` 経由で表示
 
 ---
 

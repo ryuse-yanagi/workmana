@@ -113,7 +113,7 @@ abstract class ApiController extends Controller
     }
 
     /**
-     * 所属が確認できないときは空にし、メンバーならクエリはそのまま返す。
+     * 所属が確認できないときは空にし、組織ユーザーならクエリはそのまま返す。
      *
      * @param  Builder<Workspace>  $query
      * @return Builder<Workspace>
