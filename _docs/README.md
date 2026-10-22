@@ -12,8 +12,6 @@ WorkMana の設計・仕様書。
 
 ## architecture ディレクトリ
 
-**どう組んでいるか**（クラウド配置は `cloud/` に後で追加）
-
 - [構成の入口](./architecture/overview/README.md)
 - [システム境界](./architecture/system/boundaries.md)
 - [バックエンド](./architecture/backend/layers.md)
