@@ -162,7 +162,7 @@
 
 ---
 
-## AWS アーキテクチャ
+## AWSアーキテクチャ
 
 ![AWSアーキテクチャ](_docs/images/aws-architecture.png)
 
