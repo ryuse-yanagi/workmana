@@ -156,7 +156,7 @@
 | 証明書 | AWS Certificate Manager |
 | ストレージ | Amazon S3 |
 | セキュリティ | AWS IAM / AWS Secrets Manager |
-| ログ管理 | Amazon CloudWatch LogsostgreSQL |
+| ログ管理 | Amazon CloudWatch Logs |
 | メール配信 | Amazon SES |
 
 
@@ -194,17 +194,13 @@ cd backend
 cp .env.example .env
 composer install
 php artisan key:generate
-```
-
-> `backend/.env` でデータベース接続情報やローカル認証用設定などを環境に合わせる。
-
-```bash
 createdb workmana
 php artisan migrate
 php artisan storage:link
 php artisan db:seed
 ```
 
+> `backend/.env` でデータベース接続情報やローカル認証用設定などを環境に合わせる。  
 > `DB_DATABASE` が `workmana` 以外の場合は、`createdb` のデータベース名も合わせる。
 
 #### フロントエンド設定
