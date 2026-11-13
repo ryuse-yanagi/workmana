@@ -613,22 +613,34 @@ function onOrgUpdated (e: Event) {
 
 function onUserProfileUpdated (e: Event) {
   const detail = (e as CustomEvent<{ id?: number; name?: string; avatar_url?: string | null }>).detail
-  const name = (detail?.name || '').trim()
+
   if (!detail) {
     void refreshMeContext({ force: true })
     return
   }
+
+  const currentUserId = session.value?.user?.id
+
+  if (typeof detail.id !== 'number' || detail.id !== currentUserId) {
+    return
+  }
+
+  const name = (detail.name || '').trim()
   const patch: { name?: string; avatar_url?: string | null } = {}
+
   if (name) {
     patch.name = name
   }
+
   if ('avatar_url' in detail) {
     patch.avatar_url = detail.avatar_url || null
   }
+
   if (Object.keys(patch).length === 0) {
     void refreshMeContext({ force: true })
     return
   }
+
   patchSessionUser(patch)
 }
 
