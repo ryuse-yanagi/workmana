@@ -13,7 +13,7 @@ resource "aws_lb" "work_manager" {
     aws_subnet.public_1c.id
   ]
 
-  enable_deletion_protection = false
+  enable_deletion_protection = true
   enable_http2               = true
   idle_timeout               = 60
 

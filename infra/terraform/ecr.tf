@@ -9,7 +9,7 @@ resource "aws_ecr_repository" "backend" {
   force_delete         = false
 
   image_scanning_configuration {
-    scan_on_push = false
+    scan_on_push = true
   }
 
   encryption_configuration {
@@ -24,10 +24,58 @@ resource "aws_ecr_repository" "frontend" {
   force_delete         = false
 
   image_scanning_configuration {
-    scan_on_push = false
+    scan_on_push = true
   }
 
   encryption_configuration {
     encryption_type = "AES256"
   }
+}
+
+resource "aws_ecr_lifecycle_policy" "backend" {
+  repository = aws_ecr_repository.backend.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep the latest 5 versioned release images"
+
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["v"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 5
+        }
+
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_ecr_lifecycle_policy" "frontend" {
+  repository = aws_ecr_repository.frontend.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep the latest 5 versioned release images"
+
+        selection = {
+          tagStatus     = "tagged"
+          tagPrefixList = ["v"]
+          countType     = "imageCountMoreThan"
+          countNumber   = 5
+        }
+
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
 }

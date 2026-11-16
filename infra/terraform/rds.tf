@@ -44,11 +44,11 @@ resource "aws_db_instance" "work_manager" {
 
   iam_database_authentication_enabled = false
 
-  backup_retention_period = 1
+  backup_retention_period = 7
   backup_window           = "18:22-18:52"
   maintenance_window      = "sun:17:52-sun:18:22"
 
-  deletion_protection = false
+  deletion_protection = true
 
   performance_insights_enabled          = true
   performance_insights_retention_period = 7
