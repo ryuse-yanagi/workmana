@@ -61,7 +61,7 @@ jobs:
           CACHE_STORE: array
           SESSION_DRIVER: array
           QUEUE_CONNECTION: sync
-          BROADCAST_CONNECTION: null
+          BROADCAST_CONNECTION: 'null'
           MAIL_MAILER: array
           FILESYSTEM_DISK: s3
           AWS_DEFAULT_REGION: ap-northeast-1
