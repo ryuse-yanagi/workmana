@@ -26,7 +26,7 @@ credentials.json
 
 # Dependencies & local AWS CLI leftover
 node_modules/
-aws/
+/aws/
 awscliv2.zip
 
 # Build / install artifacts (belt-and-suspenders; also ignored in package dirs)
@@ -36,3 +36,17 @@ frontend/dist/
 backend/vendor/
 backend/public/hot
 backend/public/storage
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.example.tfvars
+*.tfplan
+*.tfplan.*
+crash.log
+crash.*.log
+
+# Terraform lock file is intentionally tracked
