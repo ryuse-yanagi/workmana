@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   pull_request:
@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   backend-tests:
@@ -92,3 +92,146 @@ jobs:
 
       - name: Build Nuxt application
         run: npm run build
+
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    needs:
+      - backend-tests
+      - frontend-build
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    env:
+      AWS_REGION: ap-northeast-1
+      ECS_CLUSTER: work-manager-cluster
+      BACKEND_SERVICE: work-manager-backend-service
+      FRONTEND_SERVICE: work-manager-frontend-service
+      BACKEND_TASK_FAMILY: work-manager-backend-task
+      FRONTEND_TASK_FAMILY: work-manager-frontend-task
+      BACKEND_CONTAINER: work-manager-backend
+      FRONTEND_CONTAINER: work-manager-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::381904000617:role/work-manager-github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: image-tag
+        run: |
+          echo "tag=v${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Backend image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+        run: |
+          IMAGE="$REGISTRY/work-manager-backend:$IMAGE_TAG"
+
+          docker build \
+            -f backend/Dockerfile \
+            -t "$IMAGE" \
+            .
+
+          docker push "$IMAGE"
+
+          echo "Backend image pushed: $IMAGE"
+
+      - name: Build and push Frontend image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ steps.image-tag.outputs.tag }}
+        run: |
+          IMAGE="$REGISTRY/work-manager-frontend:$IMAGE_TAG"
+
+          docker build \
+            -f frontend/Dockerfile \
+            -t "$IMAGE" \
+            .
+
+          docker push "$IMAGE"
+
+          echo "Frontend image pushed: $IMAGE"
+
+      - name: Get current Backend task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$BACKEND_TASK_FAMILY" \
+            --query taskDefinition \
+            --output json \
+          | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          for key in [
+              "taskDefinitionArn", "revision", "status",
+              "requiresAttributes", "compatibilities",
+              "registeredAt", "registeredBy", "deregisteredAt"
+          ]:
+              data.pop(key, None)
+          json.dump(data, sys.stdout, indent=2)
+          ' > task-definition-backend.json
+
+      - name: Render Backend task definition
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition-backend.json
+          container-name: ${{ env.BACKEND_CONTAINER }}
+          image: ${{ steps.login-ecr.outputs.registry }}/work-manager-backend:${{ steps.image-tag.outputs.tag }}
+
+      - name: Deploy Backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          service: ${{ env.BACKEND_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Get current Frontend task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "$FRONTEND_TASK_FAMILY" \
+            --query taskDefinition \
+            --output json \
+          | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          for key in [
+              "taskDefinitionArn", "revision", "status",
+              "requiresAttributes", "compatibilities",
+              "registeredAt", "registeredBy", "deregisteredAt"
+          ]:
+              data.pop(key, None)
+          json.dump(data, sys.stdout, indent=2)
+          ' > task-definition-frontend.json
+
+      - name: Render Frontend task definition
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition-frontend.json
+          container-name: ${{ env.FRONTEND_CONTAINER }}
+          image: ${{ steps.login-ecr.outputs.registry }}/work-manager-frontend:${{ steps.image-tag.outputs.tag }}
+
+      - name: Deploy Frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
+          service: ${{ env.FRONTEND_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
