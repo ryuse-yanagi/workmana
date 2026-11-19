@@ -105,8 +105,8 @@ jobs:
       - backend-tests
       - frontend-build
 
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ENABLE_AWS_DEPLOY == 'true'
+  
     env:
       AWS_REGION: ap-northeast-1
       ECS_CLUSTER: work-manager-cluster
