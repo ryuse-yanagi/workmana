@@ -1,3 +1,7 @@
+# ==========================================
+# HTTPS Listener
+# ==========================================
+
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.work_manager.arn
   port              = 443
@@ -5,25 +9,17 @@ resource "aws_lb_listener" "https" {
 
   ssl_policy = "ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09"
 
-  certificate_arn = "arn:aws:acm:ap-northeast-1:381904000617:certificate/7403dec0-073f-4b79-9c13-0ab819691511"
+  certificate_arn = aws_acm_certificate_validation.workmanager.certificate_arn
 
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.frontend.arn
-
-    forward {
-      target_group {
-        arn    = aws_lb_target_group.frontend.arn
-        weight = 1
-      }
-
-      stickiness {
-        enabled  = false
-        duration = 3600
-      }
-    }
   }
 }
+
+# ==========================================
+# HTTP Listener
+# ==========================================
 
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.work_manager.arn

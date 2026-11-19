@@ -3,9 +3,9 @@
 # ==========================================
 
 # ECS Task Execution Role
+
 resource "aws_iam_role" "ecs_task_execution" {
   name = "ecsTaskExecutionRole"
-
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -32,15 +32,15 @@ resource "aws_iam_role" "ecs_task_execution" {
 }
 
 # Backend ECS Task Role
+
 resource "aws_iam_role" "backend_task" {
   name        = "work-manager-backend-task-role"
-  description = "IAM role for the Work Manager backend ECS task to send emails via Amazon SES."
+  description = "IAM role for the Work Manager backend ECS task."
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = ""
         Effect = "Allow"
         Principal = {
           Service = "ecs-tasks.amazonaws.com"
@@ -75,59 +75,49 @@ resource "aws_iam_role_policy" "execution_secrets_manager" {
     Statement = [
       {
         Effect = "Allow"
-        Action = "secretsmanager:GetSecretValue"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
         Resource = [
-          "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/app-key-*",
-          "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/db-password-*"
+          aws_secretsmanager_secret.app_key.arn,
+          aws_secretsmanager_secret.db_password.arn
         ]
       }
     ]
   })
 }
 
-resource "aws_iam_role_policy" "execution_rds_secret" {
-  name = "WorkManagerRDSSecretsManagerRead"
-  role = aws_iam_role.ecs_task_execution.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
-        Resource = "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:rds!db-fe6d5017-eae3-4062-80e7-8bfb35b0aee0-qxaS3h"
-      }
-    ]
-  })
-}
-
 resource "aws_iam_role_policy" "execution_cognito_secret" {
-  name = "WorkManagerSecretsManagerRead"
+  name = "WorkManagerCognitoSecretRead"
   role = aws_iam_role.ecs_task_execution.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
-        Resource = "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/cognito-client-secret-tt7yJh"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = aws_secretsmanager_secret.cognito_client_secret.arn
       }
     ]
   })
 }
 
 resource "aws_iam_role_policy" "execution_reverb_secret" {
-  name = "WorkManaSecretsManagerRead"
+  name = "WorkManagerReverbSecretRead"
   role = aws_iam_role.ecs_task_execution.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = "secretsmanager:GetSecretValue"
-        Resource = "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/reverb-app-secret-*"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = aws_secretsmanager_secret.reverb_app_secret.arn
       }
     ]
   })

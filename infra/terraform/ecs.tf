@@ -37,7 +37,7 @@ resource "aws_ecs_cluster_capacity_providers" "work_manager" {
 resource "aws_ecs_service" "backend" {
   name            = "work-manager-backend-service"
   cluster         = aws_ecs_cluster.work_manager.id
-  task_definition = "arn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-backend-task:39"
+  task_definition = aws_ecs_task_definition.backend.arn
 
   desired_count = 1
 
@@ -85,11 +85,14 @@ resource "aws_ecs_service" "backend" {
     container_port   = 80
   }
 
-  lifecycle {
-    ignore_changes = [
-      task_definition
-    ]
-  }
+  depends_on = [
+    aws_db_instance.work_manager,
+    aws_secretsmanager_secret_version.db_password,
+    aws_iam_role_policy.execution_secrets_manager,
+    aws_iam_role_policy.execution_cognito_secret,
+    aws_iam_role_policy.execution_reverb_secret,
+    aws_iam_role_policy_attachment.ecs_task_execution_managed
+  ]
 }
 
 # ============================================================
@@ -99,7 +102,7 @@ resource "aws_ecs_service" "backend" {
 resource "aws_ecs_service" "frontend" {
   name            = "work-manager-frontend-service"
   cluster         = aws_ecs_cluster.work_manager.id
-  task_definition = "arn:aws:ecs:ap-northeast-1:381904000617:task-definition/work-manager-frontend-task:10"
+  task_definition = aws_ecs_task_definition.frontend.arn
 
   desired_count = 1
 
@@ -145,11 +148,5 @@ resource "aws_ecs_service" "frontend" {
     target_group_arn = aws_lb_target_group.frontend.arn
     container_name   = "work-manager-frontend"
     container_port   = 3000
-  }
-
-  lifecycle {
-    ignore_changes = [
-      task_definition
-    ]
   }
 }

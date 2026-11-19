@@ -7,8 +7,8 @@ resource "aws_db_subnet_group" "work_manager" {
   description = "Subnet group for work-manager RDS PostgreSQL"
 
   subnet_ids = [
-    "subnet-0bded6f12c061371d",
-    "subnet-074d6a4e826eba47d"
+    aws_subnet.private_1a.id,
+    aws_subnet.private_1c.id
   ]
 }
 
@@ -17,10 +17,16 @@ resource "aws_db_subnet_group" "work_manager" {
 # ==========================================
 
 resource "aws_db_instance" "work_manager" {
-  identifier     = "work-manager-db"
+  identifier          = "work-manager-db"
+  snapshot_identifier = var.rds_snapshot_identifier
+
   engine         = "postgres"
   engine_version = "17.10"
   instance_class = "db.t4g.micro"
+
+  # Snapshot restoration and master password
+  password_wo         = var.rds_master_password
+  password_wo_version = var.rds_master_password_version
 
   allocated_storage     = 20
   max_allocated_storage = 1000
@@ -31,12 +37,10 @@ resource "aws_db_instance" "work_manager" {
   storage_encrypted = true
   kms_key_id        = "arn:aws:kms:ap-northeast-1:381904000617:key/d235ee48-9fc0-439b-97fc-b3694c7811c6"
 
-  username = "postgres"
-
   port = 5432
 
   db_subnet_group_name   = aws_db_subnet_group.work_manager.name
-  vpc_security_group_ids = ["sg-05248f7249ced9747"]
+  vpc_security_group_ids = [aws_security_group.rds.id]
 
   availability_zone   = "ap-northeast-1a"
   multi_az            = false
@@ -68,5 +72,9 @@ resource "aws_db_instance" "work_manager" {
 
   lifecycle {
     prevent_destroy = true
+
+    ignore_changes = [
+      snapshot_identifier
+    ]
   }
 }

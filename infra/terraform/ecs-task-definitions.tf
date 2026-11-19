@@ -3,6 +3,7 @@
 # ============================================================
 
 resource "aws_ecs_task_definition" "backend" {
+  skip_destroy             = true
   family                   = "work-manager-backend-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
@@ -51,6 +52,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "APP_ENV", value = "production" },
         { name = "REVERB_HOST", value = "workmanager.jp" },
         { name = "DB_PORT", value = "5432" },
+        { name = "DB_USERNAME", value = "postgres" },
         { name = "APP_NAME", value = "Work Manager" },
         { name = "AWS_DEFAULT_REGION", value = "ap-northeast-1" },
         { name = "AWS_BUCKET", value = "work-manager-assets" },
@@ -70,7 +72,7 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "REVERB_APP_KEY", value = "4c1bad5bb868d521ef6e9ddcbadcfb6a" },
         { name = "COGNITO_ISSUER", value = "https://cognito-idp.ap-northeast-1.amazonaws.com/ap-northeast-1_VjInLwG57" },
         { name = "COGNITO_USER_POOL_ID", value = "ap-northeast-1_VjInLwG57" },
-        { name = "DB_HOST", value = "work-manager-db.crkewmk8czaw.ap-northeast-1.rds.amazonaws.com" },
+        { name = "DB_HOST", value = aws_db_instance.work_manager.address },
         { name = "COGNITO_DOMAIN", value = "https://ap-northeast-1vjinlwg57.auth.ap-northeast-1.amazoncognito.com" },
         { name = "COGNITO_SCOPES", value = "openid email" },
         { name = "SESSION_SECURE_COOKIE", value = "true" },
@@ -87,23 +89,19 @@ resource "aws_ecs_task_definition" "backend" {
       secrets = [
         {
           name      = "APP_KEY"
-          valueFrom = "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/app-key-SMOBNv"
+          valueFrom = aws_secretsmanager_secret.app_key.arn
         },
         {
           name      = "COGNITO_CLIENT_SECRET"
-          valueFrom = "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/cognito-client-secret-tt7yJh:COGNITO_CLIENT_SECRET::"
+          valueFrom = "${aws_secretsmanager_secret.cognito_client_secret.arn}:COGNITO_CLIENT_SECRET::"
         },
         {
           name      = "DB_PASSWORD"
-          valueFrom = "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:rds!db-fe6d5017-eae3-4062-80e7-8bfb35b0aee0-qxaS3h:password::"
-        },
-        {
-          name      = "DB_USERNAME"
-          valueFrom = "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:rds!db-fe6d5017-eae3-4062-80e7-8bfb35b0aee0-qxaS3h:username::"
+          valueFrom = aws_secretsmanager_secret.db_password.arn
         },
         {
           name      = "REVERB_APP_SECRET"
-          valueFrom = "arn:aws:secretsmanager:ap-northeast-1:381904000617:secret:work-manager/backend/reverb-app-secret-3NkA7B:REVERB_APP_SECRET::"
+          valueFrom = "${aws_secretsmanager_secret.reverb_app_secret.arn}:REVERB_APP_SECRET::"
         }
       ]
 
@@ -121,18 +119,14 @@ resource "aws_ecs_task_definition" "backend" {
       }
     }
   ])
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }
-
 
 # ============================================================
 # ECS Frontend Task Definition
 # ============================================================
 
 resource "aws_ecs_task_definition" "frontend" {
+  skip_destroy             = true
   family                   = "work-manager-frontend-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
@@ -192,8 +186,4 @@ resource "aws_ecs_task_definition" "frontend" {
       }
     }
   ])
-
-  lifecycle {
-    prevent_destroy = true
-  }
 }

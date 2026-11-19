@@ -26,26 +26,39 @@ resource "aws_route53_record" "root_a" {
   type    = "A"
 
   alias {
-    name                   = "dualstack.work-manager-alb-1691131399.ap-northeast-1.elb.amazonaws.com."
-    zone_id                = "Z14GRHDCWA56QT"
+    name                   = aws_lb.work_manager.dns_name
+    zone_id                = aws_lb.work_manager.zone_id
     evaluate_target_health = true
   }
 }
 
+# ==========================================
 # ACM Domain Validation CNAME
+# ==========================================
 
 resource "aws_route53_record" "acm_validation" {
   zone_id = aws_route53_zone.workmanager.zone_id
-  name    = "_a773afb810146f59ace3215b6a9c6fec.workmanager.jp"
-  type    = "CNAME"
-  ttl     = 300
+
+  name = one(
+    aws_acm_certificate.workmanager.domain_validation_options
+  ).resource_record_name
+
+  type = one(
+    aws_acm_certificate.workmanager.domain_validation_options
+  ).resource_record_type
+
+  ttl = 300
 
   records = [
-    "_95d6f89d703283d19620fab775d6ce54.jkddzztszm.acm-validations.aws."
+    one(
+      aws_acm_certificate.workmanager.domain_validation_options
+    ).resource_record_value
   ]
 }
 
+# ==========================================
 # SES DKIM CNAME 1
+# ==========================================
 
 resource "aws_route53_record" "ses_dkim_1" {
   zone_id = aws_route53_zone.workmanager.zone_id
@@ -58,7 +71,9 @@ resource "aws_route53_record" "ses_dkim_1" {
   ]
 }
 
+# ==========================================
 # SES DKIM CNAME 2
+# ==========================================
 
 resource "aws_route53_record" "ses_dkim_2" {
   zone_id = aws_route53_zone.workmanager.zone_id
@@ -71,7 +86,9 @@ resource "aws_route53_record" "ses_dkim_2" {
   ]
 }
 
+# ==========================================
 # SES DKIM CNAME 3
+# ==========================================
 
 resource "aws_route53_record" "ses_dkim_3" {
   zone_id = aws_route53_zone.workmanager.zone_id
