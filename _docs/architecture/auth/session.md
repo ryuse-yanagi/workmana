@@ -21,7 +21,7 @@ Cognito の client id と redirect URI はバックエンドの設定だけが�
 
 `email_verified` が真でない ID トークンは同期しない。メールが一致しても、別の `cognito_sub` が既に付いているユーザーは上書きしない。ログイン後の `next` は `/` で始まるパスだけ許可する。`//` と `/\` で始まる値は外部オリジンとして解釈されるため拒否し、既定の戻り先にする。
 
-通常の API 認証に Bearer は使わない。CORS は `CORS_ALLOWED_ORIGINS`（未設定時は `FRONTEND_URL`）のオリジンだけを許し、`supports_credentials` は true。本番起動時は [`ProductionConfigValidator`](../../../backend/app/Support/ProductionConfigValidator.php) が、セッション暗号化・Secure・HttpOnly、`SESSION_SAME_SITE` の `lax` または `none`、サーバー側セッション（`cookie` / `array` 不可）、バイパス無効、Cognito と CORS の HTTPS、コールバックが `APP_URL` の `/api/auth/callback` であることを要求する。項目は [../../deploy/production-env.md](../../deploy/production-env.md)。
+通常の API 認証に Bearer は使わない。CORS は `CORS_ALLOWED_ORIGINS`（未設定時は `FRONTEND_URL`）のオリジンだけを許し、`supports_credentials` は true。本番起動時は [`ProductionConfigValidator`](../../../backend/app/Support/ProductionConfigValidator.php) が、セッション暗号化・Secure・HttpOnly、`SESSION_SAME_SITE` の `lax` または `none`、サーバー側セッション（`cookie` / `array` 不可）、バイパス無効、Cognito と CORS の HTTPS、コールバックが `APP_URL` の `/api/auth/callback` であることを要求する。
 
 トークンの置き場は `App\Support\Auth\CognitoSession`。解決は `CognitoSessionAuthenticator`。
 

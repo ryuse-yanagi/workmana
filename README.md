@@ -8,6 +8,8 @@
 - [主要機能](#主要機能)
 - [技術スタック](#技術スタック)
 - [AWSアーキテクチャ](#AWSアーキテクチャ)
+- [TerraformによるIaC化](#TerraformによるIaC化)
+- [CI/CDパイプライン](#CI/CDパイプライン)
 - [セットアップ](#セットアップ)
 - [テスト](#テスト)
 - [ドキュメント](#ドキュメント)
@@ -144,7 +146,7 @@
 |------|------|
 | フロントエンド | Nuxt 4 / Vue 3 / TypeScript / SCSS |
 | バックエンド | Laravel 13 / PHP 8.3 |
-| データベース | PostgreSQL / Amazon RDS for PostgreSQL |
+| データベース | Amazon RDS for PostgreSQL |
 | 認証 | Amazon Cognito |
 | リアルタイム同期 | Laravel Reverb / Laravel Echo / Pusher JS |
 | 実行環境 | Node.js 22 / nginx / PHP-FPM |
@@ -152,6 +154,8 @@
 | コンテナレジストリ | Amazon ECR |
 | コンピューティング | Amazon ECS / AWS Fargate |
 | ネットワーク | Amazon VPC / Application Load Balancer |
+| IaC | Terraform |
+| CI / CD | GitHub Actions |
 | DNS | Amazon Route 53 |
 | 証明書 | AWS Certificate Manager |
 | ストレージ | Amazon S3 |
@@ -159,12 +163,175 @@
 | ログ管理 | Amazon CloudWatch Logs |
 | メール配信 | Amazon SES |
 
-
 ---
 
 ## AWSアーキテクチャ
 
 ![AWSアーキテクチャ](_docs/images/aws-architecture.png)
+
+### 設計上のポイント
+
+<table>
+  <thead>
+    <tr>
+      <th>分類</th>
+      <th>設計内容</th>
+      <th>設計理由</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="3">ネットワーク設計</td>
+      <td>VPC 内にパブリックサブネットと<br>プライベートサブネットを配置</td>
+      <td>インターネットからのアクセス経路と<br>内部リソースへの通信経路を分離するため</td>
+    </tr>
+    <tr>
+      <td>パブリックサブネットとプライベートサブネットを<br>2つの AZ に分散</td>
+      <td>単一 AZ の障害による影響を軽減するため</td>
+    </tr>
+    <tr>
+      <td>ALB で HTTPS 通信を受け付け、<br>HTTP 通信は HTTPS にリダイレクト</td>
+      <td>通信を暗号化して<br>安全にアプリケーションへアクセスできるようにするため</td>
+    </tr>
+    <tr>
+      <td rowspan="3">アプリケーション構成</td>
+      <td>Nuxt（フロントエンド）と<br>Laravel（バックエンド）を分離</td>
+      <td>フロントエンドとバックエンドを<br>独立して管理・デプロイできるようにするため</td>
+    </tr>
+    <tr>
+      <td>ECS Fargate でコンテナを実行</td>
+      <td>EC2 インスタンスの管理負担を抑えながら<br>コンテナを実行するため</td>
+    </tr>
+    <tr>
+      <td>ECR でコンテナイメージを管理</td>
+      <td>コンテナイメージを一元管理して<br>ECS へのデプロイに利用するため</td>
+    </tr>
+    <tr>
+      <td rowspan="2">データ管理</td>
+      <td>RDS for PostgreSQL によるデータ管理</td>
+      <td>マネージドサービスを利用して<br>データベースの運用負担を軽減するため</td>
+    </tr>
+    <tr>
+      <td>S3 による画像・添付ファイルの管理</td>
+      <td>画像および添付ファイルを<br>データベースとは分離して管理するため</td>
+    </tr>
+    <tr>
+      <td rowspan="2">認証・認可</td>
+      <td>Amazon Cognito によるユーザー認証</td>
+      <td>ユーザー認証をマネージドサービスに委任して<br>認証機能の実装・運用負担を軽減するため</td>
+    </tr>
+    <tr>
+      <td>Laravel による組織・メンバーシップに基づく認可</td>
+      <td>アプリケーション固有の権限や<br>組織単位のアクセス制御を実現するため</td>
+    </tr>
+    <tr>
+      <td rowspan="5">セキュリティ</td>
+      <td>HTTPS 通信による<br>インターネット経由の通信暗号化</td>
+      <td>通信内容の盗聴や改ざんを防ぐため</td>
+    </tr>
+    <tr>
+      <td>IAM ロールによる<br>AWS リソースへのアクセス制御</td>
+      <td>必要な AWS リソースへのアクセス権限を付与して<br>認証情報を直接管理する必要をなくすため</td>
+    </tr>
+    <tr>
+      <td>Secrets Manager によるシークレット管理</td>
+      <td>認証情報などの機密情報を安全に管理するため</td>
+    </tr>
+    <tr>
+      <td>S3 のパブリックアクセスブロック</td>
+      <td>保存したファイルが意図せず外部公開されることを防ぐため</td>
+    </tr>
+    <tr>
+      <td>SSE-S3 による S3 保存データの暗号化</td>
+      <td>保存データを暗号化して保護するため</td>
+    </tr>
+    <tr>
+      <td>リアルタイム通信</td>
+      <td>Laravel Reverb による WebSocket 通信</td>
+      <td>ユーザー間で更新情報をリアルタイムに共有するため</td>
+    </tr>
+    <tr>
+      <td rowspan="3">可用性設計</td>
+      <td>ALB を2つの AZ にまたがるサブネットに配置</td>
+      <td>単一 AZ の障害による ALB への影響を軽減するため</td>
+    </tr>
+    <tr>
+      <td>ECS はフロントエンド・バックエンドともに<br>各1タスクで運用</td>
+      <td>個人開発の規模に合わせて構成をシンプルに保ち<br>運用・コストの負担を抑えるため</td>
+    </tr>
+    <tr>
+      <td>RDS はシングル AZ 構成</td>
+      <td>マルチ AZ 構成と比較してコストを抑えるため</td>
+    </tr>
+    <tr>
+      <td rowspan="3">監視・データ保護</td>
+      <td>CloudWatch Logs による<br>アプリケーションログの管理</td>
+      <td>アプリケーションの動作状況やエラーを記録して<br>障害調査に利用するため</td>
+    </tr>
+    <tr>
+      <td>RDS の自動バックアップ</td>
+      <td>データベースの障害や誤操作に備え<br>バックアップから復元できるようにするため</td>
+    </tr>
+    <tr>
+      <td>S3 のバージョニング</td>
+      <td>画像および添付ファイルの上書き・削除が発生した場合に<br>過去のバージョンを復元できるようにするため</td>
+    </tr>
+  </tbody>
+</table>
+
+### セキュリティ設計
+
+<table>
+  <thead>
+    <tr>
+      <th>分類</th>
+      <th>内容</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td rowspan="5">認証・セッション管理</td>
+      <td>Amazon Cognito によるユーザー認証</td>
+    </tr>
+    <tr><td>Authorization Code Flow with PKCE による認証フローの保護</td></tr>
+    <tr><td>ID トークンの署名・クレーム検証</td></tr>
+    <tr><td>HttpOnly Cookie を利用したセッション管理</td></tr>
+    <tr><td>ログアウト時のトークン・セッション無効化</td></tr>
+    <tr>
+      <td rowspan="4">認可・マルチテナント分離</td>
+      <td>組織への所属確認に基づくアクセス制御</td>
+    </tr>
+    <tr><td>組織およびスペース単位でのリソースアクセス制御</td></tr>
+    <tr><td>担当者・ラベル・親子タスクなどの関連データの整合性検証</td></tr>
+    <tr><td>管理操作に対する権限確認</td></tr>
+    <tr>
+      <td rowspan="2">通信・本番設定の保護</td>
+      <td>HTTPS・Cookie・CORS などの本番環境向け設定の検証</td>
+    </tr>
+    <tr><td>本番環境での認証バイパス無効化チェック</td></tr>
+    <tr>
+      <td rowspan="4">ファイル保護</td>
+      <td>Amazon S3 でのファイル保存</td>
+    </tr>
+    <tr><td>アクセス権限の検証</td></tr>
+    <tr><td>アップロード時のファイルサイズ・拡張子の制限</td></tr>
+    <tr><td>ダウンロード時のレスポンスヘッダーによる保護</td></tr>
+  </tbody>
+</table>
+
+## Terraform による IaC 化
+
+Terraform を使用して AWS リソースをコード化し、インフラ構成をコードで管理できるようにしています。
+
+IaC 化により、インフラ構成の変更履歴を管理できるほか、コードに基づいた環境の再構築が可能になります。
+
+## CI/CD パイプライン
+
+GitHub Actions を使用して、テスト・ビルド・Docker イメージの作成を自動化しています。
+
+ECR へのコンテナイメージの登録から ECS へのデプロイまでを含む CI/CD パイプラインを構築しています。
+
+これにより、アプリケーションの更新からデプロイまでの作業を自動化し、手動作業の削減とデプロイ手順の標準化を図っています。
 
 ---
 

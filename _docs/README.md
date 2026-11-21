@@ -40,9 +40,3 @@ API のルート一覧は `backend/routes/api.php`。
 
 - [リアルタイム同期に Laravel Reverb / Laravel Echo を採用](./decisions/realtime-sync.md)
 - [フロント基盤ライブラリと FE/BE 共有契約](./decisions/frontend-foundations.md)
-
-## deploy ディレクトリ
-
-**本番の環境変数**
-
-- [本番環境変数](./deploy/production-env.md)

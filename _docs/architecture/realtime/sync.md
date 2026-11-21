@@ -184,7 +184,6 @@ DB 更新後、コントローラが `SafeBroadcast::toOthers($event)` を呼び
 
 ## 関連ドキュメント
 
-- 本番環境変数: [`../../deploy/production-env.md`](../../deploy/production-env.md)
 - 意思決定ログ: [`../../decisions/realtime-sync.md`](../../decisions/realtime-sync.md)
 - ボード機能: [`../../application/features/board.md`](../../application/features/board.md)
 - WBS 機能: [`../../application/features/wbs.md`](../../application/features/wbs.md)
